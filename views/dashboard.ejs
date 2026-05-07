@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= appName %> – VPS Status</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header>
+    <h1><%= appName %></h1>
+    <div class="meta">
+      <% if (latest.hostname) { %>
+        <span class="badge"><%= latest.hostname %></span>
+      <% } %>
+      <% if (latest.public_ip) { %>
+        <span class="badge"><%= latest.public_ip %></span>
+      <% } %>
+      <% if (latest.collected_at) { %>
+        <span class="badge <%= latest.stale ? 'stale' : '' %>">
+          Sběr: <%= new Date(latest.collected_at).toLocaleString('cs-CZ', { timeZone: timezone }) %>
+          <% if (latest.age_minutes !== undefined) { %> (<%= latest.age_minutes %> min) <% } %>
+        </span>
+      <% } %>
+    </div>
+  </header>
+
+  <% if (latest.error) { %>
+    <div class="error">
+      <strong>Chyba:</strong> <%= latest.error %><br>
+      Spusť <code>node src/collector.js</code> na VPS, nebo zkontroluj cron.
+    </div>
+  <% } else { %>
+
+  <section class="grid">
+    <% if (latest.memory) { %>
+      <div class="card">
+        <h3>RAM</h3>
+        <div class="big"><%= latest.memory.used_mb %> / <%= latest.memory.total_mb %> MB</div>
+        <progress value="<%= latest.memory.used_mb %>" max="<%= latest.memory.total_mb %>"></progress>
+        <div class="sub">Swap: <%= latest.memory.swap_used_mb %> / <%= latest.memory.swap_total_mb %> MB</div>
+      </div>
+    <% } %>
+
+    <% if (latest.cpu) { %>
+      <div class="card">
+        <h3>CPU</h3>
+        <div class="big"><%= latest.cpu.load_pct_1m %>%</div>
+        <progress value="<%= latest.cpu.load_pct_1m %>" max="100"></progress>
+        <div class="sub">load 1/5/15: <%= latest.cpu.load_1m %> / <%= latest.cpu.load_5m %> / <%= latest.cpu.load_15m %> | <%= latest.cpu.cpu_count %> jader</div>
+      </div>
+    <% } %>
+
+    <% if (latest.disk) { %>
+      <div class="card">
+        <h3>Disk</h3>
+        <div class="big"><%= latest.disk.used_gb %> / <%= latest.disk.total_gb %> GB</div>
+        <progress value="<%= latest.disk.used_pct %>" max="100"></progress>
+        <div class="sub">volné: <%= latest.disk.available_gb %> GB (<%= 100 - latest.disk.used_pct %>%)</div>
+      </div>
+    <% } %>
+
+    <% if (latest.uptime) { %>
+      <div class="card">
+        <h3>Uptime</h3>
+        <div class="big"><%= latest.uptime.days %> dní</div>
+        <div class="sub"><%= latest.uptime.pretty %></div>
+        <div class="sub">OS: <%= latest.os || 'unknown' %></div>
+      </div>
+    <% } %>
+  </section>
+
+  <% if (latest.postgres) { %>
+    <section>
+      <h2>PostgreSQL</h2>
+      <div class="meta">
+        <span class="badge">v<%= latest.postgres.version %></span>
+        <span class="badge">celkem <%= latest.postgres.total_mb %> MB</span>
+        <span class="badge"><%= latest.postgres.active_connections %> aktivních spojení</span>
+      </div>
+      <table>
+        <thead><tr><th>Databáze</th><th>Velikost</th></tr></thead>
+        <tbody>
+          <% latest.postgres.databases.forEach(db => { %>
+            <tr><td><%= db.name %></td><td><%= db.size_mb %> MB</td></tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </section>
+  <% } %>
+
+  <% if (latest.docker) { %>
+    <section>
+      <h2>Docker kontejnery</h2>
+      <div class="meta">
+        <span class="badge">běžící: <%= latest.docker.running %> / <%= latest.docker.total %></span>
+      </div>
+      <% if (latest.docker.containers.length > 0) { %>
+        <table>
+          <thead><tr><th>Název</th><th>Image</th><th>Status</th><th>Health</th></tr></thead>
+          <tbody>
+            <% latest.docker.containers.forEach(c => { %>
+              <tr>
+                <td><%= c.name %></td>
+                <td><code><%= c.image %></code></td>
+                <td><%= c.status %></td>
+                <td><%= c.healthy ? 'OK' : 'unhealthy' %></td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      <% } %>
+    </section>
+  <% } %>
+
+  <% if (latest.ssl_certs && latest.ssl_certs.length > 0) { %>
+    <section>
+      <h2>SSL certifikáty</h2>
+      <table>
+        <thead><tr><th>Doména</th><th>Vyprší</th><th>Dní zbývá</th></tr></thead>
+        <tbody>
+          <% latest.ssl_certs.forEach(cert => { %>
+            <tr class="<%= cert.days_left < 14 ? 'warn' : (cert.days_left < 30 ? 'note' : '') %>">
+              <td><%= cert.domain %></td>
+              <td><%= cert.expires ? new Date(cert.expires).toLocaleDateString('cs-CZ') : '?' %></td>
+              <td><%= cert.days_left ?? '?' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </section>
+  <% } %>
+
+  <% if (latest.last_backup) { %>
+    <section>
+      <h2>Poslední Postgres backup</h2>
+      <div class="meta">
+        <span class="badge"><%= latest.last_backup.file %></span>
+        <span class="badge <%= latest.last_backup.age_hours > 30 ? 'stale' : '' %>">
+          stáří: <%= latest.last_backup.age_hours %> h
+        </span>
+        <span class="badge"><%= latest.last_backup.size_mb %> MB</span>
+      </div>
+    </section>
+  <% } %>
+
+  <section>
+    <h2>Historie posledních 72 hodin</h2>
+    <% if (history.length > 0) { %>
+      <canvas id="chart-ram" height="80"></canvas>
+      <canvas id="chart-disk" height="80"></canvas>
+      <canvas id="chart-cpu" height="80"></canvas>
+    <% } else { %>
+      <p class="sub">Žádná historie. Po pár hodinách provozu collectoru se zde objeví grafy.</p>
+    <% } %>
+  </section>
+
+  <% } %>
+
+  <footer>
+    <p class="sub">
+      Renderováno <%= new Date(now).toLocaleString('cs-CZ', { timeZone: timezone }) %> ·
+      <a href="/api/latest">JSON</a> · <a href="/api/history?hours=168">7d historie</a>
+    </p>
+  </footer>
+
+  <script src="/static/chart.umd.min.js"></script>
+  <script>
+    const history = <%- JSON.stringify(history) %>;
+    if (history.length > 0) {
+      const labels = history.map(h => new Date(h.collected_at).toLocaleString('cs-CZ', { hour: '2-digit', minute: '2-digit' }));
+      const mkChart = (id, label, data, color, max) => {
+        new Chart(document.getElementById(id), {
+          type: 'line',
+          data: { labels, datasets: [{ label, data, borderColor: color, fill: false, tension: 0.2 }] },
+          options: { responsive: true, plugins: { legend: { position: 'top' } }, scales: { y: max ? { max, beginAtZero: true } : { beginAtZero: true } } }
+        });
+      };
+      mkChart('chart-ram', 'RAM použito (MB)', history.map(h => h.ram_used_mb), '#3b82f6');
+      mkChart('chart-disk', 'Disk použito (GB)', history.map(h => h.disk_used_gb), '#10b981');
+      mkChart('chart-cpu', 'CPU load (%)', history.map(h => h.cpu_load_pct), '#f59e0b', 100);
+    }
+  </script>
+</body>
+</html>

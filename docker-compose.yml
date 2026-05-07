@@ -1,0 +1,31 @@
+# Pro lokální development a referenční nasazení.
+# V produkci na VPS to spravuje Coolify (vlastní docker-compose vygeneruje).
+#
+# Spuštění lokálně:
+#   docker compose up
+
+services:
+  app:
+    build: .
+    image: app-seil-space:dev
+    container_name: app-seil-space
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      HOST: 0.0.0.0
+      DASHBOARD_USER: ${DASHBOARD_USER:-admin}
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-changeme}
+      STATS_DIR: /var/lib/vps-stats
+      TZ: Europe/Prague
+    volumes:
+      # Sdílená data mezi collectorem na hostu a web aplikací
+      # Na VPS to bude mountovat /var/lib/vps-stats z hostu (kam collector zapisuje)
+      - ./data:/var/lib/vps-stats:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

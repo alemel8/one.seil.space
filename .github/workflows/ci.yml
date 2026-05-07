@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main]
+
+# Coolify se stará o deploy přes vlastní webhook na GitHub.
+# Tento workflow jen ověří, že kód buildí a běží.
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Test (placeholder - rozšiř až budou skutečné testy)
+        run: |
+          # Smoke test - server musí umět nastartovat
+          DASHBOARD_PASSWORD=test-pwd timeout 5s node src/server.js &
+          SERVER_PID=$!
+          sleep 2
+          curl -f http://localhost:3000/health || (kill $SERVER_PID; exit 1)
+          kill $SERVER_PID
+
+      - name: Docker build (ověření Dockerfile)
+        run: docker build -t app-seil-space:ci .
+
+      - name: Docker image size
+        run: docker images app-seil-space:ci
