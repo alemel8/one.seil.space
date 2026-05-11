@@ -62,25 +62,21 @@ await fastify.register(staticPlugin, {
 fastify.get('/health', async () => ({ ok: true, ts: new Date().toISOString() }));
 
 // Vše ostatní za auth
-fastify.after(() => {
-  fastify.addHook('onRequest', fastify.basicAuth);
-
-  fastify.get('/', async (request, reply) => {
-    const latest = readLatest();
-    const history = readHistory(72); // posledních 72 hodin
-    return reply.view('dashboard.ejs', {
-      latest,
-      history,
-      now: new Date(),
-      timezone: process.env.TZ || 'UTC',
-    });
+fastify.get('/', { onRequest: fastify.basicAuth }, async (request, reply) => {
+  const latest = readLatest();
+  const history = readHistory(72); // posledních 72 hodin
+  return reply.view('dashboard.ejs', {
+    latest,
+    history,
+    now: new Date(),
+    timezone: process.env.TZ || 'UTC',
   });
+});
 
-  fastify.get('/api/latest', async () => readLatest());
-  fastify.get('/api/history', async (request) => {
-    const hours = Math.min(parseInt(request.query.hours || '24', 10), 720); // max 30 dni
-    return readHistory(hours);
-  });
+fastify.get('/api/latest', { onRequest: fastify.basicAuth }, async () => readLatest());
+fastify.get('/api/history', { onRequest: fastify.basicAuth }, async (request) => {
+  const hours = Math.min(parseInt(request.query.hours || '24', 10), 720); // max 30 dni
+  return readHistory(hours);
 });
 
 // === DATA ACCESS ===
