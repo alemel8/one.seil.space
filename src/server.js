@@ -40,14 +40,14 @@ await fastify.register(basicAuth, {
       throw new Error('Invalid credentials');
     }
   },
-  authenticate: { realm: 'app.seil.space' },
+  authenticate: { realm: 'one.seil.space' },
 });
 
 // EJS šablony
 await fastify.register(view, {
   engine: { ejs },
   root: path.join(projectRoot, 'views'),
-  defaultContext: { appName: 'app.seil.space' },
+  defaultContext: { appName: 'one.seil.space' },
 });
 
 // Static assets (Chart.js etc.)
@@ -134,7 +134,7 @@ function readHistory(hours = 24) {
 
 try {
   await fastify.listen({ port: PORT, host: HOST });
-  fastify.log.info(`app.seil.space listening on http://${HOST}:${PORT}`);
+  fastify.log.info(`one.seil.space listening on http://${HOST}:${PORT}`);
   fastify.log.info(`Reading stats from ${STATS_DIR}`);
 } catch (err) {
   fastify.log.error(err);

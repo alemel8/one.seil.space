@@ -1,12 +1,41 @@
-# app.seil.space
+# one.seil.space
 
-Interní VPS monitoring dashboard. Heslem chráněná webová aplikace, která ukazuje
-aktuální stav serveru `db.seil.cz` (RAM, CPU, disk, PostgreSQL databáze, Docker
-kontejnery, SSL certifikáty, poslední backup) plus historii za posledních
-72 hodin v grafech.
+**Centrální dashboard pro všechny aplikace seil.space infrastruktury.**
 
-Slouží jako **referenční implementace** standardního deploy patternu pro
-seil.space – Node.js + Docker + GitHub + Coolify.
+Heslem chráněná webová aplikace, která je jediným vstupním bodem pro správu
+celé infrastruktury – VPS, databáze, klientské aplikace, monitoring, přístupy.
+
+## Vize
+
+Cíl: *"Otevřu jednu URL a vidím vše, co potřebuju vědět"*. Místo skákání mezi
+Wedos panelem, GitHub Actions, Coolify UI, Airtable a SSH terminály – jeden
+pohled, jedny údaje, jeden zdroj pravdy.
+
+## Aktuální fáze (v0.1) – VPS monitoring
+
+První iterace ukazuje stav infrastruktury serveru `vps.seil.space`:
+
+- **Server:** RAM, CPU load, disk usage, swap, uptime
+- **PostgreSQL:** velikosti databází, počet připojení, verze
+- **Docker:** běžící kontejnery, healthcheck stav
+- **SSL certifikáty:** dny do expirace všech Let's Encrypt domén
+- **Backupy:** stáří posledního pg_dump
+- **Historie 72 hodin** v grafech (RAM/disk/CPU)
+
+## Roadmap (další fáze)
+
+- **v0.2** – Stav všech deployovaných aplikací (HTTP healthcheck, deploy verze, last commit)
+- **v0.3** – Klientský přehled (kdo, co, kde běží, kontakty, faktury z Airtable)
+- **v0.4** – Backup orchestrace (kdy, kam, retention, restore wizard)
+- **v0.5** – Quick actions (restart aplikace, redeploy z git, view logs)
+- **v0.6** – Notifikace (e-mail/Discord když něco prahuje)
+- **v1.0** – Přístupová matice (kdo má kam přístup, audit log)
+
+## Reference implementace
+
+Slouží jako **vzor standardního deploy patternu** pro celou infrastrukturu
+seil.space – Node.js + Docker + GitHub + Coolify. Každá další aplikace by
+měla následovat stejnou strukturu.
 
 ## Jak to funguje
 
@@ -26,7 +55,7 @@ seil.space – Node.js + Docker + GitHub + Coolify.
 │                      │ Docker:   │  │
 │                      │ Fastify   │──┼──── HTTPS
 │                      │ + EJS     │  │     basic auth
-│                      └───────────┘  │     app.seil.space
+│                      └───────────┘  │     one.seil.space
 └─────────────────────────────────────┘
 ```
 
@@ -70,8 +99,8 @@ V `scripts/install-collector.sh` je hotový instalátor. Na VPS (jako root):
 
 ```bash
 ssh root@89.221.219.220
-git clone https://github.com/<tvůj-uživatel>/app.seil.space.git /opt/app.seil.space
-bash /opt/app.seil.space/scripts/install-collector.sh
+git clone https://github.com/<tvůj-uživatel>/one.seil.space.git /opt/one.seil.space
+bash /opt/one.seil.space/scripts/install-collector.sh
 ```
 
 Co skript dělá:
@@ -83,10 +112,10 @@ Co skript dělá:
 ### Coolify projekt
 
 1. V Coolify → New Resource → Public/Private Repository
-2. URL: `git@github.com:<user>/app.seil.space.git`
+2. URL: `git@github.com:<user>/one.seil.space.git`
 3. Branch: `main`
 4. Build Pack: **Dockerfile** (existuje v repu)
-5. Domains: `app.seil.space` (Coolify automaticky vyřídí HTTPS přes Caddy)
+5. Domains: `one.seil.space` (Coolify automaticky vyřídí HTTPS přes Caddy)
 6. **Volume mounts**:
    - Host path: `/var/lib/vps-stats`
    - Container path: `/var/lib/vps-stats`

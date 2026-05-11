@@ -7,8 +7,8 @@
 services:
   app:
     build: .
-    image: app-seil-space:dev
-    container_name: app-seil-space
+    image: one-seil-space:dev
+    container_name: one-seil-space
     restart: unless-stopped
     ports:
       - "3000:3000"

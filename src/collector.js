@@ -3,7 +3,7 @@
 // Web aplikace pak ta data čte read-only.
 //
 // Spuštění ručně:    node src/collector.js
-// V cronu (na VPS):  0 * * * * cd /opt/app-seil-space && node src/collector.js >> /var/log/vps-stats.log 2>&1
+// V cronu (na VPS):  0 * * * * cd /opt/one-seil-space && node src/collector.js >> /var/log/vps-stats.log 2>&1
 
 import { execSync } from 'node:child_process';
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';

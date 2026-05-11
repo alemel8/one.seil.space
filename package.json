@@ -1,5 +1,5 @@
 {
-  "name": "app-seil-space",
+  "name": "one-seil-space",
   "version": "0.1.0",
   "description": "Internal VPS monitoring dashboard for seil.space infrastructure",
   "type": "module",

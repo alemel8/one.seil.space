@@ -34,7 +34,7 @@ jobs:
           kill $SERVER_PID
 
       - name: Docker build (ověření Dockerfile)
-        run: docker build -t app-seil-space:ci .
+        run: docker build -t one-seil-space:ci .
 
       - name: Docker image size
-        run: docker images app-seil-space:ci
+        run: docker images one-seil-space:ci

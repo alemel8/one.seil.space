@@ -3,17 +3,17 @@
 # Spusť jednou na VPS jako root po `git clone` repa.
 #
 # Předpoklad:
-#   - Repo je naklonované do /opt/app.seil.space
+#   - Repo je naklonované do /opt/one.seil.space
 #   - Node.js 20+ je nainstalovaný (apt install nodejs)
 #   - psql, docker, curl jsou v PATH
 
 set -euo pipefail
 
-REPO_DIR="${REPO_DIR:-/opt/app.seil.space}"
+REPO_DIR="${REPO_DIR:-/opt/one.seil.space}"
 STATS_DIR="${STATS_DIR:-/var/lib/vps-stats}"
 LOG_DIR="${LOG_DIR:-/var/log}"
 
-echo "===== app.seil.space collector installer ====="
+echo "===== one.seil.space collector installer ====="
 echo "Repo:        $REPO_DIR"
 echo "Stats dir:   $STATS_DIR"
 echo "Log dir:     $LOG_DIR"
@@ -59,7 +59,7 @@ CRON_FILE="/etc/cron.d/vps-stats-collector"
 echo
 echo "--- Instaluji cron $CRON_FILE ---"
 cat > "$CRON_FILE" <<EOF
-# app.seil.space - VPS stats collector
+# one.seil.space - VPS stats collector
 # Spouští se každou hodinu, výstup do $LOG_DIR/vps-stats.log
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -100,4 +100,4 @@ echo
 echo "Další kroky:"
 echo "  1. Nasaď web app v Coolify (viz README)"
 echo "  2. Bind-mount $STATS_DIR do kontejneru jako read-only"
-echo "  3. Otevři https://app.seil.space"
+echo "  3. Otevři https://one.seil.space"
