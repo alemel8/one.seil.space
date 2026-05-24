@@ -7,14 +7,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
 
-const DATA_DIR = process.env.STATS_DIR || path.join(projectRoot, 'data');
-if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+// Monitoring data (latest.json, history.sqlite) — plní collector
+const STATS_DIR = process.env.STATS_DIR || path.join(projectRoot, 'data');
 
-// Monitoring databáze (readonly, plní collector)
-const HISTORY_DB_PATH = path.join(DATA_DIR, 'history.sqlite');
+// Aplikační databáze (users, CRM, účetnictví) — oddělená cesta kvůli Docker volumes
+const APP_DATA_DIR = process.env.APP_DATA_DIR || path.join(projectRoot, 'data');
+if (!existsSync(APP_DATA_DIR)) mkdirSync(APP_DATA_DIR, { recursive: true });
 
-// Aplikační databáze (users, CRM, účetnictví)
-const APP_DB_PATH = path.join(DATA_DIR, 'app.sqlite');
+const HISTORY_DB_PATH = path.join(STATS_DIR, 'history.sqlite');
+const APP_DB_PATH = path.join(APP_DATA_DIR, 'app.sqlite');
 
 let _historyDb = null;
 let _appDb = null;
