@@ -24,6 +24,10 @@ COPY --chown=app:app . .
 # Nepotřebné v image
 RUN rm -rf .git .github test/ data/ .env* docs/
 
+# Vytvoř datový adresář se správnými právy před přepnutím na non-root usera.
+# Bez volume mountu sem jde app.sqlite; s volume mountem Coolify/Docker přepíše.
+RUN mkdir -p /app/data && chown app:app /app/data
+
 # Nasaď non-root user
 USER app
 
