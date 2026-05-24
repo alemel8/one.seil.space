@@ -68,6 +68,7 @@ fastify.addHook('preHandler', async (request) => {
 // ── Healthcheck (bez auth) ────────────────────────────────────
 
 fastify.get('/health', async () => ({ ok: true, ts: new Date().toISOString() }));
+fastify.get('/health/api', async () => ({ ok: true, ts: new Date().toISOString() }));
 
 // ── Auth routes (bez ochrany) ─────────────────────────────────
 
@@ -77,7 +78,7 @@ await fastify.register(authRoutes);
 // ── Auth guard pro všechny ostatní routy ─────────────────────
 
 fastify.addHook('onRequest', async (request, reply) => {
-  const publicPaths = ['/prihlasit', '/health', '/static'];
+  const publicPaths = ['/prihlasit', '/health', '/static', '/health/api'];
   const isPublic = publicPaths.some(p => request.url === p || request.url.startsWith(p + '/') || request.url.startsWith(p + '?'));
   if (!isPublic && !request.session.userId) {
     return reply.redirect('/prihlasit');
