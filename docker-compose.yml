@@ -15,17 +15,33 @@ services:
     environment:
       PORT: 3000
       HOST: 0.0.0.0
-      DASHBOARD_USER: ${DASHBOARD_USER:-admin}
-      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-changeme}
+      # Session secret — v produkci nastav přes Coolify env proměnné
+      SESSION_SECRET: ${SESSION_SECRET:-change-this-to-a-random-32char-secret}
+      # Adresář pro monitoring data (collector) a aplikační DB (app.sqlite)
       STATS_DIR: /var/lib/vps-stats
       TZ: Europe/Prague
     volumes:
-      # Sdílená data mezi collectorem na hostu a web aplikací
-      # Na VPS to bude mountovat /var/lib/vps-stats z hostu (kam collector zapisuje)
-      - ./data:/var/lib/vps-stats:ro
+      # Monitoring data z collectoru (history.sqlite, latest.json) — jen čtení
+      - vps-stats-ro:/var/lib/vps-stats:ro
+      # Aplikační databáze (users, CRM, účetnictví) — čtení i zápis
+      - app-data:/app/data
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
+
+volumes:
+  vps-stats-ro:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data
+  app-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data
