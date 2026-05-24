@@ -14,6 +14,9 @@ RUN npm ci --omit=dev
 FROM node:20-alpine AS runtime
 WORKDIR /app
 
+# curl pro Coolify healthcheck (Alpine ho nemá by default)
+RUN apk add --no-cache curl
+
 # Bezpečnost: aplikace neběží jako root
 RUN addgroup -g 1001 -S app && adduser -S app -u 1001 -G app
 
