@@ -10,9 +10,12 @@ const projectRoot = path.resolve(__dirname, '..');
 // Monitoring data (latest.json, history.sqlite) — plní collector
 const STATS_DIR = process.env.STATS_DIR || path.join(projectRoot, 'data');
 
-// Aplikační databáze (users, CRM, účetnictví) — oddělená cesta kvůli Docker volumes
+// Aplikační databáze — Dockerfile vytváří /app/data se správnými právy,
+// Coolify mountuje persistent storage tam. Env var APP_DATA_DIR pro přepsání.
 const APP_DATA_DIR = process.env.APP_DATA_DIR || path.join(projectRoot, 'data');
-if (!existsSync(APP_DATA_DIR)) mkdirSync(APP_DATA_DIR, { recursive: true });
+if (!existsSync(APP_DATA_DIR)) {
+  try { mkdirSync(APP_DATA_DIR, { recursive: true }); } catch { /* volume mount existuje */ }
+}
 
 const HISTORY_DB_PATH = path.join(STATS_DIR, 'history.sqlite');
 const APP_DB_PATH = path.join(APP_DATA_DIR, 'app.sqlite');
