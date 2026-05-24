@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="cs" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= pageTitle ? pageTitle + ' — ' : '' %>one.seil.space</title>
+  <link rel="icon" href="/static/img/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/variables.css">
+  <link rel="stylesheet" href="/static/css/layout.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+  <%- typeof extraCss !== 'undefined' ? extraCss : '' %>
+</head>
+<body class="app-body">
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <%- include('../includes/sidebar', { currentPath, user }) %>
+
+  <div class="main-wrapper">
+    <%- include('../includes/topbar', { pageTitle: pageTitle || 'Přehled', user }) %>
+
+    <main class="page-content">
+      <%- body %>
+    </main>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+  <%- typeof extraJs !== 'undefined' ? extraJs : '' %>
+</body>
+</html>

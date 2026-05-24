@@ -1,0 +1,49 @@
+<div class="page-header">
+  <div class="page-header-left">
+    <h1><%= ((member.first_name + ' ' + member.last_name).trim() || member.email) %></h1>
+    <p><%= member.is_admin ? 'Správce' : 'Uživatel' %> · <%= member.email %></p>
+  </div>
+  <a href="/lide/tym" class="btn btn-outline">← Zpět na tým</a>
+</div>
+
+<div style="max-width:480px;">
+  <div class="card">
+    <div class="card-body">
+      <!-- Avatar -->
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;">
+        <div style="width:64px;height:64px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;flex-shrink:0;">
+          <% if (member.photo) { %>
+            <img src="/media/<%= member.photo %>" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+          <% } else { %>
+            <%= (member.first_name || '').charAt(0).toUpperCase() %><%= (member.last_name || '').charAt(0).toUpperCase() %>
+          <% } %>
+        </div>
+        <div>
+          <div style="font-size:18px;font-weight:700;color:var(--text-primary);">
+            <%= ((member.first_name + ' ' + member.last_name).trim() || member.email) %>
+          </div>
+          <div style="font-size:13px;color:var(--text-muted);margin-top:2px;"><%= member.email %></div>
+          <div style="margin-top:8px;display:flex;gap:6px;">
+            <% if (member.is_admin) { %>
+              <span class="badge" style="background:#fef9c3;color:#854d0e;">Správce</span>
+            <% } else { %>
+              <span class="badge" style="background:var(--info-bg);color:var(--info);">Uživatel</span>
+            <% } %>
+            <% if (!member.is_active) { %>
+              <span class="badge" style="background:var(--danger-bg);color:#991b1b;">Neaktivní</span>
+            <% } else { %>
+              <span class="badge" style="background:var(--success-bg);color:#15803D;">Aktivní</span>
+            <% } %>
+          </div>
+        </div>
+      </div>
+
+      <dl style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13px;">
+        <dt style="color:var(--text-muted);">E-mail</dt>
+        <dd><a href="mailto:<%= member.email %>" style="color:var(--primary);"><%= member.email %></a></dd>
+        <dt style="color:var(--text-muted);">Přidán</dt>
+        <dd><%= new Date(member.created_at).toLocaleDateString('cs-CZ') %></dd>
+      </dl>
+    </div>
+  </div>
+</div>

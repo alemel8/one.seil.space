@@ -1,0 +1,115 @@
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Tým</h1>
+    <p><%= total %> členů v systému</p>
+  </div>
+  <button class="btn btn-primary" data-modal-open="modalCreateMember">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Přidat člena
+  </button>
+</div>
+
+<!-- Hledání -->
+<form method="get" style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+  <div style="position:relative;flex:1;min-width:220px;max-width:360px;">
+    <svg style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input type="text" name="q" value="<%= q || '' %>" placeholder="Hledat jméno nebo e-mail…" class="form-control" style="padding-left:38px;">
+  </div>
+  <button type="submit" class="btn btn-outline">Hledat</button>
+  <% if (q) { %>
+    <a href="/lide/tym" class="btn btn-ghost">Zrušit</a>
+  <% } %>
+</form>
+
+<!-- Mřížka karet -->
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;">
+  <% if (members && members.length > 0) { %>
+    <% members.forEach(member => { %>
+    <div class="card" style="cursor:pointer;" onclick="window.location='/lide/tym/<%= member.id %>'"
+         onmouseenter="this.style.boxShadow='var(--shadow-md)'" onmouseleave="this.style.boxShadow=''">
+      <div class="card-body" style="display:flex;gap:14px;align-items:flex-start;">
+
+        <!-- Avatar -->
+        <div style="width:48px;height:48px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;flex-shrink:0;overflow:hidden;">
+          <% if (member.photo) { %>
+            <img src="/media/<%= member.photo %>" alt="" style="width:100%;height:100%;object-fit:cover;">
+          <% } else { %>
+            <%= (member.first_name || '').charAt(0).toUpperCase() %><%= (member.last_name || '').charAt(0).toUpperCase() %>
+          <% } %>
+        </div>
+
+        <!-- Info -->
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;font-size:15px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            <%= ((member.first_name || '') + ' ' + (member.last_name || '')).trim() || member.email %>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            <%= member.email %>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+            <% if (member.is_admin) { %>
+              <span class="badge" style="background:#fef9c3;color:#854d0e;">Správce</span>
+            <% } else { %>
+              <span class="badge" style="background:var(--info-bg);color:var(--info);">Uživatel</span>
+            <% } %>
+            <% if (!member.is_active) { %>
+              <span class="badge" style="background:var(--danger-bg);color:#991b1b;">Neaktivní</span>
+            <% } %>
+          </div>
+        </div>
+      </div>
+    </div>
+    <% }); %>
+  <% } else { %>
+  <div style="grid-column:1/-1;text-align:center;padding:64px;color:var(--text-muted);">
+    <%= q ? 'Žádní členové nenalezeni' : 'Zatím žádní členové' %>
+  </div>
+  <% } %>
+</div>
+
+<!-- Modal: Přidat člena -->
+<div class="modal-backdrop" id="modalCreateMember">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 class="modal-title">Přidat člena týmu</h2>
+      <button class="modal-close" data-modal-close="modalCreateMember">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form method="post" action="/lide/tym/vytvorit">
+      <div class="modal-body">
+        <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-group">
+            <label class="form-label required">Jméno</label>
+            <input type="text" name="first_name" class="form-control" placeholder="Jan" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Příjmení</label>
+            <input type="text" name="last_name" class="form-control" placeholder="Novák">
+          </div>
+          <div class="form-group col-span-2">
+            <label class="form-label required">E-mail</label>
+            <input type="email" name="email" class="form-control" placeholder="jan.novak@seil.cz" required>
+          </div>
+          <div class="form-group col-span-2">
+            <label class="form-label required">Heslo</label>
+            <input type="password" name="password" class="form-control" placeholder="Alespoň 8 znaků" required minlength="8">
+          </div>
+          <div class="form-group col-span-2">
+            <label class="toggle-label" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+              <input type="checkbox" name="is_admin" value="1" class="toggle-input">
+              <span class="toggle-switch"></span>
+              <span class="toggle-text">Správce</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" data-modal-close="modalCreateMember">Zrušit</button>
+        <button type="submit" class="btn btn-primary">Přidat člena</button>
+      </div>
+    </form>
+  </div>
+</div>

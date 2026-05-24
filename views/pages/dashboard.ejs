@@ -1,0 +1,195 @@
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Aktuální stav VPS</h1>
+    <p>
+      <% if (latest.hostname) { %><span style="color:var(--text-muted)"><%= latest.hostname %></span> &middot; <% } %>
+      <% if (latest.public_ip) { %><%= latest.public_ip %> &middot; <% } %>
+      <% if (latest.collected_at) { %>
+        Sběr: <%= new Date(latest.collected_at).toLocaleString('cs-CZ', { timeZone: timezone || 'UTC' }) %>
+        <% if (latest.age_minutes !== undefined) { %>(<%= latest.age_minutes %> min)<% } %>
+      <% } else { %>
+        Čekám na data collectoru
+      <% } %>
+    </p>
+  </div>
+</div>
+
+<% if (latest.error) { %>
+  <div style="background:var(--danger-bg);border:1px solid #FECACA;color:#B91C1C;border-radius:var(--radius-md);padding:16px 20px;margin-bottom:24px;">
+    <strong>Chyba:</strong> <%- latest.error %><br>
+    <span style="font-size:13px;opacity:0.8;">Spusť collector na VPS, nebo zkontroluj cron.</span>
+  </div>
+<% } else { %>
+
+<!-- KPI karty -->
+<div class="kpi-grid" style="margin-bottom:24px;">
+
+  <% if (latest.memory) { %>
+  <div class="kpi-card">
+    <div class="kpi-label">RAM</div>
+    <div class="kpi-value" style="font-size:18px;"><%= latest.memory.used_mb %> / <%= latest.memory.total_mb %> MB</div>
+    <progress value="<%= latest.memory.used_mb %>" max="<%= latest.memory.total_mb %>" style="width:100%;height:6px;margin-top:10px;accent-color:var(--primary);"></progress>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">Swap: <%= latest.memory.swap_used_mb %> / <%= latest.memory.swap_total_mb %> MB</div>
+  </div>
+  <% } %>
+
+  <% if (latest.cpu) { %>
+  <div class="kpi-card">
+    <div class="kpi-label">CPU Load</div>
+    <div class="kpi-value <%= latest.cpu.load_pct_1m > 80 ? 'negative' : (latest.cpu.load_pct_1m > 50 ? 'primary-color' : '') %>">
+      <%= latest.cpu.load_pct_1m %>%
+    </div>
+    <progress value="<%= latest.cpu.load_pct_1m %>" max="100" style="width:100%;height:6px;margin-top:10px;accent-color:var(--primary);"></progress>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">1/5/15 min: <%= latest.cpu.load_1m %> / <%= latest.cpu.load_5m %> / <%= latest.cpu.load_15m %> · <%= latest.cpu.cpu_count %> jader</div>
+  </div>
+  <% } %>
+
+  <% if (latest.disk) { %>
+  <div class="kpi-card">
+    <div class="kpi-label">Disk</div>
+    <div class="kpi-value"><%= latest.disk.used_gb %> / <%= latest.disk.total_gb %> GB</div>
+    <progress value="<%= latest.disk.used_pct %>" max="100" style="width:100%;height:6px;margin-top:10px;accent-color:var(--primary);"></progress>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">Volné: <%= latest.disk.available_gb %> GB (<%= 100 - latest.disk.used_pct %>%)</div>
+  </div>
+  <% } %>
+
+  <% if (latest.uptime) { %>
+  <div class="kpi-card">
+    <div class="kpi-label">Uptime</div>
+    <div class="kpi-value positive"><%= latest.uptime.days %> dní</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:10px;"><%= latest.uptime.pretty %></div>
+    <div style="font-size:12px;color:var(--text-muted);">OS: <%= latest.os || 'unknown' %></div>
+  </div>
+  <% } %>
+
+</div>
+
+<!-- PostgreSQL -->
+<% if (latest.postgres) { %>
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h2 style="font-size:15px;font-weight:600;color:var(--text-primary);">PostgreSQL</h2>
+      <div style="display:flex;gap:8px;">
+        <span class="badge" style="background:var(--info-bg);color:var(--info);">v<%= latest.postgres.version %></span>
+        <span class="badge" style="background:var(--gray-100);color:var(--gray-600);"><%= latest.postgres.total_mb %> MB</span>
+        <span class="badge" style="background:var(--success-bg);color:#15803D;"><%= latest.postgres.active_connections %> spojení</span>
+      </div>
+    </div>
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead><tr><th>Databáze</th><th>Velikost</th></tr></thead>
+        <tbody>
+          <% latest.postgres.databases.forEach(db => { %>
+            <tr><td><%= db.name %></td><td><%= db.size_mb %> MB</td></tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<% } %>
+
+<!-- Docker -->
+<% if (latest.docker) { %>
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h2 style="font-size:15px;font-weight:600;color:var(--text-primary);">Docker kontejnery</h2>
+      <span class="badge" style="background:var(--success-bg);color:#15803D;">běžící: <%= latest.docker.running %> / <%= latest.docker.total %></span>
+    </div>
+    <% if (latest.docker.containers && latest.docker.containers.length > 0) { %>
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead><tr><th>Název</th><th>Image</th><th>Status</th><th>Health</th></tr></thead>
+        <tbody>
+          <% latest.docker.containers.forEach(c => { %>
+            <tr>
+              <td style="font-weight:500;"><%= c.name %></td>
+              <td style="font-size:12px;color:var(--text-muted);font-family:monospace;"><%= c.image %></td>
+              <td><%= c.status %></td>
+              <td>
+                <% if (c.healthy) { %>
+                  <span class="badge" style="background:var(--success-bg);color:#15803D;">OK</span>
+                <% } else { %>
+                  <span class="badge" style="background:var(--danger-bg);color:#991B1B;">nezdravý</span>
+                <% } %>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } %>
+  </div>
+</div>
+<% } %>
+
+<!-- SSL certifikáty -->
+<% if (latest.ssl_certs && latest.ssl_certs.length > 0) { %>
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <h2 style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:16px;">SSL certifikáty</h2>
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead><tr><th>Doména</th><th>Vyprší</th><th>Dní zbývá</th></tr></thead>
+        <tbody>
+          <% latest.ssl_certs.forEach(cert => { %>
+            <tr>
+              <td style="font-weight:500;"><%= cert.domain %></td>
+              <td style="color:var(--text-muted);"><%= cert.expires ? new Date(cert.expires).toLocaleDateString('cs-CZ') : '?' %></td>
+              <td>
+                <% if (cert.days_left < 14) { %>
+                  <span class="badge" style="background:var(--danger-bg);color:#991B1B;"><%= cert.days_left ?? '?' %></span>
+                <% } else if (cert.days_left < 30) { %>
+                  <span class="badge" style="background:var(--warning-bg);color:#92400E;"><%= cert.days_left ?? '?' %></span>
+                <% } else { %>
+                  <span class="badge" style="background:var(--success-bg);color:#15803D;"><%= cert.days_left ?? '?' %></span>
+                <% } %>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<% } %>
+
+<!-- Poslední backup -->
+<% if (latest.last_backup) { %>
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <h2 style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:12px;">Poslední Postgres backup</h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <span class="badge" style="background:var(--gray-100);color:var(--gray-600);"><%= latest.last_backup.file %></span>
+      <span class="badge" style="background:<%= latest.last_backup.age_hours > 30 ? 'var(--danger-bg)' : 'var(--success-bg)' %>;color:<%= latest.last_backup.age_hours > 30 ? '#991B1B' : '#15803D' %>;">
+        stáří: <%= latest.last_backup.age_hours %> h
+      </span>
+      <span class="badge" style="background:var(--info-bg);color:var(--info);"><%= latest.last_backup.size_mb %> MB</span>
+    </div>
+  </div>
+</div>
+<% } %>
+
+<!-- Grafy historie -->
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body">
+    <h2 style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:16px;">Historie posledních 72 hodin</h2>
+    <% if (history && history.length > 0) { %>
+      <canvas id="chart-ram" height="80" style="margin-bottom:16px;"></canvas>
+      <canvas id="chart-disk" height="80" style="margin-bottom:16px;"></canvas>
+      <canvas id="chart-cpu" height="80"></canvas>
+    <% } else { %>
+      <p style="color:var(--text-muted);font-size:13px;">Žádná historie. Po pár hodinách provozu collectoru se zde objeví grafy.</p>
+    <% } %>
+  </div>
+</div>
+
+<div style="text-align:right;font-size:12px;color:var(--text-muted);">
+  Renderováno <%= new Date(now).toLocaleString('cs-CZ', { timeZone: timezone || 'UTC' }) %> ·
+  <a href="/api/latest" style="color:var(--primary);">JSON</a> ·
+  <a href="/api/history?hours=168" style="color:var(--primary);">7d historie</a>
+</div>
+
+<% } %>

@@ -1,0 +1,97 @@
+/* ============================================================
+   ONE.SEIL.SPACE — Design tokens
+   ============================================================ */
+
+:root {
+  /* Brand */
+  --primary:          #4F46E5;
+  --primary-dark:     #3730A3;
+  --primary-hover:    #4338CA;
+  --primary-light:    #EEF2FF;
+  --accent-blue:      #2B6DAD;
+
+  /* Neutrals */
+  --black:            #0D0D0D;
+  --white:            #FFFFFF;
+  --gray-50:          #F9FAFB;
+  --gray-100:         #F4F6F8;
+  --gray-200:         #E8ECF0;
+  --gray-300:         #D1D8E0;
+  --gray-400:         #9AA5B4;
+  --gray-500:         #6B7280;
+  --gray-600:         #4B5563;
+  --gray-700:         #374151;
+  --gray-800:         #1F2937;
+  --gray-900:         #111827;
+
+  /* Sidebar */
+  --sidebar-bg:       #141920;
+  --sidebar-hover:    #1E2530;
+  --sidebar-active:   #1E2A40;
+  --sidebar-text:     #8A95A3;
+  --sidebar-text-active: #FFFFFF;
+  --sidebar-border:   #1E2530;
+  --sidebar-width:    260px;
+
+  /* Layout */
+  --topbar-height:    64px;
+  --topbar-bg:        #FFFFFF;
+  --topbar-border:    #E8ECF0;
+
+  /* Light mode surfaces */
+  --bg-page:          #F0F2F5;
+  --bg-card:          #FFFFFF;
+  --bg-card-hover:    #FAFBFC;
+  --text-primary:     #111827;
+  --text-secondary:   #6B7280;
+  --text-muted:       #9AA5B4;
+  --border:           #E8ECF0;
+  --border-strong:    #D1D8E0;
+
+  /* Shadows */
+  --shadow-xs:   0 1px 2px rgba(0,0,0,0.05);
+  --shadow-sm:   0 1px 4px rgba(0,0,0,0.08);
+  --shadow-md:   0 4px 12px rgba(0,0,0,0.10);
+  --shadow-lg:   0 8px 24px rgba(0,0,0,0.12);
+  --shadow-xl:   0 16px 40px rgba(0,0,0,0.16);
+
+  /* Radius */
+  --radius-xs:   4px;
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   14px;
+  --radius-xl:   20px;
+  --radius-full: 9999px;
+
+  /* Transitions */
+  --transition-fast:   150ms ease;
+  --transition-base:   200ms ease;
+  --transition-slow:   300ms ease;
+
+  /* Status colors */
+  --success:      #22C55E;
+  --success-bg:   #DCFCE7;
+  --warning:      #F59E0B;
+  --warning-bg:   #FEF3C7;
+  --danger:       #EF4444;
+  --danger-bg:    #FEE2E2;
+  --info:         #3B82F6;
+  --info-bg:      #DBEAFE;
+}
+
+/* ============================================================
+   DARK MODE
+   ============================================================ */
+[data-theme="dark"] {
+  --topbar-bg:        #1A1F2A;
+  --topbar-border:    #252D3A;
+
+  --bg-page:          #0F1319;
+  --bg-card:          #1A1F2A;
+  --bg-card-hover:    #1E2530;
+  --text-primary:     #E8EAED;
+  --text-secondary:   #8A95A3;
+  --text-muted:       #5A6472;
+  --border:           #252D3A;
+  --border-strong:    #2E3847;
+}

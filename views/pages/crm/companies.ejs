@@ -1,0 +1,157 @@
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Firmy</h1>
+    <p><%= total %> firem v systému</p>
+  </div>
+  <button class="btn btn-primary" data-modal-open="modalCreateCompany">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Přidat firmu
+  </button>
+</div>
+
+<!-- Hledání + filtr -->
+<form method="get" style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+  <div style="position:relative;flex:1;min-width:240px;max-width:380px;">
+    <svg style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input type="text" name="q" value="<%= q || '' %>" placeholder="Hledat firmy, země…" class="form-control" style="padding-left:38px;">
+  </div>
+  <select name="type" class="form-select" style="width:auto;">
+    <option value="">Všechny typy</option>
+    <option value="Zákazník" <%= typeFilter === 'Zákazník' ? 'selected' : '' %>>Zákazník</option>
+    <option value="Dodavatel" <%= typeFilter === 'Dodavatel' ? 'selected' : '' %>>Dodavatel</option>
+    <option value="Oboje" <%= typeFilter === 'Oboje' ? 'selected' : '' %>>Oboje</option>
+    <option value="Ostatní" <%= typeFilter === 'Ostatní' ? 'selected' : '' %>>Ostatní</option>
+  </select>
+  <button type="submit" class="btn btn-outline">Filtrovat</button>
+  <% if (q || typeFilter) { %>
+    <a href="/crm/firmy" class="btn btn-ghost">Zrušit filtr</a>
+  <% } %>
+</form>
+
+<!-- Tabulka -->
+<div class="table-wrapper">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Název firmy</th>
+        <th>Typ</th>
+        <th>Země</th>
+        <th>Město</th>
+        <th>E-mail</th>
+        <th>Telefon</th>
+        <th>Přidána</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (companies && companies.length > 0) { %>
+        <% companies.forEach(company => { %>
+        <tr class="clickable-row" style="cursor:pointer;" onclick="window.location='/crm/firmy/<%= company.id %>'">
+          <td style="font-weight:500;"><%= company.name %></td>
+          <td>
+            <% if (company.company_type === 'Zákazník') { %>
+              <span class="badge" style="background:#dcfce7;color:#166534;">Zákazník</span>
+            <% } else if (company.company_type === 'Dodavatel') { %>
+              <span class="badge" style="background:#dbeafe;color:#1e40af;">Dodavatel</span>
+            <% } else if (company.company_type === 'Oboje') { %>
+              <span class="badge" style="background:#fef9c3;color:#854d0e;">Oboje</span>
+            <% } else { %>
+              <span class="badge" style="background:var(--gray-100);color:var(--gray-600);">Ostatní</span>
+            <% } %>
+          </td>
+          <td><%= company.country || '—' %></td>
+          <td style="color:var(--text-muted);"><%= company.city || '—' %></td>
+          <td style="font-size:13px;">
+            <% if (company.email) { %>
+              <a href="mailto:<%= company.email %>" style="color:var(--primary);" onclick="event.stopPropagation()"><%= company.email %></a>
+            <% } else { %>—<% } %>
+          </td>
+          <td style="font-size:13px;color:var(--text-muted);"><%= company.phone || '—' %></td>
+          <td style="color:var(--text-muted);font-size:12px;"><%= new Date(company.created_at).toLocaleDateString('cs-CZ') %></td>
+        </tr>
+        <% }); %>
+      <% } else { %>
+      <tr>
+        <td colspan="7" style="text-align:center;padding:48px;color:var(--text-muted);">
+          <%= (q || typeFilter) ? 'Žádné firmy nenalezeny' : 'Zatím žádné firmy' %>
+        </td>
+      </tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+
+<!-- Stránkování -->
+<% if (totalPages > 1) { %>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;font-size:13px;color:var(--text-muted);">
+  <span>Stránka <%= currentPage %> z <%= totalPages %> — celkem <%= total %> firem</span>
+  <div style="display:flex;gap:6px;">
+    <% if (currentPage > 1) { %>
+      <a href="?page=<%= currentPage - 1 %><%= q ? '&q=' + q : '' %><%= typeFilter ? '&type=' + typeFilter : '' %>" class="btn btn-outline btn-sm">← Předchozí</a>
+    <% } %>
+    <% if (currentPage < totalPages) { %>
+      <a href="?page=<%= currentPage + 1 %><%= q ? '&q=' + q : '' %><%= typeFilter ? '&type=' + typeFilter : '' %>" class="btn btn-outline btn-sm">Další →</a>
+    <% } %>
+  </div>
+</div>
+<% } %>
+
+<!-- Modal: Přidat firmu -->
+<div class="modal-backdrop" id="modalCreateCompany">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 class="modal-title">Přidat firmu</h2>
+      <button class="modal-close" data-modal-close="modalCreateCompany">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form method="post" action="/crm/firmy/vytvorit">
+      <div class="modal-body">
+        <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-group col-span-2">
+            <label class="form-label required">Název firmy</label>
+            <input type="text" name="name" class="form-control" placeholder="např. ACME s.r.o." required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Typ</label>
+            <select name="company_type" class="form-select">
+              <option value="Zákazník">Zákazník</option>
+              <option value="Dodavatel">Dodavatel</option>
+              <option value="Oboje">Oboje</option>
+              <option value="Ostatní">Ostatní</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Země</label>
+            <input type="text" name="country" class="form-control" placeholder="Česko">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Město</label>
+            <input type="text" name="city" class="form-control" placeholder="Praha">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Telefon</label>
+            <input type="text" name="phone" class="form-control" placeholder="+420 000 000 000">
+          </div>
+          <div class="form-group col-span-2">
+            <label class="form-label">E-mail</label>
+            <input type="email" name="email" class="form-control" placeholder="info@firma.cz">
+          </div>
+          <div class="form-group col-span-2">
+            <label class="form-label">Web</label>
+            <input type="url" name="website" class="form-control" placeholder="https://firma.cz">
+          </div>
+          <div class="form-group col-span-2">
+            <label class="form-label">Poznámky</label>
+            <textarea name="notes" class="form-control" rows="2" placeholder="Libovolné poznámky…"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" data-modal-close="modalCreateCompany">Zrušit</button>
+        <button type="submit" class="btn btn-primary">Přidat firmu</button>
+      </div>
+    </form>
+  </div>
+</div>

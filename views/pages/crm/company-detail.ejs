@@ -1,0 +1,66 @@
+<div class="page-header">
+  <div class="page-header-left">
+    <h1><%= company.name %></h1>
+    <p><%= company.company_type %> · <%= company.country || '' %><%= company.city ? (company.country ? ', ' + company.city : company.city) : '' %></p>
+  </div>
+  <a href="/crm/firmy" class="btn btn-outline">← Zpět na firmy</a>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+
+  <!-- Základní info -->
+  <div class="card">
+    <div class="card-body">
+      <h2 style="font-size:14px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px;">Základní informace</h2>
+      <dl style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13px;">
+        <dt style="color:var(--text-muted);">Typ</dt>
+        <dd><%= company.company_type %></dd>
+        <dt style="color:var(--text-muted);">Země</dt>
+        <dd><%= company.country || '—' %></dd>
+        <dt style="color:var(--text-muted);">Město</dt>
+        <dd><%= company.city || '—' %></dd>
+        <% if (company.email) { %>
+        <dt style="color:var(--text-muted);">E-mail</dt>
+        <dd><a href="mailto:<%= company.email %>" style="color:var(--primary);"><%= company.email %></a></dd>
+        <% } %>
+        <% if (company.phone) { %>
+        <dt style="color:var(--text-muted);">Telefon</dt>
+        <dd><%= company.phone %></dd>
+        <% } %>
+        <% if (company.website) { %>
+        <dt style="color:var(--text-muted);">Web</dt>
+        <dd><a href="<%= company.website %>" target="_blank" rel="noopener" style="color:var(--primary);"><%= company.website %></a></dd>
+        <% } %>
+      </dl>
+      <% if (company.notes) { %>
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">Poznámky</div>
+        <p style="font-size:13px;color:var(--text-primary);line-height:1.5;"><%= company.notes %></p>
+      </div>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- Kontakty -->
+  <div class="card">
+    <div class="card-body">
+      <h2 style="font-size:14px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px;">Kontakty (<%= contacts.length %>)</h2>
+      <% if (contacts.length > 0) { %>
+        <% contacts.forEach(c => { %>
+        <div style="display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
+          <div style="width:34px;height:34px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;">
+            <%= (c.first_name || '').charAt(0).toUpperCase() %><%= (c.last_name || '').charAt(0).toUpperCase() %>
+          </div>
+          <div>
+            <div style="font-size:13px;font-weight:500;"><%= c.first_name %> <%= c.last_name %></div>
+            <div style="font-size:12px;color:var(--text-muted);"><%= c.title || '' %><%= (c.title && c.email) ? ' · ' : '' %><%= c.email || '' %></div>
+          </div>
+        </div>
+        <% }); %>
+      <% } else { %>
+        <p style="color:var(--text-muted);font-size:13px;">Žádné kontakty</p>
+      <% } %>
+    </div>
+  </div>
+
+</div>

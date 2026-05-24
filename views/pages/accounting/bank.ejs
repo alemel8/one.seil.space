@@ -1,0 +1,99 @@
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Banka</h1>
+    <p><%= total || 0 %> transakcí v systému</p>
+  </div>
+  <button class="btn btn-primary" data-modal-open="modalCreateTransaction">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Nová transakce
+  </button>
+</div>
+
+<div class="table-wrapper">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Popis</th>
+        <th>Typ</th>
+        <th>Částka</th>
+        <th>Datum</th>
+        <th>Poznámky</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (transactions && transactions.length > 0) { %>
+        <% transactions.forEach(t => { %>
+        <tr>
+          <td style="font-weight:500;"><%= t.description || '—' %></td>
+          <td>
+            <span class="badge" style="background:<%= t.type === 'Příjem' ? 'var(--success-bg)' : 'var(--danger-bg)' %>;color:<%= t.type === 'Příjem' ? '#15803D' : '#991B1B' %>;">
+              <%= t.type %>
+            </span>
+          </td>
+          <td style="font-variant-numeric:tabular-nums;color:<%= t.type === 'Příjem' ? 'var(--success)' : 'var(--danger)' %>;">
+            <%= t.type === 'Příjem' ? '+' : '-' %><%= t.amount.toLocaleString('cs-CZ') %> <%= t.currency %>
+          </td>
+          <td style="color:var(--text-muted);font-size:12px;"><%= new Date(t.date).toLocaleDateString('cs-CZ') %></td>
+          <td style="color:var(--text-muted);font-size:13px;"><%= t.notes || '—' %></td>
+        </tr>
+        <% }); %>
+      <% } else { %>
+      <tr>
+        <td colspan="5" style="text-align:center;padding:48px;color:var(--text-muted);">Zatím žádné transakce</td>
+      </tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+
+<div class="modal-backdrop" id="modalCreateTransaction">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 class="modal-title">Nová transakce</h2>
+      <button class="modal-close" data-modal-close="modalCreateTransaction">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form method="post" action="/ucetnictvi/banka/vytvorit">
+      <div class="modal-body">
+        <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-group col-span-2">
+            <label class="form-label">Popis</label>
+            <input type="text" name="description" class="form-control" placeholder="Popis transakce">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Typ</label>
+            <select name="type" class="form-select">
+              <option value="Příjem">Příjem</option>
+              <option value="Výdaj">Výdaj</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Datum</label>
+            <input type="date" name="date" class="form-control" value="<%= new Date().toISOString().split('T')[0] %>">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Částka</label>
+            <input type="number" name="amount" class="form-control" placeholder="0" step="0.01">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Měna</label>
+            <select name="currency" class="form-select">
+              <option value="CZK">CZK</option>
+              <option value="EUR">EUR</option>
+              <option value="USD">USD</option>
+            </select>
+          </div>
+          <div class="form-group col-span-2">
+            <label class="form-label">Poznámky</label>
+            <textarea name="notes" class="form-control" rows="2"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" data-modal-close="modalCreateTransaction">Zrušit</button>
+        <button type="submit" class="btn btn-primary">Uložit</button>
+      </div>
+    </form>
+  </div>
+</div>

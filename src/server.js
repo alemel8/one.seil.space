@@ -1,16 +1,13 @@
-// Web server pro VPS monitoring dashboard.
-// Čte data, která sbírá collector (běží mimo tento proces, jako cron na hostu).
-// Data leží v STATS_DIR jako latest.json a history.sqlite.
-
 import Fastify from 'fastify';
-import basicAuth from '@fastify/basic-auth';
+import cookie from '@fastify/cookie';
+import session from '@fastify/session';
+import formbody from '@fastify/formbody';
 import view from '@fastify/view';
 import staticPlugin from '@fastify/static';
 import ejs from 'ejs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readFileSync, existsSync } from 'node:fs';
-import Database from 'better-sqlite3';
+import { getAppDb, closeAll } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,129 +15,102 @@ const projectRoot = path.resolve(__dirname, '..');
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const HOST = process.env.HOST || '0.0.0.0';
-const STATS_DIR = process.env.STATS_DIR || path.join(projectRoot, 'data');
-const DASHBOARD_USER = process.env.DASHBOARD_USER || 'admin';
-const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD;
+const SESSION_SECRET = process.env.SESSION_SECRET || 'one-seil-space-secret-change-in-production-32chars';
 
-if (!DASHBOARD_PASSWORD) {
-  console.error('FATAL: DASHBOARD_PASSWORD env variable not set.');
-  process.exit(1);
+if (SESSION_SECRET.length < 32) {
+  console.warn('WARN: SESSION_SECRET by měl mít alespoň 32 znaků pro bezpečnost.');
 }
 
-const fastify = Fastify({
-  logger: {
-    level: process.env.LOG_LEVEL || 'info',
+const fastify = Fastify({ logger: { level: process.env.LOG_LEVEL || 'info' } });
+
+// ── Plugins ───────────────────────────────────────────────────
+
+await fastify.register(formbody);
+await fastify.register(cookie);
+await fastify.register(session, {
+  secret: SESSION_SECRET,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 8 * 60 * 60 * 1000, // 8 hodin
+    sameSite: 'lax',
   },
+  saveUninitialized: false,
 });
 
-// Basic auth
-await fastify.register(basicAuth, {
-  validate: async (username, password) => {
-    if (username !== DASHBOARD_USER || password !== DASHBOARD_PASSWORD) {
-      throw new Error('Invalid credentials');
-    }
-  },
-  authenticate: { realm: 'one.seil.space' },
-});
-
-// EJS šablony
 await fastify.register(view, {
   engine: { ejs },
   root: path.join(projectRoot, 'views'),
+  layout: false,
   defaultContext: { appName: 'one.seil.space' },
+  options: { views: path.join(projectRoot, 'views') },
 });
 
-// Static assets (Chart.js etc.)
 await fastify.register(staticPlugin, {
   root: path.join(projectRoot, 'public'),
   prefix: '/static/',
 });
 
-// === ROUTES ===
+// ── Auth hook: přidá request.user ke každému requestu ─────────
 
-// Healthcheck (BEZ auth, pro Docker healthcheck a Coolify)
+fastify.addHook('preHandler', async (request) => {
+  request.user = null;
+  if (request.session.userId) {
+    const db = getAppDb();
+    const user = db.prepare(
+      'SELECT id, email, first_name, last_name, is_admin, is_active, photo FROM users WHERE id = ? AND is_active = 1'
+    ).get(request.session.userId);
+    request.user = user || null;
+    if (!user) await request.session.destroy();
+  }
+});
+
+// ── Healthcheck (bez auth) ────────────────────────────────────
+
 fastify.get('/health', async () => ({ ok: true, ts: new Date().toISOString() }));
 
-// Vše ostatní za auth
-fastify.get('/', { onRequest: fastify.basicAuth }, async (request, reply) => {
-  const latest = readLatest();
-  const history = readHistory(72); // posledních 72 hodin
-  return reply.view('dashboard.ejs', {
-    latest,
-    history,
-    now: new Date(),
-    timezone: process.env.TZ || 'UTC',
-  });
+// ── Auth routes (bez ochrany) ─────────────────────────────────
+
+const { default: authRoutes } = await import('./routes/auth.js');
+await fastify.register(authRoutes);
+
+// ── Auth guard pro všechny ostatní routy ─────────────────────
+
+fastify.addHook('onRequest', async (request, reply) => {
+  const publicPaths = ['/prihlasit', '/health', '/static'];
+  const isPublic = publicPaths.some(p => request.url === p || request.url.startsWith(p + '/') || request.url.startsWith(p + '?'));
+  if (!isPublic && !request.session.userId) {
+    return reply.redirect('/prihlasit');
+  }
 });
 
-fastify.get('/api/latest', { onRequest: fastify.basicAuth }, async () => readLatest());
-fastify.get('/api/history', { onRequest: fastify.basicAuth }, async (request) => {
-  const hours = Math.min(parseInt(request.query.hours || '24', 10), 720); // max 30 dni
-  return readHistory(hours);
-});
+// ── Protected routes ──────────────────────────────────────────
 
-// === DATA ACCESS ===
+const { default: dashboardRoutes } = await import('./routes/dashboard.js');
+const { default: crmRoutes } = await import('./routes/crm.js');
+const { default: peopleRoutes } = await import('./routes/people.js');
+const { default: accountingRoutes } = await import('./routes/accounting.js');
 
-function readLatest() {
-  const file = path.join(STATS_DIR, 'latest.json');
-  if (!existsSync(file)) {
-    return { error: 'Žádná data – collector ještě neběžel.', stale: true };
-  }
-  try {
-    const raw = readFileSync(file, 'utf8');
-    const data = JSON.parse(raw);
-    const ageMs = Date.now() - new Date(data.collected_at).getTime();
-    data.age_minutes = Math.floor(ageMs / 60000);
-    data.stale = ageMs > 2 * 60 * 60 * 1000; // > 2 h = stale
-    return data;
-  } catch (e) {
-    return { error: `Chyba čtení: ${e.message}`, stale: true };
-  }
-}
+await fastify.register(dashboardRoutes);
+await fastify.register(crmRoutes);
+await fastify.register(peopleRoutes);
+await fastify.register(accountingRoutes);
 
-let _db = null;
-function getDb() {
-  if (_db) return _db;
-  const dbPath = path.join(STATS_DIR, 'history.sqlite');
-  if (!existsSync(dbPath)) return null;
-  _db = new Database(dbPath, { readonly: true });
-  return _db;
-}
-
-function readHistory(hours = 24) {
-  const db = getDb();
-  if (!db) return [];
-  try {
-    const stmt = db.prepare(`
-      SELECT collected_at, ram_used_mb, ram_total_mb, cpu_load_1m,
-             disk_used_gb, disk_total_gb, db_total_mb,
-             docker_running, docker_total
-      FROM history
-      WHERE collected_at >= datetime('now', '-' || ? || ' hours')
-      ORDER BY collected_at ASC
-    `);
-    return stmt.all(hours);
-  } catch (e) {
-    fastify.log.warn({ err: e.message }, 'history read failed');
-    return [];
-  }
-}
-
-// === START ===
+// ── Start ─────────────────────────────────────────────────────
 
 try {
   await fastify.listen({ port: PORT, host: HOST });
-  fastify.log.info(`one.seil.space listening on http://${HOST}:${PORT}`);
-  fastify.log.info(`Reading stats from ${STATS_DIR}`);
+  fastify.log.info(`one.seil.space běží na http://${HOST}:${PORT}`);
 } catch (err) {
   fastify.log.error(err);
   process.exit(1);
 }
 
-// Graceful shutdown
+// ── Graceful shutdown ─────────────────────────────────────────
+
 const shutdown = async (signal) => {
-  fastify.log.info(`Received ${signal}, shutting down`);
-  if (_db) _db.close();
+  fastify.log.info(`Přijat ${signal}, vypínám…`);
+  closeAll();
   await fastify.close();
   process.exit(0);
 };

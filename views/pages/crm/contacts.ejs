@@ -1,0 +1,129 @@
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Kontakty</h1>
+    <p><%= total %> kontaktů v systému</p>
+  </div>
+  <button class="btn btn-primary" data-modal-open="modalCreateContact">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Přidat kontakt
+  </button>
+</div>
+
+<!-- Hledání -->
+<form method="get" style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+  <div style="position:relative;flex:1;min-width:240px;max-width:380px;">
+    <svg style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input type="text" name="q" value="<%= q || '' %>" placeholder="Hledat jméno, e-mail…" class="form-control" style="padding-left:38px;">
+  </div>
+  <select name="company" class="form-select" style="width:auto;">
+    <option value="">Všechny firmy</option>
+    <% companies.forEach(c => { %>
+      <option value="<%= c.id %>" <%= companyFilter === c.id ? 'selected' : '' %>><%= c.name %></option>
+    <% }); %>
+  </select>
+  <button type="submit" class="btn btn-outline">Filtrovat</button>
+  <% if (q || companyFilter) { %>
+    <a href="/crm/kontakty" class="btn btn-ghost">Zrušit filtr</a>
+  <% } %>
+</form>
+
+<!-- Tabulka -->
+<div class="table-wrapper">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Jméno</th>
+        <th>Firma</th>
+        <th>Pozice</th>
+        <th>E-mail</th>
+        <th>Telefon</th>
+        <th>Přidán</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (contacts && contacts.length > 0) { %>
+        <% contacts.forEach(contact => { %>
+        <tr style="cursor:pointer;" onclick="window.location='/crm/kontakty/<%= contact.id %>'">
+          <td style="font-weight:500;"><%= contact.first_name %> <%= contact.last_name %></td>
+          <td style="color:var(--text-muted);">
+            <% if (contact.company_name) { %>
+              <a href="/crm/firmy/<%= contact.company_id %>" style="color:var(--primary);" onclick="event.stopPropagation()"><%= contact.company_name %></a>
+            <% } else { %>—<% } %>
+          </td>
+          <td style="color:var(--text-muted);font-size:13px;"><%= contact.title || '—' %></td>
+          <td style="font-size:13px;">
+            <% if (contact.email) { %>
+              <a href="mailto:<%= contact.email %>" style="color:var(--primary);" onclick="event.stopPropagation()"><%= contact.email %></a>
+            <% } else { %>—<% } %>
+          </td>
+          <td style="font-size:13px;color:var(--text-muted);"><%= contact.phone || '—' %></td>
+          <td style="color:var(--text-muted);font-size:12px;"><%= new Date(contact.created_at).toLocaleDateString('cs-CZ') %></td>
+        </tr>
+        <% }); %>
+      <% } else { %>
+      <tr>
+        <td colspan="6" style="text-align:center;padding:48px;color:var(--text-muted);">
+          <%= (q || companyFilter) ? 'Žádné kontakty nenalezeny' : 'Zatím žádné kontakty' %>
+        </td>
+      </tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+
+<!-- Modal: Přidat kontakt -->
+<div class="modal-backdrop" id="modalCreateContact">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 class="modal-title">Přidat kontakt</h2>
+      <button class="modal-close" data-modal-close="modalCreateContact">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form method="post" action="/crm/kontakty/vytvorit">
+      <div class="modal-body">
+        <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-group">
+            <label class="form-label required">Jméno</label>
+            <input type="text" name="first_name" class="form-control" placeholder="Jan" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Příjmení</label>
+            <input type="text" name="last_name" class="form-control" placeholder="Novák">
+          </div>
+          <div class="form-group col-span-2">
+            <label class="form-label">Firma</label>
+            <select name="company_id" class="form-select">
+              <option value="">— Bez firmy —</option>
+              <% companies.forEach(c => { %>
+                <option value="<%= c.id %>"><%= c.name %></option>
+              <% }); %>
+            </select>
+          </div>
+          <div class="form-group col-span-2">
+            <label class="form-label">Pozice</label>
+            <input type="text" name="title" class="form-control" placeholder="Jednatel, obchodní ředitel…">
+          </div>
+          <div class="form-group">
+            <label class="form-label">E-mail</label>
+            <input type="email" name="email" class="form-control" placeholder="jan.novak@firma.cz">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Telefon</label>
+            <input type="text" name="phone" class="form-control" placeholder="+420 000 000 000">
+          </div>
+          <div class="form-group col-span-2">
+            <label class="form-label">Poznámky</label>
+            <textarea name="notes" class="form-control" rows="2" placeholder="Libovolné poznámky…"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" data-modal-close="modalCreateContact">Zrušit</button>
+        <button type="submit" class="btn btn-primary">Přidat kontakt</button>
+      </div>
+    </form>
+  </div>
+</div>

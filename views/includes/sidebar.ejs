@@ -1,0 +1,163 @@
+<aside class="sidebar" id="sidebar">
+
+  <!-- Logo -->
+  <div class="sidebar-logo">
+    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+      <rect width="32" height="32" rx="8" fill="#4F46E5"/>
+      <path d="M8 16C8 11.58 11.58 8 16 8s8 3.58 8 8-3.58 8-8 8" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
+      <circle cx="16" cy="16" r="3" fill="#fff"/>
+    </svg>
+    <span class="sidebar-brand-text">ONE.SEIL.SPACE</span>
+  </div>
+
+  <!-- Navigace -->
+  <nav class="sidebar-nav">
+
+    <!-- PŘEHLED -->
+    <div class="nav-section">
+      <div class="nav-section-label">Přehled</div>
+
+      <div class="nav-item <%= currentPath === '/' ? 'open' : '' %>">
+        <button class="nav-link" data-toggle="sub">
+          <span class="nav-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+              <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+            </svg>
+          </span>
+          <span class="nav-label">Monitoring</span>
+          <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </button>
+        <ul class="nav-sub">
+          <li>
+            <a href="/" class="nav-sub-link <%= currentPath === '/' ? 'active' : '' %>">
+              Aktuální stav VPS
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ÚČETNICTVÍ -->
+    <div class="nav-section">
+      <div class="nav-section-label">Účetnictví</div>
+
+      <div class="nav-item <%= currentPath && currentPath.startsWith('/ucetnictvi') ? 'open' : '' %>">
+        <button class="nav-link" data-toggle="sub">
+          <span class="nav-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+            </svg>
+          </span>
+          <span class="nav-label">Účetnictví</span>
+          <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </button>
+        <ul class="nav-sub">
+          <li>
+            <a href="/ucetnictvi/objednavky" class="nav-sub-link <%= currentPath === '/ucetnictvi/objednavky' ? 'active' : '' %>">
+              Objednávky
+            </a>
+          </li>
+          <li>
+            <a href="/ucetnictvi/prijate-faktury" class="nav-sub-link <%= currentPath === '/ucetnictvi/prijate-faktury' ? 'active' : '' %>">
+              Přijaté faktury
+            </a>
+          </li>
+          <li>
+            <a href="/ucetnictvi/vydane-faktury" class="nav-sub-link <%= currentPath === '/ucetnictvi/vydane-faktury' ? 'active' : '' %>">
+              Vydané faktury
+            </a>
+          </li>
+          <li>
+            <a href="/ucetnictvi/banka" class="nav-sub-link <%= currentPath === '/ucetnictvi/banka' ? 'active' : '' %>">
+              Banka
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- CRM -->
+    <div class="nav-section">
+      <div class="nav-section-label">CRM</div>
+
+      <div class="nav-item <%= currentPath && currentPath.startsWith('/crm') ? 'open' : '' %>">
+        <button class="nav-link" data-toggle="sub">
+          <span class="nav-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+          </span>
+          <span class="nav-label">CRM</span>
+          <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </button>
+        <ul class="nav-sub">
+          <li>
+            <a href="/crm/firmy" class="nav-sub-link <%= currentPath && currentPath.startsWith('/crm/firmy') ? 'active' : '' %>">
+              Firmy
+            </a>
+          </li>
+          <li>
+            <a href="/crm/kontakty" class="nav-sub-link <%= currentPath && currentPath.startsWith('/crm/kontakty') ? 'active' : '' %>">
+              Kontakty
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- LIDÉ & KULTURA (pouze admin) -->
+    <% if (user && user.is_admin) { %>
+    <div class="nav-section">
+      <div class="nav-section-label">Lidé &amp; Kultura</div>
+
+      <div class="nav-item <%= currentPath && currentPath.startsWith('/lide') ? 'open' : '' %>">
+        <button class="nav-link" data-toggle="sub">
+          <span class="nav-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+            </svg>
+          </span>
+          <span class="nav-label">Lidé &amp; Kultura</span>
+          <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </button>
+        <ul class="nav-sub">
+          <li>
+            <a href="/lide/tym" class="nav-sub-link <%= currentPath === '/lide/tym' ? 'active' : '' %>">
+              Tým
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+    <% } %>
+
+  </nav>
+
+  <!-- Footer: přihlášený uživatel -->
+  <div class="sidebar-footer">
+    <a href="/profil" class="sidebar-user">
+      <div class="sidebar-avatar">
+        <% if (user && user.photo) { %>
+          <img src="/media/<%= user.photo %>" alt="">
+        <% } else if (user) { %>
+          <%= (user.first_name || '').charAt(0).toUpperCase() %><%= (user.last_name || '').charAt(0).toUpperCase() || (user.email || '').charAt(0).toUpperCase() %>
+        <% } %>
+      </div>
+      <div class="sidebar-user-info">
+        <div class="sidebar-user-name"><%= user ? ((user.first_name + ' ' + user.last_name).trim() || user.email) : '' %></div>
+        <div class="sidebar-user-role"><%= user && user.is_admin ? 'Správce' : 'Uživatel' %></div>
+      </div>
+    </a>
+  </div>
+
+</aside>
