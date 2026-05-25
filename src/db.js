@@ -129,6 +129,51 @@ function _initAppSchema(db) {
       notes TEXT DEFAULT '',
       created_at TEXT DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS toneracek_orders (
+      id TEXT PRIMARY KEY,
+      order_number INTEGER NOT NULL,
+      status TEXT DEFAULT 'Přijata',
+      payment_method TEXT DEFAULT '',
+      shipping_method TEXT DEFAULT 'Zásilkovna',
+      first_name TEXT DEFAULT '',
+      last_name TEXT DEFAULT '',
+      company TEXT DEFAULT '',
+      ic TEXT DEFAULT '',
+      dic TEXT DEFAULT '',
+      email TEXT DEFAULT '',
+      phone TEXT DEFAULT '',
+      address TEXT DEFAULT '',
+      city TEXT DEFAULT '',
+      zip TEXT DEFAULT '',
+      country TEXT DEFAULT 'Česká republika',
+      shipping_first_name TEXT DEFAULT '',
+      shipping_last_name TEXT DEFAULT '',
+      shipping_company TEXT DEFAULT '',
+      shipping_phone TEXT DEFAULT '',
+      shipping_address TEXT DEFAULT '',
+      shipping_city TEXT DEFAULT '',
+      shipping_zip TEXT DEFAULT '',
+      pickup_point_id TEXT DEFAULT '',
+      pickup_point_name TEXT DEFAULT '',
+      total_price REAL DEFAULT 0,
+      invoice_number TEXT DEFAULT '',
+      tracking_number TEXT DEFAULT '',
+      label_url TEXT DEFAULT '',
+      ip_address TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now')),
+      modified_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS toneracek_order_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id TEXT NOT NULL REFERENCES toneracek_orders(id) ON DELETE CASCADE,
+      sku TEXT DEFAULT '',
+      name TEXT NOT NULL,
+      quantity INTEGER DEFAULT 1,
+      price REAL DEFAULT 0
+    );
   `);
 }
 

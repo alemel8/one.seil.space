@@ -1,0 +1,106 @@
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Objednávky Toneráček</h1>
+    <p><%= total %> objednávek celkem</p>
+  </div>
+</div>
+
+<!-- Statistiky stavů -->
+<% if (statusCounts && statusCounts.length > 0) { %>
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;">
+  <%
+    const statusColors = {
+      'Přijata': { bg: '#dbeafe', color: '#1e40af' },
+      'Ve zpracování': { bg: '#fef3c7', color: '#92400e' },
+      'Vyřízena': { bg: '#dcfce7', color: '#166534' },
+      'Stornována': { bg: '#fee2e2', color: '#991b1b' },
+    };
+  %>
+  <% statusCounts.forEach(sc => { %>
+    <% const sc_style = statusColors[sc.status] || { bg: '#f1f5f9', color: '#475569' }; %>
+    <a href="/toneracek/objednavky?status=<%= encodeURIComponent(sc.status) %>"
+       style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;background:<%= sc_style.bg %>;color:<%= sc_style.color %>;font-size:13px;font-weight:500;text-decoration:none;border:1px solid transparent;">
+      <strong><%= sc.n %></strong> <%= sc.status %>
+    </a>
+  <% }); %>
+</div>
+<% } %>
+
+<!-- Filtr -->
+<form method="get" style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+  <div style="position:relative;flex:1;min-width:240px;max-width:380px;">
+    <svg style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input type="text" name="q" value="<%= q || '' %>" placeholder="Číslo, jméno, email…" class="form-control" style="padding-left:38px;">
+  </div>
+  <select name="status" class="form-select" style="width:auto;">
+    <option value="">Všechny stavy</option>
+    <% ORDER_STATUSES.forEach(s => { %>
+      <option value="<%= s %>" <%= statusFilter === s ? 'selected' : '' %>><%= s %></option>
+    <% }); %>
+  </select>
+  <button type="submit" class="btn btn-outline">Filtrovat</button>
+  <% if (q || statusFilter) { %>
+    <a href="/toneracek/objednavky" class="btn btn-ghost">Zrušit filtr</a>
+  <% } %>
+</form>
+
+<!-- Tabulka -->
+<div class="table-wrapper">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Číslo</th>
+        <th>Zákazník</th>
+        <th>E-mail</th>
+        <th>Celkem</th>
+        <th>Platba</th>
+        <th>Stav</th>
+        <th>Datum</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (orders && orders.length > 0) { %>
+        <% orders.forEach(o => { %>
+        <%
+          const statusStyle = {
+            'Přijata': 'background:#dbeafe;color:#1e40af',
+            'Ve zpracování': 'background:#fef3c7;color:#92400e',
+            'Vyřízena': 'background:#dcfce7;color:#166534',
+            'Stornována': 'background:#fee2e2;color:#991b1b',
+          }[o.status] || 'background:#f1f5f9;color:#475569';
+        %>
+        <tr class="clickable-row" style="cursor:pointer;" onclick="window.location='/toneracek/objednavky/<%= o.id %>'">
+          <td style="font-weight:600;font-family:monospace;">#<%= o.order_number %></td>
+          <td style="font-weight:500;"><%= o.first_name %> <%= o.last_name %></td>
+          <td style="font-size:13px;color:var(--text-muted);"><%= o.email %></td>
+          <td style="font-variant-numeric:tabular-nums;font-weight:500;"><%= o.total_price.toLocaleString('cs-CZ') %> Kč</td>
+          <td style="font-size:12px;color:var(--text-muted);"><%= o.payment_method %></td>
+          <td><span class="badge" style="<%= statusStyle %>"><%= o.status %></span></td>
+          <td style="color:var(--text-muted);font-size:12px;"><%= new Date(o.created_at).toLocaleDateString('cs-CZ') %></td>
+        </tr>
+        <% }); %>
+      <% } else { %>
+      <tr>
+        <td colspan="7" style="text-align:center;padding:48px;color:var(--text-muted);">
+          <%= (q || statusFilter) ? 'Žádné objednávky nenalezeny' : 'Zatím žádné objednávky' %>
+        </td>
+      </tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+
+<!-- Stránkování -->
+<% if (totalPages > 1) { %>
+<div style="display:flex;justify-content:center;gap:8px;margin-top:24px;flex-wrap:wrap;">
+  <% if (currentPage > 1) { %>
+    <a href="?page=<%= currentPage - 1 %><%= q ? '&q=' + encodeURIComponent(q) : '' %><%= statusFilter ? '&status=' + encodeURIComponent(statusFilter) : '' %>" class="btn btn-outline btn-sm">← Předchozí</a>
+  <% } %>
+  <span style="display:flex;align-items:center;font-size:13px;color:var(--text-muted);">Strana <%= currentPage %> / <%= totalPages %></span>
+  <% if (currentPage < totalPages) { %>
+    <a href="?page=<%= currentPage + 1 %><%= q ? '&q=' + encodeURIComponent(q) : '' %><%= statusFilter ? '&status=' + encodeURIComponent(statusFilter) : '' %>" class="btn btn-outline btn-sm">Další →</a>
+  <% } %>
+</div>
+<% } %>

@@ -78,7 +78,7 @@ await fastify.register(authRoutes);
 // ── Auth guard pro všechny ostatní routy ─────────────────────
 
 fastify.addHook('onRequest', async (request, reply) => {
-  const publicPaths = ['/prihlasit', '/health', '/static', '/health/api'];
+  const publicPaths = ['/prihlasit', '/health', '/static', '/health/api', '/api/toneracek'];
   const isPublic = publicPaths.some(p => request.url === p || request.url.startsWith(p + '/') || request.url.startsWith(p + '?'));
   if (!isPublic && !request.session.userId) {
     return reply.redirect('/prihlasit');
@@ -91,11 +91,13 @@ const { default: dashboardRoutes } = await import('./routes/dashboard.js');
 const { default: crmRoutes } = await import('./routes/crm.js');
 const { default: peopleRoutes } = await import('./routes/people.js');
 const { default: accountingRoutes } = await import('./routes/accounting.js');
+const { default: toneracekRoutes } = await import('./routes/toneracek.js');
 
 await fastify.register(dashboardRoutes);
 await fastify.register(crmRoutes);
 await fastify.register(peopleRoutes);
 await fastify.register(accountingRoutes);
+await fastify.register(toneracekRoutes);
 
 // ── Start ─────────────────────────────────────────────────────
 
