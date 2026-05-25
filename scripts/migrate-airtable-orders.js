@@ -78,7 +78,7 @@ const F = {
   pickupPointId:    'fldniFThX5tVAh1aB',
   trackingNumber:   'fldCZ1TBBTGgBMfVg',
   labelUrl:         'fldIMKECXvDhNCUct',
-  email:            'fldalJniBJAO6SSFB', // lookup z Adresáře
+  // email není přímé pole na objednávce (je v linked Adresář) — migrujeme bez něj
 };
 
 // Field IDs na položkách objednávky
@@ -270,9 +270,7 @@ const migrate = db.transaction(() => {
     const exists = db.prepare('SELECT id FROM toneracek_orders WHERE id = ? OR order_number = ?').get(atId, orderNum);
     if (exists) { stats.skipped++; continue; }
 
-    const emailRaw = f[F.email];
-    const email = Array.isArray(emailRaw) ? (emailRaw[0] || '') : str(emailRaw);
-
+    const email = '';
     const createdAt = str(f[F.createdAt]) || new Date().toISOString();
     const year = new Date(createdAt).getFullYear();
     const invoiceNumber = `FV-${year}-${orderNum}`;

@@ -327,7 +327,7 @@ export default async function toneracekRoutes(fastify) {
       shippingCity: 'fldGluke3JodUfPc6', shippingZip: 'fldBBzDOdot41I90S',
       totalPrice: 'flds7bIEsbE2cEWWj', pickupPointName: 'fldcrzmuNe6XcYURH',
       pickupPointId: 'fldniFThX5tVAh1aB', trackingNumber: 'fldCZ1TBBTGgBMfVg',
-      labelUrl: 'fldIMKECXvDhNCUct', email: 'fldalJniBJAO6SSFB',
+      labelUrl: 'fldIMKECXvDhNCUct',
     };
     const FI = {
       orderLink: 'fldY2RggE06sKFJ8y', name: 'fldvB5z3lFM8JLTQT', quantity: 'fld8hRuAjAkk1VnSL',
@@ -399,8 +399,7 @@ export default async function toneracekRoutes(fastify) {
           const exists = db.prepare('SELECT id FROM toneracek_orders WHERE id = ? OR order_number = ?').get(atId, orderNum);
           if (exists) { stats.skipped++; continue; }
 
-          const emailRaw = f[F.email];
-          const email = Array.isArray(emailRaw) ? (emailRaw[0] || '') : s(emailRaw);
+          const email = '';
           const createdAt = s(f[F.createdAt]) || new Date().toISOString();
           const year = new Date(createdAt).getFullYear();
 
