@@ -1,0 +1,82 @@
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Migrace objednávek z Airtable</h1>
+    <p>Jednorázový import historických objednávek do SQLite</p>
+  </div>
+</div>
+
+<% if (!result) { %>
+
+<div class="card" style="max-width:560px;">
+  <div class="card-body">
+    <p style="font-size:14px;color:var(--text-muted);margin-bottom:20px;line-height:1.6;">
+      Skript stáhne všechny objednávky a položky z Airtable a importuje je do lokální SQLite databáze.
+      Objednávky, které již existují, budou přeskočeny (idempotentní operace).<br><br>
+      Potřebné env vars: <code>AIRTABLE_API_KEY</code>, <code>AIRTABLE_BASE_ID</code>.<br>
+      Může trvat 1–2 minuty v závislosti na počtu objednávek.
+    </p>
+    <form method="post" action="/toneracek/migrace">
+      <button type="submit" class="btn btn-primary">
+        Spustit migraci
+      </button>
+      <a href="/toneracek/objednavky" class="btn btn-ghost" style="margin-left:8px;">Zpět</a>
+    </form>
+  </div>
+</div>
+
+<% } else if (result.error) { %>
+
+<div class="card" style="max-width:560px;border-color:#fca5a5;">
+  <div class="card-body">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+      <span style="font-size:24px;">❌</span>
+      <strong style="color:#dc2626;">Migrace selhala</strong>
+    </div>
+    <pre style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:14px;font-size:13px;white-space:pre-wrap;word-break:break-all;"><%= result.error %></pre>
+    <form method="post" action="/toneracek/migrace" style="margin-top:16px;">
+      <button type="submit" class="btn btn-outline">Zkusit znovu</button>
+      <a href="/toneracek/objednavky" class="btn btn-ghost" style="margin-left:8px;">Zpět</a>
+    </form>
+  </div>
+</div>
+
+<% } else { %>
+
+<div class="card" style="max-width:560px;border-color:#86efac;">
+  <div class="card-body">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+      <span style="font-size:24px;">✅</span>
+      <strong style="color:#16a34a;font-size:16px;">Migrace dokončena</strong>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:14px;">
+      <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border-color);">
+        <span style="color:var(--text-muted);">Objednávky v Airtable</span>
+        <strong><%= result.total %></strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border-color);">
+        <span style="color:var(--text-muted);">Importováno (nových)</span>
+        <strong style="color:#16a34a;"><%= result.imported %></strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border-color);">
+        <span style="color:var(--text-muted);">Přeskočeno (existovaly)</span>
+        <strong><%= result.skipped %></strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border-color);">
+        <span style="color:var(--text-muted);">Položek importováno</span>
+        <strong><%= result.items %></strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:10px 0;">
+        <span style="color:var(--text-muted);">CRM kontaktů upsertováno</span>
+        <strong><%= result.contacts %></strong>
+      </div>
+    </div>
+    <div style="margin-top:20px;display:flex;gap:8px;">
+      <a href="/toneracek/objednavky" class="btn btn-primary">Zobrazit objednávky</a>
+      <form method="post" action="/toneracek/migrace">
+        <button type="submit" class="btn btn-outline">Spustit znovu</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<% } %>

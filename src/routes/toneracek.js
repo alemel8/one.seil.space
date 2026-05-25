@@ -284,4 +284,174 @@ export default async function toneracekRoutes(fastify) {
 
     return reply.redirect(`/toneracek/objednavky/${request.params.id}`);
   });
+
+  // ── Admin: Migrace z Airtable (jednorázová) ───────────────
+
+  fastify.get('/toneracek/migrace', async (request, reply) => {
+    if (!request.user?.is_admin) return reply.code(403).send('Pouze admin');
+    return reply.view('pages/toneracek/migrace.ejs', {
+      pageTitle: 'Migrace z Airtable',
+      currentPath: '/toneracek/objednavky',
+      user: request.user,
+      result: null,
+    }, { layout: 'layouts/base.ejs' });
+  });
+
+  fastify.post('/toneracek/migrace', async (request, reply) => {
+    if (!request.user?.is_admin) return reply.code(403).send('Pouze admin');
+
+    const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
+    const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
+
+    if (!AIRTABLE_API_KEY || !AIRTABLE_BASE_ID) {
+      return reply.view('pages/toneracek/migrace.ejs', {
+        pageTitle: 'Migrace z Airtable',
+        currentPath: '/toneracek/objednavky',
+        user: request.user,
+        result: { error: 'Chybí AIRTABLE_API_KEY nebo AIRTABLE_BASE_ID v prostředí.' },
+      }, { layout: 'layouts/base.ejs' });
+    }
+
+    const AT_ORDERS = 'tblhP8tvVl0KdJQeR';
+    const AT_ITEMS  = 'tblqjU6x9KTGEH7YW';
+    const F = {
+      orderNumber: 'fldrpOS8rh4zFuQhf', createdAt: 'fldBoq3y26qLLmFmf',
+      status: 'fldqYJ0WgbNktvodr', firstName: 'fldSXFWeGZWP5p78m',
+      lastName: 'fldHWnihHavgvzd7C', company: 'fld0baVKNA2s8Ew30',
+      phone: 'fldM1HKgq9JG7z1Qv', address: 'fldRPHZNBLGIYctDq',
+      city: 'fldz9ziSCPL4nhyRN', zip: 'fldNgmNrv1cwC2j4A',
+      ipAddress: 'fldFT6kBX0IFpKf7F', shippingMethod: 'fld8Q8OjYH7vtGmK6',
+      paymentMethod: 'fldfS6nqK4WallV4P', shippingFirstName: 'fld4IdoOPmcyrhp5L',
+      shippingLastName: 'fld2sRyKXxE72cHM8', shippingCompany: 'fldeUtp0EUC74ycKf',
+      shippingPhone: 'fldsWCHPNEkxI185x', shippingAddress: 'fldDi1E3Zc8PTyRnu',
+      shippingCity: 'fldGluke3JodUfPc6', shippingZip: 'fldBBzDOdot41I90S',
+      totalPrice: 'flds7bIEsbE2cEWWj', pickupPointName: 'fldcrzmuNe6XcYURH',
+      pickupPointId: 'fldniFThX5tVAh1aB', trackingNumber: 'fldCZ1TBBTGgBMfVg',
+      labelUrl: 'fldIMKECXvDhNCUct', email: 'fldalJniBJAO6SSFB',
+    };
+    const FI = {
+      orderLink: 'fldY2RggE06sKFJ8y', name: 'fldvB5z3lFM8JLTQT', quantity: 'fld8hRuAjAkk1VnSL',
+    };
+
+    async function fetchAll(table, fieldIds) {
+      const records = [];
+      let offset;
+      do {
+        const url = new URL(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${table}`);
+        url.searchParams.set('returnFieldsByFieldId', 'true');
+        url.searchParams.set('pageSize', '100');
+        if (offset) url.searchParams.set('offset', offset);
+        fieldIds.forEach(f => url.searchParams.append('fields[]', f));
+        const res = await fetch(url.toString(), {
+          headers: { Authorization: `Bearer ${AIRTABLE_API_KEY}` },
+        });
+        if (!res.ok) throw new Error(`Airtable ${res.status}: ${await res.text()}`);
+        const data = await res.json();
+        records.push(...data.records);
+        offset = data.offset;
+      } while (offset);
+      return records;
+    }
+
+    const s = v => { if (!v && v !== 0) return ''; if (Array.isArray(v)) return v.filter(x => typeof x === 'string').join(', '); return String(v); };
+    const n = v => { if (typeof v === 'number') return v; if (Array.isArray(v) && typeof v[0] === 'number') return v[0]; return 0; };
+
+    try {
+      const [orderRecords, itemRecords] = await Promise.all([
+        fetchAll(AT_ORDERS, Object.values(F)),
+        fetchAll(AT_ITEMS, Object.values(FI)),
+      ]);
+
+      const itemsByOrder = {};
+      for (const rec of itemRecords) {
+        const links = rec.fields[FI.orderLink];
+        const orderId = Array.isArray(links) ? links[0] : links;
+        if (!orderId) continue;
+        if (!itemsByOrder[orderId]) itemsByOrder[orderId] = [];
+        itemsByOrder[orderId].push({ name: s(rec.fields[FI.name]), quantity: n(rec.fields[FI.quantity]) || 1 });
+      }
+
+      const db = getAppDb();
+      const insertOrder = db.prepare(`
+        INSERT OR IGNORE INTO toneracek_orders (
+          id, order_number, status, payment_method, shipping_method,
+          first_name, last_name, company, email, phone, address, city, zip,
+          shipping_first_name, shipping_last_name, shipping_company,
+          shipping_phone, shipping_address, shipping_city, shipping_zip,
+          pickup_point_id, pickup_point_name, total_price, invoice_number,
+          tracking_number, label_url, ip_address, created_at, modified_at
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      `);
+      const insertItem = db.prepare(`
+        INSERT INTO toneracek_order_items (order_id, sku, name, quantity, price)
+        VALUES (?, '', ?, ?, 0)
+      `);
+
+      const stats = { imported: 0, skipped: 0, items: 0, contacts: 0 };
+
+      const migrate = db.transaction(() => {
+        for (const rec of orderRecords) {
+          const f = rec.fields;
+          const atId = rec.id;
+          const orderNum = n(f[F.orderNumber]);
+          if (!orderNum) { stats.skipped++; continue; }
+
+          const exists = db.prepare('SELECT id FROM toneracek_orders WHERE id = ? OR order_number = ?').get(atId, orderNum);
+          if (exists) { stats.skipped++; continue; }
+
+          const emailRaw = f[F.email];
+          const email = Array.isArray(emailRaw) ? (emailRaw[0] || '') : s(emailRaw);
+          const createdAt = s(f[F.createdAt]) || new Date().toISOString();
+          const year = new Date(createdAt).getFullYear();
+
+          insertOrder.run(
+            atId, orderNum, s(f[F.status]) || 'Přijata', s(f[F.paymentMethod]), s(f[F.shippingMethod]) || 'Zásilkovna',
+            s(f[F.firstName]), s(f[F.lastName]), s(f[F.company]), email, s(f[F.phone]),
+            s(f[F.address]), s(f[F.city]), s(f[F.zip]),
+            s(f[F.shippingFirstName]) || s(f[F.firstName]), s(f[F.shippingLastName]) || s(f[F.lastName]),
+            s(f[F.shippingCompany]) || s(f[F.company]), s(f[F.shippingPhone]) || s(f[F.phone]),
+            s(f[F.shippingAddress]) || s(f[F.address]), s(f[F.shippingCity]) || s(f[F.city]),
+            s(f[F.shippingZip]) || s(f[F.zip]),
+            s(f[F.pickupPointId]), s(f[F.pickupPointName]),
+            n(f[F.totalPrice]), `FV-${year}-${orderNum}`,
+            s(f[F.trackingNumber]), s(f[F.labelUrl]), s(f[F.ipAddress]),
+            createdAt, createdAt,
+          );
+
+          for (const item of (itemsByOrder[atId] || [])) {
+            insertItem.run(atId, item.name, item.quantity);
+            stats.items++;
+          }
+
+          if (email) {
+            try {
+              upsertCustomerToCRM(db, { email, firstName: s(f[F.firstName]), lastName: s(f[F.lastName]), company: s(f[F.company]), phone: s(f[F.phone]), city: s(f[F.city]), country: 'Česká republika' });
+              stats.contacts++;
+            } catch {}
+          }
+
+          stats.imported++;
+        }
+      });
+
+      migrate();
+
+      fastify.log.info(stats, 'Airtable migrace dokončena');
+      return reply.view('pages/toneracek/migrace.ejs', {
+        pageTitle: 'Migrace z Airtable',
+        currentPath: '/toneracek/objednavky',
+        user: request.user,
+        result: { ...stats, total: orderRecords.length, totalItems: itemRecords.length },
+      }, { layout: 'layouts/base.ejs' });
+
+    } catch (err) {
+      fastify.log.error({ err }, 'Airtable migrace selhala');
+      return reply.view('pages/toneracek/migrace.ejs', {
+        pageTitle: 'Migrace z Airtable',
+        currentPath: '/toneracek/objednavky',
+        user: request.user,
+        result: { error: err.message },
+      }, { layout: 'layouts/base.ejs' });
+    }
+  });
 }
