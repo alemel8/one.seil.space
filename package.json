@@ -9,6 +9,7 @@
     "dev": "node --watch src/server.js",
     "collect": "node src/collector.js",
     "superuser": "node scripts/create-superuser.js",
+    "migrate:orders": "node scripts/migrate-airtable-orders.js",
     "test": "node --test test/"
   },
   "engines": {

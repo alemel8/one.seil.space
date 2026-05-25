@@ -9,6 +9,42 @@ const PAYMENT_LABELS = {
   cod: 'Dobírka',
 };
 
+// ── CRM upsert zákazníka ──────────────────────────────────────
+
+function upsertCustomerToCRM(db, { email, firstName, lastName, company, phone, city, country }) {
+  if (!email) return;
+
+  let companyId = null;
+  if (company) {
+    const existingCo = db.prepare('SELECT id FROM crm_companies WHERE name = ?').get(company);
+    if (existingCo) {
+      companyId = existingCo.id;
+    } else {
+      companyId = generateId();
+      db.prepare(`
+        INSERT INTO crm_companies (id, name, company_type, city, country, modified_at)
+        VALUES (?, ?, 'Zákazník', ?, ?, datetime('now'))
+      `).run(companyId, company, city || '', country || '');
+    }
+  }
+
+  const existing = db.prepare('SELECT id FROM crm_contacts WHERE email = ?').get(email);
+  if (existing) {
+    db.prepare(`
+      UPDATE crm_contacts SET
+        first_name = ?, last_name = ?, phone = ?,
+        company_id = COALESCE(company_id, ?),
+        modified_at = datetime('now')
+      WHERE email = ?
+    `).run(firstName || '', lastName || '', phone || '', companyId, email);
+  } else {
+    db.prepare(`
+      INSERT INTO crm_contacts (id, first_name, last_name, email, phone, company_id, notes)
+      VALUES (?, ?, ?, ?, ?, ?, 'Zákazník Toneráček.cz')
+    `).run(generateId(), firstName || '', lastName || '', email, phone || '', companyId);
+  }
+}
+
 // ── API: ověření klíče ─────────────────────────────────────────
 
 function verifyApiKey(request) {
@@ -88,6 +124,21 @@ export default async function toneracekRoutes(fastify) {
     `);
     for (const item of items) {
       insertItem.run(orderId, item.sku ?? '', item.name, item.quantity, item.price);
+    }
+
+    // Upsert zákazníka do CRM (nekritické)
+    try {
+      upsertCustomerToCRM(db, {
+        email: customer.email,
+        firstName: customer.firstName,
+        lastName: customer.lastName,
+        company: customer.company,
+        phone: customer.phone,
+        city: customer.city,
+        country: customer.stat || 'Česká republika',
+      });
+    } catch (err) {
+      fastify.log.warn({ err }, 'CRM upsert selhal (nekritické)');
     }
 
     return reply.send({ orderId, orderNumber, invoiceNumber });
