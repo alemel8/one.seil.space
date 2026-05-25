@@ -175,6 +175,12 @@ function _initAppSchema(db) {
       price REAL DEFAULT 0
     );
   `);
+
+  // Bezpečné přidání sloupců pro nové funkce (tiše selže pokud již existují)
+  const tryAlter = sql => { try { db.exec(sql); } catch {} };
+  tryAlter('ALTER TABLE crm_contacts ADD COLUMN is_registered INTEGER DEFAULT 0');
+  tryAlter('ALTER TABLE toneracek_orders ADD COLUMN crm_contact_id TEXT');
+  tryAlter('ALTER TABLE toneracek_orders ADD COLUMN crm_company_id TEXT');
 }
 
 export function generateId() {

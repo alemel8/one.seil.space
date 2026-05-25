@@ -52,10 +52,15 @@ const AT_ORDERS     = 'tblhP8tvVl0KdJQeR';
 const AT_ITEMS      = 'tblqjU6x9KTGEH7YW';
 const AT_CUSTOMERS  = 'tblk6MpLpLpe7wTq7';
 
-// Field IDs na zákaznících (Adresář)
+// Field IDs na zákaznících (tabulka Uzivatele)
 const FC = {
-  email:      'fldalJniBJAO6SSFB',
-  orderLinks: 'fldiTbjYcUsE0e5d2',
+  email:        'fldalJniBJAO6SSFB',
+  orderLinks:   'fldiTbjYcUsE0e5d2',
+  isRegistered: 'fldRegistrace',  // "Registrovaný" / "Neregistrovaný"
+  firstName:    'fldJmeno',
+  lastName:     'fldPrijmeni',
+  phone:        'fldTelefon',
+  company:      'fldFirma',
 };
 
 // Field IDs na objednávkách
@@ -167,12 +172,12 @@ function num(v) {
 
 // ── CRM upsert ────────────────────────────────────────────────
 
-function upsertContactToCRM({ email, firstName, lastName, company, phone, city, country }) {
-  if (!email) return;
+function upsertContactToCRM({ email, firstName, lastName, company, phone, city, country, isRegistered }) {
+  if (!email) return { contactId: null, companyId: null };
 
   let companyId = null;
-  if (company) {
-    const existingCo = db.prepare('SELECT id FROM crm_companies WHERE name = ?').get(company);
+  if (company && company.trim()) {
+    const existingCo = db.prepare('SELECT id FROM crm_companies WHERE name = ?').get(company.trim());
     if (existingCo) {
       companyId = existingCo.id;
     } else {
@@ -180,25 +185,33 @@ function upsertContactToCRM({ email, firstName, lastName, company, phone, city, 
       db.prepare(`
         INSERT INTO crm_companies (id, name, company_type, city, country, modified_at)
         VALUES (?, ?, 'Zákazník', ?, ?, datetime('now'))
-      `).run(companyId, company, city || '', country || '');
+      `).run(companyId, company.trim(), city || '', country || '');
     }
   }
 
-  const existing = db.prepare('SELECT id FROM crm_contacts WHERE email = ?').get(email);
+  const isReg = isRegistered ? 1 : 0;
+  const existing = db.prepare('SELECT id, is_registered FROM crm_contacts WHERE email = ?').get(email);
+  let contactId;
   if (existing) {
+    const newIsReg = Math.max(existing.is_registered || 0, isReg);
     db.prepare(`
       UPDATE crm_contacts SET
         first_name = ?, last_name = ?, phone = ?,
         company_id = COALESCE(company_id, ?),
+        is_registered = ?,
         modified_at = datetime('now')
       WHERE email = ?
-    `).run(firstName || '', lastName || '', phone || '', companyId, email);
+    `).run(firstName || '', lastName || '', phone || '', companyId, newIsReg, email);
+    contactId = existing.id;
   } else {
+    contactId = generateId();
     db.prepare(`
-      INSERT INTO crm_contacts (id, first_name, last_name, email, phone, company_id, notes)
-      VALUES (?, ?, ?, ?, ?, ?, 'Zákazník Toneráček.cz')
-    `).run(generateId(), firstName || '', lastName || '', email, phone || '', companyId);
+      INSERT INTO crm_contacts (id, first_name, last_name, email, phone, company_id, is_registered, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'Zákazník Toneráček.cz')
+    `).run(contactId, firstName || '', lastName || '', email, phone || '', companyId, isReg);
   }
+
+  return { contactId, companyId };
 }
 
 // ── Hlavní migrace ────────────────────────────────────────────
@@ -213,17 +226,29 @@ console.log('2. Stahování položek objednávek…');
 const itemRecords = await fetchAll(AT_ITEMS, Object.values(FI));
 console.log(`   Celkem ${itemRecords.length} položek.\n`);
 
-console.log('3. Stahování zákazníků (Adresář) pro emaily…');
-const customerRecords = await fetchAll(AT_CUSTOMERS, Object.values(FC));
-console.log(`   Celkem ${customerRecords.length} zákazníků.\n`);
-
-// Mapa Airtable order ID → email zákazníka
-const emailByOrder = {};
-for (const rec of customerRecords) {
-  const email = str(rec.fields[FC.email]);
-  const links = rec.fields[FC.orderLinks];
-  if (!email || !Array.isArray(links)) continue;
-  for (const orderId of links) emailByOrder[orderId] = email;
+console.log('3. Stahování zákazníků (Uzivatele) pro emaily a CRM…');
+let customerByOrder = {};
+let emailsNote = null;
+try {
+  const customerRecords = await fetchAll(AT_CUSTOMERS, Object.values(FC));
+  console.log(`   Celkem ${customerRecords.length} zákazníků.\n`);
+  for (const rec of customerRecords) {
+    const email = str(rec.fields[FC.email]);
+    const links = rec.fields[FC.orderLinks];
+    if (!email || !Array.isArray(links)) continue;
+    const cust = {
+      email,
+      isRegistered: str(rec.fields[FC.isRegistered]) === 'Registrovaný',
+      firstName: str(rec.fields[FC.firstName]),
+      lastName:  str(rec.fields[FC.lastName]),
+      phone:     str(rec.fields[FC.phone]),
+      company:   str(rec.fields[FC.company]),
+    };
+    for (const orderId of links) customerByOrder[orderId] = cust;
+  }
+} catch (err) {
+  emailsNote = `Emaily zákazníků nebyly načteny (${err.message}). Přidej tabulce Uzivatele práva pro API token.`;
+  console.warn('\n⚠️ ', emailsNote, '\n');
 }
 
 // Seskup položky podle order ID
@@ -277,35 +302,26 @@ const stats = { imported: 0, skipped: 0, items: 0, contacts: 0 };
 
 const migrate = db.transaction(() => {
   for (const rec of orderRecords) {
-    const f   = rec.fields;
-    const atId = rec.id; // Airtable record ID jako SQLite ID
+    const f    = rec.fields;
+    const atId = rec.id;
 
     const orderNum = num(f[F.orderNumber]);
     if (!orderNum) { stats.skipped++; continue; }
 
-    // Zkontroluj zda objednávka již existuje (idempotence)
     const exists = db.prepare('SELECT id FROM toneracek_orders WHERE id = ? OR order_number = ?').get(atId, orderNum);
     if (exists) { stats.skipped++; continue; }
 
-    const email = emailByOrder[atId] || '';
+    const cust = customerByOrder[atId] || null;
+    const email = cust?.email || '';
     const createdAt = str(f[F.createdAt]) || new Date().toISOString();
     const year = new Date(createdAt).getFullYear();
-    const invoiceNumber = `FV-${year}-${orderNum}`;
 
     insertOrder.run(
-      atId,
-      orderNum,
-      str(f[F.status]) || 'Přijata',
-      str(f[F.paymentMethod]) || '',
-      str(f[F.shippingMethod]) || 'Zásilkovna',
-      str(f[F.firstName]),
-      str(f[F.lastName]),
-      str(f[F.company]),
-      email,
-      str(f[F.phone]),
-      str(f[F.address]),
-      str(f[F.city]),
-      str(f[F.zip]),
+      atId, orderNum, str(f[F.status]) || 'Přijata',
+      str(f[F.paymentMethod]) || '', str(f[F.shippingMethod]) || 'Zásilkovna',
+      str(f[F.firstName]), str(f[F.lastName]), str(f[F.company]),
+      email, str(f[F.phone]),
+      str(f[F.address]), str(f[F.city]), str(f[F.zip]),
       str(f[F.shippingFirstName]) || str(f[F.firstName]),
       str(f[F.shippingLastName])  || str(f[F.lastName]),
       str(f[F.shippingCompany])   || str(f[F.company]),
@@ -313,36 +329,33 @@ const migrate = db.transaction(() => {
       str(f[F.shippingAddress])   || str(f[F.address]),
       str(f[F.shippingCity])      || str(f[F.city]),
       str(f[F.shippingZip])       || str(f[F.zip]),
-      str(f[F.pickupPointId]),
-      str(f[F.pickupPointName]),
-      num(f[F.totalPrice]),
-      invoiceNumber,
-      str(f[F.trackingNumber]),
-      str(f[F.labelUrl]),
-      str(f[F.ipAddress]),
-      createdAt,
-      createdAt,
+      str(f[F.pickupPointId]), str(f[F.pickupPointName]),
+      num(f[F.totalPrice]), `FV-${year}-${orderNum}`,
+      str(f[F.trackingNumber]), str(f[F.labelUrl]), str(f[F.ipAddress]),
+      createdAt, createdAt,
     );
 
-    // Vlož položky
-    const items = itemsByOrder[atId] || [];
-    for (const item of items) {
+    for (const item of (itemsByOrder[atId] || [])) {
       insertItem.run(atId, item.name, item.quantity);
       stats.items++;
     }
 
-    // CRM upsert
     if (email) {
       try {
-        upsertContactToCRM({
+        const { contactId, companyId } = upsertContactToCRM({
           email,
-          firstName: str(f[F.firstName]),
-          lastName:  str(f[F.lastName]),
-          company:   str(f[F.company]),
-          phone:     str(f[F.phone]),
-          city:      str(f[F.city]),
-          country:   'Česká republika',
+          firstName:    cust?.firstName || str(f[F.firstName]),
+          lastName:     cust?.lastName  || str(f[F.lastName]),
+          company:      cust?.company   || str(f[F.company]),
+          phone:        cust?.phone     || str(f[F.phone]),
+          city:         str(f[F.city]),
+          country:      'Česká republika',
+          isRegistered: cust?.isRegistered ?? false,
         });
+        if (contactId || companyId) {
+          db.prepare(`UPDATE toneracek_orders SET crm_contact_id = ?, crm_company_id = ? WHERE id = ?`)
+            .run(contactId || null, companyId || null, atId);
+        }
         stats.contacts++;
       } catch {}
     }
@@ -359,8 +372,9 @@ migrate();
 db.close();
 
 console.log('\n=== Výsledek ===');
-console.log(`  Importováno objednávek: ${stats.imported}`);
+console.log(`  Importováno objednávek:    ${stats.imported}`);
 console.log(`  Přeskočeno (již existuje): ${stats.skipped}`);
-console.log(`  Importováno položek: ${stats.items}`);
+console.log(`  Importováno položek:       ${stats.items}`);
 console.log(`  CRM kontaktů upsertováno: ${stats.contacts}`);
+if (emailsNote) console.log(`\n⚠️  ${emailsNote}`);
 console.log(`\nHotovo! DB: ${DB_PATH}\n`);

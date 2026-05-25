@@ -10,13 +10,14 @@ const PAYMENT_LABELS = {
 };
 
 // ── CRM upsert zákazníka ──────────────────────────────────────
+// Vrací { contactId, companyId } — oba mohou být null
 
-function upsertCustomerToCRM(db, { email, firstName, lastName, company, phone, city, country }) {
-  if (!email) return;
+function upsertCustomerToCRM(db, { email, firstName, lastName, company, phone, city, country, isRegistered }) {
+  if (!email) return { contactId: null, companyId: null };
 
   let companyId = null;
-  if (company) {
-    const existingCo = db.prepare('SELECT id FROM crm_companies WHERE name = ?').get(company);
+  if (company && company.trim()) {
+    const existingCo = db.prepare('SELECT id FROM crm_companies WHERE name = ?').get(company.trim());
     if (existingCo) {
       companyId = existingCo.id;
     } else {
@@ -24,25 +25,34 @@ function upsertCustomerToCRM(db, { email, firstName, lastName, company, phone, c
       db.prepare(`
         INSERT INTO crm_companies (id, name, company_type, city, country, modified_at)
         VALUES (?, ?, 'Zákazník', ?, ?, datetime('now'))
-      `).run(companyId, company, city || '', country || '');
+      `).run(companyId, company.trim(), city || '', country || '');
     }
   }
 
-  const existing = db.prepare('SELECT id FROM crm_contacts WHERE email = ?').get(email);
+  const isReg = isRegistered ? 1 : 0;
+  const existing = db.prepare('SELECT id, is_registered FROM crm_contacts WHERE email = ?').get(email);
+  let contactId;
   if (existing) {
+    // Registrovaný status se nikdy nesníží (jednou registrovaný = vždy)
+    const newIsReg = Math.max(existing.is_registered || 0, isReg);
     db.prepare(`
       UPDATE crm_contacts SET
         first_name = ?, last_name = ?, phone = ?,
         company_id = COALESCE(company_id, ?),
+        is_registered = ?,
         modified_at = datetime('now')
       WHERE email = ?
-    `).run(firstName || '', lastName || '', phone || '', companyId, email);
+    `).run(firstName || '', lastName || '', phone || '', companyId, newIsReg, email);
+    contactId = existing.id;
   } else {
+    contactId = generateId();
     db.prepare(`
-      INSERT INTO crm_contacts (id, first_name, last_name, email, phone, company_id, notes)
-      VALUES (?, ?, ?, ?, ?, ?, 'Zákazník Toneráček.cz')
-    `).run(generateId(), firstName || '', lastName || '', email, phone || '', companyId);
+      INSERT INTO crm_contacts (id, first_name, last_name, email, phone, company_id, is_registered, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'Zákazník Toneráček.cz')
+    `).run(contactId, firstName || '', lastName || '', email, phone || '', companyId, isReg);
   }
+
+  return { contactId, companyId };
 }
 
 // ── API: ověření klíče ─────────────────────────────────────────
@@ -126,9 +136,9 @@ export default async function toneracekRoutes(fastify) {
       insertItem.run(orderId, item.sku ?? '', item.name, item.quantity, item.price);
     }
 
-    // Upsert zákazníka do CRM (nekritické)
+    // Upsert zákazníka do CRM a propoj s objednávkou (nekritické)
     try {
-      upsertCustomerToCRM(db, {
+      const { contactId, companyId } = upsertCustomerToCRM(db, {
         email: customer.email,
         firstName: customer.firstName,
         lastName: customer.lastName,
@@ -136,7 +146,13 @@ export default async function toneracekRoutes(fastify) {
         phone: customer.phone,
         city: customer.city,
         country: customer.stat || 'Česká republika',
+        isRegistered: b.isRegistered ?? false,
       });
+      if (contactId || companyId) {
+        db.prepare(
+          `UPDATE toneracek_orders SET crm_contact_id = ?, crm_company_id = ? WHERE id = ?`
+        ).run(contactId || null, companyId || null, orderId);
+      }
     } catch (err) {
       fastify.log.warn({ err }, 'CRM upsert selhal (nekritické)');
     }
@@ -314,8 +330,16 @@ export default async function toneracekRoutes(fastify) {
 
     const AT_ORDERS    = 'tblhP8tvVl0KdJQeR';
     const AT_ITEMS     = 'tblqjU6x9KTGEH7YW';
-    const AT_CUSTOMERS = 'tblk6MpLpLpe7wTq7';
-    const FC = { email: 'fldalJniBJAO6SSFB', orderLinks: 'fldiTbjYcUsE0e5d2' };
+    const AT_CUSTOMERS = 'tblk6MpLpLpe7wTq7'; // tabulka Uzivatele
+    const FC = {
+      email:        'fldalJniBJAO6SSFB',
+      orderLinks:   'fldiTbjYcUsE0e5d2',
+      isRegistered: 'fldRegistrace',  // "Registrovaný" / "Neregistrovaný"
+      firstName:    'fldJmeno',
+      lastName:     'fldPrijmeni',
+      phone:        'fldTelefon',
+      company:      'fldFirma',
+    };
     const F = {
       orderNumber: 'fldrpOS8rh4zFuQhf', createdAt: 'fldBoq3y26qLLmFmf',
       status: 'fldqYJ0WgbNktvodr', firstName: 'fldSXFWeGZWP5p78m',
@@ -364,8 +388,8 @@ export default async function toneracekRoutes(fastify) {
         fetchAll(AT_ITEMS, Object.values(FI)),
       ]);
 
-      // Mapa Airtable order ID → email zákazníka (nepovinné — selže tiše při 403)
-      const emailByOrder = {};
+      // Mapa order ID → zákazník (tabulka Uzivatele) — selže tiše při 403
+      const customerByOrder = {};
       let emailsNote = null;
       try {
         const customerRecords = await fetchAll(AT_CUSTOMERS, Object.values(FC));
@@ -373,10 +397,18 @@ export default async function toneracekRoutes(fastify) {
           const email = s(rec.fields[FC.email]);
           const links = rec.fields[FC.orderLinks];
           if (!email || !Array.isArray(links)) continue;
-          for (const orderId of links) emailByOrder[orderId] = email;
+          const cust = {
+            email,
+            isRegistered: s(rec.fields[FC.isRegistered]) === 'Registrovaný',
+            firstName: s(rec.fields[FC.firstName]),
+            lastName:  s(rec.fields[FC.lastName]),
+            phone:     s(rec.fields[FC.phone]),
+            company:   s(rec.fields[FC.company]),
+          };
+          for (const orderId of links) customerByOrder[orderId] = cust;
         }
       } catch (err) {
-        emailsNote = `Emaily zákazníků nebyly načteny (${err.message}). Token nemá přístup k tabulce Adresář.`;
+        emailsNote = `Emaily zákazníků nebyly načteny (${err.message}). Přidej tabulce Uzivatele práva pro API token.`;
         fastify.log.warn(emailsNote);
       }
 
@@ -417,7 +449,8 @@ export default async function toneracekRoutes(fastify) {
           const exists = db.prepare('SELECT id FROM toneracek_orders WHERE id = ? OR order_number = ?').get(atId, orderNum);
           if (exists) { stats.skipped++; continue; }
 
-          const email = emailByOrder[atId] || '';
+          const cust = customerByOrder[atId] || null;
+          const email = cust?.email || '';
           const createdAt = s(f[F.createdAt]) || new Date().toISOString();
           const year = new Date(createdAt).getFullYear();
 
@@ -442,7 +475,19 @@ export default async function toneracekRoutes(fastify) {
 
           if (email) {
             try {
-              upsertCustomerToCRM(db, { email, firstName: s(f[F.firstName]), lastName: s(f[F.lastName]), company: s(f[F.company]), phone: s(f[F.phone]), city: s(f[F.city]), country: 'Česká republika' });
+              const { contactId, companyId } = upsertCustomerToCRM(db, {
+                email,
+                firstName:    cust?.firstName || s(f[F.firstName]),
+                lastName:     cust?.lastName  || s(f[F.lastName]),
+                company:      cust?.company   || s(f[F.company]),
+                phone:        cust?.phone     || s(f[F.phone]),
+                city:         s(f[F.city]),
+                country:      'Česká republika',
+                isRegistered: cust?.isRegistered ?? false,
+              });
+              if (contactId || companyId) {
+                db.prepare(`UPDATE toneracek_orders SET crm_contact_id = ?, crm_company_id = ? WHERE id = ?`).run(contactId || null, companyId || null, atId);
+              }
               stats.contacts++;
             } catch {}
           }

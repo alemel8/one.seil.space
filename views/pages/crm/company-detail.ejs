@@ -1,3 +1,12 @@
+<%
+  const orderStatusStyle = s => ({
+    'Přijata':       'background:#dbeafe;color:#1e40af',
+    'Ve zpracování': 'background:#fef3c7;color:#92400e',
+    'Vyřízena':      'background:#dcfce7;color:#166534',
+    'Stornována':    'background:#fee2e2;color:#991b1b',
+  }[s] || 'background:#f1f5f9;color:#475569');
+%>
+
 <div class="page-header">
   <div class="page-header-left">
     <h1><%= company.name %></h1>
@@ -47,15 +56,15 @@
       <h2 style="font-size:14px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px;">Kontakty (<%= contacts.length %>)</h2>
       <% if (contacts.length > 0) { %>
         <% contacts.forEach(c => { %>
-        <div style="display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
+        <a href="/crm/kontakty/<%= c.id %>" style="display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);text-decoration:none;color:inherit;">
           <div style="width:34px;height:34px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;">
             <%= (c.first_name || '').charAt(0).toUpperCase() %><%= (c.last_name || '').charAt(0).toUpperCase() %>
           </div>
           <div>
-            <div style="font-size:13px;font-weight:500;"><%= c.first_name %> <%= c.last_name %></div>
+            <div style="font-size:13px;font-weight:500;"><%= c.first_name %> <%= c.last_name %><% if (c.is_registered) { %> <span class="badge" style="background:#dcfce7;color:#166534;font-size:10px;">Registrovaný</span><% } %></div>
             <div style="font-size:12px;color:var(--text-muted);"><%= c.title || '' %><%= (c.title && c.email) ? ' · ' : '' %><%= c.email || '' %></div>
           </div>
-        </div>
+        </a>
         <% }); %>
       <% } else { %>
         <p style="color:var(--text-muted);font-size:13px;">Žádné kontakty</p>
@@ -64,3 +73,33 @@
   </div>
 
 </div>
+
+<% if (orders && orders.length > 0) { %>
+<div class="card" style="margin-top:20px;">
+  <div class="card-body">
+    <h2 style="font-size:14px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px;">Objednávky (<%= orders.length %>)</h2>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead>
+        <tr style="border-bottom:2px solid var(--border);">
+          <th style="text-align:left;padding:0 0 8px;font-weight:600;color:var(--text-muted);">Č. objednávky</th>
+          <th style="text-align:left;padding:0 0 8px;font-weight:600;color:var(--text-muted);">Zákazník</th>
+          <th style="text-align:left;padding:0 0 8px;font-weight:600;color:var(--text-muted);">Stav</th>
+          <th style="text-align:right;padding:0 0 8px;font-weight:600;color:var(--text-muted);">Částka</th>
+          <th style="text-align:right;padding:0 0 8px;font-weight:600;color:var(--text-muted);">Datum</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% orders.forEach(o => { %>
+        <tr style="border-bottom:1px solid var(--border);cursor:pointer;" onclick="window.location='/toneracek/objednavky/<%= o.id %>'">
+          <td style="padding:10px 0;font-weight:500;">#<%= o.order_number %></td>
+          <td style="padding:10px 0;color:var(--text-muted);"><%= o.first_name %> <%= o.last_name %></td>
+          <td style="padding:10px 0;"><span class="badge" style="<%= orderStatusStyle(o.status) %>"><%= o.status %></span></td>
+          <td style="padding:10px 0;text-align:right;font-variant-numeric:tabular-nums;"><%= o.total_price.toLocaleString('cs-CZ') %> Kč</td>
+          <td style="padding:10px 0;text-align:right;color:var(--text-muted);"><%= new Date(o.created_at).toLocaleDateString('cs-CZ') %></td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<% } %>

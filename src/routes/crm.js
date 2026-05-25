@@ -63,12 +63,18 @@ export default async function crmRoutes(fastify) {
     const company = db.prepare('SELECT * FROM crm_companies WHERE id = ?').get(request.params.id);
     if (!company) return reply.code(404).send('Firma nenalezena');
     const contacts = db.prepare('SELECT * FROM crm_contacts WHERE company_id = ? ORDER BY last_name, first_name').all(company.id);
+    const orders = db.prepare(`
+      SELECT id, order_number, status, total_price, created_at, first_name, last_name
+      FROM toneracek_orders WHERE crm_company_id = ?
+      ORDER BY order_number DESC
+    `).all(company.id);
     return reply.view('pages/crm/company-detail.ejs', {
       pageTitle: company.name,
       currentPath: '/crm/firmy',
       user: request.user,
       company,
       contacts,
+      orders,
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -117,6 +123,29 @@ export default async function crmRoutes(fastify) {
       currentPage: page,
       totalPages: Math.ceil(total / perPage),
       companies,
+    }, { layout: 'layouts/base.ejs' });
+  });
+
+  fastify.get('/crm/kontakty/:id', async (request, reply) => {
+    const db = getAppDb();
+    const contact = db.prepare(`
+      SELECT c.*, co.name as company_name
+      FROM crm_contacts c
+      LEFT JOIN crm_companies co ON c.company_id = co.id
+      WHERE c.id = ?
+    `).get(request.params.id);
+    if (!contact) return reply.code(404).send('Kontakt nenalezen');
+    const orders = db.prepare(`
+      SELECT id, order_number, status, total_price, created_at, company
+      FROM toneracek_orders WHERE crm_contact_id = ?
+      ORDER BY order_number DESC
+    `).all(contact.id);
+    return reply.view('pages/crm/contact-detail.ejs', {
+      pageTitle: `${contact.first_name} ${contact.last_name}`.trim(),
+      currentPath: '/crm/kontakty',
+      user: request.user,
+      contact,
+      orders,
     }, { layout: 'layouts/base.ejs' });
   });
 
