@@ -1,59 +1,66 @@
 <%
   const statusStyle = {
-    'Přijata': 'background:#dbeafe;color:#1e40af',
-    'Ve zpracování': 'background:#fef3c7;color:#92400e',
-    'Vyřízena': 'background:#dcfce7;color:#166534',
-    'Stornována': 'background:#fee2e2;color:#991b1b',
+    'Přijata':        'background:#dbeafe;color:#1e40af',
+    'Ve zpracování':  'background:#fef3c7;color:#92400e',
+    'Vyřízena':       'background:#dcfce7;color:#166534',
+    'Stornována':     'background:#fee2e2;color:#991b1b',
   }[order.status] || 'background:#f1f5f9;color:#475569';
+
+  const shippingDiffers = order.shipping_address && order.shipping_address !== order.address;
 %>
 
 <div class="page-header">
   <div class="page-header-left">
-    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-      <a href="/toneracek/objednavky" style="color:var(--text-muted);text-decoration:none;font-size:14px;">← Zpět</a>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <a href="/toneracek/objednavky" style="color:var(--text-muted);text-decoration:none;font-size:13px;">← Objednávky</a>
+      <span style="color:var(--border);">/</span>
       <h1 style="margin:0;">Objednávka #<%= order.order_number %></h1>
       <span class="badge" style="<%= statusStyle %>"><%= order.status %></span>
     </div>
-    <p style="margin-top:6px;font-size:13px;color:var(--text-muted);">
-      Přijata <%= new Date(order.created_at).toLocaleString('cs-CZ') %>
-      <% if (order.invoice_number) { %> &nbsp;·&nbsp; Faktura <%= order.invoice_number %><% } %>
+    <p style="margin-top:4px;font-size:13px;color:var(--text-muted);">
+      <%= new Date(order.created_at).toLocaleString('cs-CZ') %>
+      <% if (order.invoice_number) { %>&nbsp;·&nbsp;Faktura <%= order.invoice_number %><% } %>
     </p>
   </div>
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:start;">
+<div style="display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start;">
 
-  <!-- Levý sloupec -->
+  <!-- ── Levý sloupec ───────────────────────────────────────── -->
   <div style="display:flex;flex-direction:column;gap:16px;">
 
-    <!-- Položky objednávky -->
+    <!-- Položky -->
     <div class="card">
-      <div class="card-header"><strong>Položky objednávky</strong></div>
-      <div class="card-body" style="padding:0;">
-        <table class="data-table" style="margin:0;">
+      <div class="card-body">
+        <h2 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 16px;">Položky objednávky</h2>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
           <thead>
-            <tr>
-              <th>Název</th>
-              <th style="width:60px;text-align:center;">Ks</th>
-              <th style="width:100px;text-align:right;">Cena/ks</th>
-              <th style="width:110px;text-align:right;">Celkem</th>
+            <tr style="border-bottom:2px solid var(--border);">
+              <th style="text-align:left;padding:0 0 8px;font-weight:600;color:var(--text-muted);">Název</th>
+              <th style="text-align:center;padding:0 0 8px;font-weight:600;color:var(--text-muted);width:50px;">Ks</th>
+              <th style="text-align:right;padding:0 0 8px;font-weight:600;color:var(--text-muted);width:90px;">Cena/ks</th>
+              <th style="text-align:right;padding:0 0 8px;font-weight:600;color:var(--text-muted);width:100px;">Celkem</th>
             </tr>
           </thead>
           <tbody>
             <% items.forEach(item => { %>
-            <tr>
-              <td>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:10px 0;">
                 <%= item.name %>
-                <% if (item.sku) { %><br><small style="color:var(--text-muted);font-size:11px;font-family:monospace;">SKU: <%= item.sku %></small><% } %>
+                <% if (item.sku) { %><br><span style="font-size:11px;color:var(--text-muted);font-family:monospace;">SKU: <%= item.sku %></span><% } %>
               </td>
-              <td style="text-align:center;"><%= item.quantity %></td>
-              <td style="text-align:right;font-variant-numeric:tabular-nums;"><%= item.price.toLocaleString('cs-CZ') %> Kč</td>
-              <td style="text-align:right;font-weight:500;font-variant-numeric:tabular-nums;"><%= (item.price * item.quantity).toLocaleString('cs-CZ') %> Kč</td>
+              <td style="text-align:center;padding:10px 0;"><%= item.quantity %></td>
+              <td style="text-align:right;padding:10px 0;font-variant-numeric:tabular-nums;">
+                <% if (item.price > 0) { %><%= item.price.toLocaleString('cs-CZ') %> Kč<% } else { %>—<% } %>
+              </td>
+              <td style="text-align:right;padding:10px 0;font-weight:500;font-variant-numeric:tabular-nums;">
+                <% if (item.price > 0) { %><%= (item.price * item.quantity).toLocaleString('cs-CZ') %> Kč<% } else { %>—<% } %>
+              </td>
             </tr>
             <% }); %>
-            <tr style="background:var(--gray-50,#f9fafb);">
-              <td colspan="3" style="text-align:right;font-weight:600;padding:12px 16px;">Celkem</td>
-              <td style="text-align:right;font-weight:700;font-size:15px;font-variant-numeric:tabular-nums;padding:12px 16px;"><%= order.total_price.toLocaleString('cs-CZ') %> Kč</td>
+            <tr>
+              <td colspan="3" style="text-align:right;padding:12px 0 0;font-weight:600;color:var(--text-muted);">Celková částka</td>
+              <td style="text-align:right;padding:12px 0 0;font-weight:700;font-size:15px;font-variant-numeric:tabular-nums;"><%= order.total_price.toLocaleString('cs-CZ') %> Kč</td>
             </tr>
           </tbody>
         </table>
@@ -62,98 +69,75 @@
 
     <!-- Zákazník -->
     <div class="card">
-      <div class="card-header"><strong>Zákazník – fakturační adresa</strong></div>
       <div class="card-body">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-          <div>
-            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Jméno</div>
-            <div><%= order.first_name %> <%= order.last_name %></div>
-          </div>
+        <h2 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 16px;">Zákazník</h2>
+        <dl style="display:grid;grid-template-columns:140px 1fr;gap:8px 16px;font-size:13px;margin:0;">
+          <dt style="color:var(--text-muted);">Jméno</dt>
+          <dd style="margin:0;font-weight:500;"><%= order.first_name %> <%= order.last_name %></dd>
+
           <% if (order.company) { %>
-          <div>
-            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Firma</div>
-            <div><%= order.company %></div>
-          </div>
+          <dt style="color:var(--text-muted);">Firma</dt>
+          <dd style="margin:0;"><%= order.company %></dd>
           <% } %>
+
           <% if (order.ic) { %>
-          <div>
-            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">IČO / DIČ</div>
-            <div><%= order.ic %><%= order.dic ? ' / ' + order.dic : '' %></div>
-          </div>
+          <dt style="color:var(--text-muted);">IČO</dt>
+          <dd style="margin:0;"><%= order.ic %><%= order.dic ? ' / DIČ ' + order.dic : '' %></dd>
           <% } %>
-          <div>
-            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">E-mail</div>
-            <div><a href="mailto:<%= order.email %>" style="color:var(--primary);"><%= order.email %></a></div>
-          </div>
-          <div>
-            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Telefon</div>
-            <div><%= order.phone || '—' %></div>
-          </div>
-          <div>
-            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Adresa</div>
-            <div><%= order.address %>, <%= order.zip %> <%= order.city %></div>
-          </div>
-        </div>
+
+          <% if (order.email) { %>
+          <dt style="color:var(--text-muted);">E-mail</dt>
+          <dd style="margin:0;"><a href="mailto:<%= order.email %>" style="color:var(--primary);"><%= order.email %></a></dd>
+          <% } %>
+
+          <dt style="color:var(--text-muted);">Telefon</dt>
+          <dd style="margin:0;"><%= order.phone || '—' %></dd>
+
+          <dt style="color:var(--text-muted);">Adresa</dt>
+          <dd style="margin:0;"><%= order.address %>, <%= order.zip %> <%= order.city %></dd>
+        </dl>
       </div>
     </div>
 
-    <!-- Doručovací adresa (pokud se liší) -->
-    <%
-      const shippingDiffers = order.shipping_address && order.shipping_address !== order.address;
-    %>
-    <% if (shippingDiffers || order.pickup_point_name) { %>
+    <!-- Doručení -->
     <div class="card">
-      <div class="card-header"><strong>Doručení</strong></div>
       <div class="card-body">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <h2 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 16px;">Doručení</h2>
+        <dl style="display:grid;grid-template-columns:140px 1fr;gap:8px 16px;font-size:13px;margin:0;">
+          <dt style="color:var(--text-muted);">Způsob</dt>
+          <dd style="margin:0;"><%= order.shipping_method %></dd>
+
           <% if (order.pickup_point_name) { %>
-          <div style="grid-column:1/-1;">
-            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Výdejní místo Zásilkovna</div>
-            <div><strong><%= order.pickup_point_name %></strong></div>
-            <% if (order.pickup_point_id) { %><div style="font-size:12px;color:var(--text-muted);">ID: <%= order.pickup_point_id %></div><% } %>
-          </div>
+          <dt style="color:var(--text-muted);">Výdejní místo</dt>
+          <dd style="margin:0;font-weight:500;"><%= order.pickup_point_name %>
+            <% if (order.pickup_point_id) { %><br><span style="font-size:11px;color:var(--text-muted);font-family:monospace;">ID: <%= order.pickup_point_id %></span><% } %>
+          </dd>
           <% } %>
-          <% if (shippingDiffers) { %>
-          <div>
-            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Jméno</div>
-            <div><%= order.shipping_first_name %> <%= order.shipping_last_name %></div>
-          </div>
-          <div>
-            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Adresa</div>
-            <div><%= order.shipping_address %>, <%= order.shipping_zip %> <%= order.shipping_city %></div>
-          </div>
-          <% } %>
-        </div>
-      </div>
-    </div>
-    <% } %>
 
-    <!-- Tracking -->
-    <% if (order.tracking_number) { %>
-    <div class="card">
-      <div class="card-header"><strong>Sledování zásilky</strong></div>
-      <div class="card-body">
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-          <div>
-            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Číslo zásilky</div>
-            <div style="font-weight:600;font-family:monospace;font-size:15px;"><%= order.tracking_number %></div>
-          </div>
-          <% if (order.label_url) { %>
-          <a href="<%= order.label_url %>" target="_blank" class="btn btn-outline btn-sm" style="margin-left:auto;">
-            Štítek PDF
-          </a>
+          <% if (shippingDiffers) { %>
+          <dt style="color:var(--text-muted);">Doručovací adresa</dt>
+          <dd style="margin:0;"><%= order.shipping_first_name %> <%= order.shipping_last_name %><br><%= order.shipping_address %>, <%= order.shipping_zip %> <%= order.shipping_city %></dd>
           <% } %>
-        </div>
+
+          <% if (order.tracking_number) { %>
+          <dt style="color:var(--text-muted);">Číslo zásilky</dt>
+          <dd style="margin:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <strong style="font-family:monospace;"><%= order.tracking_number %></strong>
+            <% if (order.label_url) { %>
+              <a href="<%= order.label_url %>" target="_blank" class="btn btn-outline btn-sm">Štítek PDF</a>
+            <% } %>
+          </dd>
+          <% } %>
+        </dl>
       </div>
     </div>
-    <% } %>
 
     <!-- Poznámka -->
     <div class="card">
-      <div class="card-header"><strong>Interní poznámka</strong></div>
       <div class="card-body">
+        <h2 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 14px;">Interní poznámka</h2>
         <form method="post" action="/toneracek/objednavky/<%= order.id %>/poznamka">
-          <textarea name="notes" class="form-control" rows="3" placeholder="Interní poznámka k objednávce…" style="margin-bottom:10px;"><%= order.notes || '' %></textarea>
+          <textarea name="notes" class="form-control" rows="3" placeholder="Poznámka pro interní potřebu…" style="margin-bottom:10px;font-size:13px;"><%= order.notes || '' %></textarea>
           <button type="submit" class="btn btn-outline btn-sm">Uložit poznámku</button>
         </form>
       </div>
@@ -161,79 +145,80 @@
 
   </div>
 
-  <!-- Pravý sloupec -->
+  <!-- ── Pravý sloupec ──────────────────────────────────────── -->
   <div style="display:flex;flex-direction:column;gap:16px;">
 
-    <!-- Souhrn -->
+    <!-- Platba & celkem -->
     <div class="card">
-      <div class="card-header"><strong>Souhrn</strong></div>
       <div class="card-body">
-        <div style="display:flex;flex-direction:column;gap:10px;font-size:14px;">
+        <h2 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 16px;">Souhrn</h2>
+        <dl style="display:flex;flex-direction:column;gap:8px;font-size:13px;margin:0;">
           <div style="display:flex;justify-content:space-between;">
-            <span style="color:var(--text-muted);">Platba</span>
-            <span><%= order.payment_method %></span>
+            <dt style="color:var(--text-muted);">Platba</dt>
+            <dd style="margin:0;"><%= order.payment_method %></dd>
           </div>
           <div style="display:flex;justify-content:space-between;">
-            <span style="color:var(--text-muted);">Doprava</span>
-            <span><%= order.shipping_method %></span>
+            <dt style="color:var(--text-muted);">Doprava</dt>
+            <dd style="margin:0;"><%= order.shipping_method %></dd>
           </div>
-          <hr style="border:none;border-top:1px solid var(--border-color);margin:4px 0;">
-          <div style="display:flex;justify-content:space-between;font-weight:700;font-size:16px;">
-            <span>Celkem</span>
-            <span><%= order.total_price.toLocaleString('cs-CZ') %> Kč</span>
+          <div style="border-top:1px solid var(--border);padding-top:10px;display:flex;justify-content:space-between;font-weight:700;font-size:15px;">
+            <dt>Celkem</dt>
+            <dd style="margin:0;"><%= order.total_price.toLocaleString('cs-CZ') %> Kč</dd>
           </div>
-        </div>
+        </dl>
       </div>
     </div>
 
     <!-- Změna stavu -->
     <div class="card">
-      <div class="card-header"><strong>Stav objednávky</strong></div>
       <div class="card-body">
+        <h2 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 16px;">Stav objednávky</h2>
         <form method="post" action="/toneracek/objednavky/<%= order.id %>/stav">
-          <div class="form-group" style="margin-bottom:12px;">
-            <label class="form-label">Nový stav</label>
+          <div style="margin-bottom:12px;">
+            <label class="form-label" style="font-size:12px;">Nový stav</label>
             <select name="status" class="form-select">
               <% ORDER_STATUSES.forEach(s => { %>
                 <option value="<%= s %>" <%= order.status === s ? 'selected' : '' %>><%= s %></option>
               <% }); %>
             </select>
           </div>
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
-            <input type="checkbox" name="send_email" id="send_email" value="on" checked style="width:16px;height:16px;">
-            <label for="send_email" style="font-size:13px;cursor:pointer;">Odeslat email zákazníkovi</label>
-          </div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:14px;">
+            <input type="checkbox" name="send_email" value="on" checked style="width:15px;height:15px;">
+            Odeslat email zákazníkovi
+          </label>
           <button type="submit" class="btn btn-primary" style="width:100%;">Uložit stav</button>
         </form>
       </div>
     </div>
 
-    <!-- Meta info -->
+    <!-- Meta -->
     <div class="card">
-      <div class="card-header"><strong>Informace</strong></div>
       <div class="card-body">
-        <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;">
+        <h2 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 14px;">Informace</h2>
+        <dl style="display:flex;flex-direction:column;gap:8px;font-size:12px;margin:0;color:var(--text-muted);">
+          <% if (order.invoice_number) { %>
           <div style="display:flex;justify-content:space-between;">
-            <span style="color:var(--text-muted);">Faktura</span>
-            <span><%= order.invoice_number || '—' %></span>
+            <dt>Faktura</dt>
+            <dd style="margin:0;color:var(--text-primary);font-weight:500;"><%= order.invoice_number %></dd>
           </div>
+          <% } %>
           <div style="display:flex;justify-content:space-between;">
-            <span style="color:var(--text-muted);">Vytvořena</span>
-            <span><%= new Date(order.created_at).toLocaleString('cs-CZ') %></span>
+            <dt>Vytvořena</dt>
+            <dd style="margin:0;"><%= new Date(order.created_at).toLocaleString('cs-CZ') %></dd>
           </div>
-          <% if (order.modified_at !== order.created_at) { %>
+          <% if (order.modified_at && order.modified_at !== order.created_at) { %>
           <div style="display:flex;justify-content:space-between;">
-            <span style="color:var(--text-muted);">Upravena</span>
-            <span><%= new Date(order.modified_at).toLocaleString('cs-CZ') %></span>
+            <dt>Upravena</dt>
+            <dd style="margin:0;"><%= new Date(order.modified_at).toLocaleString('cs-CZ') %></dd>
           </div>
           <% } %>
           <% if (order.ip_address) { %>
           <div style="display:flex;justify-content:space-between;">
-            <span style="color:var(--text-muted);">IP adresa</span>
-            <span style="font-family:monospace;font-size:12px;"><%= order.ip_address %></span>
+            <dt>IP adresa</dt>
+            <dd style="margin:0;font-family:monospace;font-size:11px;"><%= order.ip_address %></dd>
           </div>
           <% } %>
-        </div>
+        </dl>
       </div>
     </div>
 

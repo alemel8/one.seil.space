@@ -312,8 +312,10 @@ export default async function toneracekRoutes(fastify) {
       }, { layout: 'layouts/base.ejs' });
     }
 
-    const AT_ORDERS = 'tblhP8tvVl0KdJQeR';
-    const AT_ITEMS  = 'tblqjU6x9KTGEH7YW';
+    const AT_ORDERS    = 'tblhP8tvVl0KdJQeR';
+    const AT_ITEMS     = 'tblqjU6x9KTGEH7YW';
+    const AT_CUSTOMERS = 'tblk6MpLpLpe7wTq7';
+    const FC = { email: 'fldalJniBJAO6SSFB', orderLinks: 'fldiTbjYcUsE0e5d2' };
     const F = {
       orderNumber: 'fldrpOS8rh4zFuQhf', createdAt: 'fldBoq3y26qLLmFmf',
       status: 'fldqYJ0WgbNktvodr', firstName: 'fldSXFWeGZWP5p78m',
@@ -357,10 +359,20 @@ export default async function toneracekRoutes(fastify) {
     const n = v => { if (typeof v === 'number') return v; if (Array.isArray(v) && typeof v[0] === 'number') return v[0]; return 0; };
 
     try {
-      const [orderRecords, itemRecords] = await Promise.all([
+      const [orderRecords, itemRecords, customerRecords] = await Promise.all([
         fetchAll(AT_ORDERS, Object.values(F)),
         fetchAll(AT_ITEMS, Object.values(FI)),
+        fetchAll(AT_CUSTOMERS, Object.values(FC)),
       ]);
+
+      // Mapa Airtable order ID → email zákazníka
+      const emailByOrder = {};
+      for (const rec of customerRecords) {
+        const email = s(rec.fields[FC.email]);
+        const links = rec.fields[FC.orderLinks];
+        if (!email || !Array.isArray(links)) continue;
+        for (const orderId of links) emailByOrder[orderId] = email;
+      }
 
       const itemsByOrder = {};
       for (const rec of itemRecords) {
@@ -399,7 +411,7 @@ export default async function toneracekRoutes(fastify) {
           const exists = db.prepare('SELECT id FROM toneracek_orders WHERE id = ? OR order_number = ?').get(atId, orderNum);
           if (exists) { stats.skipped++; continue; }
 
-          const email = '';
+          const email = emailByOrder[atId] || '';
           const createdAt = s(f[F.createdAt]) || new Date().toISOString();
           const year = new Date(createdAt).getFullYear();
 

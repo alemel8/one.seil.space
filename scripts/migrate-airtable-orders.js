@@ -50,6 +50,13 @@ if (!AIRTABLE_API_KEY || !AIRTABLE_BASE_ID) {
 
 const AT_ORDERS     = 'tblhP8tvVl0KdJQeR';
 const AT_ITEMS      = 'tblqjU6x9KTGEH7YW';
+const AT_CUSTOMERS  = 'tblk6MpLpLpe7wTq7';
+
+// Field IDs na zákaznících (Adresář)
+const FC = {
+  email:      'fldalJniBJAO6SSFB',
+  orderLinks: 'fldiTbjYcUsE0e5d2',
+};
 
 // Field IDs na objednávkách
 const F = {
@@ -78,7 +85,6 @@ const F = {
   pickupPointId:    'fldniFThX5tVAh1aB',
   trackingNumber:   'fldCZ1TBBTGgBMfVg',
   labelUrl:         'fldIMKECXvDhNCUct',
-  // email není přímé pole na objednávce (je v linked Adresář) — migrujeme bez něj
 };
 
 // Field IDs na položkách objednávky
@@ -201,13 +207,24 @@ console.log('\n=== Migrace objednávek z Airtable → SQLite ===\n');
 
 console.log('1. Stahování objednávek z Airtable…');
 const orderRecords = await fetchAll(AT_ORDERS, Object.values(F));
-
 console.log(`   Celkem ${orderRecords.length} objednávek.\n`);
 
 console.log('2. Stahování položek objednávek…');
 const itemRecords = await fetchAll(AT_ITEMS, Object.values(FI));
-
 console.log(`   Celkem ${itemRecords.length} položek.\n`);
+
+console.log('3. Stahování zákazníků (Adresář) pro emaily…');
+const customerRecords = await fetchAll(AT_CUSTOMERS, Object.values(FC));
+console.log(`   Celkem ${customerRecords.length} zákazníků.\n`);
+
+// Mapa Airtable order ID → email zákazníka
+const emailByOrder = {};
+for (const rec of customerRecords) {
+  const email = str(rec.fields[FC.email]);
+  const links = rec.fields[FC.orderLinks];
+  if (!email || !Array.isArray(links)) continue;
+  for (const orderId of links) emailByOrder[orderId] = email;
+}
 
 // Seskup položky podle order ID
 const itemsByOrder = {};
@@ -225,7 +242,7 @@ for (const rec of itemRecords) {
 
 // ── Vlož do SQLite ────────────────────────────────────────────
 
-console.log('3. Importování do SQLite…\n');
+console.log('4. Importování do SQLite…\n');
 
 const insertOrder = db.prepare(`
   INSERT OR IGNORE INTO toneracek_orders (
@@ -270,7 +287,7 @@ const migrate = db.transaction(() => {
     const exists = db.prepare('SELECT id FROM toneracek_orders WHERE id = ? OR order_number = ?').get(atId, orderNum);
     if (exists) { stats.skipped++; continue; }
 
-    const email = '';
+    const email = emailByOrder[atId] || '';
     const createdAt = str(f[F.createdAt]) || new Date().toISOString();
     const year = new Date(createdAt).getFullYear();
     const invoiceNumber = `FV-${year}-${orderNum}`;
