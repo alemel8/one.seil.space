@@ -12,7 +12,7 @@
 <div class="page-header">
   <div class="page-header-left">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-      <a href="/toneracek/objednavky" style="color:var(--text-muted);text-decoration:none;font-size:13px;">← Objednávky</a>
+      <a href="/ucetnictvi/objednavky" style="color:var(--text-muted);text-decoration:none;font-size:13px;">← Objednávky</a>
       <span style="color:var(--border);">/</span>
       <h1 style="margin:0;">Objednávka #<%= order.order_number %></h1>
       <span class="badge" style="<%= statusStyle %>"><%= order.status %></span>
@@ -136,7 +136,7 @@
     <div class="card">
       <div class="card-body">
         <h2 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 14px;">Interní poznámka</h2>
-        <form method="post" action="/toneracek/objednavky/<%= order.id %>/poznamka">
+        <form method="post" action="/ucetnictvi/objednavky/<%= order.id %>/poznamka">
           <textarea name="notes" class="form-control" rows="3" placeholder="Poznámka pro interní potřebu…" style="margin-bottom:10px;font-size:13px;"><%= order.notes || '' %></textarea>
           <button type="submit" class="btn btn-outline btn-sm">Uložit poznámku</button>
         </form>
@@ -173,7 +173,7 @@
     <div class="card">
       <div class="card-body">
         <h2 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 16px;">Stav objednávky</h2>
-        <form method="post" action="/toneracek/objednavky/<%= order.id %>/stav">
+        <form method="post" action="/ucetnictvi/objednavky/<%= order.id %>/stav">
           <div style="margin-bottom:12px;">
             <label class="form-label" style="font-size:12px;">Nový stav</label>
             <select name="status" class="form-select">

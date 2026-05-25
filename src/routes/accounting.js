@@ -2,40 +2,6 @@ import { getAppDb, generateId } from '../db.js';
 
 export default async function accountingRoutes(fastify) {
 
-  // ── Objednávky ─────────────────────────────────────────────
-
-  fastify.get('/ucetnictvi/objednavky', async (request, reply) => {
-    const db = getAppDb();
-    const orders = db.prepare(`
-      SELECT o.*, c.name as company_name
-      FROM accounting_orders o
-      LEFT JOIN crm_companies c ON o.company_id = c.id
-      ORDER BY o.date DESC
-    `).all();
-    const companies = db.prepare('SELECT id, name FROM crm_companies ORDER BY name').all();
-    return reply.view('pages/accounting/orders.ejs', {
-      pageTitle: 'Objednávky',
-      currentPath: '/ucetnictvi/objednavky',
-      user: request.user,
-      orders,
-      companies,
-      total: orders.length,
-    }, { layout: 'layouts/base.ejs' });
-  });
-
-  fastify.post('/ucetnictvi/objednavky/vytvorit', async (request, reply) => {
-    const db = getAppDb();
-    const b = request.body || {};
-    db.prepare(`INSERT INTO accounting_orders (id, number, subject, amount, currency, status, company_id, date, notes)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-      generateId(), b.number || '', b.subject || '',
-      parseFloat(b.amount || 0), b.currency || 'CZK',
-      b.status || 'Nová', b.company_id || null,
-      b.date || new Date().toISOString().split('T')[0], b.notes || '',
-    );
-    return reply.redirect('/ucetnictvi/objednavky');
-  });
-
   // ── Přijaté faktury ────────────────────────────────────────
 
   fastify.get('/ucetnictvi/prijate-faktury', async (request, reply) => {

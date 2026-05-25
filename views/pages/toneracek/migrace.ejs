@@ -15,11 +15,11 @@
       Potřebné env vars: <code>AIRTABLE_API_KEY</code>, <code>AIRTABLE_BASE_ID</code>.<br>
       Může trvat 1–2 minuty v závislosti na počtu objednávek.
     </p>
-    <form method="post" action="/toneracek/migrace">
+    <form method="post" action="/ucetnictvi/migrace">
       <button type="submit" class="btn btn-primary">
         Spustit migraci
       </button>
-      <a href="/toneracek/objednavky" class="btn btn-ghost" style="margin-left:8px;">Zpět</a>
+      <a href="/ucetnictvi/objednavky" class="btn btn-ghost" style="margin-left:8px;">Zpět</a>
     </form>
   </div>
 </div>
@@ -33,9 +33,9 @@
       <strong style="color:#dc2626;">Migrace selhala</strong>
     </div>
     <pre style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:14px;font-size:13px;white-space:pre-wrap;word-break:break-all;"><%= result.error %></pre>
-    <form method="post" action="/toneracek/migrace" style="margin-top:16px;">
+    <form method="post" action="/ucetnictvi/migrace" style="margin-top:16px;">
       <button type="submit" class="btn btn-outline">Zkusit znovu</button>
-      <a href="/toneracek/objednavky" class="btn btn-ghost" style="margin-left:8px;">Zpět</a>
+      <a href="/ucetnictvi/objednavky" class="btn btn-ghost" style="margin-left:8px;">Zpět</a>
     </form>
   </div>
 </div>
@@ -77,8 +77,8 @@
       </div>
     </div>
     <div style="margin-top:20px;display:flex;gap:8px;">
-      <a href="/toneracek/objednavky" class="btn btn-primary">Zobrazit objednávky</a>
-      <form method="post" action="/toneracek/migrace">
+      <a href="/ucetnictvi/objednavky" class="btn btn-primary">Zobrazit objednávky</a>
+      <form method="post" action="/ucetnictvi/migrace">
         <button type="submit" class="btn btn-outline">Spustit znovu</button>
       </form>
     </div>

@@ -18,7 +18,7 @@
   %>
   <% statusCounts.forEach(sc => { %>
     <% const sc_style = statusColors[sc.status] || { bg: '#f1f5f9', color: '#475569' }; %>
-    <a href="/toneracek/objednavky?status=<%= encodeURIComponent(sc.status) %>"
+    <a href="/ucetnictvi/objednavky?status=<%= encodeURIComponent(sc.status) %>"
        style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;background:<%= sc_style.bg %>;color:<%= sc_style.color %>;font-size:13px;font-weight:500;text-decoration:none;border:1px solid transparent;">
       <strong><%= sc.n %></strong> <%= sc.status %>
     </a>
@@ -42,7 +42,7 @@
   </select>
   <button type="submit" class="btn btn-outline">Filtrovat</button>
   <% if (q || statusFilter) { %>
-    <a href="/toneracek/objednavky" class="btn btn-ghost">Zrušit filtr</a>
+    <a href="/ucetnictvi/objednavky" class="btn btn-ghost">Zrušit filtr</a>
   <% } %>
 </form>
 
@@ -71,7 +71,7 @@
             'Stornována': 'background:#fee2e2;color:#991b1b',
           }[o.status] || 'background:#f1f5f9;color:#475569';
         %>
-        <tr class="clickable-row" style="cursor:pointer;" onclick="window.location='/toneracek/objednavky/<%= o.id %>'">
+        <tr class="clickable-row" style="cursor:pointer;" onclick="window.location='/ucetnictvi/objednavky/<%= o.id %>'">
           <td style="font-weight:600;font-family:monospace;">#<%= o.order_number %></td>
           <td style="font-weight:500;"><%= o.first_name %> <%= o.last_name %></td>
           <td style="font-size:13px;color:var(--text-muted);"><%= o.email %></td>

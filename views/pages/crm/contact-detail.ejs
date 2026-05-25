@@ -76,7 +76,7 @@
       <h2 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 16px;">Objednávky (<%= orders.length %>)</h2>
       <% if (orders.length > 0) { %>
         <% orders.forEach(o => { %>
-        <a href="/toneracek/objednavky/<%= o.id %>" style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);text-decoration:none;color:inherit;">
+        <a href="/ucetnictvi/objednavky/<%= o.id %>" style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);text-decoration:none;color:inherit;">
           <div>
             <div style="font-size:13px;font-weight:500;">#<%= o.order_number %></div>
             <div style="font-size:11px;color:var(--text-muted);"><%= new Date(o.created_at).toLocaleDateString('cs-CZ') %></div>

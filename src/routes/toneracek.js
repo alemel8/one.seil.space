@@ -179,7 +179,7 @@ export default async function toneracekRoutes(fastify) {
 
   // ── Admin: Seznam objednávek ───────────────────────────────
 
-  fastify.get('/toneracek/objednavky', async (request, reply) => {
+  fastify.get('/ucetnictvi/objednavky', async (request, reply) => {
     if (!request.user) return reply.redirect('/prihlasit');
     const db = getAppDb();
 
@@ -217,8 +217,8 @@ export default async function toneracekRoutes(fastify) {
     ).all();
 
     return reply.view('pages/toneracek/orders.ejs', {
-      pageTitle: 'Toneráček – Objednávky',
-      currentPath: '/toneracek/objednavky',
+      pageTitle: 'Objednávky Toneráček',
+      currentPath: '/ucetnictvi/objednavky',
       user: request.user,
       orders,
       total,
@@ -233,7 +233,7 @@ export default async function toneracekRoutes(fastify) {
 
   // ── Admin: Detail objednávky ───────────────────────────────
 
-  fastify.get('/toneracek/objednavky/:id', async (request, reply) => {
+  fastify.get('/ucetnictvi/objednavky/:id', async (request, reply) => {
     if (!request.user) return reply.redirect('/prihlasit');
     const db = getAppDb();
 
@@ -244,7 +244,7 @@ export default async function toneracekRoutes(fastify) {
 
     return reply.view('pages/toneracek/order-detail.ejs', {
       pageTitle: `Objednávka #${order.order_number}`,
-      currentPath: '/toneracek/objednavky',
+      currentPath: '/ucetnictvi/objednavky',
       user: request.user,
       order,
       items,
@@ -254,7 +254,7 @@ export default async function toneracekRoutes(fastify) {
 
   // ── Admin: Změna stavu ─────────────────────────────────────
 
-  fastify.post('/toneracek/objednavky/:id/stav', async (request, reply) => {
+  fastify.post('/ucetnictvi/objednavky/:id/stav', async (request, reply) => {
     if (!request.user) return reply.redirect('/prihlasit');
     const db = getAppDb();
 
@@ -284,12 +284,12 @@ export default async function toneracekRoutes(fastify) {
       }
     }
 
-    return reply.redirect(`/toneracek/objednavky/${order.id}`);
+    return reply.redirect(`/ucetnictvi/objednavky/${order.id}`);
   });
 
   // ── Admin: Uložení poznámky ────────────────────────────────
 
-  fastify.post('/toneracek/objednavky/:id/poznamka', async (request, reply) => {
+  fastify.post('/ucetnictvi/objednavky/:id/poznamka', async (request, reply) => {
     if (!request.user) return reply.redirect('/prihlasit');
     const db = getAppDb();
 
@@ -298,22 +298,22 @@ export default async function toneracekRoutes(fastify) {
       `UPDATE toneracek_orders SET notes = ?, modified_at = datetime('now') WHERE id = ?`
     ).run(notes ?? '', request.params.id);
 
-    return reply.redirect(`/toneracek/objednavky/${request.params.id}`);
+    return reply.redirect(`/ucetnictvi/objednavky/${request.params.id}`);
   });
 
   // ── Admin: Migrace z Airtable (jednorázová) ───────────────
 
-  fastify.get('/toneracek/migrace', async (request, reply) => {
+  fastify.get('/ucetnictvi/migrace', async (request, reply) => {
     if (!request.user?.is_admin) return reply.code(403).send('Pouze admin');
     return reply.view('pages/toneracek/migrace.ejs', {
       pageTitle: 'Migrace z Airtable',
-      currentPath: '/toneracek/objednavky',
+      currentPath: '/ucetnictvi/objednavky',
       user: request.user,
       result: null,
     }, { layout: 'layouts/base.ejs' });
   });
 
-  fastify.post('/toneracek/migrace', async (request, reply) => {
+  fastify.post('/ucetnictvi/migrace', async (request, reply) => {
     if (!request.user?.is_admin) return reply.code(403).send('Pouze admin');
 
     const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
@@ -322,7 +322,7 @@ export default async function toneracekRoutes(fastify) {
     if (!AIRTABLE_API_KEY || !AIRTABLE_BASE_ID) {
       return reply.view('pages/toneracek/migrace.ejs', {
         pageTitle: 'Migrace z Airtable',
-        currentPath: '/toneracek/objednavky',
+        currentPath: '/ucetnictvi/objednavky',
         user: request.user,
         result: { error: 'Chybí AIRTABLE_API_KEY nebo AIRTABLE_BASE_ID v prostředí.' },
       }, { layout: 'layouts/base.ejs' });
@@ -501,7 +501,7 @@ export default async function toneracekRoutes(fastify) {
       fastify.log.info(stats, 'Airtable migrace dokončena');
       return reply.view('pages/toneracek/migrace.ejs', {
         pageTitle: 'Migrace z Airtable',
-        currentPath: '/toneracek/objednavky',
+        currentPath: '/ucetnictvi/objednavky',
         user: request.user,
         result: { ...stats, total: orderRecords.length, totalItems: itemRecords.length, emailsNote },
       }, { layout: 'layouts/base.ejs' });
@@ -510,7 +510,7 @@ export default async function toneracekRoutes(fastify) {
       fastify.log.error({ err }, 'Airtable migrace selhala');
       return reply.view('pages/toneracek/migrace.ejs', {
         pageTitle: 'Migrace z Airtable',
-        currentPath: '/toneracek/objednavky',
+        currentPath: '/ucetnictvi/objednavky',
         user: request.user,
         result: { error: err.message },
       }, { layout: 'layouts/base.ejs' });

@@ -90,7 +90,7 @@
       </thead>
       <tbody>
         <% orders.forEach(o => { %>
-        <tr style="border-bottom:1px solid var(--border);cursor:pointer;" onclick="window.location='/toneracek/objednavky/<%= o.id %>'">
+        <tr style="border-bottom:1px solid var(--border);cursor:pointer;" onclick="window.location='/ucetnictvi/objednavky/<%= o.id %>'">
           <td style="padding:10px 0;font-weight:500;">#<%= o.order_number %></td>
           <td style="padding:10px 0;color:var(--text-muted);"><%= o.first_name %> <%= o.last_name %></td>
           <td style="padding:10px 0;"><span class="badge" style="<%= orderStatusStyle(o.status) %>"><%= o.status %></span></td>
