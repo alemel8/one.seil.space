@@ -359,19 +359,25 @@ export default async function toneracekRoutes(fastify) {
     const n = v => { if (typeof v === 'number') return v; if (Array.isArray(v) && typeof v[0] === 'number') return v[0]; return 0; };
 
     try {
-      const [orderRecords, itemRecords, customerRecords] = await Promise.all([
+      const [orderRecords, itemRecords] = await Promise.all([
         fetchAll(AT_ORDERS, Object.values(F)),
         fetchAll(AT_ITEMS, Object.values(FI)),
-        fetchAll(AT_CUSTOMERS, Object.values(FC)),
       ]);
 
-      // Mapa Airtable order ID → email zákazníka
+      // Mapa Airtable order ID → email zákazníka (nepovinné — selže tiše při 403)
       const emailByOrder = {};
-      for (const rec of customerRecords) {
-        const email = s(rec.fields[FC.email]);
-        const links = rec.fields[FC.orderLinks];
-        if (!email || !Array.isArray(links)) continue;
-        for (const orderId of links) emailByOrder[orderId] = email;
+      let emailsNote = null;
+      try {
+        const customerRecords = await fetchAll(AT_CUSTOMERS, Object.values(FC));
+        for (const rec of customerRecords) {
+          const email = s(rec.fields[FC.email]);
+          const links = rec.fields[FC.orderLinks];
+          if (!email || !Array.isArray(links)) continue;
+          for (const orderId of links) emailByOrder[orderId] = email;
+        }
+      } catch (err) {
+        emailsNote = `Emaily zákazníků nebyly načteny (${err.message}). Token nemá přístup k tabulce Adresář.`;
+        fastify.log.warn(emailsNote);
       }
 
       const itemsByOrder = {};
@@ -452,7 +458,7 @@ export default async function toneracekRoutes(fastify) {
         pageTitle: 'Migrace z Airtable',
         currentPath: '/toneracek/objednavky',
         user: request.user,
-        result: { ...stats, total: orderRecords.length, totalItems: itemRecords.length },
+        result: { ...stats, total: orderRecords.length, totalItems: itemRecords.length, emailsNote },
       }, { layout: 'layouts/base.ejs' });
 
     } catch (err) {
