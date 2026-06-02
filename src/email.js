@@ -91,3 +91,32 @@ export async function sendOrderStatusEmail({ orderNumber, email, customerName, s
 
   if (error) throw new Error(`Resend error: ${error.message}`);
 }
+
+export async function sendInvoiceEmail({ invoice, issuer, email, pdfBuffer }) {
+  if (!process.env.RESEND_API_KEY) {
+    console.log(`[DEV EMAIL] Invoice ${invoice.number} → ${email}`);
+    return;
+  }
+
+  const from = issuer.email
+    ? `${issuer.name} <${issuer.email}>`
+    : `one.seil.space <noreply@seil.cz>`;
+
+  const { error } = await resend.emails.send({
+    from,
+    to: [email],
+    subject: `Faktura ${invoice.number} — ${issuer.name}`,
+    html: `<p>Dobrý den,</p>
+<p>v příloze zasíláme fakturu č. <strong>${invoice.number}</strong>.</p>
+<p>Celková částka k úhradě: <strong>${Number(invoice.total_amount).toLocaleString('cs-CZ', {minimumFractionDigits:2})} ${invoice.currency || 'Kč'}</strong></p>
+${invoice.due_date ? `<p>Splatnost: ${new Date(invoice.due_date).toLocaleDateString('cs-CZ')}</p>` : ''}
+<p>Děkujeme za spolupráci.</p>
+<p>${issuer.name}</p>`,
+    attachments: [{
+      filename: `faktura-${invoice.number}.pdf`,
+      content: Buffer.from(pdfBuffer).toString('base64'),
+    }],
+  });
+
+  if (error) throw new Error(`Resend error: ${error.message}`);
+}

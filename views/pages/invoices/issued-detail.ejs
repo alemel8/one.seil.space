@@ -1,0 +1,178 @@
+<div class="page-header">
+  <div class="page-header-left">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <a href="/ucetnictvi/vydane-faktury" class="btn btn-ghost btn-sm">← Zpět</a>
+      <h1>Faktura <%= invoice.number %></h1>
+      <%
+        const statusBg = invoice.status==='Zaplacena' ? '#dcfce7' :
+                         invoice.status==='Po splatnosti' ? '#fee2e2' :
+                         invoice.status==='Storno' ? '#f3f4f6' : '#fef9c3';
+        const statusCl = invoice.status==='Zaplacena' ? '#166534' :
+                         invoice.status==='Po splatnosti' ? '#991b1b' :
+                         invoice.status==='Storno' ? '#6b7280' : '#92400e';
+      %>
+      <span class="badge" style="background:<%= statusBg %>;color:<%= statusCl %>; font-size:13px;"><%= invoice.status %></span>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <a href="/ucetnictvi/vydane-faktury/<%= invoice.id %>/pdf" target="_blank" class="btn btn-outline">
+      📄 Stáhnout PDF
+    </a>
+    <button class="btn btn-ghost" data-modal-open="modalEmail">✉️ Odeslat</button>
+    <button class="btn btn-outline" data-modal-open="modalStatus">Změnit stav</button>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;">
+
+  <!-- Levý sloupec -->
+  <div>
+    <!-- Informace -->
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header" style="display:flex;justify-content:space-between;">
+        <strong>Detail faktury</strong>
+        <span style="color:var(--text-muted);font-size:13px;">#<%= invoice.id %></span>
+      </div>
+      <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div><div style="color:var(--text-muted);font-size:12px;">Klient</div><div style="font-weight:500;"><%= invoice.client_name || '—' %></div></div>
+        <div><div style="color:var(--text-muted);font-size:12px;">IČO / DIČ</div><div><%= invoice.client_ico || '—' %> / <%= invoice.client_dic || '—' %></div></div>
+        <div><div style="color:var(--text-muted);font-size:12px;">Adresa</div><div><%= invoice.client_address || '—' %></div></div>
+        <div><div style="color:var(--text-muted);font-size:12px;">Měna</div><div><%= invoice.currency %></div></div>
+        <div><div style="color:var(--text-muted);font-size:12px;">Datum vystavení</div><div><%= new Date(invoice.issue_date).toLocaleDateString('cs-CZ') %></div></div>
+        <div><div style="color:var(--text-muted);font-size:12px;">Splatnost</div><div><%= invoice.due_date ? new Date(invoice.due_date).toLocaleDateString('cs-CZ') : '—' %></div></div>
+        <% if (invoice.paid_date) { %>
+        <div><div style="color:var(--text-muted);font-size:12px;">Zaplaceno</div><div style="color:#166534;font-weight:500;"><%= new Date(invoice.paid_date).toLocaleDateString('cs-CZ') %></div></div>
+        <% } %>
+        <% if (invoice.order_id) { %>
+        <div><div style="color:var(--text-muted);font-size:12px;">Z objednávky</div><div><a href="/ucetnictvi/objednavky/<%= invoice.order_id %>" style="color:var(--primary);">Zobrazit objednávku</a></div></div>
+        <% } %>
+        <% if (invoice.notes) { %>
+        <div style="grid-column:1/-1;"><div style="color:var(--text-muted);font-size:12px;">Poznámka</div><div><%= invoice.notes %></div></div>
+        <% } %>
+      </div>
+    </div>
+
+    <!-- Položky -->
+    <% if (items.length > 0) { %>
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header"><strong>Položky faktury</strong></div>
+      <div class="table-wrapper">
+        <table class="data-table" style="margin:0;">
+          <thead>
+            <tr><th>Popis</th><th>Množství</th><th>Jedn.</th><th style="text-align:right;">Cena/MJ</th><th style="text-align:center;">DPH%</th><th style="text-align:right;">Základ</th><th style="text-align:right;">DPH</th><th style="text-align:right;">Celkem</th></tr>
+          </thead>
+          <tbody>
+            <% items.forEach(item => { %>
+            <tr>
+              <td><%= item.name %></td>
+              <td><%= item.quantity %></td>
+              <td style="color:var(--text-muted);"><%= item.unit %></td>
+              <td style="text-align:right;"><%= Number(item.price_per_unit).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %></td>
+              <td style="text-align:center;"><%= item.vat_rate %> %</td>
+              <td style="text-align:right;"><%= Number(item.amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %></td>
+              <td style="text-align:right;"><%= Number(item.vat_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %></td>
+              <td style="text-align:right;font-weight:500;"><%= Number(item.total).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %></td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <% } %>
+  </div>
+
+  <!-- Pravý sloupec: souhrn -->
+  <div>
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header"><strong>Rekapitulace</strong></div>
+      <div class="card-body">
+        <% if (vatSummary.length > 0) { %>
+        <% vatSummary.forEach(vs => { %>
+        <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:var(--text-muted);">
+          <span>Základ <%= vs.rate %>%</span>
+          <span><%= Number(vs.base).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %></span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:var(--text-muted);">
+          <span>DPH <%= vs.rate %>%</span>
+          <span><%= Number(vs.vat).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %></span>
+        </div>
+        <% }) %>
+        <hr style="margin:8px 0;border-color:var(--gray-200);">
+        <% } %>
+        <div style="display:flex;justify-content:space-between;padding:4px 0;">
+          <span style="color:var(--text-muted);">Základ celkem</span>
+          <span><%= Number(invoice.amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= invoice.currency %></span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:4px 0;">
+          <span style="color:var(--text-muted);">DPH celkem</span>
+          <span><%= Number(invoice.vat_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= invoice.currency %></span>
+        </div>
+        <hr style="margin:8px 0;border-color:var(--gray-200);">
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:16px;font-weight:700;color:var(--primary);">
+          <span>K úhradě</span>
+          <span><%= Number(invoice.total_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= invoice.currency %></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><strong>Akce</strong></div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:8px;">
+        <a href="/ucetnictvi/vydane-faktury/<%= invoice.id %>/pdf" target="_blank" class="btn btn-outline" style="width:100%;text-align:center;">
+          📄 Stáhnout PDF
+        </a>
+        <button class="btn btn-ghost" data-modal-open="modalEmail" style="width:100%;">✉️ Odeslat emailem</button>
+        <button class="btn btn-ghost" data-modal-open="modalStatus" style="width:100%;">🔄 Změnit stav</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Změna stavu -->
+<div id="modalStatus" class="modal-overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" style="max-width:360px;width:90%;">
+    <div class="modal-header"><h3>Změnit stav faktury</h3><button class="modal-close" onclick="document.getElementById('modalStatus').style.display='none'">&times;</button></div>
+    <form method="post" action="/ucetnictvi/vydane-faktury/<%= invoice.id %>/stav">
+      <div class="modal-body">
+        <select name="status" class="form-select">
+          <% STATUSES_ISSUED.forEach(s => { %>
+          <option value="<%= s %>" <%= invoice.status===s?'selected':'' %>><%= s %></option>
+          <% }) %>
+        </select>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('modalStatus').style.display='none'">Zrušit</button>
+        <button type="submit" class="btn btn-primary">Uložit</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Odeslat email -->
+<div id="modalEmail" class="modal-overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" style="max-width:400px;width:90%;">
+    <div class="modal-header"><h3>Odeslat fakturu emailem</h3><button class="modal-close" onclick="document.getElementById('modalEmail').style.display='none'">&times;</button></div>
+    <form method="post" action="/ucetnictvi/vydane-faktury/<%= invoice.id %>/odeslat-email">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">E-mail příjemce *</label>
+          <input type="email" name="email" class="form-control" required placeholder="klient@example.com">
+        </div>
+        <p style="font-size:13px;color:var(--text-muted);margin-top:8px;">Faktura bude odeslána jako PDF příloha.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('modalEmail').style.display='none'">Zrušit</button>
+        <button type="submit" class="btn btn-primary">Odeslat</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('[data-modal-open]').forEach(btn => {
+  btn.addEventListener('click', () => document.getElementById(btn.dataset.modalOpen).style.display = 'flex');
+});
+<% if (typeof emailSent !== 'undefined' && emailSent) { %>
+alert('Faktura odeslána!');
+<% } %>
+</script>

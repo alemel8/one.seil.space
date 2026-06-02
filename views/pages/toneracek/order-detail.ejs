@@ -169,6 +169,38 @@
       </div>
     </div>
 
+    <!-- Generovat fakturu -->
+    <div class="card" style="margin-bottom:0;">
+      <div class="card-body">
+        <h2 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 12px;">Faktura</h2>
+        <% if (invoice) { %>
+          <div style="margin-bottom:10px;font-size:13px;">
+            <span style="color:var(--text-muted);">Faktura vystavena:</span>
+            <a href="/ucetnictvi/vydane-faktury/<%= invoice.id %>" style="color:var(--primary);font-weight:500;"> <%= invoice.number %></a>
+          </div>
+          <a href="/ucetnictvi/vydane-faktury/<%= invoice.id %>/pdf" target="_blank" class="btn btn-outline" style="width:100%;text-align:center;margin-bottom:6px;">📄 Stáhnout PDF</a>
+        <% } else { %>
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Ke klientovi dosud nebyla vystavena faktura.</p>
+          <form method="post" action="/ucetnictvi/objednavky/<%= order.id %>/generovat-fakturu">
+            <div style="margin-bottom:10px;">
+              <label class="form-label" style="font-size:12px;">Číselná řada</label>
+              <select name="series_id" class="form-select">
+                <option value="">— Použít číslo z objednávky —</option>
+                <% if (typeof invoiceSeries !== 'undefined') { invoiceSeries.forEach(s => { %>
+                <option value="<%= s.id %>"><%= s.name %></option>
+                <% }) } %>
+              </select>
+            </div>
+            <div style="margin-bottom:10px;">
+              <label class="form-label" style="font-size:12px;">Datum splatnosti</label>
+              <input type="date" name="due_date" class="form-control" value="<%= new Date(Date.now()+14*86400000).toISOString().split('T')[0] %>">
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%;">Vystavit fakturu</button>
+          </form>
+        <% } %>
+      </div>
+    </div>
+
     <!-- Změna stavu -->
     <div class="card">
       <div class="card-body">

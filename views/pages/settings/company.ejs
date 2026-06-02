@@ -1,0 +1,118 @@
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Nastavení firmy</h1>
+    <p>Fakturační údaje zobrazované na vydaných fakturách</p>
+  </div>
+</div>
+
+<% if (saved) { %>
+<div class="alert alert-success" style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+  ✓ Nastavení uloženo
+</div>
+<% } %>
+
+<div style="max-width:720px;">
+<form method="post" action="/nastaveni/firma">
+
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header"><strong>Základní údaje</strong></div>
+    <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+
+      <div class="form-group" style="grid-column:1/-1;">
+        <label class="form-label">Název firmy *</label>
+        <input type="text" name="name" value="<%= company.name || '' %>" class="form-control" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">IČO</label>
+        <input type="text" name="ico" value="<%= company.ico || '' %>" class="form-control" maxlength="20">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">DIČ</label>
+        <input type="text" name="dic" value="<%= company.dic || '' %>" class="form-control" maxlength="20">
+      </div>
+
+      <div class="form-group" style="grid-column:1/-1;">
+        <label class="form-label">Ulice a číslo popisné</label>
+        <input type="text" name="address" value="<%= company.address || '' %>" class="form-control">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Město</label>
+        <input type="text" name="city" value="<%= company.city || '' %>" class="form-control">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">PSČ</label>
+        <input type="text" name="zip" value="<%= company.zip || '' %>" class="form-control">
+      </div>
+
+      <div class="form-group" style="grid-column:1/-1;">
+        <label class="form-label">Stát</label>
+        <input type="text" name="country" value="<%= company.country || 'Česká republika' %>" class="form-control">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Telefon</label>
+        <input type="text" name="phone" value="<%= company.phone || '' %>" class="form-control">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">E-mail</label>
+        <input type="email" name="email" value="<%= company.email || '' %>" class="form-control">
+      </div>
+
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header"><strong>Bankovní spojení</strong></div>
+    <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+
+      <div class="form-group">
+        <label class="form-label">Číslo účtu</label>
+        <input type="text" name="bank_account" value="<%= company.bank_account || '' %>" class="form-control" placeholder="2800828200/2010">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Název banky</label>
+        <input type="text" name="bank_name" value="<%= company.bank_name || '' %>" class="form-control" placeholder="Fio banka">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">IBAN</label>
+        <input type="text" name="iban" value="<%= company.iban || '' %>" class="form-control" placeholder="CZ...">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">SWIFT/BIC</label>
+        <input type="text" name="swift" value="<%= company.swift || '' %>" class="form-control" placeholder="FIOBCZPPXXX">
+      </div>
+
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header"><strong>Fakturace</strong></div>
+    <div class="card-body" style="display:grid;grid-template-columns:1fr;gap:16px;">
+
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" name="vat_payer" value="on" <%= company.vat_payer ? 'checked' : '' %>>
+          <span>Plátce DPH</span>
+        </label>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Poznámka na faktuře</label>
+        <textarea name="invoice_note" class="form-control" rows="2" placeholder="Např. Nejsme plátci DPH."><%= company.invoice_note || '' %></textarea>
+      </div>
+
+    </div>
+  </div>
+
+  <button type="submit" class="btn btn-primary">Uložit nastavení</button>
+
+</form>
+</div>

@@ -1,0 +1,141 @@
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Vydané faktury</h1>
+    <p><%= total %> faktur celkem</p>
+  </div>
+  <button class="btn btn-primary" data-modal-open="modalCreate">+ Nová faktura</button>
+</div>
+
+<!-- Filtry -->
+<form method="get" style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+  <input type="text" name="q" value="<%= q||'' %>" placeholder="Hledat číslo, klient…" class="form-control" style="max-width:280px;">
+  <select name="status" class="form-select" style="width:auto;">
+    <option value="">Všechny stavy</option>
+    <% STATUSES_ISSUED.forEach(s => { %><option value="<%= s %>" <%= statusFilter===s?'selected':'' %>><%= s %></option><% }) %>
+  </select>
+  <button type="submit" class="btn btn-outline">Filtrovat</button>
+  <% if (q||statusFilter) { %><a href="/ucetnictvi/vydane-faktury" class="btn btn-ghost">Zrušit</a><% } %>
+</form>
+
+<div class="table-wrapper">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Číslo</th><th>Klient</th><th>Vystavení</th><th>Splatnost</th>
+        <th style="text-align:right;">Základ</th><th style="text-align:right;">Celkem</th>
+        <th>Stav</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (invoices.length > 0) { %>
+        <% invoices.forEach(inv => { %>
+        <tr class="clickable-row" onclick="window.location='/ucetnictvi/vydane-faktury/<%= inv.id %>'">
+          <td style="font-weight:600;color:var(--primary);"><%= inv.number %></td>
+          <td><%= inv.client_name || '—' %></td>
+          <td style="color:var(--text-muted);font-size:13px;"><%= new Date(inv.issue_date).toLocaleDateString('cs-CZ') %></td>
+          <td style="color:var(--text-muted);font-size:13px;"><%= inv.due_date ? new Date(inv.due_date).toLocaleDateString('cs-CZ') : '—' %></td>
+          <td style="text-align:right;"><%= Number(inv.amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %></td>
+          <td style="text-align:right;font-weight:600;"><%= Number(inv.total_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= inv.currency %></td>
+          <td>
+            <%
+              const sc = inv.status==='Zaplacena' ? '#dcfce7:#166534' :
+                         inv.status==='Po splatnosti' ? '#fee2e2:#991b1b' :
+                         inv.status==='Storno' ? '#f3f4f6:#6b7280' : '#fef9c3:#92400e';
+              const [bg,cl] = sc.split(':');
+            %>
+            <span class="badge" style="background:<%= bg %>;color:<%= cl %>;"><%= inv.status %></span>
+          </td>
+          <td onclick="event.stopPropagation();">
+            <a href="/ucetnictvi/vydane-faktury/<%= inv.id %>/pdf" target="_blank" class="btn btn-ghost btn-sm" title="PDF">PDF</a>
+          </td>
+        </tr>
+        <% }) %>
+      <% } else { %>
+        <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);">Žádné faktury</td></tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+
+<!-- Paginace -->
+<% if (totalPages > 1) { %>
+<div style="display:flex;gap:8px;justify-content:center;margin-top:20px;">
+  <% for(let p=1;p<=totalPages;p++) { %>
+    <a href="?page=<%= p %><%= q?'&q='+encodeURIComponent(q):'' %><%= statusFilter?'&status='+encodeURIComponent(statusFilter):'' %>"
+       class="btn <%= p===currentPage?'btn-primary':'btn-ghost' %> btn-sm"><%= p %></a>
+  <% } %>
+</div>
+<% } %>
+
+<!-- Modal: Nová faktura -->
+<div id="modalCreate" class="modal-overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" style="max-width:520px;width:90%;">
+    <div class="modal-header">
+      <h3>Nová vydaná faktura</h3>
+      <button class="modal-close" onclick="document.getElementById('modalCreate').style.display='none'">&times;</button>
+    </div>
+    <form method="post" action="/ucetnictvi/vydane-faktury/vytvorit">
+      <div class="modal-body" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label">Číselná řada</label>
+          <select name="series_id" class="form-select">
+            <option value="">— Zadat číslo ručně —</option>
+            <% series.forEach(s => { %>
+            <option value="<%= s.id %>"><%= s.name %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label">Číslo faktury (pokud nezvolíte řadu)</label>
+          <input type="text" name="number" class="form-control" placeholder="FV-2026-0001">
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label">Klient *</label>
+          <input type="text" name="client_name" class="form-control" required placeholder="Název firmy nebo jméno">
+        </div>
+        <div class="form-group">
+          <label class="form-label">IČO klienta</label>
+          <input type="text" name="client_ico" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">DIČ klienta</label>
+          <input type="text" name="client_dic" class="form-control">
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label">Adresa klienta</label>
+          <input type="text" name="client_address" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Základ DPH (bez DPH)</label>
+          <input type="number" name="amount" class="form-control" step="0.01" min="0" value="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">DPH</label>
+          <input type="number" name="vat_amount" class="form-control" step="0.01" min="0" value="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Datum vystavení</label>
+          <input type="date" name="issue_date" class="form-control" value="<%= new Date().toISOString().split('T')[0] %>">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Datum splatnosti</label>
+          <input type="date" name="due_date" class="form-control">
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label">Poznámka</label>
+          <textarea name="notes" class="form-control" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('modalCreate').style.display='none'">Zrušit</button>
+        <button type="submit" class="btn btn-primary">Vytvořit fakturu</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('[data-modal-open]').forEach(btn => {
+  btn.addEventListener('click', () => document.getElementById(btn.dataset.modalOpen).style.display = 'flex');
+});
+</script>

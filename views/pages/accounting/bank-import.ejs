@@ -1,0 +1,96 @@
+<div class="page-header">
+  <div class="page-header-left">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <a href="/ucetnictvi/banka" class="btn btn-ghost btn-sm">← Banka</a>
+      <h1>Import Fio CSV</h1>
+    </div>
+    <p>Nahrajte výpis z Fio internetbankingu (Export → CSV)</p>
+  </div>
+</div>
+
+<% if (result) { %>
+  <% if (result.error) { %>
+  <div style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;padding:14px 18px;border-radius:8px;margin-bottom:20px;">
+    ❌ Chyba: <%= result.error %>
+  </div>
+  <% } else { %>
+  <div style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:14px 18px;border-radius:8px;margin-bottom:20px;">
+    ✅ Import dokončen:
+    <strong><%= result.imported %></strong> nových transakcí,
+    <strong><%= result.matched %></strong> automaticky spárováno s fakturami,
+    <strong><%= result.skipped %></strong> přeskočeno (duplicity).
+  </div>
+  <% } %>
+<% } %>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;">
+
+  <div class="card">
+    <div class="card-header"><strong>Nahrát Fio CSV výpis</strong></div>
+    <div class="card-body">
+      <form method="post" action="/ucetnictvi/banka/import" enctype="multipart/form-data">
+
+        <% if (accounts.length > 1) { %>
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label">Bankovní účet</label>
+          <select name="bank_account_id" class="form-select">
+            <% accounts.forEach(a => { %>
+            <option value="<%= a.id %>"><%= a.name %> (<%= a.account_number %>)</option>
+            <% }) %>
+          </select>
+        </div>
+        <% } %>
+
+        <div class="form-group" style="margin-bottom:20px;">
+          <label class="form-label">CSV soubor *</label>
+          <input type="file" name="csvfile" accept=".csv" class="form-control" required>
+          <small style="color:var(--text-muted);margin-top:6px;display:block;">
+            V Fio internetbankingu: Pohyby na účtu → Export → Format: CSV (semicolon)
+          </small>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width:100%;">Importovat</button>
+
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><strong>Jak funguje import</strong></div>
+    <div class="card-body" style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+      <p style="margin-bottom:10px;">📥 <strong>Deduplikace:</strong> Transakce s existujícím ID se přeskočí — import lze spustit opakovaně bezpečně.</p>
+      <p style="margin-bottom:10px;">🔗 <strong>Auto-párování:</strong> Pokud variabilní symbol transakce odpovídá číslu vydané faktury, faktura se automaticky označí jako <em>Zaplacena</em>.</p>
+      <p>🔄 <strong>Manuální párování:</strong> Nepárované transakce lze ručně propojit s fakturami na stránce Banka.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Historie importů -->
+<h3 style="margin:28px 0 12px;">Historie importů</h3>
+<div class="table-wrapper">
+  <table class="data-table">
+    <thead>
+      <tr><th>Soubor</th><th>Účet</th><th>Období</th><th>Importováno</th><th>Spárováno</th><th>Přeskočeno</th><th>Kdy</th></tr>
+    </thead>
+    <tbody>
+      <% if (imports.length > 0) { %>
+        <% imports.forEach(i => { %>
+        <tr>
+          <td style="font-family:monospace;font-size:12px;"><%= i.filename %></td>
+          <td><%= i.account_name %></td>
+          <td style="font-size:12px;color:var(--text-muted);">
+            <%= i.date_from ? new Date(i.date_from).toLocaleDateString('cs-CZ') : '—' %> –
+            <%= i.date_to   ? new Date(i.date_to).toLocaleDateString('cs-CZ')   : '—' %>
+          </td>
+          <td style="text-align:center;"><%= i.rows_imported %></td>
+          <td style="text-align:center;color:#166534;"><%= i.rows_matched %></td>
+          <td style="text-align:center;color:var(--text-muted);"><%= i.rows_skipped %></td>
+          <td style="font-size:12px;color:var(--text-muted);"><%= new Date(i.imported_at).toLocaleString('cs-CZ') %></td>
+        </tr>
+        <% }) %>
+      <% } else { %>
+        <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted);">Žádné importy</td></tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>

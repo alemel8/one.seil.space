@@ -1,4 +1,4 @@
-import { getAppDb, generateId } from '../db.js';
+import { getDb, generateId } from '../db.js';
 import { sendOrderStatusEmail } from '../email.js';
 
 const ORDER_STATUSES = ['Přijata', 'Ve zpracování', 'Vyřízena', 'Stornována'];
@@ -10,52 +10,56 @@ const PAYMENT_LABELS = {
 };
 
 // ── CRM upsert zákazníka ──────────────────────────────────────
-// Vrací { contactId, companyId } — oba mohou být null
 
-function upsertCustomerToCRM(db, { email, firstName, lastName, company, phone, city, country, isRegistered }) {
+async function upsertCustomerToCRM(sql, { email, firstName, lastName, company, phone, city, country, isRegistered }) {
   if (!email) return { contactId: null, companyId: null };
 
   let companyId = null;
-  if (company && company.trim()) {
-    const existingCo = db.prepare('SELECT id FROM crm_companies WHERE name = ?').get(company.trim());
-    if (existingCo) {
-      companyId = existingCo.id;
+  if (company?.trim()) {
+    const existing = await sql`SELECT id FROM crm_companies WHERE name = ${company.trim()} LIMIT 1`;
+    if (existing[0]) {
+      companyId = existing[0].id;
     } else {
       companyId = generateId();
-      db.prepare(`
-        INSERT INTO crm_companies (id, name, company_type, city, country, modified_at)
-        VALUES (?, ?, 'Zákazník', ?, ?, datetime('now'))
-      `).run(companyId, company.trim(), city || '', country || '');
+      await sql`
+        INSERT INTO crm_companies (id, name, company_type, city, country)
+        VALUES (${companyId}, ${company.trim()}, 'Zákazník', ${city||''}, ${country||''})
+      `;
     }
   }
 
-  const isReg = isRegistered ? 1 : 0;
-  const existing = db.prepare('SELECT id, is_registered FROM crm_contacts WHERE email = ?').get(email);
+  const isReg = isRegistered ? true : false;
+  const existing = await sql`SELECT id, is_registered FROM crm_contacts WHERE LOWER(email) = LOWER(${email}) LIMIT 1`;
+
   let contactId;
-  if (existing) {
-    // Registrovaný status se nikdy nesníží (jednou registrovaný = vždy)
-    const newIsReg = Math.max(existing.is_registered || 0, isReg);
-    db.prepare(`
+  if (existing[0]) {
+    const newIsReg = existing[0].is_registered || isReg;
+    await sql`
       UPDATE crm_contacts SET
-        first_name = ?, last_name = ?, phone = ?,
-        company_id = COALESCE(company_id, ?),
-        is_registered = ?,
-        modified_at = datetime('now')
-      WHERE email = ?
-    `).run(firstName || '', lastName || '', phone || '', companyId, newIsReg, email);
-    contactId = existing.id;
+        first_name   = ${firstName || ''},
+        last_name    = ${lastName  || ''},
+        phone        = ${phone     || ''},
+        company_id   = COALESCE(company_id, ${companyId}),
+        is_registered = ${newIsReg},
+        modified_at  = NOW()
+      WHERE id = ${existing[0].id}
+    `;
+    contactId = existing[0].id;
   } else {
     contactId = generateId();
-    db.prepare(`
-      INSERT INTO crm_contacts (id, first_name, last_name, email, phone, company_id, is_registered, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'Zákazník Toneráček.cz')
-    `).run(contactId, firstName || '', lastName || '', email, phone || '', companyId, isReg);
+    await sql`
+      INSERT INTO crm_contacts
+        (id, first_name, last_name, email, phone, company_id, is_registered, notes)
+      VALUES
+        (${contactId}, ${firstName||''}, ${lastName||''}, ${email},
+         ${phone||''}, ${companyId}, ${isReg}, 'Zákazník Toneráček.cz')
+    `;
   }
 
   return { contactId, companyId };
 }
 
-// ── API: ověření klíče ─────────────────────────────────────────
+// ── Ověření API klíče (Toneráček — env var Bearer) ───────────
 
 function verifyApiKey(request) {
   const auth = request.headers['authorization'] || '';
@@ -64,34 +68,195 @@ function verifyApiKey(request) {
   return expected && key === expected;
 }
 
+// ── Helper: toneráček shop_id ─────────────────────────────────
+
+async function getToneracekShopId(sql) {
+  const rows = await sql`SELECT id FROM shops WHERE slug = 'toneracek' LIMIT 1`;
+  return rows[0]?.id ?? null;
+}
+
 export default async function toneracekRoutes(fastify) {
+  const sql = getDb();
+
+  // ── Helpers ────────────────────────────────────────────────
+
+  function mapContact(row) {
+    return {
+      id:               row.id,
+      email:            row.email,
+      jmeno:            row.first_name,
+      prijmeni:         row.last_name,
+      telefon:          row.phone || '',
+      firma:            row.company_name || '',
+      ulice:            row.address || '',
+      mesto:            row.city || '',
+      psc:              row.zip || '',
+      datumRegistrace:  row.created_at,
+      souhlasMarketing: !!row.marketing_consent,
+      souhlasNotifikace:!!row.notifications_consent,
+      aktivni:          row.active !== false,
+      poznamka:         row.notes || null,
+    };
+  }
+
+  // ── API: Uživatelé (zákazníci Toneráček) ───────────────────
+
+  fastify.get('/api/toneracek/users', async (request, reply) => {
+    if (!verifyApiKey(request)) return reply.code(401).send({ error: 'Unauthorized' });
+    const email = (request.query.email || '').trim().toLowerCase();
+    if (!email) return reply.code(400).send({ error: 'email required' });
+
+    const rows = await sql`
+      SELECT * FROM crm_contacts
+      WHERE LOWER(email) = ${email} AND is_registered = TRUE
+      LIMIT 1
+    `;
+    if (!rows[0]) return reply.code(404).send({ error: 'Not found' });
+    return reply.send(mapContact(rows[0]));
+  });
+
+  fastify.get('/api/toneracek/users/:id', async (request, reply) => {
+    if (!verifyApiKey(request)) return reply.code(401).send({ error: 'Unauthorized' });
+    const rows = await sql`
+      SELECT * FROM crm_contacts WHERE id = ${request.params.id} AND is_registered = TRUE LIMIT 1
+    `;
+    if (!rows[0]) return reply.code(404).send({ error: 'Not found' });
+    return reply.send(mapContact(rows[0]));
+  });
+
+  fastify.post('/api/toneracek/users', async (request, reply) => {
+    if (!verifyApiKey(request)) return reply.code(401).send({ error: 'Unauthorized' });
+    const b = request.body;
+    if (!b?.email) return reply.code(400).send({ error: 'email required' });
+
+    const email = b.email.toLowerCase();
+    const existing = await sql`SELECT id FROM crm_contacts WHERE LOWER(email) = ${email} LIMIT 1`;
+    if (existing[0]) return reply.code(409).send({ error: 'Účet s tímto e-mailem již existuje' });
+
+    const id = generateId();
+    await sql`
+      INSERT INTO crm_contacts
+        (id, first_name, last_name, email, phone, company_name, address, city, zip,
+         marketing_consent, is_registered, active, notes)
+      VALUES (${id}, ${b.jmeno||''}, ${b.prijmeni||''}, ${email}, ${b.telefon||''},
+              ${b.firma||''}, ${b.ulice||''}, ${b.mesto||''}, ${b.psc||''},
+              ${b.souhlasMarketing ? true : false}, TRUE, TRUE, 'Zákazník Toneráček.cz')
+    `;
+    const [row] = await sql`SELECT * FROM crm_contacts WHERE id = ${id}`;
+    return reply.code(201).send(mapContact(row));
+  });
+
+  fastify.patch('/api/toneracek/users/:id', async (request, reply) => {
+    if (!verifyApiKey(request)) return reply.code(401).send({ error: 'Unauthorized' });
+    const b = request.body || {};
+
+    const sets = [];
+    if (b.jmeno       !== undefined) sets.push(sql`first_name = ${b.jmeno}`);
+    if (b.prijmeni    !== undefined) sets.push(sql`last_name = ${b.prijmeni}`);
+    if (b.telefon     !== undefined) sets.push(sql`phone = ${b.telefon}`);
+    if (b.firma       !== undefined) sets.push(sql`company_name = ${b.firma}`);
+    if (b.ulice       !== undefined) sets.push(sql`address = ${b.ulice}`);
+    if (b.mesto       !== undefined) sets.push(sql`city = ${b.mesto}`);
+    if (b.psc         !== undefined) sets.push(sql`zip = ${b.psc}`);
+    if (b.souhlasMarketing  !== undefined) sets.push(sql`marketing_consent = ${!!b.souhlasMarketing}`);
+    if (b.souhlasNotifikace !== undefined) sets.push(sql`notifications_consent = ${!!b.souhlasNotifikace}`);
+    if (b.posledniPrihlaseni !== undefined) sets.push(sql`last_login = ${b.posledniPrihlaseni}`);
+    if (b.poznamka    !== undefined) sets.push(sql`notes = ${b.poznamka}`);
+
+    if (sets.length === 0) {
+      const [row] = await sql`SELECT * FROM crm_contacts WHERE id = ${request.params.id}`;
+      return reply.send(mapContact(row));
+    }
+
+    sets.push(sql`modified_at = NOW()`);
+    const setClause = sets.reduce((a, b) => sql`${a}, ${b}`);
+    const result = await sql`
+      UPDATE crm_contacts SET ${setClause}
+      WHERE id = ${request.params.id} AND is_registered = TRUE
+    `;
+    if (result.count === 0) return reply.code(404).send({ error: 'Not found' });
+    const [row] = await sql`SELECT * FROM crm_contacts WHERE id = ${request.params.id}`;
+    return reply.send(mapContact(row));
+  });
+
+  // ── API: Dotazy na objednávky ──────────────────────────────
+
+  fastify.get('/api/toneracek/orders', async (request, reply) => {
+    if (!verifyApiKey(request)) return reply.code(401).send({ error: 'Unauthorized' });
+    const email = (request.query.email || '').trim().toLowerCase();
+    if (!email) return reply.code(400).send({ error: 'email required' });
+
+    const shopId = await getToneracekShopId(sql);
+    const orders = await sql`
+      SELECT * FROM shop_orders
+      WHERE shop_id = ${shopId} AND LOWER(email) = ${email}
+      ORDER BY created_at DESC LIMIT 50
+    `;
+    const result = await Promise.all(orders.map(async o => {
+      const items = await sql`SELECT name, quantity FROM shop_order_items WHERE order_id = ${o.id}`;
+      return { ...o, items };
+    }));
+    return reply.send({ orders: result });
+  });
+
+  fastify.get('/api/toneracek/orders/by-number/:orderNumber', async (request, reply) => {
+    if (!verifyApiKey(request)) return reply.code(401).send({ error: 'Unauthorized' });
+    const orderNumber = request.params.orderNumber;
+    const email = (request.query.email || '').trim().toLowerCase();
+
+    const shopId = await getToneracekShopId(sql);
+    const [order] = await sql`
+      SELECT * FROM shop_orders WHERE shop_id = ${shopId} AND order_number = ${orderNumber} LIMIT 1
+    `;
+    if (!order) return reply.code(404).send({ error: 'Not found' });
+    if (email && order.email.toLowerCase() !== email) return reply.code(403).send({ error: 'Forbidden' });
+    const items = await sql`SELECT * FROM shop_order_items WHERE order_id = ${order.id}`;
+    return reply.send({ order: { ...order, items } });
+  });
+
+  fastify.patch('/api/toneracek/orders/:id/payment-status', async (request, reply) => {
+    if (!verifyApiKey(request)) return reply.code(401).send({ error: 'Unauthorized' });
+    const { status } = request.body || {};
+    if (!status) return reply.code(400).send({ error: 'status required' });
+
+    const shopId = await getToneracekShopId(sql);
+    const result = await sql`
+      UPDATE shop_orders SET status = ${status}, modified_at = NOW()
+      WHERE id = ${request.params.id} AND shop_id = ${shopId}
+    `;
+    if (result.count === 0) return reply.code(404).send({ error: 'Not found' });
+    return reply.send({ ok: true });
+  });
 
   // ── API: Příjem nové objednávky z e-shopu ──────────────────
 
   fastify.post('/api/toneracek/orders', async (request, reply) => {
-    if (!verifyApiKey(request)) {
-      return reply.code(401).send({ error: 'Unauthorized' });
-    }
+    if (!verifyApiKey(request)) return reply.code(401).send({ error: 'Unauthorized' });
 
     const b = request.body;
-    if (!b || !b.customer || !b.items || !b.totalPrice) {
+    if (!b?.customer || !b?.items || !b?.totalPrice) {
       return reply.code(400).send({ error: 'Chybí povinná data objednávky' });
     }
 
-    const db = getAppDb();
+    const shopId = await getToneracekShopId(sql);
+    if (!shopId) return reply.code(500).send({ error: 'Toneráček shop není nakonfigurován' });
+
     const { customer, shipping, paymentMethod, items, totalPrice, ipAddress } = b;
 
-    // Číslo objednávky
-    const last = db.prepare('SELECT order_number FROM toneracek_orders ORDER BY order_number DESC LIMIT 1').get();
-    const orderNumber = last ? last.order_number + 1 : 10001;
+    // Číslo objednávky — per-shop sekvence
+    const [last] = await sql`
+      SELECT order_number FROM shop_orders WHERE shop_id = ${shopId}
+      ORDER BY CAST(order_number AS INTEGER) DESC LIMIT 1
+    `;
+    const orderNumber = last ? String(parseInt(last.order_number, 10) + 1) : '10001';
 
     const now = new Date();
     const invoiceNumber = `FV-${now.getFullYear()}-${orderNumber}`;
     const orderId = generateId();
 
-    db.prepare(`
-      INSERT INTO toneracek_orders (
-        id, order_number, status, payment_method, shipping_method,
+    await sql`
+      INSERT INTO shop_orders (
+        id, shop_id, order_number, status, payment_method, shipping_method,
         first_name, last_name, company, ic, dic,
         email, phone, address, city, zip, country,
         shipping_first_name, shipping_last_name, shipping_company,
@@ -99,59 +264,45 @@ export default async function toneracekRoutes(fastify) {
         pickup_point_id, pickup_point_name,
         total_price, invoice_number, ip_address
       ) VALUES (
-        ?, ?, 'Přijata', ?, ?,
-        ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?,
-        ?, ?, ?,
-        ?, ?, ?, ?,
-        ?, ?,
-        ?, ?, ?
+        ${orderId}, ${shopId}, ${orderNumber}, 'Přijata',
+        ${PAYMENT_LABELS[paymentMethod] ?? paymentMethod ?? ''},
+        ${shipping?.method ?? 'Zásilkovna'},
+        ${customer.firstName??''}, ${customer.lastName??''},
+        ${customer.company??''}, ${customer.ic??''}, ${customer.dic??''},
+        ${customer.email??''}, ${customer.phone??''},
+        ${customer.address??''}, ${customer.city??''}, ${customer.zip??''},
+        ${customer.stat??'Česká republika'},
+        ${customer.shippingFirstName??customer.firstName??''},
+        ${customer.shippingLastName ??customer.lastName ??''},
+        ${customer.shippingCompany  ??customer.company  ??''},
+        ${customer.shippingPhone    ??customer.phone    ??''},
+        ${customer.shippingAddress  ??customer.address  ??''},
+        ${customer.shippingCity     ??customer.city     ??''},
+        ${customer.shippingZip      ??customer.zip      ??''},
+        ${shipping?.pickupPointId   ??''},
+        ${shipping?.pickupPointName ??''},
+        ${totalPrice}, ${invoiceNumber}, ${ipAddress??''}
       )
-    `).run(
-      orderId, orderNumber,
-      PAYMENT_LABELS[paymentMethod] ?? paymentMethod,
-      shipping?.method ?? 'Zásilkovna',
-      customer.firstName ?? '', customer.lastName ?? '',
-      customer.company ?? '', customer.ic ?? '', customer.dic ?? '',
-      customer.email ?? '', customer.phone ?? '',
-      customer.address ?? '', customer.city ?? '', customer.zip ?? '',
-      customer.stat ?? 'Česká republika',
-      customer.shippingFirstName ?? customer.firstName ?? '',
-      customer.shippingLastName ?? customer.lastName ?? '',
-      customer.shippingCompany ?? customer.company ?? '',
-      customer.shippingPhone ?? customer.phone ?? '',
-      customer.shippingAddress ?? customer.address ?? '',
-      customer.shippingCity ?? customer.city ?? '',
-      customer.shippingZip ?? customer.zip ?? '',
-      shipping?.pickupPointId ?? '',
-      shipping?.pickupPointName ?? '',
-      totalPrice, invoiceNumber, ipAddress ?? '',
-    );
+    `;
 
-    const insertItem = db.prepare(`
-      INSERT INTO toneracek_order_items (order_id, sku, name, quantity, price)
-      VALUES (?, ?, ?, ?, ?)
-    `);
     for (const item of items) {
-      insertItem.run(orderId, item.sku ?? '', item.name, item.quantity, item.price);
+      await sql`
+        INSERT INTO shop_order_items (order_id, sku, name, quantity, price, product_id)
+        VALUES (${orderId}, ${item.sku??''}, ${item.name}, ${item.quantity}, ${item.price}, ${item.productId??null})
+      `;
     }
 
-    // Upsert zákazníka do CRM a propoj s objednávkou (nekritické)
     try {
-      const { contactId, companyId } = upsertCustomerToCRM(db, {
-        email: customer.email,
-        firstName: customer.firstName,
-        lastName: customer.lastName,
-        company: customer.company,
-        phone: customer.phone,
-        city: customer.city,
-        country: customer.stat || 'Česká republika',
-        isRegistered: b.isRegistered ?? false,
+      const { contactId, companyId } = await upsertCustomerToCRM(sql, {
+        email: customer.email, firstName: customer.firstName, lastName: customer.lastName,
+        company: customer.company, phone: customer.phone, city: customer.city,
+        country: customer.stat || 'Česká republika', isRegistered: b.isRegistered ?? false,
       });
       if (contactId || companyId) {
-        db.prepare(
-          `UPDATE toneracek_orders SET crm_contact_id = ?, crm_company_id = ? WHERE id = ?`
-        ).run(contactId || null, companyId || null, orderId);
+        await sql`
+          UPDATE shop_orders SET crm_contact_id = ${contactId}, crm_company_id = ${companyId}
+          WHERE id = ${orderId}
+        `;
       }
     } catch (err) {
       fastify.log.warn({ err }, 'CRM upsert selhal (nekritické)');
@@ -163,17 +314,16 @@ export default async function toneracekRoutes(fastify) {
   // ── API: Aktualizace trackingu ─────────────────────────────
 
   fastify.patch('/api/toneracek/orders/:id/tracking', async (request, reply) => {
-    if (!verifyApiKey(request)) {
-      return reply.code(401).send({ error: 'Unauthorized' });
-    }
+    if (!verifyApiKey(request)) return reply.code(401).send({ error: 'Unauthorized' });
 
     const { trackingNumber, labelUrl } = request.body ?? {};
-    const db = getAppDb();
-    const result = db.prepare(
-      `UPDATE toneracek_orders SET tracking_number = ?, label_url = ?, modified_at = datetime('now') WHERE id = ?`
-    ).run(trackingNumber ?? '', labelUrl ?? '', request.params.id);
-
-    if (result.changes === 0) return reply.code(404).send({ error: 'Objednávka nenalezena' });
+    const shopId = await getToneracekShopId(sql);
+    const result = await sql`
+      UPDATE shop_orders
+      SET tracking_number = ${trackingNumber??''}, label_url = ${labelUrl??''}, modified_at = NOW()
+      WHERE id = ${request.params.id} AND shop_id = ${shopId}
+    `;
+    if (result.count === 0) return reply.code(404).send({ error: 'Objednávka nenalezena' });
     return reply.send({ ok: true });
   });
 
@@ -181,53 +331,40 @@ export default async function toneracekRoutes(fastify) {
 
   fastify.get('/ucetnictvi/objednavky', async (request, reply) => {
     if (!request.user) return reply.redirect('/prihlasit');
-    const db = getAppDb();
 
-    const q = (request.query.q || '').trim();
+    const q            = (request.query.q      || '').trim();
     const statusFilter = (request.query.status || '').trim();
-    const page = Math.max(1, parseInt(request.query.page || '1', 10));
+    const page    = Math.max(1, parseInt(request.query.page || '1', 10));
     const perPage = 25;
-    const offset = (page - 1) * perPage;
+    const offset  = (page - 1) * perPage;
 
-    let where = '1=1';
-    const params = [];
+    const shopId = await getToneracekShopId(sql);
 
-    if (q) {
-      where += ` AND (
-        CAST(order_number AS TEXT) LIKE ? OR
-        first_name LIKE ? OR last_name LIKE ? OR
-        email LIKE ? OR phone LIKE ? OR
-        invoice_number LIKE ?
-      )`;
-      const like = `%${q}%`;
-      params.push(like, like, like, like, like, like);
-    }
-    if (statusFilter) {
-      where += ' AND status = ?';
-      params.push(statusFilter);
-    }
+    const conditions = [sql`shop_id = ${shopId}`];
+    if (q) conditions.push(sql`(
+      order_number ILIKE ${'%'+q+'%'} OR
+      first_name ILIKE ${'%'+q+'%'} OR last_name ILIKE ${'%'+q+'%'} OR
+      email ILIKE ${'%'+q+'%'} OR phone ILIKE ${'%'+q+'%'} OR
+      invoice_number ILIKE ${'%'+q+'%'}
+    )`);
+    if (statusFilter) conditions.push(sql`status = ${statusFilter}`);
 
-    const total = db.prepare(`SELECT COUNT(*) as n FROM toneracek_orders WHERE ${where}`).get(...params).n;
-    const orders = db.prepare(
-      `SELECT * FROM toneracek_orders WHERE ${where} ORDER BY order_number DESC LIMIT ? OFFSET ?`
-    ).all(...params, perPage, offset);
+    const where = sql`WHERE ${conditions.reduce((a, b) => sql`${a} AND ${b}`)}`;
 
-    const statusCounts = db.prepare(
-      'SELECT status, COUNT(*) as n FROM toneracek_orders GROUP BY status'
-    ).all();
+    const [{ count }] = await sql`SELECT COUNT(*)::int AS count FROM shop_orders ${where}`;
+    const orders      = await sql`
+      SELECT * FROM shop_orders ${where}
+      ORDER BY created_at DESC LIMIT ${perPage} OFFSET ${offset}
+    `;
+    const statusCounts = await sql`
+      SELECT status, COUNT(*)::int AS n FROM shop_orders WHERE shop_id = ${shopId} GROUP BY status
+    `;
 
     return reply.view('pages/toneracek/orders.ejs', {
-      pageTitle: 'Objednávky Toneráček',
-      currentPath: '/ucetnictvi/objednavky',
-      user: request.user,
-      orders,
-      total,
-      currentPage: page,
-      totalPages: Math.ceil(total / perPage),
-      q,
-      statusFilter,
-      statusCounts,
-      ORDER_STATUSES,
+      pageTitle: 'Objednávky Toneráček', currentPath: '/ucetnictvi/objednavky',
+      user: request.user, orders, total: count,
+      currentPage: page, totalPages: Math.ceil(count / perPage),
+      q, statusFilter, statusCounts, ORDER_STATUSES,
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -235,20 +372,19 @@ export default async function toneracekRoutes(fastify) {
 
   fastify.get('/ucetnictvi/objednavky/:id', async (request, reply) => {
     if (!request.user) return reply.redirect('/prihlasit');
-    const db = getAppDb();
-
-    const order = db.prepare('SELECT * FROM toneracek_orders WHERE id = ?').get(request.params.id);
+    const shopId = await getToneracekShopId(sql);
+    const [order] = await sql`
+      SELECT * FROM shop_orders WHERE id = ${request.params.id} AND shop_id = ${shopId}
+    `;
     if (!order) return reply.code(404).send('Objednávka nenalezena');
-
-    const items = db.prepare('SELECT * FROM toneracek_order_items WHERE order_id = ?').all(order.id);
+    const items        = await sql`SELECT * FROM shop_order_items WHERE order_id = ${order.id}`;
+    const [invoice]    = await sql`SELECT id, number FROM accounting_invoices WHERE order_id = ${order.id} LIMIT 1`;
+    const invoiceSeries = await sql`SELECT id, name FROM invoice_number_series WHERE active = TRUE ORDER BY name`;
 
     return reply.view('pages/toneracek/order-detail.ejs', {
       pageTitle: `Objednávka #${order.order_number}`,
-      currentPath: '/ucetnictvi/objednavky',
-      user: request.user,
-      order,
-      items,
-      ORDER_STATUSES,
+      currentPath: '/ucetnictvi/objednavky', user: request.user,
+      order, items, ORDER_STATUSES, invoice: invoice || null, invoiceSeries,
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -256,19 +392,16 @@ export default async function toneracekRoutes(fastify) {
 
   fastify.post('/ucetnictvi/objednavky/:id/stav', async (request, reply) => {
     if (!request.user) return reply.redirect('/prihlasit');
-    const db = getAppDb();
-
     const { status, send_email } = request.body ?? {};
-    if (!ORDER_STATUSES.includes(status)) {
-      return reply.code(400).send('Neplatný stav');
-    }
+    if (!ORDER_STATUSES.includes(status)) return reply.code(400).send('Neplatný stav');
 
-    const order = db.prepare('SELECT * FROM toneracek_orders WHERE id = ?').get(request.params.id);
+    const shopId = await getToneracekShopId(sql);
+    const [order] = await sql`
+      SELECT * FROM shop_orders WHERE id = ${request.params.id} AND shop_id = ${shopId}
+    `;
     if (!order) return reply.code(404).send('Objednávka nenalezena');
 
-    db.prepare(
-      `UPDATE toneracek_orders SET status = ?, modified_at = datetime('now') WHERE id = ?`
-    ).run(status, order.id);
+    await sql`UPDATE shop_orders SET status = ${status}, modified_at = NOW() WHERE id = ${order.id}`;
 
     if (send_email === 'on' || send_email === '1' || send_email === true) {
       try {
@@ -291,25 +424,21 @@ export default async function toneracekRoutes(fastify) {
 
   fastify.post('/ucetnictvi/objednavky/:id/poznamka', async (request, reply) => {
     if (!request.user) return reply.redirect('/prihlasit');
-    const db = getAppDb();
-
     const { notes } = request.body ?? {};
-    db.prepare(
-      `UPDATE toneracek_orders SET notes = ?, modified_at = datetime('now') WHERE id = ?`
-    ).run(notes ?? '', request.params.id);
-
+    await sql`
+      UPDATE shop_orders SET notes = ${notes??''}, modified_at = NOW()
+      WHERE id = ${request.params.id}
+    `;
     return reply.redirect(`/ucetnictvi/objednavky/${request.params.id}`);
   });
 
-  // ── Admin: Migrace z Airtable (jednorázová) ───────────────
+  // ── Admin: Migrace z Airtable ──────────────────────────────
 
   fastify.get('/ucetnictvi/migrace', async (request, reply) => {
     if (!request.user?.is_admin) return reply.code(403).send('Pouze admin');
     return reply.view('pages/toneracek/migrace.ejs', {
-      pageTitle: 'Migrace z Airtable',
-      currentPath: '/ucetnictvi/objednavky',
-      user: request.user,
-      result: null,
+      pageTitle: 'Migrace z Airtable', currentPath: '/ucetnictvi/objednavky',
+      user: request.user, result: null,
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -318,27 +447,30 @@ export default async function toneracekRoutes(fastify) {
 
     const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
     const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
-
     if (!AIRTABLE_API_KEY || !AIRTABLE_BASE_ID) {
       return reply.view('pages/toneracek/migrace.ejs', {
-        pageTitle: 'Migrace z Airtable',
-        currentPath: '/ucetnictvi/objednavky',
+        pageTitle: 'Migrace z Airtable', currentPath: '/ucetnictvi/objednavky',
         user: request.user,
         result: { error: 'Chybí AIRTABLE_API_KEY nebo AIRTABLE_BASE_ID v prostředí.' },
       }, { layout: 'layouts/base.ejs' });
     }
 
+    const shopId = await getToneracekShopId(sql);
+    if (!shopId) {
+      return reply.view('pages/toneracek/migrace.ejs', {
+        pageTitle: 'Migrace z Airtable', currentPath: '/ucetnictvi/objednavky',
+        user: request.user,
+        result: { error: 'Toneráček shop není nakonfigurován v databázi.' },
+      }, { layout: 'layouts/base.ejs' });
+    }
+
     const AT_ORDERS    = 'tblhP8tvVl0KdJQeR';
     const AT_ITEMS     = 'tblqjU6x9KTGEH7YW';
-    const AT_CUSTOMERS = 'tblk6MpLpLpe7wTq7'; // tabulka Uzivatele
+    const AT_CUSTOMERS = 'tblk6MpLpLpe7wTq7';
     const FC = {
-      email:        'fldalJniBJAO6SSFB',
-      orderLinks:   'fldiTbjYcUsE0e5d2',
-      isRegistered: 'fldRegistrace',  // "Registrovaný" / "Neregistrovaný"
-      firstName:    'fldJmeno',
-      lastName:     'fldPrijmeni',
-      phone:        'fldTelefon',
-      company:      'fldFirma',
+      email: 'fldalJniBJAO6SSFB', orderLinks: 'fldiTbjYcUsE0e5d2',
+      isRegistered: 'fldRegistrace', firstName: 'fldJmeno',
+      lastName: 'fldPrijmeni', phone: 'fldTelefon', company: 'fldFirma',
     };
     const F = {
       orderNumber: 'fldrpOS8rh4zFuQhf', createdAt: 'fldBoq3y26qLLmFmf',
@@ -368,9 +500,7 @@ export default async function toneracekRoutes(fastify) {
         url.searchParams.set('pageSize', '100');
         if (offset) url.searchParams.set('offset', offset);
         fieldIds.forEach(f => url.searchParams.append('fields[]', f));
-        const res = await fetch(url.toString(), {
-          headers: { Authorization: `Bearer ${AIRTABLE_API_KEY}` },
-        });
+        const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${AIRTABLE_API_KEY}` } });
         if (!res.ok) throw new Error(`Airtable ${res.status}: ${await res.text()}`);
         const data = await res.json();
         records.push(...data.records);
@@ -388,7 +518,6 @@ export default async function toneracekRoutes(fastify) {
         fetchAll(AT_ITEMS, Object.values(FI)),
       ]);
 
-      // Mapa order ID → zákazník (tabulka Uzivatele) — selže tiše při 403
       const customerByOrder = {};
       let emailsNote = null;
       try {
@@ -398,17 +527,14 @@ export default async function toneracekRoutes(fastify) {
           const links = rec.fields[FC.orderLinks];
           if (!email || !Array.isArray(links)) continue;
           const cust = {
-            email,
-            isRegistered: s(rec.fields[FC.isRegistered]) === 'Registrovaný',
-            firstName: s(rec.fields[FC.firstName]),
-            lastName:  s(rec.fields[FC.lastName]),
-            phone:     s(rec.fields[FC.phone]),
-            company:   s(rec.fields[FC.company]),
+            email, isRegistered: s(rec.fields[FC.isRegistered]) === 'Registrovaný',
+            firstName: s(rec.fields[FC.firstName]), lastName: s(rec.fields[FC.lastName]),
+            phone: s(rec.fields[FC.phone]), company: s(rec.fields[FC.company]),
           };
           for (const orderId of links) customerByOrder[orderId] = cust;
         }
       } catch (err) {
-        emailsNote = `Emaily zákazníků nebyly načteny (${err.message}). Přidej tabulce Uzivatele práva pro API token.`;
+        emailsNote = `Emaily zákazníků nebyly načteny (${err.message}).`;
         fastify.log.warn(emailsNote);
       }
 
@@ -421,87 +547,84 @@ export default async function toneracekRoutes(fastify) {
         itemsByOrder[orderId].push({ name: s(rec.fields[FI.name]), quantity: n(rec.fields[FI.quantity]) || 1 });
       }
 
-      const db = getAppDb();
-      const insertOrder = db.prepare(`
-        INSERT OR IGNORE INTO toneracek_orders (
-          id, order_number, status, payment_method, shipping_method,
-          first_name, last_name, company, email, phone, address, city, zip,
-          shipping_first_name, shipping_last_name, shipping_company,
-          shipping_phone, shipping_address, shipping_city, shipping_zip,
-          pickup_point_id, pickup_point_name, total_price, invoice_number,
-          tracking_number, label_url, ip_address, created_at, modified_at
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-      `);
-      const insertItem = db.prepare(`
-        INSERT INTO toneracek_order_items (order_id, sku, name, quantity, price)
-        VALUES (?, '', ?, ?, 0)
-      `);
-
       const stats = { imported: 0, skipped: 0, items: 0, contacts: 0 };
 
-      const migrate = db.transaction(() => {
-        for (const rec of orderRecords) {
-          const f = rec.fields;
-          const atId = rec.id;
-          const orderNum = n(f[F.orderNumber]);
-          if (!orderNum) { stats.skipped++; continue; }
+      for (const rec of orderRecords) {
+        const f = rec.fields;
+        const atId = rec.id;
+        const orderNum = n(f[F.orderNumber]);
+        if (!orderNum) { stats.skipped++; continue; }
 
-          const exists = db.prepare('SELECT id FROM toneracek_orders WHERE id = ? OR order_number = ?').get(atId, orderNum);
-          if (exists) { stats.skipped++; continue; }
+        const existing = await sql`
+          SELECT id FROM shop_orders WHERE id = ${atId} OR (shop_id = ${shopId} AND order_number = ${String(orderNum)})
+          LIMIT 1
+        `;
+        if (existing[0]) { stats.skipped++; continue; }
 
-          const cust = customerByOrder[atId] || null;
-          const email = cust?.email || '';
-          const createdAt = s(f[F.createdAt]) || new Date().toISOString();
-          const year = new Date(createdAt).getFullYear();
+        const cust = customerByOrder[atId] || null;
+        const email = cust?.email || '';
+        const createdAt = s(f[F.createdAt]) || new Date().toISOString();
+        const year = new Date(createdAt).getFullYear();
 
-          insertOrder.run(
-            atId, orderNum, s(f[F.status]) || 'Přijata', s(f[F.paymentMethod]), s(f[F.shippingMethod]) || 'Zásilkovna',
-            s(f[F.firstName]), s(f[F.lastName]), s(f[F.company]), email, s(f[F.phone]),
-            s(f[F.address]), s(f[F.city]), s(f[F.zip]),
-            s(f[F.shippingFirstName]) || s(f[F.firstName]), s(f[F.shippingLastName]) || s(f[F.lastName]),
-            s(f[F.shippingCompany]) || s(f[F.company]), s(f[F.shippingPhone]) || s(f[F.phone]),
-            s(f[F.shippingAddress]) || s(f[F.address]), s(f[F.shippingCity]) || s(f[F.city]),
-            s(f[F.shippingZip]) || s(f[F.zip]),
-            s(f[F.pickupPointId]), s(f[F.pickupPointName]),
-            n(f[F.totalPrice]), `FV-${year}-${orderNum}`,
-            s(f[F.trackingNumber]), s(f[F.labelUrl]), s(f[F.ipAddress]),
-            createdAt, createdAt,
-          );
+        await sql`
+          INSERT INTO shop_orders (
+            id, shop_id, order_number, status, payment_method, shipping_method,
+            first_name, last_name, company, email, phone, address, city, zip,
+            shipping_first_name, shipping_last_name, shipping_company,
+            shipping_phone, shipping_address, shipping_city, shipping_zip,
+            pickup_point_id, pickup_point_name, total_price, invoice_number,
+            tracking_number, label_url, ip_address, created_at, modified_at
+          ) VALUES (
+            ${atId}, ${shopId}, ${String(orderNum)},
+            ${s(f[F.status])||'Přijata'}, ${s(f[F.paymentMethod])}, ${s(f[F.shippingMethod])||'Zásilkovna'},
+            ${s(f[F.firstName])}, ${s(f[F.lastName])}, ${s(f[F.company])},
+            ${email}, ${s(f[F.phone])},
+            ${s(f[F.address])}, ${s(f[F.city])}, ${s(f[F.zip])},
+            ${s(f[F.shippingFirstName])||s(f[F.firstName])},
+            ${s(f[F.shippingLastName]) ||s(f[F.lastName])},
+            ${s(f[F.shippingCompany]) ||s(f[F.company])},
+            ${s(f[F.shippingPhone])   ||s(f[F.phone])},
+            ${s(f[F.shippingAddress]) ||s(f[F.address])},
+            ${s(f[F.shippingCity])    ||s(f[F.city])},
+            ${s(f[F.shippingZip])     ||s(f[F.zip])},
+            ${s(f[F.pickupPointId])}, ${s(f[F.pickupPointName])},
+            ${n(f[F.totalPrice])}, ${`FV-${year}-${orderNum}`},
+            ${s(f[F.trackingNumber])}, ${s(f[F.labelUrl])}, ${s(f[F.ipAddress])},
+            ${createdAt}, ${createdAt}
+          )
+        `;
 
-          for (const item of (itemsByOrder[atId] || [])) {
-            insertItem.run(atId, item.name, item.quantity);
-            stats.items++;
-          }
-
-          if (email) {
-            try {
-              const { contactId, companyId } = upsertCustomerToCRM(db, {
-                email,
-                firstName:    cust?.firstName || s(f[F.firstName]),
-                lastName:     cust?.lastName  || s(f[F.lastName]),
-                company:      cust?.company   || s(f[F.company]),
-                phone:        cust?.phone     || s(f[F.phone]),
-                city:         s(f[F.city]),
-                country:      'Česká republika',
-                isRegistered: cust?.isRegistered ?? false,
-              });
-              if (contactId || companyId) {
-                db.prepare(`UPDATE toneracek_orders SET crm_contact_id = ?, crm_company_id = ? WHERE id = ?`).run(contactId || null, companyId || null, atId);
-              }
-              stats.contacts++;
-            } catch {}
-          }
-
-          stats.imported++;
+        for (const item of (itemsByOrder[atId] || [])) {
+          await sql`INSERT INTO shop_order_items (order_id, name, quantity) VALUES (${atId}, ${item.name}, ${item.quantity})`;
+          stats.items++;
         }
-      });
 
-      migrate();
+        if (email) {
+          try {
+            const { contactId, companyId } = await upsertCustomerToCRM(sql, {
+              email, firstName: cust?.firstName||s(f[F.firstName]),
+              lastName: cust?.lastName||s(f[F.lastName]),
+              company: cust?.company||s(f[F.company]),
+              phone: cust?.phone||s(f[F.phone]),
+              city: s(f[F.city]), country: 'Česká republika',
+              isRegistered: cust?.isRegistered ?? false,
+            });
+            if (contactId || companyId) {
+              await sql`
+                UPDATE shop_orders SET crm_contact_id = ${contactId}, crm_company_id = ${companyId}
+                WHERE id = ${atId}
+              `;
+            }
+            stats.contacts++;
+          } catch {}
+        }
+
+        stats.imported++;
+      }
 
       fastify.log.info(stats, 'Airtable migrace dokončena');
       return reply.view('pages/toneracek/migrace.ejs', {
-        pageTitle: 'Migrace z Airtable',
-        currentPath: '/ucetnictvi/objednavky',
+        pageTitle: 'Migrace z Airtable', currentPath: '/ucetnictvi/objednavky',
         user: request.user,
         result: { ...stats, total: orderRecords.length, totalItems: itemRecords.length, emailsNote },
       }, { layout: 'layouts/base.ejs' });
@@ -509,10 +632,8 @@ export default async function toneracekRoutes(fastify) {
     } catch (err) {
       fastify.log.error({ err }, 'Airtable migrace selhala');
       return reply.view('pages/toneracek/migrace.ejs', {
-        pageTitle: 'Migrace z Airtable',
-        currentPath: '/ucetnictvi/objednavky',
-        user: request.user,
-        result: { error: err.message },
+        pageTitle: 'Migrace z Airtable', currentPath: '/ucetnictvi/objednavky',
+        user: request.user, result: { error: err.message },
       }, { layout: 'layouts/base.ejs' });
     }
   });

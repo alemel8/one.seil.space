@@ -3,6 +3,9 @@
 #
 # Spuštění lokálně:
 #   docker compose up
+#
+# Produkce používá externí PostgreSQL databázi (seil na VPS).
+# Lokálně se spouští vlastní PG kontejner.
 
 services:
   app:
@@ -15,31 +18,48 @@ services:
     environment:
       PORT: 3000
       HOST: 0.0.0.0
-      # Session secret — v produkci nastav přes Coolify env proměnné
+      NODE_ENV: development
       SESSION_SECRET: ${SESSION_SECRET:-change-this-to-a-random-32char-secret}
-      # Adresář pro monitoring data (collector) a aplikační DB (app.sqlite)
+      DATABASE_URL: ${DATABASE_URL:-postgresql://seil:seil@postgres:5432/seil}
+      DATABASE_SSL: ${DATABASE_SSL:-false}
       STATS_DIR: /var/lib/vps-stats
       TZ: Europe/Prague
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      TONERACEK_API_KEY: ${TONERACEK_API_KEY:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
     volumes:
-      # Monitoring data z collectoru (history.sqlite, latest.json) — jen čtení
       - vps-stats-ro:/var/lib/vps-stats:ro
-      # Aplikační databáze (users, CRM, účetnictví) — čtení i zápis
-      - app-data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 15s
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: one-seil-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: seil
+      POSTGRES_USER: seil
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-seil}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"  # 5433 lokálně, aby nekolidovalo s případnou lokální PG
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U seil -d seil"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
+  postgres-data:
   vps-stats-ro:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ./data
-  app-data:
     driver: local
     driver_opts:
       type: none
