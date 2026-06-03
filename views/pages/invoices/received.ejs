@@ -59,57 +59,83 @@
 </div>
 
 <!-- Modal: Nová přijatá faktura -->
+<input type="file" id="rfFileInput" accept="application/pdf" style="display:none">
+<input type="file" id="rfFileInputManual" accept="application/pdf" style="display:none">
+
 <div id="modalCreate" class="modal-backdrop" onclick="if(event.target===this)rfClose()">
   <div class="modal rf-modal" id="rfModalInner">
 
     <div class="modal-header">
-      <h2 class="modal-title" id="rfTitle">Přidat přijatou fakturu</h2>
+      <h2 class="modal-title">Přidat přijatou fakturu</h2>
       <button class="modal-close" onclick="rfClose()">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
 
-    <!-- ── Fáze 1: Upload ── -->
-    <div id="rfPhaseUpload" class="modal-body">
-      <div id="rfDropZone" class="rf-drop-zone">
-        <input type="file" id="rfFileInput" accept="application/pdf" style="display:none">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <!-- ── Fáze 1: Výběr způsobu ── -->
+    <div id="rfPhaseUpload" class="modal-body" style="display:flex;flex-direction:column;gap:12px;">
+      <!-- AI upload -->
+      <label for="rfFileInput" class="rf-drop-zone" id="rfDropZone">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
           <polyline points="14 2 14 8 20 8"/>
           <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
         </svg>
-        <p style="margin:12px 0 4px;font-weight:600;color:var(--text-primary);">Přetáhněte PDF fakturu sem</p>
-        <p style="margin:0;font-size:13px;color:var(--text-muted);">nebo <button type="button" onclick="document.getElementById('rfFileInput').click()" style="background:none;border:none;color:var(--primary);font-size:13px;font-weight:600;cursor:pointer;padding:0;">vyberte soubor</button></p>
-      </div>
-      <div style="text-align:center;margin-top:16px;">
-        <button type="button" class="btn btn-ghost btn-sm" onclick="rfShowForm(null)">Pokračovat bez PDF</button>
-      </div>
+        <p style="margin:10px 0 3px;font-weight:600;color:var(--text-primary);font-size:14px;">Nahrát PDF a vytěžit automaticky</p>
+        <p style="margin:0;font-size:12px;color:var(--text-muted);">Přetáhněte PDF nebo klikněte — Claude vyplní pole za vás</p>
+      </label>
+      <!-- Ruční zadání -->
+      <button type="button" class="rf-manual-btn" onclick="rfOpenManual()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+        </svg>
+        <div>
+          <div style="font-weight:600;font-size:14px;color:var(--text-primary);">Nahrát přijatou fakturu ručně</div>
+          <div style="font-size:12px;color:var(--text-muted);">Zobrazí formulář a volitelný náhled PDF</div>
+        </div>
+      </button>
     </div>
 
-    <!-- ── Fáze 2: Načítání ── -->
+    <!-- ── Fáze 2: Načítání AI ── -->
     <div id="rfPhaseLoading" class="modal-body" style="display:none;text-align:center;padding:60px 24px;">
       <div class="rf-spinner"></div>
       <p style="margin-top:16px;color:var(--text-muted);font-size:14px;">Claude analyzuje fakturu…</p>
     </div>
 
-    <!-- ── Fáze 3: PDF + formulář ── -->
-    <div id="rfPhaseForm" style="display:none;flex:1;overflow:hidden;">
+    <!-- ── Fáze 3: 2-sloupcový layout ── -->
+    <div id="rfPhaseForm" style="display:none;flex:1;min-height:0;overflow:hidden;">
       <div style="display:flex;height:100%;">
 
-        <!-- Levá polovina: PDF viewer -->
-        <div style="flex:1;border-right:1px solid var(--border);background:var(--bg-page);display:flex;flex-direction:column;">
-          <div style="padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-muted);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:0.5px;">Náhled faktury</div>
-          <embed id="rfPdfEmbed" src="" type="application/pdf" style="flex:1;width:100%;border:none;">
+        <!-- Levá polovina -->
+        <div style="flex:1;border-right:1px solid var(--border);background:var(--bg-page);display:flex;flex-direction:column;min-width:0;">
+          <div style="padding:10px 14px;font-size:11px;font-weight:600;color:var(--text-muted);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;justify-content:space-between;">
+            <span>Náhled faktury</span>
+            <!-- Tlačítko pro nahrání v ručním režimu -->
+            <label for="rfFileInputManual" id="rfManualUploadBtn" style="display:none;cursor:pointer;font-size:11px;color:var(--primary);font-weight:600;">+ Nahrát PDF</label>
+          </div>
+          <!-- Placeholder v ručním režimu (před nahráním PDF) -->
+          <div id="rfLeftPlaceholder" style="display:none;flex:1;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:var(--text-muted);">
+            <label for="rfFileInputManual" class="rf-drop-zone rf-drop-zone-sm" id="rfDropZoneManual">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
+              </svg>
+              <p style="margin:8px 0 2px;font-weight:600;font-size:13px;color:var(--text-primary);">Přidat PDF pro náhled</p>
+              <p style="margin:0;font-size:12px;color:var(--text-muted);">Volitelné — pouze pro zobrazení</p>
+            </label>
+          </div>
+          <!-- PDF embed -->
+          <embed id="rfPdfEmbed" src="" type="application/pdf" style="display:none;flex:1;width:100%;border:none;">
         </div>
 
         <!-- Pravá polovina: Formulář -->
-        <div style="flex:0 0 400px;overflow-y:auto;">
-          <form id="rfForm" method="post" action="/ucetnictvi/prijate-faktury/vytvorit">
-            <div style="padding:20px;display:flex;flex-direction:column;gap:14px;">
+        <div style="flex:0 0 400px;overflow-y:auto;display:flex;flex-direction:column;">
+          <form id="rfForm" method="post" action="/ucetnictvi/prijate-faktury/vytvorit" style="flex:1;display:flex;flex-direction:column;">
+            <div style="padding:20px;display:flex;flex-direction:column;gap:14px;flex:1;">
 
-              <div id="rfAiBadge" style="display:none;background:var(--primary-light);color:var(--primary-dark);border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;font-weight:600;">
-                ✦ Pole byla předvyplněna z PDF — zkontrolujte prosím hodnoty
-              </div>
+              <div id="rfAiBadge" style="display:none;border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;font-weight:600;"></div>
 
               <div class="form-group">
                 <label class="form-label required">Číslo faktury</label>
@@ -171,7 +197,7 @@
                 <textarea name="notes" id="rfNotes" class="form-control" rows="3"></textarea>
               </div>
             </div>
-            <div class="modal-footer" style="position:sticky;bottom:0;background:var(--bg-card);">
+            <div class="modal-footer" style="border-top:1px solid var(--border);background:var(--bg-card);">
               <button type="button" class="btn btn-ghost" onclick="rfClose()">Zrušit</button>
               <button type="submit" class="btn btn-primary">Přidat fakturu</button>
             </div>
@@ -198,17 +224,43 @@
   height: 90vh;
 }
 .rf-drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   border: 2px dashed var(--border-strong);
   border-radius: var(--radius-lg);
-  padding: 48px 24px;
+  padding: 36px 24px;
   text-align: center;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
+  user-select: none;
 }
 .rf-drop-zone:hover, .rf-drop-zone.rf-over {
   border-color: var(--primary);
   background: var(--primary-light);
 }
+.rf-drop-zone-sm {
+  padding: 24px 20px;
+  margin: 16px;
+}
+.rf-manual-btn {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px 18px;
+  background: var(--bg-card);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+.rf-manual-btn:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-card-hover);
+}
+.rf-manual-btn svg { flex-shrink: 0; color: var(--text-muted); }
 .rf-spinner {
   width: 40px; height: 40px;
   border: 3px solid var(--border);
@@ -222,18 +274,21 @@
 
 <script>
 (function () {
-  const backdrop   = document.getElementById('modalCreate');
-  const inner      = document.getElementById('rfModalInner');
-  const phUpload   = document.getElementById('rfPhaseUpload');
-  const phLoading  = document.getElementById('rfPhaseLoading');
-  const phForm     = document.getElementById('rfPhaseForm');
-  const fileInput  = document.getElementById('rfFileInput');
-  const dropZone   = document.getElementById('rfDropZone');
-  const embed      = document.getElementById('rfPdfEmbed');
-  const aiBadge    = document.getElementById('rfAiBadge');
-  let currentBlobUrl = null;
+  const backdrop        = document.getElementById('modalCreate');
+  const inner           = document.getElementById('rfModalInner');
+  const phUpload        = document.getElementById('rfPhaseUpload');
+  const phLoading       = document.getElementById('rfPhaseLoading');
+  const phForm          = document.getElementById('rfPhaseForm');
+  const fileInputAi     = document.getElementById('rfFileInput');
+  const fileInputManual = document.getElementById('rfFileInputManual');
+  const dropZone        = document.getElementById('rfDropZone');
+  const dropZoneManual  = document.getElementById('rfDropZoneManual');
+  const embed           = document.getElementById('rfPdfEmbed');
+  const leftPlaceholder = document.getElementById('rfLeftPlaceholder');
+  const aiBadge         = document.getElementById('rfAiBadge');
+  let currentBlobUrl    = null;
 
-  // Open / close
+  // ── Open / close ──────────────────────────────────────────
   document.querySelectorAll('[data-modal-open="modalCreate"]').forEach(b =>
     b.addEventListener('click', rfOpen)
   );
@@ -251,57 +306,92 @@
     phUpload.style.display  = '';
     phLoading.style.display = 'none';
     phForm.style.display    = 'none';
-    fileInput.value         = '';
+    fileInputAi.value       = '';
+    fileInputManual.value   = '';
     aiBadge.style.display   = 'none';
     document.getElementById('rfForm').reset();
-    // Reset issue_date to today
     document.getElementById('rfIssueDate').value = new Date().toISOString().split('T')[0];
   }
 
-  // File input change
-  fileInput.addEventListener('change', () => {
-    if (fileInput.files[0]) handleFile(fileInput.files[0]);
+  // ── AI upload: file input + drag & drop ───────────────────
+  fileInputAi.addEventListener('change', () => {
+    if (fileInputAi.files[0]) handleAiFile(fileInputAi.files[0]);
   });
 
-  // Drag & drop
-  dropZone.addEventListener('click', () => fileInput.click());
   dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('rf-over'); });
   dropZone.addEventListener('dragleave', () => dropZone.classList.remove('rf-over'));
   dropZone.addEventListener('drop', e => {
     e.preventDefault();
     dropZone.classList.remove('rf-over');
     const f = e.dataTransfer?.files?.[0];
-    if (f && f.type === 'application/pdf') handleFile(f);
+    if (f && f.type === 'application/pdf') handleAiFile(f);
   });
 
-  async function handleFile(file) {
-    // Show PDF in embed immediately
+  async function handleAiFile(file) {
     if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
     currentBlobUrl = URL.createObjectURL(file);
 
-    // Switch to loading phase
     phUpload.style.display  = 'none';
     phLoading.style.display = '';
 
     try {
       const fd = new FormData();
       fd.append('file', file, file.name);
-      const resp = await fetch('/ucetnictvi/prijate-faktury/analyze-pdf', {
-        method: 'POST', body: fd,
-      });
+      const resp = await fetch('/ucetnictvi/prijate-faktury/analyze-pdf', { method: 'POST', body: fd });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Chyba serveru');
-      rfShowForm(data);
+      rfExpandForm(data, null);
     } catch (err) {
-      rfShowForm(null, err.message);
+      rfExpandForm(null, err.message);
     }
   }
 
-  window.rfShowForm = function (data, errMsg) {
-    // Set PDF embed src
-    if (currentBlobUrl) embed.setAttribute('src', currentBlobUrl);
+  // ── Ruční zadání ─────────────────────────────────────────
+  window.rfOpenManual = function () {
+    phUpload.style.display  = 'none';
+    phLoading.style.display = 'none';
+    rfExpandForm(null, null, true);
+  };
 
-    // Pre-fill fields
+  fileInputManual.addEventListener('change', () => {
+    if (fileInputManual.files[0]) showManualPdf(fileInputManual.files[0]);
+  });
+
+  if (dropZoneManual) {
+    dropZoneManual.addEventListener('dragover', e => { e.preventDefault(); dropZoneManual.classList.add('rf-over'); });
+    dropZoneManual.addEventListener('dragleave', () => dropZoneManual.classList.remove('rf-over'));
+    dropZoneManual.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZoneManual.classList.remove('rf-over');
+      const f = e.dataTransfer?.files?.[0];
+      if (f && f.type === 'application/pdf') showManualPdf(f);
+    });
+  }
+
+  function showManualPdf(file) {
+    if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
+    currentBlobUrl = URL.createObjectURL(file);
+    leftPlaceholder.style.display = 'none';
+    embed.style.display = '';
+    embed.setAttribute('src', currentBlobUrl);
+  }
+
+  // ── Společné: rozbalení do 2 sloupců ─────────────────────
+  function rfExpandForm(data, errMsg, manualMode) {
+    phLoading.style.display = 'none';
+    phUpload.style.display  = 'none';
+
+    // Levá strana
+    if (manualMode) {
+      leftPlaceholder.style.display = 'flex';
+      embed.style.display = 'none';
+    } else {
+      leftPlaceholder.style.display = 'none';
+      embed.style.display = currentBlobUrl ? '' : 'none';
+      if (currentBlobUrl) embed.setAttribute('src', currentBlobUrl);
+    }
+
+    // AI badge
     if (data) {
       setVal('rfNumber',      data.number);
       setVal('rfSupplier',    data.supplier);
@@ -312,25 +402,19 @@
       setVal('rfIssueDate',   data.issue_date);
       setVal('rfDueDate',     data.due_date);
       setVal('rfNotes',       data.notes);
-      if (document.getElementById('rfCurrency') && data.currency)
-        document.getElementById('rfCurrency').value = data.currency;
-      aiBadge.style.display = '';
-    }
-    if (errMsg) {
-      aiBadge.style.display = '';
-      aiBadge.style.background = 'var(--danger-bg)';
-      aiBadge.style.color = 'var(--danger)';
+      if (data.currency) document.getElementById('rfCurrency').value = data.currency;
+      aiBadge.style.cssText = 'display:block;background:var(--primary-light);color:var(--primary-dark);border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;font-weight:600;';
+      aiBadge.textContent = '✦ Pole byla předvyplněna z PDF — zkontrolujte prosím hodnoty';
+    } else if (errMsg) {
+      aiBadge.style.cssText = 'display:block;background:var(--danger-bg);color:var(--danger);border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;font-weight:600;';
       aiBadge.textContent = '⚠ ' + errMsg + ' — vyplňte pole ručně.';
     }
 
-    // Expand modal and show form
-    phLoading.style.display = 'none';
-    phUpload.style.display  = 'none';
     inner.classList.add('rf-expanded');
     phForm.style.display = 'flex';
     phForm.style.flex    = '1';
-    phForm.style.overflow = 'hidden';
-  };
+    phForm.style.minHeight = '0';
+  }
 
   function setVal(id, val) {
     const el = document.getElementById(id);
