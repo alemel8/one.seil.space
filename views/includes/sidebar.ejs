@@ -2,7 +2,7 @@
 
   <!-- Logo → homepage -->
   <a href="/" class="sidebar-logo" style="text-decoration:none;">
-    <img src="/static/img/logo.png" alt="SEIL" class="sidebar-logo-img">
+    <img src="/static/img/logo-white.png" alt="SEIL" class="sidebar-logo-img">
   </a>
 
   <!-- Navigace -->
@@ -46,6 +46,13 @@
               Aktuální stav VPS
             </a>
           </li>
+          <% if (user && user.is_admin) { %>
+          <li>
+            <a href="/nastaveni/healthchecky" class="nav-sub-link <%= currentPath === '/nastaveni/healthchecky' ? 'active' : '' %>">
+              Healthchecky &amp; notifikace
+            </a>
+          </li>
+          <% } %>
         </ul>
       </div>
     </div>

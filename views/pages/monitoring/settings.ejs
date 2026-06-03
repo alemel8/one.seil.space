@@ -1,0 +1,245 @@
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Healthchecky &amp; notifikace</h1>
+    <p>Sledované URL, notifikační kanály a pravidla alertů</p>
+  </div>
+  <button class="btn btn-primary" data-modal-open="modalAddCheck">+ Přidat URL</button>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;">
+
+  <!-- Levý sloupec: healthchecky + pravidla -->
+  <div style="display:flex;flex-direction:column;gap:20px;">
+
+    <!-- Sledované URL -->
+    <div class="card">
+      <div class="card-header">Sledované aplikace</div>
+      <div class="table-wrapper" style="border:none;border-radius:0;">
+        <table class="data-table">
+          <thead>
+            <tr><th>Název</th><th>URL</th><th>Interval</th><th>Stav</th><th></th></tr>
+          </thead>
+          <tbody>
+            <% if (checks.length > 0) { %>
+              <% checks.forEach(c => { %>
+              <tr>
+                <td style="font-weight:600;"><%= c.name %></td>
+                <td style="font-size:12px;color:var(--text-muted);font-family:monospace;"><%= c.url %></td>
+                <td style="font-size:12px;color:var(--text-muted);"><%= c.interval_s >= 60 ? Math.round(c.interval_s/60) + ' min' : c.interval_s + ' s' %></td>
+                <td>
+                  <span class="badge" style="background:<%= c.active ? 'var(--success-bg)' : 'var(--danger-bg)' %>;color:<%= c.active ? '#15803D' : '#991B1B' %>;">
+                    <%= c.active ? 'Aktivní' : 'Pozastaveno' %>
+                  </span>
+                </td>
+                <td style="display:flex;gap:6px;">
+                  <form method="post" action="/nastaveni/healthchecky/<%= c.id %>/toggle" style="display:inline;">
+                    <button type="submit" class="btn btn-ghost btn-sm"><%= c.active ? '⏸' : '▶' %></button>
+                  </form>
+                  <form method="post" action="/nastaveni/healthchecky/<%= c.id %>/smazat" style="display:inline;" onsubmit="return confirm('Smazat?')">
+                    <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger);">🗑</button>
+                  </form>
+                </td>
+              </tr>
+              <% }) %>
+            <% } else { %>
+              <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-muted);">Žádné sledované URL</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Notifikační pravidla -->
+    <div class="card">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Notifikační pravidla</span>
+        <button class="btn btn-outline btn-sm" data-modal-open="modalAddRule">+ Přidat</button>
+      </div>
+      <div class="table-wrapper" style="border:none;border-radius:0;">
+        <table class="data-table">
+          <thead>
+            <tr><th>Událost</th><th>Práh</th><th>Kanál</th><th></th></tr>
+          </thead>
+          <tbody>
+            <% if (rules.length > 0) { %>
+              <% const eventLabels = { app_down:'App down', disk_high:'Disk > %', ram_high:'RAM > %', cpu_high:'CPU load >', invoice_overdue:'Faktury po splatnosti' }; %>
+              <% rules.forEach(r => { %>
+              <tr>
+                <td><%= eventLabels[r.event_type] || r.event_type %></td>
+                <td><%= r.threshold != null ? r.threshold + (r.event_type==='cpu_high' ? '' : ' %') : '—' %></td>
+                <td style="font-size:13px;"><%= r.channel_name || '—' %></td>
+                <td>
+                  <form method="post" action="/nastaveni/notifikace/pravidlo/<%= r.id %>/smazat" style="display:inline;" onsubmit="return confirm('Smazat?')">
+                    <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger);">🗑</button>
+                  </form>
+                </td>
+              </tr>
+              <% }) %>
+            <% } else { %>
+              <tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text-muted);">Žádná pravidla</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Pravý sloupec: notifikační kanály -->
+  <div>
+    <div class="card">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Notifikační kanály</span>
+        <button class="btn btn-outline btn-sm" data-modal-open="modalAddChannel">+ Přidat</button>
+      </div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
+        <% if (channels.length > 0) { %>
+          <% channels.forEach(ch => { %>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--bg-page);border-radius:var(--radius-sm);border:1px solid var(--border);">
+            <div>
+              <div style="font-weight:600;font-size:13px;"><%= ch.name %></div>
+              <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;"><%= ch.type %></div>
+            </div>
+            <form method="post" action="/nastaveni/notifikace/kanal/<%= ch.id %>/smazat" onsubmit="return confirm('Smazat kanál?')">
+              <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger);">🗑</button>
+            </form>
+          </div>
+          <% }) %>
+        <% } else { %>
+          <p style="color:var(--text-muted);font-size:13px;text-align:center;padding:16px 0;">Žádné kanály</p>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="card-header">Jak to funguje</div>
+      <div class="card-body" style="font-size:12px;color:var(--text-secondary);line-height:1.7;">
+        <p>Worker pinguje URL každých <strong>5 minut</strong> a ukládá výsledky.</p>
+        <p style="margin-top:8px;">Alerty se odesílají do Discord nebo e-mailem podle nastavených pravidel s <strong>1–6h cooldownem</strong> (nespamuje).</p>
+        <p style="margin-top:8px;">Sledované události: <strong>App down</strong>, <strong>Disk/RAM/CPU</strong> nad prahem, <strong>Faktury po splatnosti</strong> (1× denně).</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Modal: Přidat healthcheck -->
+<div id="modalAddCheck" class="modal-backdrop" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 class="modal-title">Přidat sledovanou aplikaci</h2>
+      <button class="modal-close" onclick="document.getElementById('modalAddCheck').classList.remove('open')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form method="post" action="/nastaveni/healthchecky/vytvorit">
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
+        <div class="form-group">
+          <label class="form-label required">Název</label>
+          <input type="text" name="name" class="form-control" placeholder="např. Toneráček.cz" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label required">URL</label>
+          <input type="url" name="url" class="form-control" placeholder="https://toneracek.cz/health" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Interval kontrol</label>
+          <select name="interval_s" class="form-select">
+            <option value="60">1 minuta</option>
+            <option value="300" selected>5 minut</option>
+            <option value="600">10 minut</option>
+            <option value="1800">30 minut</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('modalAddCheck').classList.remove('open')">Zrušit</button>
+        <button type="submit" class="btn btn-primary">Přidat</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Přidat kanál -->
+<div id="modalAddChannel" class="modal-backdrop" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 class="modal-title">Přidat notifikační kanál</h2>
+      <button class="modal-close" onclick="document.getElementById('modalAddChannel').classList.remove('open')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form method="post" action="/nastaveni/notifikace/kanal/vytvorit">
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
+        <div class="form-group">
+          <label class="form-label">Typ</label>
+          <select name="type" class="form-select" id="channelType" onchange="document.getElementById('channelHint').textContent=this.value==='discord'?'Webhook URL z Discord → Server Settings → Integrations → Webhooks':'E-mailová adresa pro příjem alertů'">
+            <option value="discord">Discord Webhook</option>
+            <option value="email">E-mail</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label required">Název kanálu</label>
+          <input type="text" name="name" class="form-control" placeholder="např. #alerty" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label required">Webhook URL / E-mail</label>
+          <input type="text" name="target" class="form-control" placeholder="https://discord.com/api/webhooks/…" required>
+          <small id="channelHint" style="color:var(--text-muted);font-size:12px;margin-top:4px;display:block;">Webhook URL z Discord → Server Settings → Integrations → Webhooks</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('modalAddChannel').classList.remove('open')">Zrušit</button>
+        <button type="submit" class="btn btn-primary">Přidat</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Přidat pravidlo -->
+<div id="modalAddRule" class="modal-backdrop" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 class="modal-title">Přidat notifikační pravidlo</h2>
+      <button class="modal-close" onclick="document.getElementById('modalAddRule').classList.remove('open')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form method="post" action="/nastaveni/notifikace/pravidlo/vytvorit">
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
+        <div class="form-group">
+          <label class="form-label">Událost</label>
+          <select name="event_type" class="form-select">
+            <option value="app_down">App down (healthcheck)</option>
+            <option value="disk_high">Disk překročí práh (%)</option>
+            <option value="ram_high">RAM překročí práh (%)</option>
+            <option value="cpu_high">CPU load překročí práh</option>
+            <option value="invoice_overdue">Faktury po splatnosti (denní)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Práh (pro disk/RAM/CPU, jinak prázdné)</label>
+          <input type="number" name="threshold" class="form-control" placeholder="85" min="1" max="100" step="1">
+        </div>
+        <div class="form-group">
+          <label class="form-label required">Notifikační kanál</label>
+          <select name="channel_id" class="form-select" required>
+            <% channels.forEach(ch => { %>
+            <option value="<%= ch.id %>"><%= ch.name %> (<%= ch.type %>)</option>
+            <% }) %>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('modalAddRule').classList.remove('open')">Zrušit</button>
+        <button type="submit" class="btn btn-primary">Přidat</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('[data-modal-open]').forEach(b =>
+  b.addEventListener('click', () => document.getElementById(b.dataset.modalOpen)?.classList.add('open'))
+);
+</script>

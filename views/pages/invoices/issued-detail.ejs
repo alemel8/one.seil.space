@@ -145,6 +145,9 @@
           📄 Stáhnout PDF
         </a>
         <button class="btn btn-ghost" data-modal-open="modalEmail" style="width:100%;">✉️ Odeslat emailem</button>
+        <% if (invoice.status === 'Po splatnosti') { %>
+        <button class="btn btn-ghost" data-modal-open="modalUpominka" style="width:100%;color:var(--warning);">⚠️ Odeslat upomínku</button>
+        <% } %>
         <button class="btn btn-ghost" data-modal-open="modalStatus" style="width:100%;">🔄 Změnit stav</button>
       </div>
     </div>
@@ -191,9 +194,42 @@
   </div>
 </div>
 
+<!-- Modal: Upomínka -->
+<div id="modalUpominka" class="modal-backdrop" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 class="modal-title">Odeslat upomínku platby</h2>
+      <button class="modal-close" onclick="document.getElementById('modalUpominka').classList.remove('open')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form method="post" action="/ucetnictvi/vydane-faktury/<%= invoice.id %>/upominka">
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:12px;">
+        <div class="form-group">
+          <label class="form-label">E-mail příjemce *</label>
+          <input type="email" name="email" class="form-control" required placeholder="klient@example.com">
+        </div>
+        <div style="background:var(--warning-bg);border-radius:var(--radius-sm);padding:10px 12px;font-size:12px;color:#92400e;line-height:1.5;">
+          Odešle email s upomínkou platby a fakturou v příloze.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('modalUpominka').classList.remove('open')">Zrušit</button>
+        <button type="submit" class="btn btn-primary">Odeslat upomínku</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
 document.querySelectorAll('[data-modal-open]').forEach(btn => {
-  btn.addEventListener('click', () => document.getElementById(btn.dataset.modalOpen).style.display = 'flex');
+  const el = document.getElementById(btn.dataset.modalOpen);
+  if (!el) return;
+  if (el.classList.contains('modal-backdrop')) {
+    btn.addEventListener('click', () => el.classList.add('open'));
+  } else {
+    btn.addEventListener('click', () => el.style.display = 'flex');
+  }
 });
 <% if (typeof emailSent !== 'undefined' && emailSent) { %>
 alert('Faktura odeslána!');

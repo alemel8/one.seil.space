@@ -135,6 +135,7 @@ const { default: accountingRoutes } = await import('./routes/accounting.js');
 const { default: invoicesRoutes }   = await import('./routes/invoices.js');
 const { default: toneracekRoutes }  = await import('./routes/toneracek.js');
 const { default: settingsRoutes }   = await import('./routes/settings.js');
+const { default: monitoringRoutes } = await import('./routes/monitoring.js');
 
 await fastify.register(apiRoutes);
 await fastify.register(dashboardRoutes);
@@ -144,6 +145,7 @@ await fastify.register(accountingRoutes);
 await fastify.register(invoicesRoutes);
 await fastify.register(toneracekRoutes);
 await fastify.register(settingsRoutes);
+await fastify.register(monitoringRoutes);
 
 // ── Start ─────────────────────────────────────────────────────
 
@@ -153,6 +155,29 @@ try {
 } catch (err) {
   fastify.log.error(err);
   process.exit(1);
+}
+
+// ── Background: healthcheck worker ────────────────────────────
+{
+  const { runHealthchecks, checkOverdueInvoices, checkVpsThresholds } = await import('./healthcheck-worker.js');
+  const { readFileSync, existsSync } = await import('node:fs');
+  const STATS_DIR = process.env.STATS_DIR || './data';
+
+  const runAll = async () => {
+    try { await runHealthchecks(); } catch (e) { fastify.log.error({ err: e }, 'healthcheck worker error'); }
+    try { await checkOverdueInvoices(); } catch (e) { fastify.log.error({ err: e }, 'overdue check error'); }
+    try {
+      const file = `${STATS_DIR}/latest.json`;
+      if (existsSync(file)) {
+        const latest = JSON.parse(readFileSync(file, 'utf8'));
+        await checkVpsThresholds(latest);
+      }
+    } catch (e) { fastify.log.error({ err: e }, 'vps threshold check error'); }
+  };
+
+  // Spusť hned a pak každých 5 minut
+  setTimeout(runAll, 15_000);
+  setInterval(runAll, 5 * 60_000);
 }
 
 // ── Graceful shutdown ─────────────────────────────────────────

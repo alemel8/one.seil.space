@@ -75,43 +75,78 @@
 
 </div>
 
-<!-- ══ VPS MONITORING ════════════════════════════════════════ -->
+<!-- ══ VPS + HEALTHCHECKY ═════════════════════════════════════ -->
 <div style="margin-bottom:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);">
   Monitoring
   <a href="/monitoring" style="margin-left:8px;font-size:11px;color:var(--primary);font-weight:500;text-decoration:none;">Zobrazit detail →</a>
 </div>
-<% if (vps) { %>
-<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);">
-  <% if (vps.ram) { %>
-  <div class="kpi-card">
-    <div class="kpi-label">RAM</div>
-    <% const ramPct = Math.round(vps.ram.used_mb / vps.ram.total_mb * 100); %>
-    <div class="kpi-value <%= ramPct > 90 ? 'negative' : ramPct > 75 ? '' : 'positive' %>" style="font-size:22px;"><%= ramPct %> %</div>
-    <div class="kpi-formula"><%= vps.ram.used_mb %> / <%= vps.ram.total_mb %> MB</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:8px;">
+
+  <!-- VPS metriky -->
+  <% if (vps) { %>
+  <div class="kpi-grid" style="grid-template-columns:1fr 1fr 1fr;">
+    <% if (vps.ram) { %>
+    <div class="kpi-card">
+      <div class="kpi-label">RAM</div>
+      <% const ramPct = Math.round(vps.ram.used_mb / vps.ram.total_mb * 100); %>
+      <div class="kpi-value <%= ramPct > 90 ? 'negative' : ramPct > 75 ? '' : 'positive' %>" style="font-size:22px;"><%= ramPct %> %</div>
+      <div class="kpi-formula"><%= vps.ram.used_mb %> / <%= vps.ram.total_mb %> MB</div>
+    </div>
+    <% } %>
+    <% if (vps.cpu) { %>
+    <div class="kpi-card">
+      <div class="kpi-label">CPU load</div>
+      <% const cpuVal = vps.cpu.load_1m || 0; %>
+      <div class="kpi-value <%= cpuVal > 2 ? 'negative' : 'positive' %>" style="font-size:22px;"><%= cpuVal %></div>
+      <div class="kpi-formula">1min průměr</div>
+    </div>
+    <% } %>
+    <% if (vps.disk) { %>
+    <div class="kpi-card">
+      <div class="kpi-label">Disk</div>
+      <% const diskPct = Math.round(vps.disk.used_gb / vps.disk.total_gb * 100); %>
+      <div class="kpi-value <%= diskPct > 85 ? 'negative' : diskPct > 70 ? '' : 'positive' %>" style="font-size:22px;"><%= diskPct %> %</div>
+      <div class="kpi-formula"><%= vps.disk.used_gb %> / <%= vps.disk.total_gb %> GB</div>
+    </div>
+    <% } %>
+  </div>
+  <% } else { %>
+  <div class="card" style="display:flex;align-items:center;justify-content:center;min-height:80px;">
+    <span style="color:var(--text-muted);font-size:13px;">VPS collector neběží · <a href="/monitoring" style="color:var(--primary);">detail</a></span>
   </div>
   <% } %>
-  <% if (vps.cpu) { %>
-  <div class="kpi-card">
-    <div class="kpi-label">CPU load</div>
-    <% const cpuVal = vps.cpu.load_1m || 0; %>
-    <div class="kpi-value <%= cpuVal > 2 ? 'negative' : 'positive' %>" style="font-size:22px;"><%= cpuVal %></div>
-    <div class="kpi-formula">1min průměr</div>
+
+  <!-- Healthchecky aplikací -->
+  <div class="card" id="hcCard">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <span>Aplikace</span>
+      <span id="hcUpdated" style="font-size:11px;color:var(--text-muted);"></span>
+    </div>
+    <div class="card-body" id="hcBody" style="display:flex;flex-direction:column;gap:6px;padding:12px 16px;">
+      <span style="color:var(--text-muted);font-size:13px;">Načítám…</span>
+    </div>
   </div>
-  <% } %>
-  <% if (vps.disk) { %>
-  <div class="kpi-card">
-    <div class="kpi-label">Disk</div>
-    <% const diskPct = Math.round(vps.disk.used_gb / vps.disk.total_gb * 100); %>
-    <div class="kpi-value <%= diskPct > 85 ? 'negative' : diskPct > 70 ? '' : 'positive' %>" style="font-size:22px;"><%= diskPct %> %</div>
-    <div class="kpi-formula"><%= vps.disk.used_gb %> / <%= vps.disk.total_gb %> GB</div>
-  </div>
-  <% } %>
+
 </div>
-<% } else { %>
-<div class="card">
-  <div class="card-body" style="color:var(--text-muted);font-size:13px;text-align:center;padding:24px;">
-    VPS collector neběží nebo data jsou stará.
-    <a href="/monitoring" style="color:var(--primary);">Zobrazit detail</a>
-  </div>
-</div>
-<% } %>
+
+<script>
+fetch('/api/healthchecks/status').then(r=>r.json()).then(checks => {
+  const body = document.getElementById('hcBody');
+  const upd  = document.getElementById('hcUpdated');
+  if (!checks.length) {
+    body.innerHTML = '<span style="color:var(--text-muted);font-size:13px;">Žádné sledované aplikace · <a href="/nastaveni/healthchecky" style="color:var(--primary);">Přidat</a></span>';
+    return;
+  }
+  body.innerHTML = checks.map(c => {
+    const ok  = c.ok;
+    const dot = ok === null ? '⚪' : ok ? '🟢' : '🔴';
+    const lat = c.latency_ms ? ` <span style="color:var(--text-muted);font-size:11px;">${c.latency_ms}ms</span>` : '';
+    const err = !ok && c.error ? `<span style="color:var(--danger);font-size:11px;"> — ${c.error}</span>` : '';
+    return `<div style="display:flex;align-items:center;gap:8px;">${dot} <span style="font-weight:500;font-size:13px;">${c.name}</span>${lat}${err}</div>`;
+  }).join('');
+  const lastCheck = checks.find(c=>c.checked_at)?.checked_at;
+  if (lastCheck) upd.textContent = 'aktualizováno ' + new Date(lastCheck).toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'});
+}).catch(() => {
+  document.getElementById('hcBody').innerHTML = '<span style="color:var(--text-muted);font-size:13px;">Nedostupné</span>';
+});
+</script>
