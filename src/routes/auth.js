@@ -27,9 +27,10 @@ export default async function authRoutes(fastify) {
 
     request.session.userId = user.id;
     if (remember) {
-      request.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000;
+      request.session.options({ maxAge: 30 * 24 * 60 * 60 * 1000 });
     }
 
+    await request.session.save();
     return reply.redirect('/');
   });
 
