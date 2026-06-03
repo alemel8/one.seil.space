@@ -116,7 +116,7 @@ await fastify.register(authRoutes);
 // ── Auth guard ────────────────────────────────────────────────
 
 fastify.addHook('onRequest', async (request, reply) => {
-  const publicPaths = ['/prihlasit', '/health', '/static', '/health/api', '/api/toneracek', '/api/v1', '/api/docs'];
+  const publicPaths = ['/prihlasit', '/health', '/static', '/health/api', '/api/toneracek', '/api/v1', '/api/docs', '/health/cookie-test'];
   const isPublic = publicPaths.some(
     p => request.url === p || request.url.startsWith(p + '/') || request.url.startsWith(p + '?')
   );

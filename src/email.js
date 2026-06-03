@@ -92,7 +92,7 @@ export async function sendOrderStatusEmail({ orderNumber, email, customerName, s
   if (error) throw new Error(`Resend error: ${error.message}`);
 }
 
-export async function sendInvoiceEmail({ invoice, issuer, email, pdfBuffer }) {
+export async function sendInvoiceEmail({ invoice, issuer, email, pdfBuffer, subject, intro }) {
   if (!process.env.RESEND_API_KEY) {
     console.log(`[DEV EMAIL] Invoice ${invoice.number} → ${email}`);
     return;
@@ -102,12 +102,15 @@ export async function sendInvoiceEmail({ invoice, issuer, email, pdfBuffer }) {
     ? `${issuer.name} <${issuer.email}>`
     : `one.seil.space <noreply@seil.cz>`;
 
+  const emailSubject = subject || `Faktura ${invoice.number} — ${issuer.name}`;
+  const emailIntro  = intro  || `v příloze zasíláme fakturu č. <strong>${invoice.number}</strong>.`;
+
   const { error } = await resend.emails.send({
     from,
     to: [email],
-    subject: `Faktura ${invoice.number} — ${issuer.name}`,
+    subject: emailSubject,
     html: `<p>Dobrý den,</p>
-<p>v příloze zasíláme fakturu č. <strong>${invoice.number}</strong>.</p>
+<p>${emailIntro}</p>
 <p>Celková částka k úhradě: <strong>${Number(invoice.total_amount).toLocaleString('cs-CZ', {minimumFractionDigits:2})} ${invoice.currency || 'Kč'}</strong></p>
 ${invoice.due_date ? `<p>Splatnost: ${new Date(invoice.due_date).toLocaleDateString('cs-CZ')}</p>` : ''}
 <p>Děkujeme za spolupráci.</p>

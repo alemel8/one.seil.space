@@ -1,0 +1,2 @@
+ALTER TABLE crm_contacts ADD COLUMN IF NOT EXISTS source TEXT;
+ALTER TABLE crm_companies ADD COLUMN IF NOT EXISTS source TEXT;

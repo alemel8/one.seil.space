@@ -1,18 +1,33 @@
 <aside class="sidebar" id="sidebar">
 
-  <!-- Logo -->
-  <div class="sidebar-logo">
+  <!-- Logo → homepage -->
+  <a href="/" class="sidebar-logo" style="text-decoration:none;">
     <img src="/static/img/logo.png" alt="SEIL" class="sidebar-logo-img">
-  </div>
+  </a>
 
   <!-- Navigace -->
   <nav class="sidebar-nav">
 
-    <!-- PŘEHLED -->
+    <!-- DOMOVSKÁ STRÁNKA -->
     <div class="nav-section">
-      <div class="nav-section-label">Přehled</div>
+      <div class="nav-item">
+        <a href="/" class="nav-link <%= currentPath === '/' ? 'active' : '' %>" style="text-decoration:none;">
+          <span class="nav-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+          </span>
+          <span class="nav-label">Domovská stránka</span>
+        </a>
+      </div>
+    </div>
 
-      <div class="nav-item <%= currentPath === '/' ? 'open' : '' %>">
+    <!-- MONITORING -->
+    <div class="nav-section">
+      <div class="nav-section-label">Monitoring</div>
+
+      <div class="nav-item <%= currentPath === '/monitoring' ? 'open' : '' %>">
         <button class="nav-link" data-toggle="sub">
           <span class="nav-icon">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -27,7 +42,7 @@
         </button>
         <ul class="nav-sub">
           <li>
-            <a href="/" class="nav-sub-link <%= currentPath === '/' ? 'active' : '' %>">
+            <a href="/monitoring" class="nav-sub-link <%= currentPath === '/monitoring' ? 'active' : '' %>">
               Aktuální stav VPS
             </a>
           </li>
@@ -75,11 +90,6 @@
           <li>
             <a href="/ucetnictvi/banka" class="nav-sub-link <%= currentPath === '/ucetnictvi/banka' ? 'active' : '' %>">
               Banka
-            </a>
-          </li>
-          <li>
-            <a href="/ucetnictvi/banka/import" class="nav-sub-link <%= currentPath === '/ucetnictvi/banka/import' ? 'active' : '' %>">
-              Import Fio CSV
             </a>
           </li>
         </ul>

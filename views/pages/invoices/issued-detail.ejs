@@ -52,6 +52,29 @@
       </div>
     </div>
 
+    <% if (order) { %>
+    <!-- Platba a doprava z objednávky -->
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header">Platba &amp; doprava</div>
+      <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Způsob platby</div>
+          <div style="font-weight:500;"><%= order.payment_method || '—' %></div>
+        </div>
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Způsob dopravy</div>
+          <div style="font-weight:500;"><%= order.shipping_method || '—' %></div>
+        </div>
+        <% if (order.tracking_number) { %>
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Tracking</div>
+          <div style="font-family:monospace;font-size:13px;"><%= order.tracking_number %></div>
+        </div>
+        <% } %>
+      </div>
+    </div>
+    <% } %>
+
     <!-- Položky -->
     <% if (items.length > 0) { %>
     <div class="card" style="margin-bottom:20px;">

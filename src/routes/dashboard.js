@@ -43,8 +43,44 @@ function readHistory(hours = 72) {
 }
 
 export default async function dashboardRoutes(fastify) {
+  const { getDb } = await import('../db.js');
+  const sql = getDb();
 
+  // ── Domovská stránka ─────────────────────────────────────────
   fastify.get('/', async (request, reply) => {
+    const now = new Date();
+    const mStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+    const mEnd   = new Date(now.getFullYear(), now.getMonth()+1, 0).toISOString().slice(0,10);
+
+    const [issued]   = await sql`SELECT COALESCE(SUM(total_amount),0)::numeric AS v, COUNT(*)::int AS n FROM accounting_invoices WHERE type='issued'   AND issue_date BETWEEN ${mStart} AND ${mEnd}`;
+    const [received] = await sql`SELECT COALESCE(SUM(total_amount),0)::numeric AS v, COUNT(*)::int AS n FROM accounting_invoices WHERE type='received' AND issue_date BETWEEN ${mStart} AND ${mEnd}`;
+    const [overdueCount] = await sql`SELECT COUNT(*)::int AS n FROM accounting_invoices WHERE status='Po splatnosti'`;
+    const [ordersWaiting] = await sql`SELECT COUNT(*)::int AS n FROM shop_orders WHERE status NOT IN ('dokoncena','zrusena','storno')`;
+    const [crmFirmy]   = await sql`SELECT COUNT(*)::int AS n FROM crm_companies`;
+    const [crmKontakty]= await sql`SELECT COUNT(*)::int AS n FROM crm_contacts`;
+    const [crmNew]     = await sql`SELECT COUNT(*)::int AS n FROM crm_contacts WHERE created_at >= NOW() - INTERVAL '30 days'`;
+    const [team]       = await sql`SELECT COUNT(*)::int AS n FROM users WHERE is_active=TRUE`;
+
+    const latest = readLatest();
+    const vpsOk = !latest.error && !latest.stale;
+
+    return reply.view('pages/home.ejs', {
+      pageTitle: 'Přehled', currentPath: '/',
+      user: request.user,
+      kpi: {
+        issuedMonth: Number(issued.v), issuedCount: issued.n,
+        receivedMonth: Number(received.v),
+        overdue: overdueCount.n,
+        ordersWaiting: ordersWaiting.n,
+        firmy: crmFirmy.n, kontakty: crmKontakty.n, crmNew: crmNew.n,
+        team: team.n,
+      },
+      vps: vpsOk ? { ram: latest.memory, cpu: latest.cpu, disk: latest.disk } : null,
+    }, { layout: 'layouts/base.ejs' });
+  });
+
+  // ── VPS Monitoring (přesunuto z /) ───────────────────────────
+  fastify.get('/monitoring', async (request, reply) => {
     const latest = readLatest();
     const history = readHistory(72);
     const chartScript = history.length > 0 ? `
@@ -61,25 +97,19 @@ const mkChart = (id, label, data, color, max) => {
     options: { responsive: true, plugins: { legend: { position: 'top' } }, scales: { y: max ? { max, beginAtZero: true } : { beginAtZero: true } } }
   });
 };
-mkChart('chart-ram', 'RAM použito (MB)', history.map(h => h.ram_used_mb), '#4F46E5');
+mkChart('chart-ram', 'RAM použito (MB)', history.map(h => h.ram_used_mb), 'var(--primary)');
 mkChart('chart-disk', 'Disk použito (GB)', history.map(h => h.disk_used_gb), '#10b981');
 mkChart('chart-cpu', 'CPU load (%)', history.map(h => h.cpu_load_1m), '#f59e0b', 100);
 </script>` : '';
 
     return reply.view('pages/dashboard.ejs', {
-      pageTitle: 'Aktuální stav VPS',
-      currentPath: '/',
-      user: request.user,
-      latest,
-      history,
-      now: new Date(),
-      timezone: TZ,
+      pageTitle: 'Aktuální stav VPS', currentPath: '/monitoring',
+      user: request.user, latest, history, now, timezone: TZ,
       extraJs: chartScript,
     }, { layout: 'layouts/base.ejs' });
   });
 
   fastify.get('/api/latest', async () => readLatest());
-
   fastify.get('/api/history', async (request) => {
     const hours = Math.min(parseInt(request.query.hours || '24', 10), 720);
     return readHistory(hours);

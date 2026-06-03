@@ -47,11 +47,21 @@ export default async function accountingRoutes(fastify) {
       LIMIT ${perPage} OFFSET ${offset}
     `;
 
+    const imports = await sql`
+      SELECT i.*, a.name AS account_name
+      FROM accounting_bank_imports i
+      LEFT JOIN accounting_bank_accounts a ON i.bank_account_id = a.id
+      ORDER BY i.imported_at DESC LIMIT 50
+    `;
+    const allAccounts = await sql`SELECT * FROM accounting_bank_accounts WHERE active = TRUE`;
+
     return reply.view('pages/accounting/bank.ejs', {
       pageTitle: 'Banka', currentPath: '/ucetnictvi/banka',
       user: request.user, transactions, total: count,
       currentPage: page, totalPages: Math.ceil(count / perPage),
-      q, typeFilter,
+      q, typeFilter, imports, accounts: allAccounts,
+      tab: request.query.tab || 'transakce',
+      importResult: request.query.result ? JSON.parse(decodeURIComponent(request.query.result)) : null,
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -237,7 +247,7 @@ export default async function accountingRoutes(fastify) {
     `;
 
     const result = { imported, skipped, matched, total: parsed.records.length };
-    return reply.redirect('/ucetnictvi/banka/import?result=' + encodeURIComponent(JSON.stringify(result)));
+    return reply.redirect('/ucetnictvi/banka?tab=historie&result=' + encodeURIComponent(JSON.stringify(result)));
   });
 
   // Zrušení párování

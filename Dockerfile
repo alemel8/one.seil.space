@@ -14,8 +14,19 @@ RUN npm ci --omit=dev
 FROM node:20-alpine AS runtime
 WORKDIR /app
 
-# curl pro Coolify healthcheck (Alpine ho nemá by default)
-RUN apk add --no-cache curl
+# curl pro healthcheck + Chromium pro Puppeteer PDF generování
+RUN apk add --no-cache \
+    curl \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont
+
+# Puppeteer ať nezkouší stahovat vlastní Chrome, použije systémový
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 # Bezpečnost: aplikace neběží jako root
 RUN addgroup -g 1001 -S app && adduser -S app -u 1001 -G app

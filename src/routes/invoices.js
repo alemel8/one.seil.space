@@ -87,9 +87,15 @@ export default async function invoicesRoutes(fastify) {
     if (!invoice) return reply.code(404).send('Faktura nenalezena');
     const items = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${invoice.id} ORDER BY id`;
     const vatSummary = calcVatSummary(items);
+    const [order] = invoice.order_id
+      ? await sql`SELECT payment_method, shipping_method, tracking_number FROM shop_orders WHERE id = ${invoice.order_id}`
+      : [null];
+    const emailSent  = request.query.emailSent  === '1';
+    const emailError = request.query.emailError === '1';
     return reply.view('pages/invoices/issued-detail.ejs', {
       pageTitle: `Faktura ${invoice.number}`, currentPath: '/ucetnictvi/vydane-faktury',
-      user: request.user, invoice, items, vatSummary, STATUSES_ISSUED,
+      user: request.user, invoice, items, vatSummary, STATUSES_ISSUED, order,
+      emailSent, emailError,
     }, { layout: 'layouts/base.ejs' });
   });
 

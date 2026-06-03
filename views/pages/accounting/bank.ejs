@@ -3,49 +3,180 @@
     <h1>Banka</h1>
     <p><%= total || 0 %> transakcí v systému</p>
   </div>
-  <button class="btn btn-primary" data-modal-open="modalCreateTransaction">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-    Nová transakce
-  </button>
+  <div style="display:flex;gap:8px;">
+    <button class="btn btn-outline" data-modal-open="modalImportCsv">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Import CSV
+    </button>
+    <button class="btn btn-primary" data-modal-open="modalCreateTransaction">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nová transakce
+    </button>
+  </div>
 </div>
+
+<% if (importResult) { %>
+<div style="background:<%= importResult.error ? 'var(--danger-bg)' : '#dcfce7' %>;color:<%= importResult.error ? 'var(--danger)' : '#166534' %>;border:1px solid <%= importResult.error ? '#fca5a5' : '#bbf7d0' %>;border-radius:var(--radius-md);padding:14px 18px;margin-bottom:20px;">
+  <% if (importResult.error) { %>❌ Chyba: <%= importResult.error %>
+  <% } else { %>✅ Import dokončen: <strong><%= importResult.imported %></strong> nových,
+    <strong><%= importResult.matched %></strong> spárováno, <strong><%= importResult.skipped %></strong> přeskočeno.
+  <% } %>
+</div>
+<% } %>
+
+<!-- Karty -->
+<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px;">
+  <a href="/ucetnictvi/banka?tab=transakce" class="bank-tab <%= tab==='transakce'?'active':'' %>">Transakce</a>
+  <a href="/ucetnictvi/banka?tab=historie" class="bank-tab <%= tab==='historie'?'active':'' %>">Historie importů</a>
+</div>
+
+<!-- ── Karta: Transakce ── -->
+<% if (tab === 'transakce') { %>
+
+<form method="get" style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+  <input type="hidden" name="tab" value="transakce">
+  <input type="text" name="q" value="<%= q||'' %>" placeholder="Hledat…" class="form-control" style="max-width:260px;">
+  <select name="type" class="form-select" style="width:auto;">
+    <option value="">Vše</option>
+    <option value="Příjem" <%= typeFilter==='Příjem'?'selected':'' %>>Příjem</option>
+    <option value="Výdaj" <%= typeFilter==='Výdaj'?'selected':'' %>>Výdaj</option>
+  </select>
+  <button type="submit" class="btn btn-outline">Filtrovat</button>
+  <% if (q||typeFilter) { %><a href="/ucetnictvi/banka" class="btn btn-ghost">Zrušit</a><% } %>
+</form>
 
 <div class="table-wrapper">
   <table class="data-table">
     <thead>
       <tr>
-        <th>Popis</th>
-        <th>Typ</th>
-        <th>Částka</th>
-        <th>Datum</th>
-        <th>Poznámky</th>
+        <th>Popis</th><th>Protistrana</th><th>Typ</th><th>Částka</th><th>Datum</th><th>Spárováno</th>
       </tr>
     </thead>
     <tbody>
       <% if (transactions && transactions.length > 0) { %>
         <% transactions.forEach(t => { %>
         <tr>
-          <td style="font-weight:500;"><%= t.description || '—' %></td>
+          <td style="font-weight:500;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            <%= t.message || t.description || '—' %>
+          </td>
+          <td style="font-size:12px;color:var(--text-muted);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            <%= t.counterparty_name || '—' %>
+          </td>
           <td>
-            <span class="badge" style="background:<%= t.type === 'Příjem' ? 'var(--success-bg)' : 'var(--danger-bg)' %>;color:<%= t.type === 'Příjem' ? '#15803D' : '#991B1B' %>;">
+            <span class="badge" style="background:<%= t.type==='Příjem' ? 'var(--success-bg)' : 'var(--danger-bg)' %>;color:<%= t.type==='Příjem' ? '#15803D' : '#991B1B' %>;">
               <%= t.type %>
             </span>
           </td>
-          <td style="font-variant-numeric:tabular-nums;color:<%= t.type === 'Příjem' ? 'var(--success)' : 'var(--danger)' %>;">
-            <%= t.type === 'Příjem' ? '+' : '-' %><%= t.amount.toLocaleString('cs-CZ') %> <%= t.currency %>
+          <td style="font-variant-numeric:tabular-nums;font-weight:600;color:<%= t.type==='Příjem' ? 'var(--success)' : 'var(--danger)' %>;">
+            <%= t.type==='Příjem' ? '+' : '-' %><%= Number(t.amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= t.currency %>
           </td>
-          <td style="color:var(--text-muted);font-size:12px;"><%= new Date(t.date).toLocaleDateString('cs-CZ') %></td>
-          <td style="color:var(--text-muted);font-size:13px;"><%= t.notes || '—' %></td>
+          <td style="color:var(--text-muted);font-size:12px;"><%= new Date(t.transaction_date || t.date).toLocaleDateString('cs-CZ') %></td>
+          <td>
+            <% if (t.matched_invoice_number) { %>
+              <a href="/ucetnictvi/vydane-faktury/<%= t.matched_invoice_id %>" style="font-size:12px;color:var(--primary);font-weight:500;"><%= t.matched_invoice_number %></a>
+            <% } else { %>
+              <span style="font-size:12px;color:var(--text-muted);">—</span>
+            <% } %>
+          </td>
         </tr>
-        <% }); %>
+        <% }) %>
       <% } else { %>
-      <tr>
-        <td colspan="5" style="text-align:center;padding:48px;color:var(--text-muted);">Zatím žádné transakce</td>
-      </tr>
+      <tr><td colspan="6" style="text-align:center;padding:48px;color:var(--text-muted);">Žádné transakce</td></tr>
       <% } %>
     </tbody>
   </table>
 </div>
 
+<% } %>
+
+<!-- ── Karta: Historie importů ── -->
+<% if (tab === 'historie') { %>
+<div class="table-wrapper">
+  <table class="data-table">
+    <thead>
+      <tr><th>Soubor</th><th>Účet</th><th>Období</th><th style="text-align:center;">Importováno</th><th style="text-align:center;">Spárováno</th><th style="text-align:center;">Přeskočeno</th><th>Kdy</th></tr>
+    </thead>
+    <tbody>
+      <% if (imports && imports.length > 0) { %>
+        <% imports.forEach(i => { %>
+        <tr>
+          <td style="font-family:monospace;font-size:12px;"><%= i.filename %></td>
+          <td style="font-size:13px;"><%= i.account_name || '—' %></td>
+          <td style="font-size:12px;color:var(--text-muted);">
+            <%= i.date_from ? new Date(i.date_from).toLocaleDateString('cs-CZ') : '—' %> –
+            <%= i.date_to   ? new Date(i.date_to).toLocaleDateString('cs-CZ')   : '—' %>
+          </td>
+          <td style="text-align:center;"><%= i.rows_imported %></td>
+          <td style="text-align:center;color:#166534;font-weight:600;"><%= i.rows_matched %></td>
+          <td style="text-align:center;color:var(--text-muted);"><%= i.rows_skipped %></td>
+          <td style="font-size:12px;color:var(--text-muted);"><%= new Date(i.imported_at).toLocaleString('cs-CZ') %></td>
+        </tr>
+        <% }) %>
+      <% } else { %>
+        <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);">Žádné importy</td></tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+<% } %>
+
+<style>
+.bank-tab {
+  padding: 10px 20px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.bank-tab:hover { color: var(--text-primary); }
+.bank-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+</style>
+
+<!-- Modal: Import CSV -->
+<div class="modal-backdrop" id="modalImportCsv">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 class="modal-title">Import Fio CSV</h2>
+      <button class="modal-close" data-modal-close="modalImportCsv">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form method="post" action="/ucetnictvi/banka/import" enctype="multipart/form-data">
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:16px;">
+        <% if (accounts && accounts.length > 1) { %>
+        <div class="form-group">
+          <label class="form-label">Bankovní účet</label>
+          <select name="bank_account_id" class="form-select">
+            <% accounts.forEach(a => { %>
+            <option value="<%= a.id %>"><%= a.name %> (<%= a.account_number %>)</option>
+            <% }) %>
+          </select>
+        </div>
+        <% } %>
+        <div class="form-group">
+          <label class="form-label">CSV soubor *</label>
+          <input type="file" name="csvfile" accept=".csv" class="form-control" required>
+          <small style="color:var(--text-muted);margin-top:6px;display:block;">
+            Fio internet banking → Pohyby na účtu → Export → CSV (semicolon)
+          </small>
+        </div>
+        <div style="background:var(--primary-light);border-radius:var(--radius-sm);padding:12px 14px;font-size:12px;color:var(--primary-dark);line-height:1.6;">
+          📥 <strong>Deduplikace</strong> — opakovaný import je bezpečný<br>
+          🔗 <strong>Auto-párování</strong> — VS = číslo faktury → faktura se označí jako Zaplacena
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" data-modal-close="modalImportCsv">Zrušit</button>
+        <button type="submit" class="btn btn-primary">Importovat</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Nová transakce -->
 <div class="modal-backdrop" id="modalCreateTransaction">
   <div class="modal modal-sm">
     <div class="modal-header">
@@ -79,9 +210,7 @@
           <div class="form-group">
             <label class="form-label">Měna</label>
             <select name="currency" class="form-select">
-              <option value="CZK">CZK</option>
-              <option value="EUR">EUR</option>
-              <option value="USD">USD</option>
+              <option>CZK</option><option>EUR</option><option>USD</option>
             </select>
           </div>
           <div class="form-group col-span-2">
