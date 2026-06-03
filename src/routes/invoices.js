@@ -50,6 +50,10 @@ async function nextInvoiceNumber(sql, seriesId) {
 export default async function invoicesRoutes(fastify) {
   const sql = getDb();
 
+  await fastify.register((await import('@fastify/multipart')).default, {
+    limits: { fileSize: 20 * 1024 * 1024 },
+  });
+
   // ══════════════════════════════════════════════════════════
   // VYDANÉ FAKTURY
   // ══════════════════════════════════════════════════════════
@@ -248,6 +252,72 @@ export default async function invoicesRoutes(fastify) {
   // PŘIJATÉ FAKTURY
   // ══════════════════════════════════════════════════════════
 
+  // ── AI: vytěžení dat z PDF přijaté faktury ───────────────────
+  fastify.post('/ucetnictvi/prijate-faktury/analyze-pdf', async (request, reply) => {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey || apiKey.startsWith('sk-ant-XXX')) {
+      return reply.code(503).send({ error: 'ANTHROPIC_API_KEY není nastavena na serveru.' });
+    }
+
+    const data = await request.file();
+    if (!data) return reply.code(400).send({ error: 'Žádný soubor nebyl nahrán.' });
+
+    const buf = await data.toBuffer();
+    const base64 = buf.toString('base64');
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1024,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'document',
+              source: { type: 'base64', media_type: 'application/pdf', data: base64 },
+            },
+            {
+              type: 'text',
+              text: `Z tohoto PDF vyextrahuj data přijaté faktury. Vrať POUZE platný JSON objekt bez markdown bloků:
+{
+  "number": "číslo faktury od dodavatele",
+  "supplier": "název dodavatele / firmy",
+  "supplier_ico": "IČO dodavatele nebo null",
+  "amount": základ bez DPH jako číslo nebo 0,
+  "vat_amount": výše DPH jako číslo nebo 0,
+  "total_amount": celková částka k úhradě jako číslo,
+  "currency": "CZK nebo EUR nebo USD",
+  "issue_date": "datum vystavení YYYY-MM-DD nebo null",
+  "due_date": "datum splatnosti YYYY-MM-DD nebo null",
+  "notes": "předmět plnění nebo popis nebo null"
+}`,
+            },
+          ],
+        }],
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return reply.code(502).send({ error: 'Chyba Claude API: ' + (err.error?.message || res.statusText) });
+    }
+
+    const json = await res.json();
+    const text = (json.content?.[0]?.text || '{}').trim()
+      .replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+
+    let extracted = {};
+    try { extracted = JSON.parse(text); } catch { /* vrátí prázdné */ }
+
+    return reply.send(extracted);
+  });
+
   fastify.get('/ucetnictvi/prijate-faktury', async (request, reply) => {
     const q            = (request.query.q      || '').trim();
     const statusFilter = (request.query.status || '').trim();
@@ -273,15 +343,17 @@ export default async function invoicesRoutes(fastify) {
 
   fastify.post('/ucetnictvi/prijate-faktury/vytvorit', async (request, reply) => {
     const b = request.body || {};
-    const amount = parseFloat(b.amount || 0);
+    const amount     = parseFloat(b.amount     || 0);
+    const vatAmount  = parseFloat(b.vat_amount || 0);
+    const totalAmount = b.total_amount ? parseFloat(b.total_amount) : (amount + vatAmount);
     await sql`
       INSERT INTO accounting_invoices
-        (id, type, number, supplier, amount, vat_amount, total_amount, currency, status, issue_date, due_date, notes)
+        (id, type, number, supplier, supplier_ico, amount, vat_amount, total_amount, currency, status, issue_date, due_date, notes)
       VALUES (
         ${generateId()}, 'received',
         ${b.number || ''}, ${(b.supplier||'').trim()},
-        ${amount}, ${parseFloat(b.vat_amount || 0)},
-        ${amount + parseFloat(b.vat_amount || 0)},
+        ${(b.supplier_ico||'').trim() || null},
+        ${amount}, ${vatAmount}, ${totalAmount},
         ${b.currency || 'CZK'}, ${b.status || 'Nezaplacena'},
         ${b.issue_date || new Date().toISOString().split('T')[0]},
         ${b.due_date || null}, ${(b.notes||'').trim()}
