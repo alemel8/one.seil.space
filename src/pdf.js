@@ -1,19 +1,33 @@
-// Generování PDF z EJS šablony přes Puppeteer
 import puppeteer from 'puppeteer';
 import ejs from 'ejs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { existsSync } from 'node:fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
+
+// Candidate paths for system-installed Chromium on Linux VPS
+const SYSTEM_CHROMIUM_PATHS = [
+  '/usr/bin/chromium-browser',
+  '/usr/bin/chromium',
+  '/usr/bin/google-chrome',
+  '/usr/bin/google-chrome-stable',
+];
+
+function findSystemChromium() {
+  return SYSTEM_CHROMIUM_PATHS.find(p => existsSync(p)) ?? null;
+}
 
 let _browser = null;
 
 async function getBrowser() {
   if (!_browser || !_browser.connected) {
+    const executablePath = findSystemChromium();
     _browser = await puppeteer.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu'],
+      executablePath: executablePath ?? undefined,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
     });
   }
   return _browser;
