@@ -12,6 +12,22 @@ on:
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
 
@@ -24,12 +40,21 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      - name: Test (placeholder - rozšiř až budou skutečné testy)
+      - name: Smoke test — server start + health check
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+          SESSION_SECRET: ci-test-secret-32-chars-minimum-xx
+          NODE_ENV: test
+          LOG_LEVEL: warn
         run: |
-          # Smoke test - server musí umět nastartovat
-          DASHBOARD_PASSWORD=test-pwd timeout 5s node src/server.js &
+          node src/server.js &
           SERVER_PID=$!
-          sleep 2
+          # Počkej, než server nastartuje a provede migrace (max 20s)
+          for i in $(seq 1 20); do
+            sleep 1
+            curl -sf http://localhost:3000/health && break
+            echo "Attempt $i..."
+          done
           curl -f http://localhost:3000/health || (kill $SERVER_PID; exit 1)
           kill $SERVER_PID
 
