@@ -318,6 +318,42 @@ export default async function invoicesRoutes(fastify) {
     return reply.send(extracted);
   });
 
+  // ── Detail přijaté faktury ───────────────────────────────────
+  fastify.get('/ucetnictvi/prijate-faktury/:id', async (request, reply) => {
+    const [invoice] = await sql`SELECT * FROM accounting_invoices WHERE id = ${request.params.id} AND type = 'received'`;
+    if (!invoice) return reply.code(404).send('Faktura nenalezena');
+    const [bankTx] = invoice.bank_transaction_id
+      ? await sql`SELECT * FROM accounting_bank_transactions WHERE id = ${invoice.bank_transaction_id}`
+      : [null];
+    return reply.view('pages/invoices/received-detail.ejs', {
+      pageTitle: `Přijatá ${invoice.number}`, currentPath: '/ucetnictvi/prijate-faktury',
+      user: request.user, invoice, bankTx, STATUSES_RECEIVED,
+    }, { layout: 'layouts/base.ejs' });
+  });
+
+  fastify.post('/ucetnictvi/prijate-faktury/:id/upravit', async (request, reply) => {
+    const b = request.body || {};
+    const amount      = parseFloat(b.amount     || 0);
+    const vatAmount   = parseFloat(b.vat_amount || 0);
+    const totalAmount = b.total_amount ? parseFloat(b.total_amount) : (amount + vatAmount);
+    await sql`
+      UPDATE accounting_invoices SET
+        number       = ${b.number || ''},
+        supplier     = ${(b.supplier||'').trim()},
+        supplier_ico = ${(b.supplier_ico||'').trim() || null},
+        amount       = ${amount},
+        vat_amount   = ${vatAmount},
+        total_amount = ${totalAmount},
+        currency     = ${b.currency || 'CZK'},
+        issue_date   = ${b.issue_date || new Date().toISOString().split('T')[0]},
+        due_date     = ${b.due_date || null},
+        notes        = ${(b.notes||'').trim()},
+        modified_at  = NOW()
+      WHERE id = ${request.params.id} AND type = 'received'
+    `;
+    return reply.redirect(`/ucetnictvi/prijate-faktury/${request.params.id}`);
+  });
+
   fastify.get('/ucetnictvi/prijate-faktury', async (request, reply) => {
     const q            = (request.query.q      || '').trim();
     const statusFilter = (request.query.status || '').trim();
@@ -362,12 +398,49 @@ export default async function invoicesRoutes(fastify) {
     return reply.redirect('/ucetnictvi/prijate-faktury');
   });
 
+  // ── Export CSV ────────────────────────────────────────────────
+  fastify.get('/ucetnictvi/vydane-faktury/export.csv', async (request, reply) => {
+    const invoices = await sql`SELECT * FROM accounting_invoices WHERE type='issued' ORDER BY issue_date DESC`;
+    const header = 'Číslo;Klient;IČO;Vystavení;Splatnost;Zaplaceno;Základ;DPH;Celkem;Měna;Stav';
+    const rows = invoices.map(i => [
+      i.number, i.client_name||'', i.client_ico||'',
+      i.issue_date?.toISOString?.()?.slice(0,10) || '',
+      i.due_date?.toISOString?.()?.slice(0,10)   || '',
+      i.paid_date?.toISOString?.()?.slice(0,10)  || '',
+      String(i.amount||0).replace('.',','),
+      String(i.vat_amount||0).replace('.',','),
+      String(i.total_amount||0).replace('.',','),
+      i.currency, i.status,
+    ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n');
+    reply.header('Content-Type', 'text/csv; charset=utf-8');
+    reply.header('Content-Disposition', 'attachment; filename="vydane-faktury.csv"');
+    return reply.send('﻿' + header + '\n' + rows);
+  });
+
+  fastify.get('/ucetnictvi/prijate-faktury/export.csv', async (request, reply) => {
+    const invoices = await sql`SELECT * FROM accounting_invoices WHERE type='received' ORDER BY issue_date DESC`;
+    const header = 'Číslo;Dodavatel;IČO;Přijato;Splatnost;Zaplaceno;Základ;DPH;Celkem;Měna;Stav';
+    const rows = invoices.map(i => [
+      i.number, i.supplier||'', i.supplier_ico||'',
+      i.issue_date?.toISOString?.()?.slice(0,10) || '',
+      i.due_date?.toISOString?.()?.slice(0,10)   || '',
+      i.paid_date?.toISOString?.()?.slice(0,10)  || '',
+      String(i.amount||0).replace('.',','),
+      String(i.vat_amount||0).replace('.',','),
+      String(i.total_amount||0).replace('.',','),
+      i.currency, i.status,
+    ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n');
+    reply.header('Content-Type', 'text/csv; charset=utf-8');
+    reply.header('Content-Disposition', 'attachment; filename="prijate-faktury.csv"');
+    return reply.send('﻿' + header + '\n' + rows);
+  });
+
   fastify.post('/ucetnictvi/prijate-faktury/:id/stav', async (request, reply) => {
-    const { status } = request.body || {};
+    const { status, redirect_to } = request.body || {};
     if (!STATUSES_RECEIVED.includes(status)) return reply.code(400).send('Neplatný stav');
     const updates = [sql`status = ${status}`, sql`modified_at = NOW()`];
     if (status === 'Zaplacena') updates.push(sql`paid_date = CURRENT_DATE`);
     await sql`UPDATE accounting_invoices SET ${updates.reduce((a, b) => sql`${a}, ${b}`)} WHERE id = ${request.params.id}`;
-    return reply.redirect('/ucetnictvi/prijate-faktury');
+    return reply.redirect(redirect_to || `/ucetnictvi/prijate-faktury/${request.params.id}`);
   });
 }

@@ -3,7 +3,10 @@
     <h1>Vydané faktury</h1>
     <p><%= total %> faktur celkem</p>
   </div>
-  <button class="btn btn-primary" data-modal-open="modalCreate">+ Nová faktura</button>
+  <div style="display:flex;gap:8px;">
+    <a href="/ucetnictvi/vydane-faktury/export.csv" class="btn btn-outline btn-sm">↓ CSV</a>
+    <button class="btn btn-primary" data-modal-open="modalCreate">+ Nová faktura</button>
+  </div>
 </div>
 
 <!-- Filtry -->

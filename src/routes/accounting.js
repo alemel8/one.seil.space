@@ -249,4 +249,80 @@ export default async function accountingRoutes(fastify) {
     await sql`UPDATE accounting_bank_transactions SET matched_invoice_id = NULL, matched_at = NULL, matched_by = NULL WHERE id = ${request.params.id}`;
     return reply.redirect('/ucetnictvi/banka');
   });
+
+  // ── Finanční přehled (KPI) ─────────────────────────────────
+  fastify.get('/ucetnictvi/prehled', async (request, reply) => {
+    const now   = new Date();
+    const year  = parseInt(request.query.rok  || now.getFullYear(),  10);
+    const month = parseInt(request.query.mesic || (now.getMonth() + 1), 10);
+
+    const mStart = `${year}-${String(month).padStart(2,'0')}-01`;
+    const mEnd   = new Date(year, month, 0).toISOString().slice(0, 10);
+    const yStart = `${year}-01-01`;
+    const yEnd   = `${year}-12-31`;
+
+    // Měsíc
+    const [mIssued]   = await sql`SELECT COALESCE(SUM(total_amount),0)::numeric AS v FROM accounting_invoices WHERE type='issued'   AND issue_date BETWEEN ${mStart} AND ${mEnd}`;
+    const [mReceived] = await sql`SELECT COALESCE(SUM(total_amount),0)::numeric AS v FROM accounting_invoices WHERE type='received' AND issue_date BETWEEN ${mStart} AND ${mEnd}`;
+    const [mVatOut]   = await sql`SELECT COALESCE(SUM(vat_amount),0)::numeric   AS v FROM accounting_invoices WHERE type='issued'   AND issue_date BETWEEN ${mStart} AND ${mEnd}`;
+    const [mVatIn]    = await sql`SELECT COALESCE(SUM(vat_amount),0)::numeric   AS v FROM accounting_invoices WHERE type='received' AND issue_date BETWEEN ${mStart} AND ${mEnd}`;
+
+    // Rok
+    const [yIssued]   = await sql`SELECT COALESCE(SUM(total_amount),0)::numeric AS v FROM accounting_invoices WHERE type='issued'   AND issue_date BETWEEN ${yStart} AND ${yEnd}`;
+    const [yReceived] = await sql`SELECT COALESCE(SUM(total_amount),0)::numeric AS v FROM accounting_invoices WHERE type='received' AND issue_date BETWEEN ${yStart} AND ${yEnd}`;
+    const [yVatOut]   = await sql`SELECT COALESCE(SUM(vat_amount),0)::numeric   AS v FROM accounting_invoices WHERE type='issued'   AND issue_date BETWEEN ${yStart} AND ${yEnd}`;
+    const [yVatIn]    = await sql`SELECT COALESCE(SUM(vat_amount),0)::numeric   AS v FROM accounting_invoices WHERE type='received' AND issue_date BETWEEN ${yStart} AND ${yEnd}`;
+
+    // Nezaplacené faktury
+    const overdueIssued   = await sql`SELECT id, number, client_name, total_amount, currency, due_date FROM accounting_invoices WHERE type='issued'   AND status='Po splatnosti' ORDER BY due_date`;
+    const overdueReceived = await sql`SELECT id, number, supplier,    total_amount, currency, due_date FROM accounting_invoices WHERE type='received' AND status='Po splatnosti' ORDER BY due_date`;
+    const pendingIssued   = await sql`SELECT COUNT(*)::int AS n, COALESCE(SUM(total_amount),0)::numeric AS v FROM accounting_invoices WHERE type='issued'   AND status='Nezaplacena'`;
+    const pendingReceived = await sql`SELECT COUNT(*)::int AS n, COALESCE(SUM(total_amount),0)::numeric AS v FROM accounting_invoices WHERE type='received' AND status='Nezaplacena'`;
+
+    // Graf — měsíce roku
+    const monthlyChart = await sql`
+      SELECT
+        EXTRACT(MONTH FROM issue_date)::int AS m,
+        type,
+        COALESCE(SUM(total_amount),0)::numeric AS v
+      FROM accounting_invoices
+      WHERE issue_date BETWEEN ${yStart} AND ${yEnd}
+      GROUP BY m, type ORDER BY m
+    `;
+
+    // Cashflow banka
+    const [cashIn]  = await sql`SELECT COALESCE(SUM(amount),0)::numeric AS v FROM accounting_bank_transactions WHERE type='Příjem'`;
+    const [cashOut] = await sql`SELECT COALESCE(SUM(amount),0)::numeric AS v FROM accounting_bank_transactions WHERE type='Výdaj'`;
+
+    return reply.view('pages/accounting/prehled.ejs', {
+      pageTitle: 'Finanční přehled', currentPath: '/ucetnictvi/prehled',
+      user: request.user, year, month,
+      kpi: {
+        month: { issued: Number(mIssued.v), received: Number(mReceived.v), vatOut: Number(mVatOut.v), vatIn: Number(mVatIn.v) },
+        year:  { issued: Number(yIssued.v), received: Number(yReceived.v), vatOut: Number(yVatOut.v), vatIn: Number(yVatIn.v) },
+      },
+      overdue: { issued: overdueIssued, received: overdueReceived },
+      pending: { issued: pendingIssued[0], received: pendingReceived[0] },
+      monthlyChart,
+      cash: { in: Number(cashIn.v), out: Number(cashOut.v) },
+    }, { layout: 'layouts/base.ejs' });
+  });
+
+  // ── Export objednávek CSV ─────────────────────────────────
+  fastify.get('/ucetnictvi/objednavky/export.csv', async (request, reply) => {
+    const orders = await sql`
+      SELECT o.*, s.name AS shop_name
+      FROM shop_orders o LEFT JOIN shops s ON o.shop_id = s.id
+      ORDER BY o.created_at DESC
+    `;
+    const header = 'Číslo;Eshop;Zákazník;Email;Telefon;Celkem;Měna;Stav;Datum';
+    const rows = orders.map(o => [
+      o.order_number, o.shop_name||'', o.customer_name||'', o.customer_email||'', o.customer_phone||'',
+      String(o.total_amount||0).replace('.',','), o.currency||'CZK', o.status,
+      o.created_at?.toISOString?.()?.slice(0,10) || '',
+    ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n');
+    reply.header('Content-Type', 'text/csv; charset=utf-8');
+    reply.header('Content-Disposition', 'attachment; filename="objednavky.csv"');
+    return reply.send('﻿' + header + '\n' + rows);
+  });
 }

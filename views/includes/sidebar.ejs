@@ -53,17 +53,22 @@
         </button>
         <ul class="nav-sub">
           <li>
+            <a href="/ucetnictvi/prehled" class="nav-sub-link <%= currentPath === '/ucetnictvi/prehled' ? 'active' : '' %>">
+              Finanční přehled
+            </a>
+          </li>
+          <li>
             <a href="/ucetnictvi/objednavky" class="nav-sub-link <%= currentPath && currentPath.startsWith('/ucetnictvi/objednavky') ? 'active' : '' %>">
               Objednávky
             </a>
           </li>
           <li>
-            <a href="/ucetnictvi/prijate-faktury" class="nav-sub-link <%= currentPath === '/ucetnictvi/prijate-faktury' ? 'active' : '' %>">
+            <a href="/ucetnictvi/prijate-faktury" class="nav-sub-link <%= currentPath && currentPath.startsWith('/ucetnictvi/prijate-faktury') ? 'active' : '' %>">
               Přijaté faktury
             </a>
           </li>
           <li>
-            <a href="/ucetnictvi/vydane-faktury" class="nav-sub-link <%= currentPath === '/ucetnictvi/vydane-faktury' ? 'active' : '' %>">
+            <a href="/ucetnictvi/vydane-faktury" class="nav-sub-link <%= currentPath && currentPath.startsWith('/ucetnictvi/vydane-faktury') ? 'active' : '' %>">
               Vydané faktury
             </a>
           </li>

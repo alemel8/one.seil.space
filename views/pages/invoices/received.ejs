@@ -3,7 +3,10 @@
     <h1>Přijaté faktury</h1>
     <p><%= total %> faktur celkem</p>
   </div>
-  <button class="btn btn-primary" data-modal-open="modalCreate">+ Přidat fakturu</button>
+  <div style="display:flex;gap:8px;">
+    <a href="/ucetnictvi/prijate-faktury/export.csv" class="btn btn-outline btn-sm">↓ CSV</a>
+    <button class="btn btn-primary" data-modal-open="modalCreate">+ Přidat fakturu</button>
+  </div>
 </div>
 
 <form method="get" style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
@@ -27,23 +30,26 @@
     <tbody>
       <% if (invoices.length > 0) { %>
         <% invoices.forEach(inv => { %>
-        <tr>
+        <%
+          const sc = inv.status==='Zaplacena' ? '#dcfce7:#166534' :
+                     inv.status==='Po splatnosti' ? '#fee2e2:#991b1b' :
+                     inv.status==='Storno' ? '#f3f4f6:#6b7280' : '#fef9c3:#92400e';
+          const [bg,cl] = sc.split(':');
+          const isOverdue = inv.due_date && inv.status !== 'Zaplacena' && inv.status !== 'Storno' && new Date(inv.due_date) < new Date();
+        %>
+        <tr style="cursor:pointer;" onclick="location.href='/ucetnictvi/prijate-faktury/<%= inv.id %>'">
           <td style="font-weight:600;"><%= inv.number %></td>
           <td><%= inv.supplier || '—' %></td>
           <td style="color:var(--text-muted);font-size:13px;"><%= new Date(inv.issue_date).toLocaleDateString('cs-CZ') %></td>
-          <td style="color:var(--text-muted);font-size:13px;"><%= inv.due_date ? new Date(inv.due_date).toLocaleDateString('cs-CZ') : '—' %></td>
-          <td style="text-align:right;font-weight:600;"><%= Number(inv.total_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= inv.currency %></td>
-          <td>
-            <%
-              const sc = inv.status==='Zaplacena' ? '#dcfce7:#166534' :
-                         inv.status==='Po splatnosti' ? '#fee2e2:#991b1b' :
-                         inv.status==='Storno' ? '#f3f4f6:#6b7280' : '#fef9c3:#92400e';
-              const [bg,cl] = sc.split(':');
-            %>
-            <span class="badge" style="background:<%= bg %>;color:<%= cl %>;"><%= inv.status %></span>
+          <td style="color:var(--text-muted);font-size:13px;<%= isOverdue ? 'color:var(--danger);font-weight:500;' : '' %>">
+            <%= inv.due_date ? new Date(inv.due_date).toLocaleDateString('cs-CZ') : '—' %>
+            <% if (isOverdue) { %> ⚠<% } %>
           </td>
-          <td>
+          <td style="text-align:right;font-weight:600;"><%= Number(inv.total_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= inv.currency %></td>
+          <td><span class="badge" style="background:<%= bg %>;color:<%= cl %>;"><%= inv.status %></span></td>
+          <td onclick="event.stopPropagation()">
             <form method="post" action="/ucetnictvi/prijate-faktury/<%= inv.id %>/stav" style="display:inline;">
+              <input type="hidden" name="redirect_to" value="/ucetnictvi/prijate-faktury">
               <select name="status" class="form-select" style="width:auto;padding:4px 8px;font-size:12px;" onchange="this.form.submit()">
                 <% STATUSES_RECEIVED.forEach(s => { %><option value="<%= s %>" <%= inv.status===s?'selected':'' %>><%= s %></option><% }) %>
               </select>

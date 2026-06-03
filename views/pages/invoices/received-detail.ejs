@@ -1,0 +1,243 @@
+<%
+  const statusBg = invoice.status==='Zaplacena'    ? '#dcfce7' :
+                   invoice.status==='Po splatnosti' ? '#fee2e2' :
+                   invoice.status==='Storno'        ? '#f3f4f6' : '#fef9c3';
+  const statusCl = invoice.status==='Zaplacena'    ? '#166534' :
+                   invoice.status==='Po splatnosti' ? '#991b1b' :
+                   invoice.status==='Storno'        ? '#6b7280' : '#92400e';
+  const fmt = (n) => Number(n||0).toLocaleString('cs-CZ', {minimumFractionDigits:2});
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('cs-CZ') : '—';
+%>
+
+<div class="page-header">
+  <div class="page-header-left">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <a href="/ucetnictvi/prijate-faktury" class="btn btn-ghost btn-sm">← Zpět</a>
+      <h1>Přijatá faktura <%= invoice.number %></h1>
+      <span class="badge" style="background:<%= statusBg %>;color:<%= statusCl %>;font-size:13px;"><%= invoice.status %></span>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button class="btn btn-outline" data-modal-open="modalEdit">✏️ Upravit</button>
+    <button class="btn btn-outline" data-modal-open="modalStatus">🔄 Změnit stav</button>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;">
+
+  <!-- Levý sloupec -->
+  <div style="display:flex;flex-direction:column;gap:20px;">
+
+    <!-- Dodavatel -->
+    <div class="card">
+      <div class="card-header">Dodavatel</div>
+      <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Název</div>
+          <div style="font-weight:600;"><%= invoice.supplier || '—' %></div>
+        </div>
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">IČO</div>
+          <div><%= invoice.supplier_ico || '—' %></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Termíny -->
+    <div class="card">
+      <div class="card-header">Termíny</div>
+      <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Datum přijetí</div>
+          <div style="font-weight:500;"><%= fmtDate(invoice.issue_date) %></div>
+        </div>
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Splatnost</div>
+          <% const isOverdue = invoice.due_date && invoice.status !== 'Zaplacena' && invoice.status !== 'Storno' && new Date(invoice.due_date) < new Date(); %>
+          <div style="font-weight:500;<%= isOverdue ? 'color:var(--danger);' : '' %>">
+            <%= fmtDate(invoice.due_date) %>
+            <% if (isOverdue) { %><span style="font-size:11px;"> ⚠</span><% } %>
+          </div>
+        </div>
+        <% if (invoice.paid_date) { %>
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Zaplaceno</div>
+          <div style="font-weight:500;color:#166534;"><%= fmtDate(invoice.paid_date) %></div>
+        </div>
+        <% } %>
+      </div>
+    </div>
+
+    <!-- Poznámka -->
+    <% if (invoice.notes) { %>
+    <div class="card">
+      <div class="card-header">Poznámka / předmět plnění</div>
+      <div class="card-body" style="color:var(--text-secondary);line-height:1.6;"><%= invoice.notes %></div>
+    </div>
+    <% } %>
+
+    <!-- Bankovní transakce -->
+    <% if (bankTx) { %>
+    <div class="card">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Spárovaná transakce</span>
+        <form method="post" action="/ucetnictvi/banka/<%= bankTx.id %>/zrusit-parovani" style="display:inline;" onsubmit="return confirm('Zrušit párování?')">
+          <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger);">Zrušit párování</button>
+        </form>
+      </div>
+      <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Popis</div>
+          <div style="font-weight:500;"><%= bankTx.description || bankTx.message || '—' %></div>
+        </div>
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Částka</div>
+          <div style="color:var(--danger);font-weight:600;">−<%= fmt(bankTx.amount) %> <%= bankTx.currency %></div>
+        </div>
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Datum</div>
+          <div><%= fmtDate(bankTx.date || bankTx.transaction_date) %></div>
+        </div>
+      </div>
+    </div>
+    <% } %>
+
+  </div>
+
+  <!-- Pravý sloupec: rekapitulace + akce -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+
+    <div class="card">
+      <div class="card-header">Rekapitulace</div>
+      <div class="card-body">
+        <div style="display:flex;justify-content:space-between;padding:5px 0;color:var(--text-muted);font-size:13px;">
+          <span>Základ bez DPH</span>
+          <span><%= fmt(invoice.amount) %> <%= invoice.currency %></span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:5px 0;color:var(--text-muted);font-size:13px;">
+          <span>DPH</span>
+          <span><%= fmt(invoice.vat_amount) %> <%= invoice.currency %></span>
+        </div>
+        <hr style="margin:8px 0;border:none;border-top:1px solid var(--border);">
+        <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:16px;font-weight:700;color:var(--danger);">
+          <span>K úhradě</span>
+          <span><%= fmt(invoice.total_amount) %> <%= invoice.currency %></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Akce</div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:8px;">
+        <button class="btn btn-outline" data-modal-open="modalEdit" style="width:100%;">✏️ Upravit fakturu</button>
+        <button class="btn btn-ghost" data-modal-open="modalStatus" style="width:100%;">🔄 Změnit stav</button>
+        <% if (!bankTx && invoice.status !== 'Zaplacena') { %>
+        <a href="/ucetnictvi/banka?parovat=<%= invoice.id %>" class="btn btn-ghost" style="width:100%;text-align:center;">🔗 Spárovat s bankou</a>
+        <% } %>
+      </div>
+    </div>
+
+    <div style="font-size:12px;color:var(--text-muted);padding:4px 0;">
+      ID: <%= invoice.id %><br>
+      Vytvořeno: <%= fmtDate(invoice.created_at) %><br>
+      Upraveno:  <%= fmtDate(invoice.modified_at) %>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modal: Změna stavu -->
+<div id="modalStatus" class="modal-backdrop" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 class="modal-title">Změnit stav</h2>
+      <button class="modal-close" onclick="document.getElementById('modalStatus').classList.remove('open')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form method="post" action="/ucetnictvi/prijate-faktury/<%= invoice.id %>/stav">
+      <input type="hidden" name="redirect_to" value="/ucetnictvi/prijate-faktury/<%= invoice.id %>">
+      <div class="modal-body">
+        <select name="status" class="form-select">
+          <% STATUSES_RECEIVED.forEach(s => { %>
+          <option value="<%= s %>" <%= invoice.status===s?'selected':'' %>><%= s %></option>
+          <% }) %>
+        </select>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('modalStatus').classList.remove('open')">Zrušit</button>
+        <button type="submit" class="btn btn-primary">Uložit</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Úprava faktury -->
+<div id="modalEdit" class="modal-backdrop" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title">Upravit fakturu</h2>
+      <button class="modal-close" onclick="document.getElementById('modalEdit').classList.remove('open')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form method="post" action="/ucetnictvi/prijate-faktury/<%= invoice.id %>/upravit">
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label required">Číslo faktury</label>
+            <input type="text" name="number" class="form-control" value="<%= invoice.number %>" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label required">Dodavatel</label>
+            <input type="text" name="supplier" class="form-control" value="<%= invoice.supplier||'' %>" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">IČO dodavatele</label>
+            <input type="text" name="supplier_ico" class="form-control" value="<%= invoice.supplier_ico||'' %>">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Měna</label>
+            <select name="currency" class="form-select">
+              <% ['CZK','EUR','USD'].forEach(c => { %><option value="<%= c %>" <%= invoice.currency===c?'selected':'' %>><%= c %></option><% }) %>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Základ bez DPH</label>
+            <input type="number" name="amount" class="form-control" step="0.01" value="<%= invoice.amount||0 %>">
+          </div>
+          <div class="form-group">
+            <label class="form-label">DPH</label>
+            <input type="number" name="vat_amount" class="form-control" step="0.01" value="<%= invoice.vat_amount||0 %>">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Celková částka</label>
+            <input type="number" name="total_amount" class="form-control" step="0.01" value="<%= invoice.total_amount||0 %>">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Datum přijetí</label>
+            <input type="date" name="issue_date" class="form-control" value="<%= invoice.issue_date?.toISOString?.()?.slice(0,10) || '' %>">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Datum splatnosti</label>
+            <input type="date" name="due_date" class="form-control" value="<%= invoice.due_date?.toISOString?.()?.slice(0,10) || '' %>">
+          </div>
+          <div class="form-group col-span-2">
+            <label class="form-label">Poznámka / předmět plnění</label>
+            <textarea name="notes" class="form-control" rows="3"><%= invoice.notes||'' %></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('modalEdit').classList.remove('open')">Zrušit</button>
+        <button type="submit" class="btn btn-primary">Uložit změny</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('[data-modal-open]').forEach(b =>
+  b.addEventListener('click', () => document.getElementById(b.dataset.modalOpen)?.classList.add('open'))
+);
+</script>

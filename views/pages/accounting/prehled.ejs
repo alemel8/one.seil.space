@@ -1,0 +1,205 @@
+<%
+  const fmt = (n) => Number(n||0).toLocaleString('cs-CZ', {minimumFractionDigits:2});
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('cs-CZ') : '—';
+  const MONTHS = ['Led','Úno','Bře','Dub','Kvě','Čvn','Čvc','Srp','Zář','Říj','Lis','Pro'];
+
+  // Graf: sestavit pole 12 hodnot pro vydané a přijaté
+  const chartIssued   = Array(12).fill(0);
+  const chartReceived = Array(12).fill(0);
+  monthlyChart.forEach(r => {
+    if (r.type === 'issued')   chartIssued[r.m - 1]   = Number(r.v);
+    if (r.type === 'received') chartReceived[r.m - 1] = Number(r.v);
+  });
+%>
+
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Finanční přehled</h1>
+    <p>Tržby, náklady a cashflow firmy</p>
+  </div>
+  <form method="get" style="display:flex;gap:8px;align-items:center;">
+    <select name="mesic" class="form-select" style="width:auto;">
+      <% for (let m = 1; m <= 12; m++) { %>
+      <option value="<%= m %>" <%= month===m?'selected':'' %>><%= MONTHS[m-1] %></option>
+      <% } %>
+    </select>
+    <select name="rok" class="form-select" style="width:auto;">
+      <% for (let y = new Date().getFullYear(); y >= 2023; y--) { %>
+      <option value="<%= y %>" <%= year===y?'selected':'' %>><%= y %></option>
+      <% } %>
+    </select>
+    <button type="submit" class="btn btn-outline btn-sm">Zobrazit</button>
+  </form>
+</div>
+
+<!-- ── KPI: aktuální měsíc ── -->
+<div style="margin-bottom:6px;font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">
+  <%= MONTHS[month-1] %> <%= year %>
+</div>
+<div class="kpi-grid" style="margin-bottom:28px;">
+  <div class="kpi-card">
+    <div class="kpi-label">Tržby</div>
+    <div class="kpi-value positive"><%= fmt(kpi.month.issued) %></div>
+    <div class="kpi-formula">Vydané faktury</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Náklady</div>
+    <div class="kpi-value negative"><%= fmt(kpi.month.received) %></div>
+    <div class="kpi-formula">Přijaté faktury</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Hrubý zisk</div>
+    <% const mProfit = kpi.month.issued - kpi.month.received; %>
+    <div class="kpi-value <%= mProfit >= 0 ? 'positive' : 'negative' %>"><%= fmt(mProfit) %></div>
+    <div class="kpi-formula">Tržby − náklady</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">DPH k odvodu</div>
+    <% const mVat = kpi.month.vatOut - kpi.month.vatIn; %>
+    <div class="kpi-value <%= mVat >= 0 ? '' : 'negative' %>"><%= fmt(mVat) %></div>
+    <div class="kpi-formula">DPH výstup − vstup</div>
+  </div>
+</div>
+
+<!-- ── KPI: rok ── -->
+<div style="margin-bottom:6px;font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">
+  Celý rok <%= year %>
+</div>
+<div class="kpi-grid" style="margin-bottom:32px;">
+  <div class="kpi-card">
+    <div class="kpi-label">Tržby</div>
+    <div class="kpi-value positive"><%= fmt(kpi.year.issued) %></div>
+    <div class="kpi-formula">Vydané faktury</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Náklady</div>
+    <div class="kpi-value negative"><%= fmt(kpi.year.received) %></div>
+    <div class="kpi-formula">Přijaté faktury</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Hrubý zisk</div>
+    <% const yProfit = kpi.year.issued - kpi.year.received; %>
+    <div class="kpi-value <%= yProfit >= 0 ? 'positive' : 'negative' %>"><%= fmt(yProfit) %></div>
+    <div class="kpi-formula">Tržby − náklady</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Cashflow (banka)</div>
+    <% const cashNet = cash.in - cash.out; %>
+    <div class="kpi-value <%= cashNet >= 0 ? 'positive' : 'negative' %>"><%= fmt(cashNet) %></div>
+    <div class="kpi-formula">Příjmy − výdaje</div>
+  </div>
+</div>
+
+<!-- ── Graf tržeb ── -->
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;margin-bottom:28px;">
+  <div class="card">
+    <div class="card-header">Tržby a náklady po měsících — <%= year %></div>
+    <div class="card-body">
+      <canvas id="chartMonthly" height="120"></canvas>
+    </div>
+  </div>
+
+  <!-- Pohledávky / závazky -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    <div class="card">
+      <div class="card-header">Nezaplacené pohledávky</div>
+      <div class="card-body">
+        <div style="font-size:24px;font-weight:700;color:var(--text-primary);">
+          <%= fmt(pending.issued.v) %> Kč
+        </div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;"><%= pending.issued.n %> faktur čeká na platbu</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">Nezaplacené závazky</div>
+      <div class="card-body">
+        <div style="font-size:24px;font-weight:700;color:var(--danger);">
+          <%= fmt(pending.received.v) %> Kč
+        </div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;"><%= pending.received.n %> faktur nezaplaceno</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Faktury po splatnosti ── -->
+<% if (overdue.issued.length > 0 || overdue.received.length > 0) { %>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+
+  <% if (overdue.issued.length > 0) { %>
+  <div class="card">
+    <div class="card-header" style="color:var(--danger);">⚠ Pohledávky po splatnosti (<%= overdue.issued.length %>)</div>
+    <div class="table-wrapper" style="border:none;border-radius:0;">
+      <table class="data-table">
+        <thead><tr><th>Číslo</th><th>Klient</th><th>Splatnost</th><th style="text-align:right;">Celkem</th></tr></thead>
+        <tbody>
+          <% overdue.issued.forEach(inv => { %>
+          <tr onclick="location.href='/ucetnictvi/vydane-faktury/<%= inv.id %>'" style="cursor:pointer;">
+            <td style="font-weight:600;"><%= inv.number %></td>
+            <td><%= inv.client_name||'—' %></td>
+            <td style="color:var(--danger);font-size:12px;"><%= fmtDate(inv.due_date) %></td>
+            <td style="text-align:right;font-weight:500;"><%= fmt(inv.total_amount) %> <%= inv.currency %></td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <% } %>
+
+  <% if (overdue.received.length > 0) { %>
+  <div class="card">
+    <div class="card-header" style="color:var(--danger);">⚠ Závazky po splatnosti (<%= overdue.received.length %>)</div>
+    <div class="table-wrapper" style="border:none;border-radius:0;">
+      <table class="data-table">
+        <thead><tr><th>Číslo</th><th>Dodavatel</th><th>Splatnost</th><th style="text-align:right;">Celkem</th></tr></thead>
+        <tbody>
+          <% overdue.received.forEach(inv => { %>
+          <tr onclick="location.href='/ucetnictvi/prijate-faktury/<%= inv.id %>'" style="cursor:pointer;">
+            <td style="font-weight:600;"><%= inv.number %></td>
+            <td><%= inv.supplier||'—' %></td>
+            <td style="color:var(--danger);font-size:12px;"><%= fmtDate(inv.due_date) %></td>
+            <td style="text-align:right;font-weight:500;"><%= fmt(inv.total_amount) %> <%= inv.currency %></td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <% } %>
+
+</div>
+<% } %>
+
+<script src="/static/chart.umd.min.js"></script>
+<script>
+new Chart(document.getElementById('chartMonthly'), {
+  type: 'bar',
+  data: {
+    labels: <%- JSON.stringify(MONTHS) %>,
+    datasets: [
+      {
+        label: 'Tržby',
+        data: <%- JSON.stringify(chartIssued) %>,
+        backgroundColor: 'rgba(0,212,232,0.7)',
+        borderColor: 'rgba(0,212,232,1)',
+        borderWidth: 1,
+        borderRadius: 4,
+      },
+      {
+        label: 'Náklady',
+        data: <%- JSON.stringify(chartReceived) %>,
+        backgroundColor: 'rgba(239,68,68,0.5)',
+        borderColor: 'rgba(239,68,68,1)',
+        borderWidth: 1,
+        borderRadius: 4,
+      },
+    ],
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'top' } },
+    scales: { y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString('cs-CZ') + ' Kč' } } },
+  },
+});
+</script>
