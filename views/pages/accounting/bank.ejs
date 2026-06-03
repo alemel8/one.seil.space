@@ -38,8 +38,8 @@
   <input type="text" name="q" value="<%= q||'' %>" placeholder="Hledat…" class="form-control" style="max-width:260px;">
   <select name="type" class="form-select" style="width:auto;">
     <option value="">Vše</option>
-    <option value="Příjem" <%= typeFilter==='Příjem'?'selected':'' %>>Příjem</option>
-    <option value="Výdaj" <%= typeFilter==='Výdaj'?'selected':'' %>>Výdaj</option>
+    <option value="credit" <%= typeFilter==='credit'?'selected':'' %>>Příjem</option>
+    <option value="debit"  <%= typeFilter==='debit' ?'selected':'' %>>Výdaj</option>
   </select>
   <button type="submit" class="btn btn-outline">Filtrovat</button>
   <% if (q||typeFilter) { %><a href="/ucetnictvi/banka" class="btn btn-ghost">Zrušit</a><% } %>
@@ -63,12 +63,12 @@
             <%= t.counterparty_name || '—' %>
           </td>
           <td>
-            <span class="badge" style="background:<%= t.type==='Příjem' ? 'var(--success-bg)' : 'var(--danger-bg)' %>;color:<%= t.type==='Příjem' ? '#15803D' : '#991B1B' %>;">
-              <%= t.type %>
+            <span class="badge" style="background:<%= t.type==='credit' ? 'var(--success-bg)' : 'var(--danger-bg)' %>;color:<%= t.type==='credit' ? '#15803D' : '#991B1B' %>;">
+              <%= t.type==='credit' ? 'Příjem' : 'Výdaj' %>
             </span>
           </td>
-          <td style="font-variant-numeric:tabular-nums;font-weight:600;color:<%= t.type==='Příjem' ? 'var(--success)' : 'var(--danger)' %>;">
-            <%= t.type==='Příjem' ? '+' : '-' %><%= Number(t.amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= t.currency %>
+          <td style="font-variant-numeric:tabular-nums;font-weight:600;color:<%= t.type==='credit' ? 'var(--success)' : 'var(--danger)' %>;">
+            <%= t.type==='credit' ? '+' : '-' %><%= Number(t.amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= t.currency %>
           </td>
           <td style="color:var(--text-muted);font-size:12px;"><%= new Date(t.transaction_date || t.date).toLocaleDateString('cs-CZ') %></td>
           <td>
@@ -195,8 +195,8 @@
           <div class="form-group">
             <label class="form-label">Typ</label>
             <select name="type" class="form-select">
-              <option value="Příjem">Příjem</option>
-              <option value="Výdaj">Výdaj</option>
+              <option value="credit">Příjem</option>
+              <option value="debit">Výdaj</option>
             </select>
           </div>
           <div class="form-group">

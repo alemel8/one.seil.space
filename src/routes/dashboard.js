@@ -69,7 +69,7 @@ export default async function dashboardRoutes(fastify) {
       user: request.user,
       kpi: {
         issuedMonth: Number(issued.v), issuedCount: issued.n,
-        receivedMonth: Number(received.v),
+        receivedMonth: Number(received.v), receivedCount: received.n,
         overdue: overdueCount.n,
         ordersWaiting: ordersWaiting.n,
         firmy: crmFirmy.n, kontakty: crmKontakty.n, crmNew: crmNew.n,

@@ -300,9 +300,9 @@ export default async function accountingRoutes(fastify) {
       GROUP BY m, type ORDER BY m
     `;
 
-    // Cashflow banka
-    const [cashIn]  = await sql`SELECT COALESCE(SUM(amount),0)::numeric AS v FROM accounting_bank_transactions WHERE type='Příjem'`;
-    const [cashOut] = await sql`SELECT COALESCE(SUM(amount),0)::numeric AS v FROM accounting_bank_transactions WHERE type='Výdaj'`;
+    // Cashflow banka (typy: credit/debit)
+    const [cashIn]  = await sql`SELECT COALESCE(SUM(amount),0)::numeric AS v FROM accounting_bank_transactions WHERE type='credit'`;
+    const [cashOut] = await sql`SELECT COALESCE(SUM(amount),0)::numeric AS v FROM accounting_bank_transactions WHERE type='debit'`;
 
     return reply.view('pages/accounting/prehled.ejs', {
       pageTitle: 'Finanční přehled', currentPath: '/ucetnictvi/prehled',

@@ -4,6 +4,39 @@ import { getDb } from '../db.js';
 export default async function authRoutes(fastify) {
   const sql = getDb();
 
+  // ── Profil přihlášeného uživatele ────────────────────────────
+  fastify.get('/profil', async (request, reply) => {
+    return reply.view('pages/profil.ejs', {
+      pageTitle: 'Můj profil', currentPath: '/profil',
+      user: request.user,
+      saved: request.query.saved === '1',
+      error: request.query.error || null,
+    }, { layout: 'layouts/base.ejs' });
+  });
+
+  fastify.post('/profil', async (request, reply) => {
+    const b = request.body || {};
+    const updates = [];
+    if (b.first_name !== undefined) updates.push(sql`first_name = ${b.first_name.trim()}`);
+    if (b.last_name  !== undefined) updates.push(sql`last_name  = ${b.last_name.trim()}`);
+
+    // Změna hesla
+    if (b.new_password) {
+      if (b.new_password !== b.new_password_confirm) {
+        return reply.redirect('/profil?error=mismatch');
+      }
+      if (!bcryptjs.compareSync(b.current_password || '', request.user.password_hash)) {
+        return reply.redirect('/profil?error=wrongpwd');
+      }
+      updates.push(sql`password_hash = ${bcryptjs.hashSync(b.new_password, 10)}`);
+    }
+
+    if (updates.length) {
+      await sql`UPDATE users SET ${updates.reduce((a, b) => sql`${a}, ${b}`)} WHERE id = ${request.user.id}`;
+    }
+    return reply.redirect('/profil?saved=1');
+  });
+
   fastify.get('/prihlasit', async (request, reply) => {
     if (request.session.userId) return reply.redirect('/');
     return reply.view('pages/login.ejs', { error: null, email: '' });
