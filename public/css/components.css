@@ -25,14 +25,14 @@
 
 .btn-primary {
   background: var(--primary);
-  color: var(--white);
+  color: #0D1117;
   border-color: var(--primary);
 }
 
 .btn-primary:hover {
   background: var(--primary-hover);
   border-color: var(--primary-hover);
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.30);
+  box-shadow: 0 4px 12px rgba(0, 212, 232, 0.35);
 }
 
 .btn-outline {

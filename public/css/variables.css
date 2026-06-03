@@ -4,10 +4,10 @@
 
 :root {
   /* Brand */
-  --primary:          #4F46E5;
-  --primary-dark:     #3730A3;
-  --primary-hover:    #4338CA;
-  --primary-light:    #EEF2FF;
+  --primary:          #00D4E8;
+  --primary-dark:     #00AEC4;
+  --primary-hover:    #00C2D6;
+  --primary-light:    #E0F9FC;
   --accent-blue:      #2B6DAD;
 
   /* Neutrals */
