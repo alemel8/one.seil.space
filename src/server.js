@@ -103,6 +103,10 @@ fastify.addHook('preHandler', async (request) => {
 
 fastify.get('/health',     async () => ({ ok: true, ts: new Date().toISOString() }));
 fastify.get('/health/api', async () => ({ ok: true, ts: new Date().toISOString() }));
+fastify.get('/health/cookie-test', async (request, reply) => {
+  reply.setCookie('test', 'hello', { path: '/', httpOnly: false });
+  return { ok: true };
+});
 
 // ── Auth routes (veřejné) ─────────────────────────────────────
 
