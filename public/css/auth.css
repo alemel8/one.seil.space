@@ -26,13 +26,12 @@ body.auth-body {
   flex-shrink: 0;
   overflow: hidden;
   position: relative;
-}
-
-.auth-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center top;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  background: linear-gradient(135deg, #0f1319 0%, #1a1f2a 50%, #141920 100%);
 }
 
 .auth-panel {
@@ -233,46 +232,91 @@ body.auth-body {
 /* ── Mobile ───────────────────────────────────────────────── */
 @media (max-width: 768px) {
   body.auth-body {
-    overflow: auto;
-    height: auto;
-    min-height: 100vh;
+    height: 100dvh;
+    min-height: 100dvh;
+    overflow: hidden;
   }
 
-  .auth-image { display: none; }
+  /* Skryj tmavou levou část — !important přebíjí případné inline styly */
+  .auth-image { display: none !important; }
 
   .auth-wrapper {
-    min-height: 100vh;
-    height: auto;
-    flex-direction: column;
+    height: 100dvh;
+    min-height: 100dvh;
+    align-items: center;
+    justify-content: center;
+    overflow-y: auto;
   }
 
   .auth-panel {
     flex: 1;
     width: 100%;
-    padding: 48px 24px 40px;
+    display: flex;
     align-items: center;
     justify-content: center;
+    padding: 32px 28px;
+    min-height: 100dvh;
   }
 
   .auth-form-container {
     width: 100%;
     max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
 
+  /* Větší logo + název na mobilu */
   .auth-brand {
-    margin-bottom: 32px;
+    margin-bottom: 36px;
+    gap: 14px;
+  }
+
+  .auth-brand img {
+    width: 72px !important;
+    height: 72px !important;
+  }
+
+  .auth-brand-text {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--gray-700);
+  }
+
+  /* Formulář na plnou šířku */
+  .auth-title {
+    font-size: 22px;
+    text-align: center;
+    width: 100%;
+  }
+
+  .auth-subtitle {
+    text-align: center;
+    width: 100%;
+  }
+
+  .auth-form {
+    width: 100%;
   }
 
   .auth-form .form-control {
-    font-size: 16px; /* prevents iOS auto-zoom */
+    font-size: 16px; /* zabraňuje iOS auto-zoom */
     min-height: 48px;
     padding: 14px 16px;
   }
 
-  .auth-title { font-size: 22px; }
+  .auth-options {
+    width: 100%;
+  }
 
   .btn-signin {
     min-height: 48px;
     font-size: 15px;
+  }
+
+  .auth-footer {
+    width: 100%;
+    margin-top: 4px;
   }
 }
