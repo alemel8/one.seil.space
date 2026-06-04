@@ -1,12 +1,17 @@
 // Parser Fio CSV výpisu
-// Formát: středníkový separátor, 6 hlavičkových řádků, pak záhlaví sloupců, pak data
+// Formát: 8 hlavičkových řádků, pak záhlaví sloupců, pak data
+// Separátor: tabulátor (\t) nebo středník (;) — detekuje se automaticky
 
 export function parseFioCsv(csvText) {
   const lines = csvText.split('\n').map(l => l.trimEnd());
 
-  // Najdi řádek s záhlavím sloupců (obsahuje "ID operace")
-  const headerIdx = lines.findIndex(l => l.startsWith('ID operace;'));
+  // Najdi řádek se záhlavím sloupců (začíná "ID operace")
+  const headerIdx = lines.findIndex(l => l.startsWith('ID operace'));
   if (headerIdx === -1) throw new Error('Neplatný formát Fio CSV — nenalezeno záhlaví sloupců');
+
+  // Detekce separátoru podle záhlavního řádku
+  const headerLine = lines[headerIdx];
+  const sep = headerLine.includes('\t') ? '\t' : ';';
 
   // Parsuj metadata z prvních řádků
   const meta = {};
@@ -14,7 +19,7 @@ export function parseFioCsv(csvText) {
     const line = lines[i];
     if (line.includes('Výpis č.'))       meta.reportNumber = line.match(/Výpis č\. (.+?) z účtu/)?.[1] || '';
     if (line.includes('z účtu'))         meta.accountNumber = line.match(/"(\d+\/\d+)"/)?.[1] || '';
-    if (line.includes('Majitel účtu'))   meta.accountName = line.match(/Majitel účtu: (.+?), /)?.[1] || '';
+    if (line.includes('Majitel účtu'))   meta.accountName = line.match(/Majitel účtu: (.+?),/)?.[1] || '';
     if (line.includes('Období'))         {
       const m = line.match(/(\d{2}\.\d{2}\.\d{4}) - (\d{2}\.\d{2}\.\d{4})/);
       if (m) { meta.dateFrom = parseCzDate(m[1]); meta.dateTo = parseCzDate(m[2]); }
@@ -22,7 +27,7 @@ export function parseFioCsv(csvText) {
   }
 
   // Záhlaví sloupců
-  const columns = lines[headerIdx].split(';');
+  const columns = headerLine.split(sep).map(c => c.trim().replace(/^"|"$/g, ''));
 
   // Mapování sloupců
   const colIdx = {
@@ -47,10 +52,10 @@ export function parseFioCsv(csvText) {
     const line = lines[i].trim();
     if (!line) continue;
 
-    const cells = line.split(';');
+    const cells = line.split(sep).map(c => c.trim().replace(/^"|"$/g, ''));
     if (!cells[colIdx.id]) continue;
 
-    const amount = parseFloat((cells[colIdx.amount] || '0').replace(',', '.'));
+    const amount = parseFloat((cells[colIdx.amount] || '0').replace(',', '.').replace(/\s/g, ''));
     if (isNaN(amount)) continue;
 
     records.push({

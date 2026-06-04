@@ -9,6 +9,16 @@
   </div>
 </div>
 
+<!-- Bulk action bar -->
+<div id="bulkBar" style="display:none;position:sticky;top:0;z-index:50;background:var(--primary);color:#fff;padding:10px 16px;border-radius:var(--radius-md);margin-bottom:12px;align-items:center;gap:12px;">
+  <span id="bulkCount" style="font-weight:600;font-size:14px;"></span>
+  <form id="bulkPohodaForm" method="post" action="/ucetnictvi/prijate-faktury/pohoda-xml" style="display:inline;" target="_blank">
+    <div id="bulkInputs"></div>
+    <button type="submit" class="btn btn-sm" style="background:#fff;color:var(--primary);font-weight:600;">↓ Export POHODA XML</button>
+  </form>
+  <button type="button" class="btn btn-sm" style="background:rgba(255,255,255,0.2);color:#fff;" onclick="bulkClearAll()">Zrušit výběr</button>
+</div>
+
 <form method="get" style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
   <input type="text" name="q" value="<%= q||'' %>" placeholder="Hledat číslo, dodavatel…" class="form-control" style="max-width:280px;">
   <select name="status" class="form-select" style="width:auto;">
@@ -23,6 +33,7 @@
   <table class="data-table">
     <thead>
       <tr>
+        <th style="width:36px;"><input type="checkbox" id="bulkSelectAll" onchange="bulkToggleAll(this.checked)" title="Vybrat vše"></th>
         <th>Číslo</th><th>Dodavatel</th><th>Přijato</th><th>Splatnost</th>
         <th style="text-align:right;">Celkem</th><th>Stav</th><th></th>
       </tr>
@@ -38,6 +49,9 @@
           const isOverdue = inv.due_date && inv.status !== 'Zaplacena' && inv.status !== 'Storno' && new Date(inv.due_date) < new Date();
         %>
         <tr style="cursor:pointer;" onclick="location.href='/ucetnictvi/prijate-faktury/<%= inv.id %>'">
+          <td onclick="event.stopPropagation();">
+            <input type="checkbox" class="bulk-cb" value="<%= inv.id %>" onchange="bulkUpdate()">
+          </td>
           <td style="font-weight:600;"><%= inv.number %></td>
           <td><%= inv.supplier || '—' %></td>
           <td style="color:var(--text-muted);font-size:13px;"><%= new Date(inv.issue_date).toLocaleDateString('cs-CZ') %></td>
@@ -58,11 +72,34 @@
         </tr>
         <% }) %>
       <% } else { %>
-        <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);">Žádné přijaté faktury</td></tr>
+        <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);">Žádné přijaté faktury</td></tr>
       <% } %>
     </tbody>
   </table>
 </div>
+
+<script>
+function bulkUpdate() {
+  const cbs = document.querySelectorAll('.bulk-cb:checked');
+  const bar = document.getElementById('bulkBar');
+  const inp = document.getElementById('bulkInputs');
+  document.getElementById('bulkCount').textContent = `${cbs.length} vybráno`;
+  inp.innerHTML = [...cbs].map(c => `<input type="hidden" name="ids" value="${c.value}">`).join('');
+  bar.style.display = cbs.length > 0 ? 'flex' : 'none';
+  const allCbs = document.querySelectorAll('.bulk-cb');
+  document.getElementById('bulkSelectAll').checked = cbs.length === allCbs.length && allCbs.length > 0;
+  document.getElementById('bulkSelectAll').indeterminate = cbs.length > 0 && cbs.length < allCbs.length;
+}
+function bulkToggleAll(checked) {
+  document.querySelectorAll('.bulk-cb').forEach(c => c.checked = checked);
+  bulkUpdate();
+}
+function bulkClearAll() {
+  document.querySelectorAll('.bulk-cb').forEach(c => c.checked = false);
+  document.getElementById('bulkSelectAll').checked = false;
+  bulkUpdate();
+}
+</script>
 
 <!-- Modal: Nová přijatá faktura -->
 <input type="file" id="rfFileInput" accept="application/pdf" style="display:none">

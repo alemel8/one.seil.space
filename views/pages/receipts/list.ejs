@@ -1,0 +1,466 @@
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Účtenky</h1>
+    <p><%= total %> dokladů celkem</p>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <a href="/ucetnictvi/uctenky/export.csv" class="btn btn-outline btn-sm">↓ CSV</a>
+    <button class="btn btn-primary" data-modal-open="modalCreate">+ Přidat účtenku</button>
+  </div>
+</div>
+
+<!-- Bulk action bar -->
+<div id="bulkBar" style="display:none;position:sticky;top:0;z-index:50;background:var(--primary);color:#fff;padding:10px 16px;border-radius:var(--radius-md);margin-bottom:12px;align-items:center;gap:12px;">
+  <span id="bulkCount" style="font-weight:600;font-size:14px;"></span>
+  <form id="bulkPohodaForm" method="post" action="/ucetnictvi/uctenky/pohoda-xml" style="display:inline;" target="_blank">
+    <div id="bulkInputs"></div>
+    <button type="submit" class="btn btn-sm" style="background:#fff;color:var(--primary);font-weight:600;">↓ Export POHODA XML</button>
+  </form>
+  <button type="button" class="btn btn-sm" style="background:rgba(255,255,255,0.2);color:#fff;" onclick="bulkClearAll()">Zrušit výběr</button>
+</div>
+
+<form method="get" style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+  <input type="text" name="q" value="<%= q||'' %>" placeholder="Hledat dodavatel, číslo…" class="form-control" style="max-width:280px;">
+  <select name="status" class="form-select" style="width:auto;">
+    <option value="">Všechny stavy</option>
+    <% STATUSES.forEach(s => { %><option value="<%= s %>" <%= statusFilter===s?'selected':'' %>><%= s %></option><% }) %>
+  </select>
+  <button type="submit" class="btn btn-outline">Filtrovat</button>
+  <% if (q||statusFilter) { %><a href="/ucetnictvi/uctenky" class="btn btn-ghost">Zrušit</a><% } %>
+</form>
+
+<div class="table-wrapper">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th style="width:36px;"><input type="checkbox" id="bulkSelectAll" onchange="bulkToggleAll(this.checked)" title="Vybrat vše"></th>
+        <th>Číslo</th><th>Dodavatel</th><th>Datum</th><th>Kategorie</th>
+        <th style="text-align:right;">Celkem</th><th>Stav</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (receipts.length > 0) { %>
+        <% receipts.forEach(r => { %>
+        <%
+          const sc = r.status==='Zaúčtována'   ? '#dcfce7:#166534' :
+                     r.status==='Storno'        ? '#f3f4f6:#6b7280' : '#fef9c3:#92400e';
+          const [bg,cl] = sc.split(':');
+        %>
+        <tr>
+          <td><input type="checkbox" class="bulk-cb" value="<%= r.id %>" onchange="bulkUpdate()"></td>
+          <td style="font-weight:600;"><%= r.number || '—' %></td>
+          <td><%= r.vendor || '—' %></td>
+          <td style="color:var(--text-muted);font-size:13px;"><%= new Date(r.receipt_date).toLocaleDateString('cs-CZ') %></td>
+          <td><span style="font-size:12px;color:var(--text-muted);"><%= r.category %></span></td>
+          <td style="text-align:right;font-weight:600;"><%= Number(r.total_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= r.currency %></td>
+          <td><span class="badge" style="background:<%= bg %>;color:<%= cl %>;"><%= r.status %></span></td>
+          <td>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <form method="post" action="/ucetnictvi/uctenky/<%= r.id %>/stav" style="display:inline;">
+                <select name="status" class="form-select" style="width:auto;padding:4px 8px;font-size:12px;" onchange="this.form.submit()">
+                  <% STATUSES.forEach(s => { %><option value="<%= s %>" <%= r.status===s?'selected':'' %>><%= s %></option><% }) %>
+                </select>
+              </form>
+              <button class="btn btn-ghost btn-sm" onclick="rcEditOpen(<%= JSON.stringify(r) %>)" title="Upravit">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              <form method="post" action="/ucetnictvi/uctenky/<%= r.id %>/smazat" onsubmit="return confirm('Smazat tuto účtenku?')" style="display:inline;">
+                <button type="submit" class="btn btn-ghost btn-sm" title="Smazat" style="color:var(--danger);">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        <% }) %>
+      <% } else { %>
+        <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);">Žádné účtenky</td></tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+
+<% if (totalPages > 1) { %>
+<div style="display:flex;gap:8px;justify-content:center;margin-top:20px;">
+  <% for (let p = 1; p <= totalPages; p++) { %>
+    <a href="?page=<%= p %><%= q?'&q='+encodeURIComponent(q):'' %><%= statusFilter?'&status='+encodeURIComponent(statusFilter):'' %>"
+       class="btn <%= p===page?'btn-primary':'btn-outline' %> btn-sm"><%= p %></a>
+  <% } %>
+</div>
+<% } %>
+
+<!-- ── Modal: Nová účtenka ── -->
+<input type="file" id="rcFileInput" accept="application/pdf,image/*" style="display:none">
+<input type="file" id="rcFileInputManual" accept="application/pdf,image/*" style="display:none">
+
+<div id="modalCreate" class="modal-backdrop" onclick="if(event.target===this)rcClose()">
+  <div class="modal rc-modal" id="rcModalInner">
+
+    <div class="modal-header">
+      <h2 class="modal-title" id="rcModalTitle">Přidat účtenku</h2>
+      <button class="modal-close" onclick="rcClose()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <!-- Fáze 1: Výběr způsobu -->
+    <div id="rcPhaseUpload" class="modal-body" style="display:flex;flex-direction:column;gap:12px;">
+      <label for="rcFileInput" class="rc-drop-zone" id="rcDropZone">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
+        </svg>
+        <p style="margin:10px 0 3px;font-weight:600;color:var(--text-primary);font-size:14px;">Nahrát PDF / foto a vytěžit automaticky</p>
+        <p style="margin:0;font-size:12px;color:var(--text-muted);">Přetáhněte soubor nebo klikněte — Claude vyplní pole za vás</p>
+      </label>
+      <button type="button" class="rc-manual-btn" onclick="rcOpenManual()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+        </svg>
+        <div>
+          <div style="font-weight:600;font-size:14px;color:var(--text-primary);">Zadat ručně</div>
+          <div style="font-size:12px;color:var(--text-muted);">Zobrazí formulář a volitelný náhled</div>
+        </div>
+      </button>
+    </div>
+
+    <!-- Fáze 2: Načítání -->
+    <div id="rcPhaseLoading" class="modal-body" style="display:none;text-align:center;padding:60px 24px;">
+      <div class="rc-spinner"></div>
+      <p style="margin-top:16px;color:var(--text-muted);font-size:14px;">Claude analyzuje doklad…</p>
+    </div>
+
+    <!-- Fáze 3: 2-sloupcový layout -->
+    <div id="rcPhaseForm" style="display:none;flex:1;min-height:0;overflow:hidden;">
+      <div style="display:flex;height:100%;">
+
+        <!-- Levá: náhled -->
+        <div style="flex:1;border-right:1px solid var(--border);background:var(--bg-page);display:flex;flex-direction:column;min-width:0;">
+          <div style="padding:10px 14px;font-size:11px;font-weight:600;color:var(--text-muted);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:0.5px;">
+            Náhled dokladu
+          </div>
+          <div id="rcLeftPlaceholder" style="display:none;flex:1;align-items:center;justify-content:center;">
+            <label for="rcFileInputManual" class="rc-drop-zone rc-drop-zone-sm">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
+              </svg>
+              <p style="margin:8px 0 2px;font-weight:600;font-size:13px;color:var(--text-primary);">Přidat PDF / foto pro náhled</p>
+              <p style="margin:0;font-size:12px;color:var(--text-muted);">Volitelné</p>
+            </label>
+          </div>
+          <embed id="rcPdfEmbed" src="" type="application/pdf" style="display:none;flex:1;width:100%;border:none;">
+          <img  id="rcImgEmbed" src="" style="display:none;flex:1;width:100%;object-fit:contain;padding:8px;">
+        </div>
+
+        <!-- Pravá: formulář -->
+        <div style="flex:0 0 400px;overflow-y:auto;display:flex;flex-direction:column;">
+          <form id="rcForm" method="post" action="/ucetnictvi/uctenky/vytvorit" style="flex:1;display:flex;flex-direction:column;">
+            <input type="hidden" id="rcFormId" name="_id" value="">
+            <div style="padding:20px;display:flex;flex-direction:column;gap:14px;flex:1;">
+
+              <div id="rcAiBadge" style="display:none;border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;font-weight:600;"></div>
+
+              <div class="form-group">
+                <label class="form-label">Číslo dokladu</label>
+                <input type="text" name="number" id="rcNumber" class="form-control" placeholder="Nepovinné">
+              </div>
+              <div class="form-group">
+                <label class="form-label required">Dodavatel</label>
+                <input type="text" name="vendor" id="rcVendor" class="form-control" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">IČO dodavatele</label>
+                <input type="text" name="vendor_ico" id="rcVendorIco" class="form-control" placeholder="Nepovinné">
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="form-group">
+                  <label class="form-label">Základ bez DPH</label>
+                  <input type="number" name="amount" id="rcAmount" class="form-control" step="0.01" min="0" value="0">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">DPH</label>
+                  <input type="number" name="vat_amount" id="rcVat" class="form-control" step="0.01" min="0" value="0">
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 80px;gap:12px;">
+                <div class="form-group">
+                  <label class="form-label">Celková částka</label>
+                  <input type="number" name="total_amount" id="rcTotal" class="form-control" step="0.01" min="0" value="0">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Měna</label>
+                  <select name="currency" id="rcCurrency" class="form-select">
+                    <option value="CZK">CZK</option>
+                    <option value="EUR">EUR</option>
+                    <option value="USD">USD</option>
+                  </select>
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="form-group">
+                  <label class="form-label">Datum dokladu</label>
+                  <input type="date" name="receipt_date" id="rcDate" class="form-control" value="<%= new Date().toISOString().split('T')[0] %>">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Kategorie</label>
+                  <select name="category" id="rcCategory" class="form-select">
+                    <% CATEGORIES.forEach(c => { %><option value="<%= c %>"><%= c %></option><% }) %>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Stav</label>
+                <select name="status" id="rcStatus" class="form-select">
+                  <% STATUSES.forEach(s => { %><option value="<%= s %>"><%= s %></option><% }) %>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Poznámka / předmět nákupu</label>
+                <textarea name="notes" id="rcNotes" class="form-control" rows="3"></textarea>
+              </div>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid var(--border);background:var(--bg-card);">
+              <button type="button" class="btn btn-ghost" onclick="rcClose()">Zrušit</button>
+              <button type="submit" id="rcSubmitBtn" class="btn btn-primary">Přidat účtenku</button>
+            </div>
+          </form>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<style>
+.rc-modal {
+  max-width: 520px; width: 95vw;
+  transition: max-width 0.3s ease;
+  display: flex; flex-direction: column; max-height: 90vh;
+}
+.rc-modal.rc-expanded { max-width: min(1100px, 96vw); height: 90vh; }
+.rc-drop-zone {
+  display: flex; flex-direction: column; align-items: center;
+  border: 2px dashed var(--border-strong); border-radius: var(--radius-lg);
+  padding: 36px 24px; text-align: center; cursor: pointer;
+  transition: border-color 0.15s, background 0.15s; user-select: none;
+}
+.rc-drop-zone:hover, .rc-drop-zone.rc-over { border-color: var(--primary); background: var(--primary-light); }
+.rc-drop-zone-sm { padding: 24px 20px; margin: 16px; }
+.rc-manual-btn {
+  display: flex; align-items: center; gap: 14px; width: 100%;
+  padding: 16px 18px; background: var(--bg-card); border: 1.5px solid var(--border);
+  border-radius: var(--radius-lg); cursor: pointer; text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+.rc-manual-btn:hover { border-color: var(--border-strong); background: var(--bg-card-hover); }
+.rc-manual-btn svg { flex-shrink: 0; color: var(--text-muted); }
+.rc-spinner {
+  width: 40px; height: 40px; border: 3px solid var(--border);
+  border-top-color: var(--primary); border-radius: 50%;
+  animation: rc-spin 0.8s linear infinite; margin: 0 auto;
+}
+@keyframes rc-spin { to { transform: rotate(360deg); } }
+</style>
+
+<script>
+(function () {
+  const backdrop        = document.getElementById('modalCreate');
+  const inner           = document.getElementById('rcModalInner');
+  const phUpload        = document.getElementById('rcPhaseUpload');
+  const phLoading       = document.getElementById('rcPhaseLoading');
+  const phForm          = document.getElementById('rcPhaseForm');
+  const fileInputAi     = document.getElementById('rcFileInput');
+  const fileInputManual = document.getElementById('rcFileInputManual');
+  const dropZone        = document.getElementById('rcDropZone');
+  const embed           = document.getElementById('rcPdfEmbed');
+  const imgEmbed        = document.getElementById('rcImgEmbed');
+  const leftPlaceholder = document.getElementById('rcLeftPlaceholder');
+  const aiBadge         = document.getElementById('rcAiBadge');
+  const form            = document.getElementById('rcForm');
+  let currentBlobUrl    = null;
+  let editMode          = false;
+
+  document.querySelectorAll('[data-modal-open="modalCreate"]').forEach(b =>
+    b.addEventListener('click', () => { editMode = false; rcOpen(); })
+  );
+
+  window.rcOpen = function () {
+    backdrop.classList.add('open');
+    rcReset();
+  };
+  window.rcClose = function () {
+    backdrop.classList.remove('open');
+    if (currentBlobUrl) { URL.revokeObjectURL(currentBlobUrl); currentBlobUrl = null; }
+  };
+
+  function rcReset() {
+    inner.classList.remove('rc-expanded');
+    phUpload.style.display  = '';
+    phLoading.style.display = 'none';
+    phForm.style.display    = 'none';
+    fileInputAi.value = fileInputManual.value = '';
+    aiBadge.style.display = 'none';
+    form.reset();
+    form.action = '/ucetnictvi/uctenky/vytvorit';
+    document.getElementById('rcSubmitBtn').textContent = 'Přidat účtenku';
+    document.getElementById('rcModalTitle').textContent = 'Přidat účtenku';
+    document.getElementById('rcDate').value = new Date().toISOString().split('T')[0];
+  }
+
+  // AI upload
+  fileInputAi.addEventListener('change', () => {
+    if (fileInputAi.files[0]) handleAiFile(fileInputAi.files[0]);
+  });
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('rc-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('rc-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('rc-over');
+    const f = e.dataTransfer?.files?.[0];
+    if (f) handleAiFile(f);
+  });
+
+  async function handleAiFile(file) {
+    if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
+    currentBlobUrl = URL.createObjectURL(file);
+    phUpload.style.display = 'none';
+    phLoading.style.display = '';
+    try {
+      const fd = new FormData();
+      fd.append('file', file, file.name);
+      const resp = await fetch('/ucetnictvi/uctenky/analyze-pdf', { method: 'POST', body: fd });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Chyba serveru');
+      rcExpandForm(data, null, false, file.type);
+    } catch (err) {
+      rcExpandForm(null, err.message, false, file.type);
+    }
+  }
+
+  // Ruční zadání
+  window.rcOpenManual = function () {
+    phUpload.style.display = 'none';
+    rcExpandForm(null, null, true, null);
+  };
+  fileInputManual.addEventListener('change', () => {
+    if (fileInputManual.files[0]) showPreview(fileInputManual.files[0]);
+  });
+
+  function showPreview(file) {
+    if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
+    currentBlobUrl = URL.createObjectURL(file);
+    leftPlaceholder.style.display = 'none';
+    if (file.type.startsWith('image/')) {
+      embed.style.display = 'none';
+      imgEmbed.style.display = '';
+      imgEmbed.src = currentBlobUrl;
+    } else {
+      imgEmbed.style.display = 'none';
+      embed.style.display = '';
+      embed.src = currentBlobUrl;
+    }
+  }
+
+  function rcExpandForm(data, errMsg, manualMode, fileType) {
+    phLoading.style.display = 'none';
+    phUpload.style.display  = 'none';
+
+    if (manualMode) {
+      leftPlaceholder.style.display = 'flex';
+      embed.style.display = imgEmbed.style.display = 'none';
+    } else if (currentBlobUrl) {
+      leftPlaceholder.style.display = 'none';
+      if (fileType && fileType.startsWith('image/')) {
+        imgEmbed.style.display = ''; imgEmbed.src = currentBlobUrl; embed.style.display = 'none';
+      } else {
+        embed.style.display = ''; embed.src = currentBlobUrl; imgEmbed.style.display = 'none';
+      }
+    }
+
+    if (data) {
+      setVal('rcNumber',    data.number);
+      setVal('rcVendor',    data.vendor);
+      setVal('rcVendorIco', data.vendor_ico);
+      setVal('rcAmount',    data.amount != null ? String(data.amount) : '');
+      setVal('rcVat',       data.vat_amount != null ? String(data.vat_amount) : '');
+      setVal('rcTotal',     data.total_amount != null ? String(data.total_amount) : '');
+      setVal('rcDate',      data.receipt_date);
+      setVal('rcNotes',     data.notes);
+      if (data.currency) document.getElementById('rcCurrency').value = data.currency;
+      if (data.category) document.getElementById('rcCategory').value = data.category;
+      aiBadge.style.cssText = 'display:block;background:var(--primary-light);color:var(--primary-dark);border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;font-weight:600;';
+      aiBadge.textContent = '✦ Pole byla předvyplněna z dokladu — zkontrolujte prosím hodnoty';
+    } else if (errMsg) {
+      aiBadge.style.cssText = 'display:block;background:var(--danger-bg);color:var(--danger);border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;font-weight:600;';
+      aiBadge.textContent = '⚠ ' + errMsg + ' — vyplňte pole ručně.';
+    }
+
+    inner.classList.add('rc-expanded');
+    phForm.style.display = 'flex';
+    phForm.style.flex    = '1';
+    phForm.style.minHeight = '0';
+  }
+
+  function setVal(id, val) {
+    const el = document.getElementById(id);
+    if (el && val != null && val !== '') el.value = val;
+  }
+
+  // Editace existující záznamu
+  window.rcEditOpen = function (r) {
+    editMode = true;
+    backdrop.classList.add('open');
+    rcReset();
+    document.getElementById('rcModalTitle').textContent = 'Upravit účtenku';
+    document.getElementById('rcSubmitBtn').textContent  = 'Uložit změny';
+    form.action = `/ucetnictvi/uctenky/${r.id}/upravit`;
+
+    phUpload.style.display  = 'none';
+    leftPlaceholder.style.display = 'flex';
+    embed.style.display = imgEmbed.style.display = 'none';
+
+    setVal('rcNumber',    r.number);
+    setVal('rcVendor',    r.vendor);
+    setVal('rcVendorIco', r.vendor_ico);
+    setVal('rcAmount',    String(r.amount));
+    setVal('rcVat',       String(r.vat_amount));
+    setVal('rcTotal',     String(r.total_amount));
+    setVal('rcDate',      r.receipt_date ? r.receipt_date.toString().split('T')[0] : '');
+    setVal('rcNotes',     r.notes);
+    if (r.currency) document.getElementById('rcCurrency').value = r.currency;
+    if (r.category) document.getElementById('rcCategory').value = r.category;
+    if (r.status)   document.getElementById('rcStatus').value   = r.status;
+
+    inner.classList.add('rc-expanded');
+    phForm.style.display = 'flex';
+    phForm.style.flex    = '1';
+    phForm.style.minHeight = '0';
+  };
+
+  // Bulk akce
+  window.bulkUpdate = function() {
+    const cbs = document.querySelectorAll('.bulk-cb:checked');
+    const bar = document.getElementById('bulkBar');
+    const inp = document.getElementById('bulkInputs');
+    document.getElementById('bulkCount').textContent = `${cbs.length} vybráno`;
+    inp.innerHTML = [...cbs].map(c => `<input type="hidden" name="ids" value="${c.value}">`).join('');
+    bar.style.display = cbs.length > 0 ? 'flex' : 'none';
+    const allCbs = document.querySelectorAll('.bulk-cb');
+    document.getElementById('bulkSelectAll').checked = cbs.length === allCbs.length && allCbs.length > 0;
+    document.getElementById('bulkSelectAll').indeterminate = cbs.length > 0 && cbs.length < allCbs.length;
+  };
+  window.bulkToggleAll = function(checked) {
+    document.querySelectorAll('.bulk-cb').forEach(c => c.checked = checked);
+    bulkUpdate();
+  };
+  window.bulkClearAll = function() {
+    document.querySelectorAll('.bulk-cb').forEach(c => c.checked = false);
+    document.getElementById('bulkSelectAll').checked = false;
+    bulkUpdate();
+  };
+})();
+</script>

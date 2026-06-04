@@ -1,71 +1,82 @@
 <%
-  const fmt = (n) => Number(n||0).toLocaleString('cs-CZ', {minimumFractionDigits:0});
-  const fmtCzk = (n) => Number(n||0).toLocaleString('cs-CZ', {minimumFractionDigits:2}) + ' Kč';
   const profit = kpi.issuedMonth - kpi.receivedMonth;
+  const month  = new Date().toLocaleDateString('cs-CZ', {month:'long', year:'numeric'});
 %>
 
 <div class="page-header">
   <div class="page-header-left">
     <h1>Dobrý den<% if (user && user.first_name) { %>, <%= user.first_name %><% } %></h1>
-    <p>Přehled stavu pro <%= new Date().toLocaleDateString('cs-CZ', {month:'long', year:'numeric'}) %></p>
+    <p>Přehled stavu pro <%= month %></p>
   </div>
 </div>
 
-<!-- ══ ÚČETNICTVÍ ═══════════════════════════════════════════ -->
-<div style="margin-bottom:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);">Účetnictví — tento měsíc</div>
-<div class="kpi-grid" style="margin-bottom:28px;">
-  <a href="/ucetnictvi/vydane-faktury" class="kpi-card" style="text-decoration:none;">
+<!-- ══ ÚČETNICTVÍ ══════════════════════════════════════════════ -->
+<div class="dash-section-label">Účetnictví — tento měsíc</div>
+<div class="kpi-grid dash-kpi-row" style="margin-bottom:28px;">
+
+  <a href="/ucetnictvi/vydane-faktury" class="kpi-card kpi-link">
     <div class="kpi-label">Tržby</div>
-    <div class="kpi-value positive" style="font-size:20px;"><%= fmtCzk(kpi.issuedMonth) %></div>
-    <div class="kpi-formula"><%= kpi.issuedCount %> vydaných faktur</div>
+    <div class="kpi-value positive kpi-anim" data-value="<%= kpi.issuedMonth %>" data-fmt="czk" style="font-size:20px;">—</div>
+    <div class="kpi-formula kpi-anim" data-value="<%= kpi.issuedCount %>" data-fmt="count" data-suffix=" vydaných faktur">—</div>
   </a>
-  <a href="/ucetnictvi/prijate-faktury" class="kpi-card" style="text-decoration:none;">
+
+  <a href="/ucetnictvi/prijate-faktury" class="kpi-card kpi-link">
     <div class="kpi-label">Náklady</div>
-    <div class="kpi-value negative" style="font-size:20px;"><%= fmtCzk(kpi.receivedMonth) %></div>
-    <div class="kpi-formula"><%= kpi.receivedCount || 0 %> přijatých faktur</div>
+    <div class="kpi-value negative kpi-anim" data-value="<%= kpi.receivedMonth %>" data-fmt="czk" style="font-size:20px;">—</div>
+    <div class="kpi-formula kpi-anim" data-value="<%= kpi.receivedCount || 0 %>" data-fmt="count" data-suffix=" přijatých faktur">—</div>
   </a>
-  <a href="/ucetnictvi/prehled" class="kpi-card" style="text-decoration:none;">
+
+  <a href="/ucetnictvi/uctenky" class="kpi-card kpi-link">
+    <div class="kpi-label">Účtenky</div>
+    <div class="kpi-value kpi-anim" data-value="<%= kpi.uctenkyMonth %>" data-fmt="czk" style="font-size:20px;">—</div>
+    <div class="kpi-formula kpi-anim" data-value="<%= kpi.uctenkyCount %>" data-fmt="count" data-suffix=" dokladů">—</div>
+  </a>
+
+  <a href="/ucetnictvi/prehled" class="kpi-card kpi-link">
     <div class="kpi-label">Hrubý zisk</div>
-    <div class="kpi-value <%= profit >= 0 ? 'positive' : 'negative' %>" style="font-size:20px;"><%= fmtCzk(profit) %></div>
+    <div class="kpi-value <%= profit >= 0 ? 'positive' : 'negative' %> kpi-anim" data-value="<%= profit %>" data-fmt="czk" style="font-size:20px;">—</div>
     <div class="kpi-formula">Tržby − náklady</div>
   </a>
-  <a href="/ucetnictvi/prehled" class="kpi-card" style="text-decoration:none;">
-    <div class="kpi-label">Faktury po splatnosti</div>
-    <div class="kpi-value <%= kpi.overdue > 0 ? 'negative' : '' %>" style="font-size:28px;"><%= kpi.overdue %></div>
-    <div class="kpi-formula">Vyžadují pozornost</div>
+
+  <a href="/ucetnictvi/prehled" class="kpi-card kpi-link">
+    <div class="kpi-label">Po splatnosti</div>
+    <div class="kpi-value <%= kpi.overdue > 0 ? 'negative' : '' %> kpi-anim" data-value="<%= kpi.overdue %>" data-fmt="int" style="font-size:28px;">—</div>
+    <div class="kpi-formula">Faktur čeká</div>
   </a>
-  <a href="/ucetnictvi/objednavky" class="kpi-card" style="text-decoration:none;">
-    <div class="kpi-label">Objednávky čekají</div>
-    <div class="kpi-value primary-color" style="font-size:28px;"><%= kpi.ordersWaiting %></div>
+
+  <a href="/ucetnictvi/objednavky" class="kpi-card kpi-link">
+    <div class="kpi-label">Objednávky</div>
+    <div class="kpi-value primary-color kpi-anim" data-value="<%= kpi.ordersWaiting %>" data-fmt="int" style="font-size:28px;">—</div>
     <div class="kpi-formula">K vyřízení</div>
   </a>
+
 </div>
 
-<!-- ══ CRM + LIDÉ ════════════════════════════════════════════ -->
+<!-- ══ CRM + LIDÉ ═════════════════════════════════════════════ -->
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:28px;">
 
   <div>
-    <div style="margin-bottom:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);">CRM</div>
+    <div class="dash-section-label">CRM</div>
     <div class="kpi-grid" style="grid-template-columns:1fr 1fr 1fr;">
-      <a href="/crm/firmy" class="kpi-card" style="text-decoration:none;">
+      <a href="/crm/firmy" class="kpi-card kpi-link">
         <div class="kpi-label">Firmy</div>
-        <div class="kpi-value" style="font-size:28px;"><%= kpi.firmy %></div>
+        <div class="kpi-value kpi-anim" data-value="<%= kpi.firmy %>" data-fmt="int" style="font-size:28px;">—</div>
       </a>
-      <a href="/crm/kontakty" class="kpi-card" style="text-decoration:none;">
+      <a href="/crm/kontakty" class="kpi-card kpi-link">
         <div class="kpi-label">Kontakty</div>
-        <div class="kpi-value" style="font-size:28px;"><%= kpi.kontakty %></div>
+        <div class="kpi-value kpi-anim" data-value="<%= kpi.kontakty %>" data-fmt="int" style="font-size:28px;">—</div>
       </a>
-      <a href="/crm/kontakty" class="kpi-card" style="text-decoration:none;">
+      <a href="/crm/kontakty" class="kpi-card kpi-link">
         <div class="kpi-label">Nové (30 dní)</div>
-        <div class="kpi-value positive" style="font-size:28px;">+<%= kpi.crmNew %></div>
+        <div class="kpi-value positive kpi-anim" data-value="<%= kpi.crmNew %>" data-fmt="int" data-prefix="+" style="font-size:28px;">—</div>
       </a>
     </div>
   </div>
 
   <div>
-    <div style="margin-bottom:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);">Lidé &amp; Kultura</div>
-    <a href="/lide/tym" class="kpi-card" style="text-decoration:none;display:flex;align-items:center;gap:20px;padding:20px;">
-      <div style="font-size:40px;font-weight:700;color:var(--primary);line-height:1;"><%= kpi.team %></div>
+    <div class="dash-section-label">Lidé &amp; Kultura</div>
+    <a href="/lide/tym" class="kpi-card kpi-link" style="display:flex;align-items:center;gap:20px;padding:20px;">
+      <div class="kpi-value kpi-anim" data-value="<%= kpi.team %>" data-fmt="int" style="font-size:40px;font-weight:700;color:var(--primary);line-height:1;">—</div>
       <div>
         <div style="font-weight:600;color:var(--text-primary);">Členů týmu</div>
         <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">Aktivní uživatelé</div>
@@ -75,21 +86,21 @@
 
 </div>
 
-<!-- ══ VPS + HEALTHCHECKY ═════════════════════════════════════ -->
-<div style="margin-bottom:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);">
+<!-- ══ MONITORING ═════════════════════════════════════════════ -->
+<div class="dash-section-label">
   Monitoring
   <a href="/monitoring" style="margin-left:8px;font-size:11px;color:var(--primary);font-weight:500;text-decoration:none;">Zobrazit detail →</a>
 </div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:8px;">
 
-  <!-- VPS metriky -->
   <% if (vps) { %>
   <div class="kpi-grid" style="grid-template-columns:1fr 1fr 1fr;">
     <% if (vps.ram) { %>
     <div class="kpi-card">
       <div class="kpi-label">RAM</div>
       <% const ramPct = Math.round(vps.ram.used_mb / vps.ram.total_mb * 100); %>
-      <div class="kpi-value <%= ramPct > 90 ? 'negative' : ramPct > 75 ? '' : 'positive' %>" style="font-size:22px;"><%= ramPct %> %</div>
+      <div class="kpi-value kpi-anim <%= ramPct > 90 ? 'negative' : ramPct > 75 ? '' : 'positive' %>"
+           data-value="<%= ramPct %>" data-fmt="int" data-suffix=" %" style="font-size:22px;">—</div>
       <div class="kpi-formula"><%= vps.ram.used_mb %> / <%= vps.ram.total_mb %> MB</div>
     </div>
     <% } %>
@@ -97,7 +108,8 @@
     <div class="kpi-card">
       <div class="kpi-label">CPU load</div>
       <% const cpuVal = vps.cpu.load_1m || 0; %>
-      <div class="kpi-value <%= cpuVal > 2 ? 'negative' : 'positive' %>" style="font-size:22px;"><%= cpuVal %></div>
+      <div class="kpi-value kpi-anim <%= cpuVal > 2 ? 'negative' : 'positive' %>"
+           data-value="<%= cpuVal %>" data-fmt="dec" style="font-size:22px;">—</div>
       <div class="kpi-formula">1min průměr</div>
     </div>
     <% } %>
@@ -105,7 +117,8 @@
     <div class="kpi-card">
       <div class="kpi-label">Disk</div>
       <% const diskPct = Math.round(vps.disk.used_gb / vps.disk.total_gb * 100); %>
-      <div class="kpi-value <%= diskPct > 85 ? 'negative' : diskPct > 70 ? '' : 'positive' %>" style="font-size:22px;"><%= diskPct %> %</div>
+      <div class="kpi-value kpi-anim <%= diskPct > 85 ? 'negative' : diskPct > 70 ? '' : 'positive' %>"
+           data-value="<%= diskPct %>" data-fmt="int" data-suffix=" %" style="font-size:22px;">—</div>
       <div class="kpi-formula"><%= vps.disk.used_gb %> / <%= vps.disk.total_gb %> GB</div>
     </div>
     <% } %>
@@ -129,24 +142,104 @@
 
 </div>
 
+<style>
+.dash-section-label {
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+}
+.kpi-link {
+  text-decoration: none;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.kpi-link:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+}
+.kpi-anim {
+  transition: opacity 0.2s;
+}
+@keyframes kpi-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.kpi-card {
+  animation: kpi-fade-in 0.35s ease both;
+}
+.kpi-grid .kpi-card:nth-child(1) { animation-delay: 0ms; }
+.kpi-grid .kpi-card:nth-child(2) { animation-delay: 50ms; }
+.kpi-grid .kpi-card:nth-child(3) { animation-delay: 100ms; }
+.kpi-grid .kpi-card:nth-child(4) { animation-delay: 150ms; }
+.kpi-grid .kpi-card:nth-child(5) { animation-delay: 200ms; }
+.kpi-grid .kpi-card:nth-child(6) { animation-delay: 250ms; }
+</style>
+
 <script>
-fetch('/api/healthchecks/status').then(r=>r.json()).then(checks => {
-  const body = document.getElementById('hcBody');
-  const upd  = document.getElementById('hcUpdated');
-  if (!checks.length) {
-    body.innerHTML = '<span style="color:var(--text-muted);font-size:13px;">Žádné sledované aplikace · <a href="/nastaveni/healthchecky" style="color:var(--primary);">Přidat</a></span>';
-    return;
+(function () {
+  // Animace čísel
+  function animateCounter(el) {
+    const target   = parseFloat(el.dataset.value) || 0;
+    const fmt      = el.dataset.fmt || 'int';
+    const prefix   = el.dataset.prefix || '';
+    const suffix   = el.dataset.suffix || '';
+    const duration = 700;
+    const start    = performance.now();
+
+    function format(v) {
+      switch (fmt) {
+        case 'czk':   return prefix + Number(v).toLocaleString('cs-CZ',{minimumFractionDigits:2}) + ' Kč' + suffix;
+        case 'int':   return prefix + Math.round(v).toLocaleString('cs-CZ') + suffix;
+        case 'dec':   return prefix + v.toFixed(2) + suffix;
+        case 'count': return prefix + Math.round(v).toLocaleString('cs-CZ') + suffix;
+        default:      return prefix + v + suffix;
+      }
+    }
+
+    function step(now) {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      // Ease out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      el.textContent = format(target * eased);
+      if (progress < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
   }
-  body.innerHTML = checks.map(c => {
-    const ok  = c.ok;
-    const dot = ok === null ? '⚪' : ok ? '🟢' : '🔴';
-    const lat = c.latency_ms ? ` <span style="color:var(--text-muted);font-size:11px;">${c.latency_ms}ms</span>` : '';
-    const err = !ok && c.error ? `<span style="color:var(--danger);font-size:11px;"> — ${c.error}</span>` : '';
-    return `<div style="display:flex;align-items:center;gap:8px;">${dot} <span style="font-weight:500;font-size:13px;">${c.name}</span>${lat}${err}</div>`;
-  }).join('');
-  const lastCheck = checks.find(c=>c.checked_at)?.checked_at;
-  if (lastCheck) upd.textContent = 'aktualizováno ' + new Date(lastCheck).toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'});
-}).catch(() => {
-  document.getElementById('hcBody').innerHTML = '<span style="color:var(--text-muted);font-size:13px;">Nedostupné</span>';
-});
+
+  // Spustit animaci pro všechny prvky při načtení
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        animateCounter(entry.target);
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.kpi-anim').forEach(el => observer.observe(el));
+
+  // Healthchecky
+  fetch('/api/healthchecks/status').then(r=>r.json()).then(checks => {
+    const body = document.getElementById('hcBody');
+    const upd  = document.getElementById('hcUpdated');
+    if (!checks.length) {
+      body.innerHTML = '<span style="color:var(--text-muted);font-size:13px;">Žádné sledované aplikace · <a href="/nastaveni/healthchecky" style="color:var(--primary);">Přidat</a></span>';
+      return;
+    }
+    body.innerHTML = checks.map(c => {
+      const ok  = c.ok;
+      const dot = ok === null ? '⚪' : ok ? '🟢' : '🔴';
+      const lat = c.latency_ms ? ` <span style="color:var(--text-muted);font-size:11px;">${c.latency_ms}ms</span>` : '';
+      const err = !ok && c.error ? `<span style="color:var(--danger);font-size:11px;"> — ${c.error}</span>` : '';
+      return `<div style="display:flex;align-items:center;gap:8px;">${dot} <span style="font-weight:500;font-size:13px;">${c.name}</span>${lat}${err}</div>`;
+    }).join('');
+    const lastCheck = checks.find(c=>c.checked_at)?.checked_at;
+    if (lastCheck) upd.textContent = 'aktualizováno ' + new Date(lastCheck).toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'});
+  }).catch(() => {
+    document.getElementById('hcBody').innerHTML = '<span style="color:var(--text-muted);font-size:13px;">Nedostupné</span>';
+  });
+})();
 </script>

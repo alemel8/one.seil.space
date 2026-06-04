@@ -33,6 +33,32 @@
     </main>
   </div>
 
+  <!-- Mobile bottom nav (skryto na desktopu) -->
+  <nav class="bottom-nav" id="bottomNav">
+    <div class="bottom-nav-items">
+      <a href="/" class="bottom-nav-item <%= currentPath === '/' ? 'active' : '' %>">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span>Přehled</span>
+      </a>
+      <a href="/ucetnictvi/prehled" class="bottom-nav-item <%= currentPath && currentPath.startsWith('/ucetnictvi') ? 'active' : '' %>">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        <span>Účetnictví</span>
+      </a>
+      <a href="/crm/firmy" class="bottom-nav-item <%= currentPath && currentPath.startsWith('/crm') ? 'active' : '' %>">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span>CRM</span>
+      </a>
+      <a href="/monitoring" class="bottom-nav-item <%= currentPath === '/monitoring' ? 'active' : '' %>">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        <span>Monitoring</span>
+      </a>
+      <a href="/profil" class="bottom-nav-item <%= currentPath === '/profil' ? 'active' : '' %>">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span>Profil</span>
+      </a>
+    </div>
+  </nav>
+
   <script src="/static/js/app.js"></script>
   <%- typeof extraJs !== 'undefined' ? extraJs : '' %>
   <script>

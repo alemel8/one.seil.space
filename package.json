@@ -17,6 +17,7 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.100.1",
     "@fastify/basic-auth": "^6.2.0",
     "@fastify/cookie": "^11.0.2",
     "@fastify/formbody": "^8.0.2",

@@ -1,6 +1,8 @@
 import { getDb, generateId } from '../db.js';
 import { renderInvoicePdf } from '../pdf.js';
 import { sendInvoiceEmail } from '../email.js';
+import { buildPohodaXml } from '../pohoda.js';
+import Anthropic from '@anthropic-ai/sdk';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { writeFile } from 'node:fs/promises';
@@ -261,24 +263,21 @@ export default async function invoicesRoutes(fastify) {
   // ── AI: vytěžení dat z PDF přijaté faktury ───────────────────
   fastify.post('/ucetnictvi/prijate-faktury/analyze-pdf', async (request, reply) => {
     const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey || apiKey.startsWith('sk-ant-XXX')) {
-      return reply.code(503).send({ error: 'ANTHROPIC_API_KEY není nastavena na serveru.' });
+    if (!apiKey || apiKey.length < 20 || apiKey.includes('XXX')) {
+      return reply.code(503).send({ error: 'ANTHROPIC_API_KEY není nastavena na serveru. Nastavte ji v prostředí (Coolify env vars).' });
     }
 
     const data = await request.file();
     if (!data) return reply.code(400).send({ error: 'Žádný soubor nebyl nahrán.' });
 
     const buf = await data.toBuffer();
+    if (buf.length === 0) return reply.code(400).send({ error: 'Nahraný soubor je prázdný.' });
+
     const base64 = buf.toString('base64');
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
+    try {
+      const client = new Anthropic({ apiKey });
+      const message = await client.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 1024,
         messages: [{
@@ -290,38 +289,26 @@ export default async function invoicesRoutes(fastify) {
             },
             {
               type: 'text',
-              text: `Z tohoto PDF vyextrahuj data přijaté faktury. Vrať POUZE platný JSON objekt bez markdown bloků:
-{
-  "number": "číslo faktury od dodavatele",
-  "supplier": "název dodavatele / firmy",
-  "supplier_ico": "IČO dodavatele nebo null",
-  "amount": základ bez DPH jako číslo nebo 0,
-  "vat_amount": výše DPH jako číslo nebo 0,
-  "total_amount": celková částka k úhradě jako číslo,
-  "currency": "CZK nebo EUR nebo USD",
-  "issue_date": "datum vystavení YYYY-MM-DD nebo null",
-  "due_date": "datum splatnosti YYYY-MM-DD nebo null",
-  "notes": "předmět plnění nebo popis nebo null"
-}`,
+              text: `Z tohoto PDF vyextrahuj data přijaté faktury. Vrať POUZE platný JSON objekt bez markdown bloků ani dalšího textu:
+{"number":"číslo faktury od dodavatele","supplier":"název dodavatele","supplier_ico":"IČO nebo null","amount":základ_bez_DPH_číslo,"vat_amount":DPH_číslo,"total_amount":celková_částka_číslo,"currency":"CZK","issue_date":"YYYY-MM-DD nebo null","due_date":"YYYY-MM-DD nebo null","notes":"předmět plnění nebo null"}`,
             },
           ],
         }],
-      }),
-    });
+      });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      return reply.code(502).send({ error: 'Chyba Claude API: ' + (err.error?.message || res.statusText) });
+      const text = (message.content?.[0]?.text || '{}').trim()
+        .replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+
+      let extracted = {};
+      try { extracted = JSON.parse(text); } catch {
+        fastify.log.warn({ text }, 'Claude vrátil neplatný JSON');
+      }
+      return reply.send(extracted);
+    } catch (err) {
+      fastify.log.error({ err }, 'Chyba Anthropic API');
+      const msg = err?.message || 'Neznámá chyba';
+      return reply.code(502).send({ error: 'Chyba Claude API: ' + msg });
     }
-
-    const json = await res.json();
-    const text = (json.content?.[0]?.text || '{}').trim()
-      .replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-
-    let extracted = {};
-    try { extracted = JSON.parse(text); } catch { /* vrátí prázdné */ }
-
-    return reply.send(extracted);
   });
 
   // ── Detail přijaté faktury ───────────────────────────────────
@@ -448,5 +435,35 @@ export default async function invoicesRoutes(fastify) {
     if (status === 'Zaplacena') updates.push(sql`paid_date = CURRENT_DATE`);
     await sql`UPDATE accounting_invoices SET ${updates.reduce((a, b) => sql`${a}, ${b}`)} WHERE id = ${request.params.id}`;
     return reply.redirect(redirect_to || `/ucetnictvi/prijate-faktury/${request.params.id}`);
+  });
+
+  // ── POHODA XML export ─────────────────────────────────────────
+  fastify.post('/ucetnictvi/vydane-faktury/pohoda-xml', async (request, reply) => {
+    const ids = [].concat(request.body?.ids || []).map(Number).filter(Boolean);
+    const invoices = ids.length > 0
+      ? await sql`SELECT * FROM accounting_invoices WHERE type='issued' AND id = ANY(${ids}) ORDER BY issue_date DESC`
+      : await sql`SELECT * FROM accounting_invoices WHERE type='issued' ORDER BY issue_date DESC`;
+
+    const withItems = await Promise.all(invoices.map(async inv => {
+      const items = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${inv.id} ORDER BY id`;
+      return { ...inv, _items: items };
+    }));
+
+    const xml = buildPohodaXml(withItems);
+    reply.header('Content-Type', 'application/xml; charset=utf-8');
+    reply.header('Content-Disposition', 'attachment; filename="pohoda-vydane-faktury.xml"');
+    return reply.send(xml);
+  });
+
+  fastify.post('/ucetnictvi/prijate-faktury/pohoda-xml', async (request, reply) => {
+    const ids = [].concat(request.body?.ids || []).map(Number).filter(Boolean);
+    const invoices = ids.length > 0
+      ? await sql`SELECT * FROM accounting_invoices WHERE type='received' AND id = ANY(${ids}) ORDER BY issue_date DESC`
+      : await sql`SELECT * FROM accounting_invoices WHERE type='received' ORDER BY issue_date DESC`;
+
+    const xml = buildPohodaXml(invoices);
+    reply.header('Content-Type', 'application/xml; charset=utf-8');
+    reply.header('Content-Disposition', 'attachment; filename="pohoda-prijate-faktury.xml"');
+    return reply.send(xml);
   });
 }

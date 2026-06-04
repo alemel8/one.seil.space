@@ -60,6 +60,7 @@ export default async function dashboardRoutes(fastify) {
     const [crmKontakty]= await sql`SELECT COUNT(*)::int AS n FROM crm_contacts`;
     const [crmNew]     = await sql`SELECT COUNT(*)::int AS n FROM crm_contacts WHERE created_at >= NOW() - INTERVAL '30 days'`;
     const [team]       = await sql`SELECT COUNT(*)::int AS n FROM users WHERE is_active=TRUE`;
+    const [uctenky]    = await sql`SELECT COUNT(*)::int AS n, COALESCE(SUM(total_amount),0)::numeric AS v FROM receipts WHERE receipt_date BETWEEN ${mStart} AND ${mEnd}`;
 
     const latest = readLatest();
     const vpsOk = !latest.error && !latest.stale;
@@ -74,6 +75,7 @@ export default async function dashboardRoutes(fastify) {
         ordersWaiting: ordersWaiting.n,
         firmy: crmFirmy.n, kontakty: crmKontakty.n, crmNew: crmNew.n,
         team: team.n,
+        uctenkyCount: uctenky.n, uctenkyMonth: Number(uctenky.v),
       },
       vps: vpsOk ? { ram: latest.memory, cpu: latest.cpu, disk: latest.disk } : null,
     }, { layout: 'layouts/base.ejs' });
