@@ -11,6 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getDb, closeAll } from './db.js';
 import { runMigrations } from './migrate.js';
+import { PgSessionStore } from './session-store.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,6 +38,7 @@ await fastify.register(formbody);
 await fastify.register(cookie);
 await fastify.register(fastifySession, {
   secret: SESSION_SECRET,
+  store: new PgSessionStore(sql),
   cookie: {
     secure: process.env.COOKIE_SECURE === 'true',
     httpOnly: true,
@@ -149,6 +151,26 @@ await fastify.register(toneracekRoutes);
 await fastify.register(settingsRoutes);
 await fastify.register(monitoringRoutes);
 
+// ── Error handlers ────────────────────────────────────────────
+
+fastify.setNotFoundHandler(async (request, reply) => {
+  const user = request.user ?? null;
+  return reply.code(404).view('pages/errors/404.ejs', {
+    pageTitle: 'Stránka nenalezena', currentPath: request.url,
+    user, url: request.url,
+  }, { layout: 'layouts/base.ejs' });
+});
+
+fastify.setErrorHandler(async (err, request, reply) => {
+  fastify.log.error({ err, url: request.url }, 'Neočekávaná chyba serveru');
+  const user = request.user ?? null;
+  const isDev = process.env.NODE_ENV !== 'production';
+  return reply.code(500).view('pages/errors/500.ejs', {
+    pageTitle: 'Chyba serveru', currentPath: request.url,
+    user, isDev, message: isDev ? err.message : null,
+  }, { layout: 'layouts/base.ejs' });
+});
+
 // ── Start ─────────────────────────────────────────────────────
 
 try {
@@ -157,6 +179,12 @@ try {
 } catch (err) {
   fastify.log.error(err);
   process.exit(1);
+}
+
+// ── Background: opakující se faktury ─────────────────────────
+{
+  const { startRecurringScheduler } = await import('./recurring.js');
+  startRecurringScheduler();
 }
 
 // ── Background: healthcheck worker ────────────────────────────

@@ -222,6 +222,17 @@
                 <label class="form-label">Poznámka / předmět nákupu</label>
                 <textarea name="notes" id="rcNotes" class="form-control" rows="3"></textarea>
               </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="form-group">
+                  <label class="form-label">Předkontace MD</label>
+                  <input type="text" name="account_debit" id="rcAccountDebit" class="form-control" placeholder="např. 518" list="rcAcList" autocomplete="off">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Předkontace D</label>
+                  <input type="text" name="account_credit" id="rcAccountCredit" class="form-control" placeholder="např. 211" list="rcAcList" autocomplete="off">
+                </div>
+              </div>
+              <datalist id="rcAcList"></datalist>
             </div>
             <div class="modal-footer" style="border-top:1px solid var(--border);background:var(--bg-card);">
               <button type="button" class="btn btn-ghost" onclick="rcClose()">Zrušit</button>
@@ -440,6 +451,12 @@
     phForm.style.flex    = '1';
     phForm.style.minHeight = '0';
   };
+
+  // Předkontace autocomplete
+  fetch('/api/accounting-chart').then(r => r.json()).then(list => {
+    const dl = document.getElementById('rcAcList');
+    if (dl) dl.innerHTML = list.map(a => `<option value="${a.code}">${a.code} — ${a.name}</option>`).join('');
+  }).catch(() => {});
 
   // Bulk akce
   window.bulkUpdate = function() {

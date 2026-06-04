@@ -99,6 +99,17 @@
     </div>
   </div>
 
+  <!-- Cash flow 12 měsíců -->
+  <div class="card" style="grid-column:1/-1;">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <span>Cash flow — posledních 12 měsíců</span>
+      <span style="font-size:11px;color:var(--text-muted);">vydané faktury vs. přijaté faktury + účtenky</span>
+    </div>
+    <div class="card-body">
+      <canvas id="chartCashflow" height="100"></canvas>
+    </div>
+  </div>
+
   <!-- Pohledávky / závazky -->
   <div style="display:flex;flex-direction:column;gap:16px;">
     <div class="card">
@@ -201,5 +212,32 @@ new Chart(document.getElementById('chartMonthly'), {
     plugins: { legend: { position: 'top' } },
     scales: { y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString('cs-CZ') + ' Kč' } } },
   },
+});
+
+// Cash flow graf (dynamická data)
+fetch('/api/cashflow?months=12').then(r => r.json()).then(rows => {
+  const labels  = rows.map(r => r.month);
+  const income  = rows.map(r => r.income);
+  const expense = rows.map(r => r.expense);
+  const profit  = rows.map(r => r.income - r.expense);
+  new Chart(document.getElementById('chartCashflow'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Příjmy', data: income,  backgroundColor: 'rgba(0,212,232,0.7)', borderColor: 'rgba(0,212,232,1)', borderWidth: 1, borderRadius: 4 },
+        { label: 'Výdaje', data: expense, backgroundColor: 'rgba(239,68,68,0.5)', borderColor: 'rgba(239,68,68,1)', borderWidth: 1, borderRadius: 4 },
+        { label: 'Zisk',   data: profit,  type: 'line', borderColor: '#7c3aed', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 3, tension: 0.3 },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'top' } },
+      scales: { y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString('cs-CZ') + ' Kč' } } },
+    },
+  });
+}).catch(() => {
+  const el = document.getElementById('chartCashflow');
+  if (el) el.parentElement.innerHTML = '<p style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">Graf není dostupný</p>';
 });
 </script>

@@ -79,6 +79,8 @@ function invoiceToXml(inv, items = [], idx = 1) {
           <typ:accountNo/>
           <typ:bankCode/>
         </inv:account>
+        ${inv.account_debit  ? `<inv:accounting><typ:accountingMD><typ:ids>${esc(inv.account_debit)}</typ:ids></typ:accountingMD></inv:accounting>` : ''}
+        ${inv.account_credit ? `<inv:classificationVAT><typ:ids>${esc(inv.account_credit)}</typ:ids></inv:classificationVAT>` : ''}
       </inv:invoiceHeader>
       <inv:invoiceDetail>${itemsXml}
       </inv:invoiceDetail>

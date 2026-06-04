@@ -157,6 +157,44 @@ export default async function settingsRoutes(fastify) {
     return reply.redirect('/nastaveni/eshopy');
   });
 
+  // ── Účetní osnova (číselník účtů MD/D) ───────────────────────
+
+  fastify.get('/nastaveni/ucetni-osnova', async (request, reply) => {
+    const accounts = await sql`SELECT * FROM accounting_chart ORDER BY code`;
+    return reply.view('pages/settings/accounts.ejs', {
+      pageTitle: 'Účetní osnova', currentPath: '/nastaveni/ucetni-osnova',
+      user: request.user, accounts, saved: request.query.saved === '1',
+    }, { layout: 'layouts/base.ejs' });
+  });
+
+  fastify.post('/nastaveni/ucetni-osnova/vytvorit', async (request, reply) => {
+    const b = request.body || {};
+    if (!b.code || !b.name) return reply.redirect('/nastaveni/ucetni-osnova');
+    await sql`
+      INSERT INTO accounting_chart (code, name, active)
+      VALUES (${b.code.trim()}, ${b.name.trim()}, TRUE)
+      ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, active = TRUE
+    `;
+    return reply.redirect('/nastaveni/ucetni-osnova?saved=1');
+  });
+
+  fastify.post('/nastaveni/ucetni-osnova/:id/smazat', async (request, reply) => {
+    await sql`DELETE FROM accounting_chart WHERE id = ${request.params.id}`;
+    return reply.redirect('/nastaveni/ucetni-osnova');
+  });
+
+  fastify.post('/nastaveni/ucetni-osnova/:id/toggle', async (request, reply) => {
+    await sql`UPDATE accounting_chart SET active = NOT active WHERE id = ${request.params.id}`;
+    return reply.redirect('/nastaveni/ucetni-osnova');
+  });
+
+  // ── API: Číselník účtů (pro autocomplete) ────────────────────
+
+  fastify.get('/api/accounting-chart', async (request, reply) => {
+    const accounts = await sql`SELECT code, name FROM accounting_chart WHERE active = TRUE ORDER BY code`;
+    return reply.send(accounts);
+  });
+
   // ── API: Vygenerování čísla faktury (interní helper) ─────────
 
   fastify.post('/api/invoice-series/:id/next', async (request, reply) => {

@@ -39,7 +39,8 @@ export default async function accountingRoutes(fastify) {
     const [{ count }] = await sql`SELECT COUNT(*)::int AS count FROM accounting_bank_transactions t ${where}`;
     const transactions = await sql`
       SELECT t.*,
-             i.number AS matched_invoice_number
+             i.number AS matched_invoice_number,
+             i.type   AS matched_invoice_type
       FROM accounting_bank_transactions t
       LEFT JOIN accounting_invoices i ON t.matched_invoice_id = i.id
       ${where}
@@ -96,24 +97,42 @@ export default async function accountingRoutes(fastify) {
     return reply.redirect('/ucetnictvi/banka');
   });
 
-  // Párování transakce s fakturou
+  // Párování transakce s fakturou nebo účtenkou
   fastify.post('/ucetnictvi/banka/:id/parovat', async (request, reply) => {
-    const { invoice_id } = request.body || {};
-    if (!invoice_id) return reply.redirect('/ucetnictvi/banka');
+    const { document_type, document_id, invoice_id } = request.body || {};
+    const txId = parseInt(request.params.id, 10);
 
-    await sql`
-      UPDATE accounting_bank_transactions
-      SET matched_invoice_id = ${invoice_id}, matched_at = NOW(), matched_by = ${request.user.id}
-      WHERE id = ${request.params.id}
-    `;
+    // Backward-compat: starý formulář posílá invoice_id
+    const docType = document_type || 'invoice';
+    const docId   = document_id   || invoice_id;
+    if (!docId) return reply.redirect('/ucetnictvi/banka');
 
-    // Označ fakturu jako zaplacenou
-    await sql`
-      UPDATE accounting_invoices
-      SET status = 'Zaplacena', paid_date = CURRENT_DATE, bank_transaction_id = ${parseInt(request.params.id, 10)}, modified_at = NOW()
-      WHERE id = ${invoice_id} AND status != 'Zaplacena'
-    `;
-
+    if (docType === 'receipt') {
+      await sql`
+        UPDATE accounting_bank_transactions
+        SET matched_receipt_id = ${parseInt(docId, 10)}, matched_invoice_id = NULL,
+            matched_at = NOW(), matched_by = ${request.user.id}
+        WHERE id = ${txId}
+      `;
+      await sql`
+        UPDATE receipts
+        SET status = 'Zaúčtována', bank_tx_id = ${txId}, updated_at = NOW()
+        WHERE id = ${parseInt(docId, 10)}
+      `;
+    } else {
+      await sql`
+        UPDATE accounting_bank_transactions
+        SET matched_invoice_id = ${docId}, matched_receipt_id = NULL,
+            matched_at = NOW(), matched_by = ${request.user.id}
+        WHERE id = ${txId}
+      `;
+      await sql`
+        UPDATE accounting_invoices
+        SET status = 'Zaplacena', paid_date = CURRENT_DATE,
+            bank_transaction_id = ${txId}, modified_at = NOW()
+        WHERE id = ${docId} AND status != 'Zaplacena'
+      `;
+    }
     return reply.redirect('/ucetnictvi/banka');
   });
 
@@ -250,14 +269,95 @@ export default async function accountingRoutes(fastify) {
     return reply.redirect('/ucetnictvi/banka?tab=historie&result=' + encodeURIComponent(JSON.stringify(result)));
   });
 
-  // Zrušení párování
+  // Zrušení párování (faktura nebo účtenka)
   fastify.post('/ucetnictvi/banka/:id/zrusit-parovani', async (request, reply) => {
-    const [tx] = await sql`SELECT matched_invoice_id FROM accounting_bank_transactions WHERE id = ${request.params.id}`;
+    const [tx] = await sql`
+      SELECT matched_invoice_id, matched_receipt_id
+      FROM accounting_bank_transactions WHERE id = ${request.params.id}
+    `;
     if (tx?.matched_invoice_id) {
       await sql`UPDATE accounting_invoices SET bank_transaction_id = NULL, modified_at = NOW() WHERE id = ${tx.matched_invoice_id}`;
     }
-    await sql`UPDATE accounting_bank_transactions SET matched_invoice_id = NULL, matched_at = NULL, matched_by = NULL WHERE id = ${request.params.id}`;
+    if (tx?.matched_receipt_id) {
+      await sql`UPDATE receipts SET bank_tx_id = NULL, updated_at = NOW() WHERE id = ${tx.matched_receipt_id}`;
+    }
+    await sql`
+      UPDATE accounting_bank_transactions
+      SET matched_invoice_id = NULL, matched_receipt_id = NULL, matched_at = NULL, matched_by = NULL
+      WHERE id = ${request.params.id}
+    `;
     return reply.redirect('/ucetnictvi/banka');
+  });
+
+  // ── API: Vyhledávání dokladů pro párování ────────────────────
+  fastify.get('/api/banka/doklady', async (request, reply) => {
+    const q    = (request.query.q    || '').trim();
+    const type = (request.query.type || 'invoice');
+    const like = `%${q}%`;
+
+    if (type === 'receipt') {
+      const rows = await sql`
+        SELECT id::text, number, vendor AS name, total_amount, currency, receipt_date AS date, 'receipt' AS doc_type
+        FROM receipts
+        WHERE bank_tx_id IS NULL AND status != 'Storno'
+          AND (${q} = '' OR vendor ILIKE ${like} OR number ILIKE ${like})
+        ORDER BY receipt_date DESC LIMIT 20
+      `;
+      return reply.send(rows);
+    }
+
+    const rows = await sql`
+      SELECT id, number, COALESCE(client_name, supplier, '') AS name,
+             total_amount, currency, issue_date AS date, type AS doc_type
+      FROM accounting_invoices
+      WHERE bank_transaction_id IS NULL AND status NOT IN ('Zaplacena', 'Storno')
+        AND (${q} = '' OR number ILIKE ${like} OR client_name ILIKE ${like} OR supplier ILIKE ${like})
+      ORDER BY issue_date DESC LIMIT 20
+    `;
+    return reply.send(rows);
+  });
+
+  // ── API: Cash flow (12 měsíců) ───────────────────────────────
+  fastify.get('/api/cashflow', async (request, reply) => {
+    const months = Math.max(1, Math.min(24, parseInt(request.query.months || '12', 10)));
+    const since  = new Date();
+    since.setMonth(since.getMonth() - months + 1);
+    since.setDate(1);
+    const sinceStr = since.toISOString().slice(0, 10);
+
+    const invoiceRows = await sql`
+      SELECT
+        TO_CHAR(DATE_TRUNC('month', issue_date), 'YYYY-MM') AS month,
+        type,
+        COALESCE(SUM(total_amount), 0)::numeric AS v
+      FROM accounting_invoices
+      WHERE issue_date >= ${sinceStr}
+      GROUP BY 1, 2
+    `;
+
+    const receiptRows = await sql`
+      SELECT
+        TO_CHAR(DATE_TRUNC('month', receipt_date), 'YYYY-MM') AS month,
+        COALESCE(SUM(total_amount), 0)::numeric AS v
+      FROM receipts
+      WHERE receipt_date >= ${sinceStr}
+      GROUP BY 1
+    `;
+
+    // Agregovat do mapy
+    const map = {};
+    for (const r of invoiceRows) {
+      if (!map[r.month]) map[r.month] = { month: r.month, income: 0, expense: 0 };
+      if (r.type === 'issued')   map[r.month].income  += Number(r.v);
+      if (r.type === 'received') map[r.month].expense += Number(r.v);
+    }
+    for (const r of receiptRows) {
+      if (!map[r.month]) map[r.month] = { month: r.month, income: 0, expense: 0 };
+      map[r.month].expense += Number(r.v);
+    }
+
+    const result = Object.values(map).sort((a, b) => a.month.localeCompare(b.month));
+    return reply.send(result);
   });
 
   // ── Finanční přehled (KPI) ─────────────────────────────────

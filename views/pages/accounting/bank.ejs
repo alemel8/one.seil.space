@@ -49,12 +49,22 @@
   <table class="data-table">
     <thead>
       <tr>
-        <th>Popis</th><th>Protistrana</th><th>Typ</th><th>Částka</th><th>Datum</th><th>Spárováno</th>
+        <th>Popis</th><th>Protistrana</th><th>Typ</th><th>Částka</th><th>Datum</th><th>Spárováno</th><th></th>
       </tr>
     </thead>
     <tbody>
       <% if (transactions && transactions.length > 0) { %>
         <% transactions.forEach(t => { %>
+        <%
+          const isPaired = t.matched_invoice_id || t.matched_receipt_id;
+          const isInvoice = !!t.matched_invoice_id;
+          const pairHref = isInvoice
+            ? (t.matched_invoice_type === 'issued' ? `/ucetnictvi/vydane-faktury/${t.matched_invoice_id}` : `/ucetnictvi/prijate-faktury/${t.matched_invoice_id}`)
+            : null;
+          const pairLabel = isInvoice ? t.matched_invoice_number : (t.matched_receipt_id ? ('Účtenka #' + t.matched_receipt_id) : null);
+          const pairColor = isInvoice && t.matched_invoice_type === 'issued' ? '#166534' : isInvoice ? '#92400e' : '#1e40af';
+          const pairBg    = isInvoice && t.matched_invoice_type === 'issued' ? '#dcfce7'   : isInvoice ? '#fef9c3' : '#dbeafe';
+        %>
         <tr>
           <td style="font-weight:500;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
             <%= t.message || t.description || '—' %>
@@ -72,16 +82,29 @@
           </td>
           <td style="color:var(--text-muted);font-size:12px;"><%= new Date(t.transaction_date || t.date).toLocaleDateString('cs-CZ') %></td>
           <td>
-            <% if (t.matched_invoice_number) { %>
-              <a href="/ucetnictvi/vydane-faktury/<%= t.matched_invoice_id %>" style="font-size:12px;color:var(--primary);font-weight:500;"><%= t.matched_invoice_number %></a>
+            <% if (isPaired && pairLabel) { %>
+              <% if (pairHref) { %>
+                <a href="<%= pairHref %>" class="badge" style="font-size:12px;background:<%= pairBg %>;color:<%= pairColor %>;text-decoration:none;font-weight:500;"><%= pairLabel %></a>
+              <% } else { %>
+                <span class="badge" style="font-size:12px;background:<%= pairBg %>;color:<%= pairColor %>;font-weight:500;"><%= pairLabel %></span>
+              <% } %>
             <% } else { %>
               <span style="font-size:12px;color:var(--text-muted);">—</span>
+            <% } %>
+          </td>
+          <td>
+            <% if (!isPaired) { %>
+              <button class="btn btn-ghost btn-sm" onclick="bankPairOpen(<%= t.id %>)" style="font-size:12px;color:var(--primary);">🔗 Spárovat</button>
+            <% } else { %>
+              <form method="post" action="/ucetnictvi/banka/<%= t.id %>/zrusit-parovani" onsubmit="return confirm('Zrušit párování?')" style="display:inline;">
+                <button type="submit" class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--text-muted);">✕ Zrušit</button>
+              </form>
             <% } %>
           </td>
         </tr>
         <% }) %>
       <% } else { %>
-      <tr><td colspan="6" style="text-align:center;padding:48px;color:var(--text-muted);">Žádné transakce</td></tr>
+      <tr><td colspan="7" style="text-align:center;padding:48px;color:var(--text-muted);">Žádné transakce</td></tr>
       <% } %>
     </tbody>
   </table>
@@ -226,3 +249,93 @@
     </form>
   </div>
 </div>
+
+<!-- ── Modal: Spárovat transakci ── -->
+<div id="modalPair" class="modal-backdrop">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h2 class="modal-title">Spárovat transakci</h2>
+      <button class="modal-close" data-modal-close="modalPair">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <!-- Záložky -->
+      <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:16px;">
+        <button class="bank-tab active" id="pairTabInvoice" onclick="bankPairTab('invoice')">Faktury</button>
+        <button class="bank-tab" id="pairTabReceipt" onclick="bankPairTab('receipt')">Účtenky</button>
+      </div>
+      <input type="text" id="pairSearch" class="form-control" placeholder="Hledat číslo, klient, dodavatel…" style="margin-bottom:12px;" oninput="bankPairSearch(this.value)">
+      <div id="pairResults" style="max-height:360px;overflow-y:auto;">
+        <div style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;">Hledám…</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" data-modal-close="modalPair">Zavřít</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  let _pairTxId  = null;
+  let _pairType  = 'invoice';
+  let _pairTimer = null;
+
+  window.bankPairOpen = function(txId) {
+    _pairTxId = txId;
+    _pairType = 'invoice';
+    document.getElementById('pairSearch').value = '';
+    document.getElementById('pairTabInvoice').classList.add('active');
+    document.getElementById('pairTabReceipt').classList.remove('active');
+    openModal('modalPair');
+    bankPairLoad('');
+  };
+
+  window.bankPairTab = function(type) {
+    _pairType = type;
+    document.getElementById('pairTabInvoice').classList.toggle('active', type === 'invoice');
+    document.getElementById('pairTabReceipt').classList.toggle('active', type === 'receipt');
+    bankPairLoad(document.getElementById('pairSearch').value);
+  };
+
+  window.bankPairSearch = function(q) {
+    clearTimeout(_pairTimer);
+    _pairTimer = setTimeout(() => bankPairLoad(q), 250);
+  };
+
+  function bankPairLoad(q) {
+    const el = document.getElementById('pairResults');
+    el.innerHTML = '<div style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;">Hledám…</div>';
+    fetch(`/api/banka/doklady?type=${_pairType}&q=${encodeURIComponent(q)}`)
+      .then(r => r.json())
+      .then(rows => {
+        if (!rows.length) {
+          el.innerHTML = '<div style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;">Žádné nespárované doklady</div>';
+          return;
+        }
+        el.innerHTML = `<table class="data-table"><thead><tr><th>Číslo</th><th>Název</th><th style="text-align:right;">Částka</th><th>Datum</th><th></th></tr></thead><tbody>` +
+          rows.map(r => `<tr>
+            <td style="font-weight:600;font-family:monospace;font-size:13px;">${r.number || '—'}</td>
+            <td style="font-size:13px;">${r.name || '—'}</td>
+            <td style="text-align:right;font-weight:600;">${Number(r.total_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2})} ${r.currency}</td>
+            <td style="color:var(--text-muted);font-size:12px;">${r.date ? new Date(r.date).toLocaleDateString('cs-CZ') : '—'}</td>
+            <td><button class="btn btn-primary btn-sm" onclick="bankPairConfirm('${r.id}')">Spárovat</button></td>
+          </tr>`).join('') + '</tbody></table>';
+      })
+      .catch(() => {
+        el.innerHTML = '<div style="text-align:center;padding:32px;color:var(--danger);font-size:13px;">Chyba načítání</div>';
+      });
+  }
+
+  window.bankPairConfirm = function(docId) {
+    const form = document.createElement('form');
+    form.method = 'post';
+    form.action = `/ucetnictvi/banka/${_pairTxId}/parovat`;
+    form.innerHTML = `<input type="hidden" name="document_type" value="${_pairType}"><input type="hidden" name="document_id" value="${docId}">`;
+    document.body.appendChild(form);
+    form.submit();
+  };
+})();
+</script>
+

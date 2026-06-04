@@ -98,7 +98,8 @@ export default async function receiptsRoutes(fastify) {
 
     await sql`
       INSERT INTO receipts (number, vendor, vendor_ico, amount, vat_amount, total_amount,
-                            currency, receipt_date, category, notes, status)
+                            currency, receipt_date, category, notes, status,
+                            account_debit, account_credit)
       VALUES (
         ${(b.number   || '').trim() || null},
         ${(b.vendor   || '').trim()},
@@ -108,7 +109,9 @@ export default async function receiptsRoutes(fastify) {
         ${b.receipt_date || new Date().toISOString().split('T')[0]},
         ${b.category || 'Ostatní'},
         ${(b.notes || '').trim() || null},
-        ${b.status || 'Nezaúčtována'}
+        ${b.status || 'Nezaúčtována'},
+        ${(b.account_debit  || '').trim()},
+        ${(b.account_credit || '').trim()}
       )
     `;
     return reply.redirect('/ucetnictvi/uctenky');
@@ -123,18 +126,20 @@ export default async function receiptsRoutes(fastify) {
 
     await sql`
       UPDATE receipts SET
-        number       = ${(b.number || '').trim() || null},
-        vendor       = ${(b.vendor || '').trim()},
-        vendor_ico   = ${(b.vendor_ico || '').trim() || null},
-        amount       = ${amount},
-        vat_amount   = ${vatAmount},
-        total_amount = ${totalAmount},
-        currency     = ${b.currency || 'CZK'},
-        receipt_date = ${b.receipt_date},
-        category     = ${b.category || 'Ostatní'},
-        notes        = ${(b.notes || '').trim() || null},
-        status       = ${b.status || 'Nezaúčtována'},
-        updated_at   = NOW()
+        number         = ${(b.number || '').trim() || null},
+        vendor         = ${(b.vendor || '').trim()},
+        vendor_ico     = ${(b.vendor_ico || '').trim() || null},
+        amount         = ${amount},
+        vat_amount     = ${vatAmount},
+        total_amount   = ${totalAmount},
+        currency       = ${b.currency || 'CZK'},
+        receipt_date   = ${b.receipt_date},
+        category       = ${b.category || 'Ostatní'},
+        notes          = ${(b.notes || '').trim() || null},
+        status         = ${b.status || 'Nezaúčtována'},
+        account_debit  = ${(b.account_debit  || '').trim()},
+        account_credit = ${(b.account_credit || '').trim()},
+        updated_at     = NOW()
       WHERE id = ${request.params.id}
     `;
     return reply.redirect('/ucetnictvi/uctenky');

@@ -377,7 +377,8 @@ export default async function invoicesRoutes(fastify) {
     const totalAmount = b.total_amount ? parseFloat(b.total_amount) : (amount + vatAmount);
     await sql`
       INSERT INTO accounting_invoices
-        (id, type, number, supplier, supplier_ico, amount, vat_amount, total_amount, currency, status, issue_date, due_date, notes)
+        (id, type, number, supplier, supplier_ico, amount, vat_amount, total_amount, currency,
+         status, issue_date, due_date, notes, account_debit, account_credit)
       VALUES (
         ${generateId()}, 'received',
         ${b.number || ''}, ${(b.supplier||'').trim()},
@@ -385,7 +386,9 @@ export default async function invoicesRoutes(fastify) {
         ${amount}, ${vatAmount}, ${totalAmount},
         ${b.currency || 'CZK'}, ${b.status || 'Nezaplacena'},
         ${b.issue_date || new Date().toISOString().split('T')[0]},
-        ${b.due_date || null}, ${(b.notes||'').trim()}
+        ${b.due_date || null}, ${(b.notes||'').trim()},
+        ${(b.account_debit  || '').trim()},
+        ${(b.account_credit || '').trim()}
       )
     `;
     return reply.redirect('/ucetnictvi/prijate-faktury');
@@ -465,5 +468,62 @@ export default async function invoicesRoutes(fastify) {
     reply.header('Content-Type', 'application/xml; charset=utf-8');
     reply.header('Content-Disposition', 'attachment; filename="pohoda-prijate-faktury.xml"');
     return reply.send(xml);
+  });
+
+  // ── Opakující se faktury — šablony ───────────────────────────
+
+  fastify.get('/ucetnictvi/sablony-faktur', async (request, reply) => {
+    const templates = await sql`
+      SELECT r.*, s.name AS series_name
+      FROM recurring_invoices r
+      LEFT JOIN invoice_number_series s ON r.series_id = s.id
+      ORDER BY r.active DESC, r.name
+    `;
+    const series = await sql`SELECT * FROM invoice_number_series WHERE active = TRUE ORDER BY name`;
+    return reply.view('pages/invoices/recurring.ejs', {
+      pageTitle: 'Šablony opakujících se faktur', currentPath: '/ucetnictvi/sablony-faktur',
+      user: request.user, templates, series,
+    }, { layout: 'layouts/base.ejs' });
+  });
+
+  fastify.post('/ucetnictvi/sablony-faktur/vytvorit', async (request, reply) => {
+    const b = request.body || {};
+    const items = [];
+    const names = [].concat(b['item_name[]'] || []);
+    const qtys  = [].concat(b['item_qty[]']  || []);
+    const prices = [].concat(b['item_price[]'] || []);
+    const vats  = [].concat(b['item_vat[]']  || []);
+    for (let i = 0; i < names.length; i++) {
+      if (!names[i]) continue;
+      const qty   = Number(qtys[i]   || 1);
+      const price = Number(prices[i] || 0);
+      const vat   = Number(vats[i]   || 21);
+      items.push({ name: names[i], quantity: qty, unit: 'ks', price, vat_rate: vat, amount: qty * price, vat_amount: qty * price * vat / 100 });
+    }
+    await sql`
+      INSERT INTO recurring_invoices
+        (name, series_id, client_name, client_ico, client_dic, client_address, client_email,
+         items, frequency, day_of_month, due_days, next_run_date, active, send_email, created_by)
+      VALUES (
+        ${b.name || 'Šablona'}, ${b.series_id ? parseInt(b.series_id) : null},
+        ${(b.client_name||'').trim()}, ${(b.client_ico||'').trim()}, ${(b.client_dic||'').trim()},
+        ${(b.client_address||'').trim()}, ${(b.client_email||'').trim()},
+        ${JSON.stringify(items)},
+        ${b.frequency || 'monthly'}, ${parseInt(b.day_of_month||1)}, ${parseInt(b.due_days||14)},
+        ${b.next_run_date || new Date().toISOString().slice(0,10)},
+        TRUE, ${b.send_email === 'on'}, ${request.user.id}
+      )
+    `;
+    return reply.redirect('/ucetnictvi/sablony-faktur');
+  });
+
+  fastify.post('/ucetnictvi/sablony-faktur/:id/toggle', async (request, reply) => {
+    await sql`UPDATE recurring_invoices SET active = NOT active WHERE id = ${request.params.id}`;
+    return reply.redirect('/ucetnictvi/sablony-faktur');
+  });
+
+  fastify.post('/ucetnictvi/sablony-faktur/:id/smazat', async (request, reply) => {
+    await sql`DELETE FROM recurring_invoices WHERE id = ${request.params.id}`;
+    return reply.redirect('/ucetnictvi/sablony-faktur');
   });
 }

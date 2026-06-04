@@ -52,15 +52,20 @@ export default async function dashboardRoutes(fastify) {
     const mStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
     const mEnd   = new Date(now.getFullYear(), now.getMonth()+1, 0).toISOString().slice(0,10);
 
-    const [issued]   = await sql`SELECT COALESCE(SUM(total_amount),0)::numeric AS v, COUNT(*)::int AS n FROM accounting_invoices WHERE type='issued'   AND issue_date BETWEEN ${mStart} AND ${mEnd}`;
-    const [received] = await sql`SELECT COALESCE(SUM(total_amount),0)::numeric AS v, COUNT(*)::int AS n FROM accounting_invoices WHERE type='received' AND issue_date BETWEEN ${mStart} AND ${mEnd}`;
-    const [overdueCount] = await sql`SELECT COUNT(*)::int AS n FROM accounting_invoices WHERE status='Po splatnosti'`;
-    const [ordersWaiting] = await sql`SELECT COUNT(*)::int AS n FROM shop_orders WHERE status NOT IN ('dokoncena','zrusena','storno')`;
-    const [crmFirmy]   = await sql`SELECT COUNT(*)::int AS n FROM crm_companies`;
-    const [crmKontakty]= await sql`SELECT COUNT(*)::int AS n FROM crm_contacts`;
-    const [crmNew]     = await sql`SELECT COUNT(*)::int AS n FROM crm_contacts WHERE created_at >= NOW() - INTERVAL '30 days'`;
-    const [team]       = await sql`SELECT COUNT(*)::int AS n FROM users WHERE is_active=TRUE`;
-    const [uctenky]    = await sql`SELECT COUNT(*)::int AS n, COALESCE(SUM(total_amount),0)::numeric AS v FROM receipts WHERE receipt_date BETWEEN ${mStart} AND ${mEnd}`;
+    const [
+      [issued], [received], [overdueCount], [ordersWaiting],
+      [crmFirmy], [crmKontakty], [crmNew], [team], [uctenky],
+    ] = await Promise.all([
+      sql`SELECT COALESCE(SUM(total_amount),0)::numeric AS v, COUNT(*)::int AS n FROM accounting_invoices WHERE type='issued'   AND issue_date BETWEEN ${mStart} AND ${mEnd}`,
+      sql`SELECT COALESCE(SUM(total_amount),0)::numeric AS v, COUNT(*)::int AS n FROM accounting_invoices WHERE type='received' AND issue_date BETWEEN ${mStart} AND ${mEnd}`,
+      sql`SELECT COUNT(*)::int AS n FROM accounting_invoices WHERE status='Po splatnosti'`,
+      sql`SELECT COUNT(*)::int AS n FROM shop_orders WHERE status NOT IN ('dokoncena','zrusena','storno')`,
+      sql`SELECT COUNT(*)::int AS n FROM crm_companies`,
+      sql`SELECT COUNT(*)::int AS n FROM crm_contacts`,
+      sql`SELECT COUNT(*)::int AS n FROM crm_contacts WHERE created_at >= NOW() - INTERVAL '30 days'`,
+      sql`SELECT COUNT(*)::int AS n FROM users WHERE is_active=TRUE`,
+      sql`SELECT COUNT(*)::int AS n, COALESCE(SUM(total_amount),0)::numeric AS v FROM receipts WHERE receipt_date BETWEEN ${mStart} AND ${mEnd}`,
+    ]);
 
     const latest = readLatest();
     const vpsOk = !latest.error && !latest.stale;

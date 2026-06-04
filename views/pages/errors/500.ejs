@@ -1,0 +1,11 @@
+<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;gap:16px;">
+  <div style="font-size:72px;font-weight:800;color:var(--danger);opacity:0.25;line-height:1;">500</div>
+  <h1 style="font-size:22px;font-weight:600;color:var(--text-primary);margin:0;">Chyba serveru</h1>
+  <p style="color:var(--text-muted);font-size:14px;max-width:380px;margin:0;">
+    Nastala neočekávaná chyba. Chyba byla zaznamenána do logu.
+    <% if (isDev && message) { %>
+      <br><br><code style="font-size:12px;color:var(--danger);word-break:break-all;"><%= message %></code>
+    <% } %>
+  </p>
+  <a href="/" class="btn btn-primary" style="margin-top:8px;">← Zpět na přehled</a>
+</div>
