@@ -1,6 +1,6 @@
 <div class="page-header">
   <div class="page-header-left">
-    <h1>Tým</h1>
+    <h1>SEIL tým</h1>
     <p><%= total %> členů v systému</p>
   </div>
   <button class="btn btn-primary" data-modal-open="modalCreateMember">
@@ -10,7 +10,7 @@
 </div>
 
 <!-- Hledání -->
-<form method="get" style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+<form method="get" style="display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap;">
   <div style="position:relative;flex:1;min-width:220px;max-width:360px;">
     <svg style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -24,17 +24,24 @@
 </form>
 
 <!-- Mřížka karet -->
-<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;">
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;">
   <% if (members && members.length > 0) { %>
     <% members.forEach(member => { %>
-    <div class="card" style="cursor:pointer;" onclick="window.location='/lide/tym/<%= member.id %>'"
+    <div class="card" style="cursor:pointer;transition:box-shadow 0.18s;" onclick="window.location='/lide/tym/<%= member.id %>'"
          onmouseenter="this.style.boxShadow='var(--shadow-md)'" onmouseleave="this.style.boxShadow=''">
-      <div class="card-body" style="display:flex;gap:14px;align-items:flex-start;">
+      <div class="card-body" style="display:flex;gap:16px;align-items:flex-start;padding:20px;">
 
-        <!-- Avatar -->
-        <div style="width:48px;height:48px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;flex-shrink:0;overflow:hidden;">
+        <!-- Avatar 72px -->
+        <div style="width:72px;height:72px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;flex-shrink:0;overflow:hidden;">
           <% if (member.photo) { %>
-            <img src="/media/<%= member.photo %>" alt="" style="width:100%;height:100%;object-fit:cover;">
+            <img src="/media/<%= member.photo %>" alt=""
+                 style="width:100%;height:100%;object-fit:cover;"
+                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+            <span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;"><%=
+              (member.first_name || '').charAt(0).toUpperCase()
+            %><%=
+              (member.last_name || '').charAt(0).toUpperCase()
+            %></span>
           <% } else { %>
             <%= (member.first_name || '').charAt(0).toUpperCase() %><%= (member.last_name || '').charAt(0).toUpperCase() %>
           <% } %>
@@ -42,11 +49,18 @@
 
         <!-- Info -->
         <div style="flex:1;min-width:0;">
-          <div style="font-weight:600;font-size:15px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+          <div style="font-weight:700;font-size:16px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px;">
             <%= ((member.first_name || '') + ' ' + (member.last_name || '')).trim() || member.email %>
           </div>
-          <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-            <%= member.email %>
+          <% if (member.position) { %>
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            <%= member.position %>
+          </div>
+          <% } %>
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            <a href="mailto:<%= member.email %>" onclick="event.stopPropagation();" style="color:var(--text-muted);text-decoration:none;">
+              <%= member.email %>
+            </a>
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
             <% if (member.is_admin) { %>
@@ -56,6 +70,8 @@
             <% } %>
             <% if (!member.is_active) { %>
               <span class="badge" style="background:var(--danger-bg);color:#991b1b;">Neaktivní</span>
+            <% } else { %>
+              <span class="badge" style="background:var(--success-bg);color:#15803D;">Aktivní</span>
             <% } %>
           </div>
         </div>

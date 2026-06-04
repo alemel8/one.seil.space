@@ -1,49 +1,329 @@
 <div class="page-header">
   <div class="page-header-left">
     <h1><%= ((member.first_name + ' ' + member.last_name).trim() || member.email) %></h1>
-    <p><%= member.is_admin ? 'Správce' : 'Uživatel' %> · <%= member.email %></p>
+    <p><%= member.position || (member.is_admin ? 'Správce' : 'Uživatel') %> · <%= member.email %></p>
   </div>
   <a href="/lide/tym" class="btn btn-outline">← Zpět na tým</a>
 </div>
 
-<div style="max-width:480px;">
-  <div class="card">
-    <div class="card-body">
-      <!-- Avatar -->
-      <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;">
-        <div style="width:64px;height:64px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;flex-shrink:0;">
-          <% if (member.photo) { %>
-            <img src="/media/<%= member.photo %>" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
-          <% } else { %>
-            <%= (member.first_name || '').charAt(0).toUpperCase() %><%= (member.last_name || '').charAt(0).toUpperCase() %>
-          <% } %>
-        </div>
-        <div>
-          <div style="font-size:18px;font-weight:700;color:var(--text-primary);">
-            <%= ((member.first_name + ' ' + member.last_name).trim() || member.email) %>
-          </div>
-          <div style="font-size:13px;color:var(--text-muted);margin-top:2px;"><%= member.email %></div>
-          <div style="margin-top:8px;display:flex;gap:6px;">
-            <% if (member.is_admin) { %>
-              <span class="badge" style="background:#fef9c3;color:#854d0e;">Správce</span>
-            <% } else { %>
-              <span class="badge" style="background:var(--info-bg);color:var(--info);">Uživatel</span>
-            <% } %>
-            <% if (!member.is_active) { %>
-              <span class="badge" style="background:var(--danger-bg);color:#991b1b;">Neaktivní</span>
-            <% } else { %>
-              <span class="badge" style="background:var(--success-bg);color:#15803D;">Aktivní</span>
-            <% } %>
-          </div>
-        </div>
+<% if (saved) { %>
+<div style="background:var(--success-bg);color:#15803D;border:1px solid #bbf7d0;border-radius:8px;padding:10px 16px;margin-bottom:20px;font-size:14px;">
+  Změny byly uloženy.
+</div>
+<% } %>
+
+<!-- Záhlaví profilu -->
+<div class="card" style="margin-bottom:24px;">
+  <div class="card-body" style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;padding:24px;">
+
+    <!-- Velká fotka -->
+    <div style="position:relative;flex-shrink:0;">
+      <div style="width:120px;height:120px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:700;overflow:hidden;">
+        <% if (member.photo) { %>
+          <img src="/media/<%= member.photo %>" alt=""
+               style="width:100%;height:100%;object-fit:cover;"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+          <span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;"><%=
+            (member.first_name || '').charAt(0).toUpperCase()
+          %><%=
+            (member.last_name || '').charAt(0).toUpperCase()
+          %></span>
+        <% } else { %>
+          <%= (member.first_name || '').charAt(0).toUpperCase() %><%= (member.last_name || '').charAt(0).toUpperCase() %>
+        <% } %>
       </div>
 
-      <dl style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13px;">
-        <dt style="color:var(--text-muted);">E-mail</dt>
-        <dd><a href="mailto:<%= member.email %>" style="color:var(--primary);"><%= member.email %></a></dd>
-        <dt style="color:var(--text-muted);">Přidán</dt>
-        <dd><%= new Date(member.created_at).toLocaleDateString('cs-CZ') %></dd>
+      <!-- Tlačítko Změnit fotku (admin) -->
+      <% if (user && user.is_admin) { %>
+      <form method="post" action="/lide/tym/<%= member.id %>/foto" enctype="multipart/form-data"
+            style="position:absolute;bottom:0;right:0;">
+        <label style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:var(--primary);color:#fff;cursor:pointer;border:2px solid #fff;font-size:14px;" title="Změnit fotku">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+          </svg>
+          <input type="file" name="photo" accept="image/*" style="display:none;" onchange="this.form.submit()">
+        </label>
+      </form>
+      <% } %>
+    </div>
+
+    <!-- Info -->
+    <div style="flex:1;min-width:200px;">
+      <div style="font-size:22px;font-weight:700;color:var(--text-primary);margin-bottom:4px;">
+        <%= ((member.first_name + ' ' + member.last_name).trim() || member.email) %>
+      </div>
+      <% if (member.position) { %>
+      <div style="font-size:14px;color:var(--text-muted);margin-bottom:6px;"><%= member.position %></div>
+      <% } %>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">
+        <a href="mailto:<%= member.email %>" style="color:var(--primary)"><%= member.email %></a>
+        <% if (member.phone) { %> · <%= member.phone %><% } %>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <% if (member.is_admin) { %>
+          <span class="badge" style="background:#fef9c3;color:#854d0e;">Správce</span>
+        <% } else { %>
+          <span class="badge" style="background:var(--info-bg);color:var(--info);">Uživatel</span>
+        <% } %>
+        <% if (!member.is_active) { %>
+          <span class="badge" style="background:var(--danger-bg);color:#991b1b;">Neaktivní</span>
+        <% } else { %>
+          <span class="badge" style="background:var(--success-bg);color:#15803D;">Aktivní</span>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tabs navigace -->
+<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:24px;overflow-x:auto;">
+  <% const tabs = [
+    { id: 'detail',   label: 'Detail' },
+    { id: 'banka',    label: 'Bankovní účet' },
+    { id: 'odmeny',   label: 'Odměny' },
+    { id: 'naklady',  label: 'Náklady' },
+    { id: 'pristupy', label: 'Přístupy' },
+  ]; %>
+  <% tabs.forEach((tab, i) => { %>
+  <button onclick="switchTab('<%= tab.id %>')" id="tab-btn-<%= tab.id %>"
+          style="padding:10px 18px;font-size:14px;font-weight:500;border:none;background:none;cursor:pointer;color:var(--text-muted);border-bottom:2px solid transparent;margin-bottom:-2px;transition:color 0.15s,border-color 0.15s;white-space:nowrap;"
+          ><%= tab.label %></button>
+  <% }); %>
+</div>
+
+<!-- ── Tab: Detail ─────────────────────────────────────────── -->
+<div id="tab-detail" class="tab-section">
+  <div class="card">
+    <div class="card-header">
+      <h2 style="font-size:15px;font-weight:600;margin:0;">Osobní údaje</h2>
+    </div>
+    <div class="card-body">
+      <form method="post" action="/lide/tym/<%= member.id %>">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-bottom:20px;">
+
+          <div class="form-group">
+            <label class="form-label">Titul</label>
+            <input type="text" name="title" class="form-control" value="<%= member.title || '' %>" placeholder="Ing., Mgr., …">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Jméno</label>
+            <input type="text" name="first_name" class="form-control" value="<%= member.first_name || '' %>" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Příjmení</label>
+            <input type="text" name="last_name" class="form-control" value="<%= member.last_name || '' %>">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">E-mail</label>
+            <input type="email" name="email" class="form-control" value="<%= member.email || '' %>" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Pozice ve firmě</label>
+            <input type="text" name="position" class="form-control" value="<%= member.position || '' %>" placeholder="Frontend Developer">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Telefon</label>
+            <input type="tel" name="phone" class="form-control" value="<%= member.phone || '' %>" placeholder="+420 …">
+          </div>
+
+          <div class="form-group" style="grid-column:1/-1;">
+            <label class="form-label">Bio / Popis</label>
+            <textarea name="bio" class="form-control" rows="3" placeholder="Krátký popis…"><%= member.bio || '' %></textarea>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Adresa</label>
+            <input type="text" name="address" class="form-control" value="<%= member.address || '' %>" placeholder="Ulice a číslo popisné">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Město</label>
+            <input type="text" name="city" class="form-control" value="<%= member.city || '' %>">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">PSČ</label>
+            <input type="text" name="zip" class="form-control" value="<%= member.zip || '' %>">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Stát</label>
+            <input type="text" name="country" class="form-control" value="<%= member.country || 'Česká republika' %>">
+          </div>
+
+        </div>
+
+        <!-- Role a přístup -->
+        <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:20px;padding:16px;background:var(--bg-secondary, #f9fafb);border-radius:8px;">
+          <label class="toggle-label" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+            <input type="checkbox" name="is_admin" value="1" class="toggle-input" <%= member.is_admin ? 'checked' : '' %>>
+            <span class="toggle-switch"></span>
+            <span class="toggle-text" style="font-size:14px;">Správce</span>
+          </label>
+          <label class="toggle-label" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+            <input type="checkbox" name="is_active" value="1" class="toggle-input" <%= member.is_active ? 'checked' : '' %>>
+            <span class="toggle-switch"></span>
+            <span class="toggle-text" style="font-size:14px;">Aktivní účet</span>
+          </label>
+        </div>
+
+        <!-- Skrytá pole pro bankovní účet — aby nepřepsala data při uložení detailu -->
+        <input type="hidden" name="bank_account" value="<%= member.bank_account || '' %>">
+        <input type="hidden" name="bank_name" value="<%= member.bank_name || '' %>">
+        <input type="hidden" name="iban" value="<%= member.iban || '' %>">
+
+        <div style="display:flex;justify-content:flex-end;">
+          <button type="submit" class="btn btn-primary">Uložit změny</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ── Tab: Bankovní účet ──────────────────────────────────── -->
+<div id="tab-banka" class="tab-section" style="display:none;">
+  <div class="card">
+    <div class="card-header">
+      <h2 style="font-size:15px;font-weight:600;margin:0;">Bankovní účet</h2>
+    </div>
+    <div class="card-body">
+      <form method="post" action="/lide/tym/<%= member.id %>">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-bottom:20px;">
+
+          <div class="form-group">
+            <label class="form-label">Číslo účtu</label>
+            <input type="text" name="bank_account" class="form-control" value="<%= member.bank_account || '' %>" placeholder="123456789/0100">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Název banky</label>
+            <input type="text" name="bank_name" class="form-control" value="<%= member.bank_name || '' %>" placeholder="Komerční banka">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">IBAN</label>
+            <input type="text" name="iban" class="form-control" value="<%= member.iban || '' %>" placeholder="CZ65 …">
+          </div>
+
+        </div>
+
+        <!-- Skrytá pole — osobní údaje -->
+        <input type="hidden" name="email" value="<%= member.email || '' %>">
+        <input type="hidden" name="first_name" value="<%= member.first_name || '' %>">
+        <input type="hidden" name="last_name" value="<%= member.last_name || '' %>">
+        <input type="hidden" name="title" value="<%= member.title || '' %>">
+        <input type="hidden" name="phone" value="<%= member.phone || '' %>">
+        <input type="hidden" name="position" value="<%= member.position || '' %>">
+        <input type="hidden" name="bio" value="<%= member.bio || '' %>">
+        <input type="hidden" name="address" value="<%= member.address || '' %>">
+        <input type="hidden" name="city" value="<%= member.city || '' %>">
+        <input type="hidden" name="zip" value="<%= member.zip || '' %>">
+        <input type="hidden" name="country" value="<%= member.country || 'Česká republika' %>">
+        <% if (member.is_admin) { %><input type="hidden" name="is_admin" value="1"><% } %>
+        <% if (member.is_active) { %><input type="hidden" name="is_active" value="1"><% } %>
+
+        <div style="display:flex;justify-content:flex-end;">
+          <button type="submit" class="btn btn-primary">Uložit bankovní účet</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ── Tab: Odměny ─────────────────────────────────────────── -->
+<div id="tab-odmeny" class="tab-section" style="display:none;">
+  <div class="card">
+    <div class="card-body" style="text-align:center;padding:48px 24px;color:var(--text-muted);">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:16px;opacity:0.4;">
+        <circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/>
+      </svg>
+      <div style="font-size:15px;font-weight:600;margin-bottom:8px;color:var(--text-primary);">Připravujeme</div>
+      <div style="font-size:14px;">Správa odměn a bonusů bude dostupná brzy.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Tab: Náklady ────────────────────────────────────────── -->
+<div id="tab-naklady" class="tab-section" style="display:none;">
+  <div class="card">
+    <div class="card-body" style="text-align:center;padding:48px 24px;color:var(--text-muted);">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:16px;opacity:0.4;">
+        <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+      </svg>
+      <div style="font-size:15px;font-weight:600;margin-bottom:8px;color:var(--text-primary);">Připravujeme</div>
+      <div style="font-size:14px;">Přehled výdajů zaměstnance bude dostupný brzy.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Tab: Přístupy ──────────────────────────────────────── -->
+<div id="tab-pristupy" class="tab-section" style="display:none;">
+  <div class="card">
+    <div class="card-header">
+      <h2 style="font-size:15px;font-weight:600;margin:0;">Informace o účtu</h2>
+    </div>
+    <div class="card-body">
+      <dl style="display:grid;grid-template-columns:auto 1fr;gap:10px 24px;font-size:14px;">
+        <dt style="color:var(--text-muted);font-weight:500;">E-mail</dt>
+        <dd><%= member.email %></dd>
+        <dt style="color:var(--text-muted);font-weight:500;">Datum vytvoření</dt>
+        <dd><%= new Date(member.created_at).toLocaleDateString('cs-CZ', { day:'numeric', month:'long', year:'numeric' }) %></dd>
+        <dt style="color:var(--text-muted);font-weight:500;">Stav účtu</dt>
+        <dd>
+          <% if (member.is_active) { %>
+            <span class="badge" style="background:var(--success-bg);color:#15803D;">Aktivní</span>
+          <% } else { %>
+            <span class="badge" style="background:var(--danger-bg);color:#991b1b;">Neaktivní</span>
+          <% } %>
+        </dd>
+        <dt style="color:var(--text-muted);font-weight:500;">Role</dt>
+        <dd>
+          <% if (member.is_admin) { %>
+            <span class="badge" style="background:#fef9c3;color:#854d0e;">Správce</span>
+          <% } else { %>
+            <span class="badge" style="background:var(--info-bg);color:var(--info);">Uživatel</span>
+          <% } %>
+        </dd>
+        <% if (member.updated_at) { %>
+        <dt style="color:var(--text-muted);font-weight:500;">Poslední změna</dt>
+        <dd><%= new Date(member.updated_at).toLocaleDateString('cs-CZ', { day:'numeric', month:'long', year:'numeric' }) %></dd>
+        <% } %>
       </dl>
     </div>
   </div>
 </div>
+
+<script>
+(function () {
+  var tabs = ['detail', 'banka', 'odmeny', 'naklady', 'pristupy'];
+  var activeTab = 'detail';
+
+  // Restore from URL hash if present
+  var hash = location.hash.replace('#', '');
+  if (tabs.indexOf(hash) !== -1) activeTab = hash;
+
+  function switchTab(id) {
+    tabs.forEach(function (t) {
+      var section = document.getElementById('tab-' + t);
+      var btn = document.getElementById('tab-btn-' + t);
+      if (!section || !btn) return;
+      var isActive = t === id;
+      section.style.display = isActive ? '' : 'none';
+      btn.style.color = isActive ? 'var(--primary)' : 'var(--text-muted)';
+      btn.style.borderBottomColor = isActive ? 'var(--primary)' : 'transparent';
+      btn.style.fontWeight = isActive ? '600' : '500';
+    });
+    activeTab = id;
+    history.replaceState(null, '', '#' + id);
+  }
+
+  window.switchTab = switchTab;
+  switchTab(activeTab);
+})();
+</script>
