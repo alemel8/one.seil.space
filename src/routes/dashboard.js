@@ -88,6 +88,7 @@ export default async function dashboardRoutes(fastify) {
 
   // ── VPS Monitoring (přesunuto z /) ───────────────────────────
   fastify.get('/monitoring', async (request, reply) => {
+    const now    = new Date();
     const latest = readLatest();
     const history = readHistory(72);
     const chartScript = history.length > 0 ? `

@@ -1,5 +1,12 @@
 import bcryptjs from 'bcryptjs';
 import { getDb } from '../db.js';
+import { writeFile, mkdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const MEDIA_DIR = path.resolve(__dirname, '../../data/media');
 
 export default async function authRoutes(fastify) {
   const sql = getDb();
@@ -14,6 +21,31 @@ export default async function authRoutes(fastify) {
     }, { layout: 'layouts/base.ejs' });
   });
 
+  // ── Upload profilové fotky ────────────────────────────────────
+  fastify.post('/profil/foto', async (request, reply) => {
+    const data = await request.file();
+    if (!data) return reply.redirect('/profil?error=nofile');
+
+    const mime = data.mimetype || '';
+    if (!mime.startsWith('image/')) return reply.redirect('/profil?error=notimage');
+
+    const ext = mime === 'image/png' ? '.png' : mime === 'image/webp' ? '.webp' : '.jpg';
+    const filename = `user_${request.user.id}${ext}`;
+
+    if (!existsSync(MEDIA_DIR)) await mkdir(MEDIA_DIR, { recursive: true });
+    const buf = await data.toBuffer();
+    await writeFile(path.join(MEDIA_DIR, filename), buf);
+
+    await sql`UPDATE users SET photo = ${filename} WHERE id = ${request.user.id}`;
+    return reply.redirect('/profil?saved=1');
+  });
+
+  // ── Smazat profilovou fotku ───────────────────────────────────
+  fastify.post('/profil/foto/smazat', async (request, reply) => {
+    await sql`UPDATE users SET photo = NULL WHERE id = ${request.user.id}`;
+    return reply.redirect('/profil?saved=1');
+  });
+
   fastify.post('/profil', async (request, reply) => {
     const b = request.body || {};
     const updates = [];
@@ -25,7 +57,8 @@ export default async function authRoutes(fastify) {
       if (b.new_password !== b.new_password_confirm) {
         return reply.redirect('/profil?error=mismatch');
       }
-      if (!bcryptjs.compareSync(b.current_password || '', request.user.password_hash)) {
+      const [u] = await sql`SELECT password_hash FROM users WHERE id = ${request.user.id}`;
+      if (!bcryptjs.compareSync(b.current_password || '', u?.password_hash || '')) {
         return reply.redirect('/profil?error=wrongpwd');
       }
       updates.push(sql`password_hash = ${bcryptjs.hashSync(b.new_password, 10)}`);

@@ -36,6 +36,10 @@ const fastify = Fastify({ logger: { level: process.env.LOG_LEVEL || 'info' } });
 
 await fastify.register(formbody);
 await fastify.register(cookie);
+// Centrální registrace multipart (pro file uploady v auth, invoices, receipts)
+await fastify.register((await import('@fastify/multipart')).default, {
+  limits: { fileSize: 20 * 1024 * 1024 },
+});
 await fastify.register(fastifySession, {
   secret: SESSION_SECRET,
   store: new PgSessionStore(sql),
@@ -57,8 +61,15 @@ await fastify.register(view, {
 });
 
 await fastify.register(staticPlugin, {
+  root: path.join(projectRoot, 'data/media'),
+  prefix: '/media/',
+  decorateReply: false,
+});
+
+await fastify.register(staticPlugin, {
   root: path.join(projectRoot, 'public'),
   prefix: '/static/',
+  decorateReply: false,
 });
 
 await fastify.register(swagger, {
@@ -118,7 +129,7 @@ await fastify.register(authRoutes);
 // ── Auth guard ────────────────────────────────────────────────
 
 fastify.addHook('onRequest', async (request, reply) => {
-  const publicPaths = ['/prihlasit', '/health', '/static', '/health/api', '/api/toneracek', '/api/v1', '/api/docs', '/health/cookie-test'];
+  const publicPaths = ['/prihlasit', '/health', '/static', '/media', '/health/api', '/api/toneracek', '/api/v1', '/api/docs', '/health/cookie-test'];
   const isPublic = publicPaths.some(
     p => request.url === p || request.url.startsWith(p + '/') || request.url.startsWith(p + '?')
   );

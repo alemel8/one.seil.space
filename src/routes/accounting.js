@@ -7,11 +7,6 @@ import { parseFioCsv } from '../fio-parser.js';
 export default async function accountingRoutes(fastify) {
   const sql = getDb();
 
-  // Registruj multipart pro upload
-  await fastify.register((await import('@fastify/multipart')).default, {
-    limits: { fileSize: 10 * 1024 * 1024 },
-  });
-
   // ── Banka ──────────────────────────────────────────────────
 
   fastify.get('/ucetnictvi/banka', async (request, reply) => {

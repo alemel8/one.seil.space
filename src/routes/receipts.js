@@ -8,10 +8,6 @@ const CATEGORIES = ['Kancelář', 'Cestovné', 'Stravné', 'IT & Software', 'Mar
 export default async function receiptsRoutes(fastify) {
   const sql = getDb();
 
-  await fastify.register((await import('@fastify/multipart')).default, {
-    limits: { fileSize: 20 * 1024 * 1024 },
-  });
-
   // ── Seznam účtenek ────────────────────────────────────────────
   fastify.get('/ucetnictvi/uctenky', async (request, reply) => {
     const q            = (request.query.q      || '').trim();

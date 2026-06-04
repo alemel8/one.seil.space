@@ -52,10 +52,6 @@ async function nextInvoiceNumber(sql, seriesId) {
 export default async function invoicesRoutes(fastify) {
   const sql = getDb();
 
-  await fastify.register((await import('@fastify/multipart')).default, {
-    limits: { fileSize: 20 * 1024 * 1024 },
-  });
-
   // ══════════════════════════════════════════════════════════
   // VYDANÉ FAKTURY
   // ══════════════════════════════════════════════════════════
@@ -272,24 +268,28 @@ export default async function invoicesRoutes(fastify) {
 
     const buf = await data.toBuffer();
     if (buf.length === 0) return reply.code(400).send({ error: 'Nahraný soubor je prázdný.' });
+    if (buf.length > 20 * 1024 * 1024) return reply.code(400).send({ error: 'Soubor je příliš velký (max 20 MB).' });
 
+    const mimeType = data.mimetype || 'application/pdf';
     const base64 = buf.toString('base64');
 
     try {
       const client = new Anthropic({ apiKey });
+
+      const contentBlock = mimeType.startsWith('image/')
+        ? { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } }
+        : { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } };
+
       const message = await client.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 1024,
         messages: [{
           role: 'user',
           content: [
-            {
-              type: 'document',
-              source: { type: 'base64', media_type: 'application/pdf', data: base64 },
-            },
+            contentBlock,
             {
               type: 'text',
-              text: `Z tohoto PDF vyextrahuj data přijaté faktury. Vrať POUZE platný JSON objekt bez markdown bloků ani dalšího textu:
+              text: `Z tohoto dokladu vyextrahuj data přijaté faktury. Vrať POUZE platný JSON objekt bez markdown bloků ani dalšího textu:
 {"number":"číslo faktury od dodavatele","supplier":"název dodavatele","supplier_ico":"IČO nebo null","amount":základ_bez_DPH_číslo,"vat_amount":DPH_číslo,"total_amount":celková_částka_číslo,"currency":"CZK","issue_date":"YYYY-MM-DD nebo null","due_date":"YYYY-MM-DD nebo null","notes":"předmět plnění nebo null"}`,
             },
           ],

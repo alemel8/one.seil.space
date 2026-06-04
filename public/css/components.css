@@ -502,4 +502,57 @@ table.data-table {
   .deal-grid,
   .member-detail-grid { grid-template-columns: 1fr !important; }
 
+  /* ── Inline grids: 2fr 1fr, 3fr 1fr → single column ──────── */
+  [style*="grid-template-columns:2fr 1fr"],
+  [style*="grid-template-columns: 2fr 1fr"],
+  [style*="grid-template-columns:3fr 1fr"],
+  [style*="grid-template-columns: 3fr 1fr"],
+  [style*="grid-template-columns:1fr 1fr 1fr"],
+  [style*="grid-template-columns: 1fr 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* ── Detail page header: back button + actions ────────────── */
+  [style*="display:flex"][style*="align-items:center"][style*="gap"] > a.btn,
+  [style*="display:flex"][style*="align-items:center"][style*="gap"] > button.btn {
+    min-height: 40px;
+  }
+
+  /* ── Invoice/receipt detail: action bar ───────────────────── */
+  .detail-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .detail-actions .btn { width: 100%; justify-content: center; }
+
+  /* ── Compact badge spacing on mobile ──────────────────────── */
+  .badge { font-size: 11px; padding: 3px 8px; }
+
+  /* ── Bank transaction list: hide less important columns ───── */
+  .data-table .hide-mobile { display: none !important; }
+
+  /* ── Bulk bar: wrap on small screens ──────────────────────── */
+  #bulkBar { flex-wrap: wrap; }
+
+  /* ── PDF 2-column modal: single column on phone ───────────── */
+  .rf-modal.rf-expanded,
+  .rc-modal.rc-expanded {
+    max-width: 100% !important;
+    height: 90vh !important;
+  }
+  .rf-modal.rf-expanded > #rfPhaseForm > div,
+  .rc-modal.rc-expanded > #rcPhaseForm > div {
+    flex-direction: column !important;
+  }
+  .rf-modal.rf-expanded > #rfPhaseForm > div > div:first-child,
+  .rc-modal.rc-expanded > #rcPhaseForm > div > div:first-child {
+    display: none !important;
+  }
+  .rf-modal.rf-expanded > #rfPhaseForm > div > div:last-child,
+  .rc-modal.rc-expanded > #rcPhaseForm > div > div:last-child {
+    flex: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
 }
