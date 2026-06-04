@@ -43,4 +43,29 @@ export default async function pushRoutes(fastify) {
     `;
     return reply.send({ subscribed: !!row });
   });
+
+  // Uložení notifikačních preferencí
+  fastify.post('/api/push/prefs', async (request, reply) => {
+    if (!request.user) return reply.code(401).send({ error: 'Unauthorized' });
+    const { notify_new_order } = request.body ?? {};
+    await sql`
+      INSERT INTO user_notification_prefs (user_id, notify_new_order, updated_at)
+      VALUES (${request.user.id}, ${notify_new_order !== false}, NOW())
+      ON CONFLICT (user_id) DO UPDATE
+        SET notify_new_order = EXCLUDED.notify_new_order,
+            updated_at = NOW()
+    `;
+    return reply.send({ ok: true });
+  });
+
+  // Načtení notifikačních preferencí
+  fastify.get('/api/push/prefs', async (request, reply) => {
+    if (!request.user) return reply.code(401).send({ error: 'Unauthorized' });
+    const [prefs] = await sql`
+      SELECT notify_new_order FROM user_notification_prefs WHERE user_id = ${request.user.id}
+    `;
+    return reply.send({
+      notify_new_order: prefs ? prefs.notify_new_order : true,
+    });
+  });
 }

@@ -21,12 +21,26 @@ export function getVapidPublicKey() {
   return VAPID_PUBLIC || null;
 }
 
-export async function sendPushToAll(payload) {
+// type: 'new_order' | string — filtruje dle user_notification_prefs
+export async function sendPushToAll(payload, type = 'new_order') {
   ensureConfigured();
   if (!configured) return;
 
   const sql = getDb();
-  const subs = await sql`SELECT endpoint, p256dh, auth FROM push_subscriptions`;
+
+  // Načti subscriptions uživatelů, kteří mají daný typ notifikace povolený.
+  // Uživatelé bez záznamu v prefs mají výchozí hodnotu TRUE.
+  const subs = await sql`
+    SELECT ps.endpoint, ps.p256dh, ps.auth
+    FROM push_subscriptions ps
+    LEFT JOIN user_notification_prefs p ON p.user_id = ps.user_id
+    WHERE
+      CASE ${type}
+        WHEN 'new_order' THEN COALESCE(p.notify_new_order, TRUE)
+        ELSE TRUE
+      END
+  `;
+
   if (!subs.length) return;
 
   const message = JSON.stringify(payload);
@@ -40,7 +54,6 @@ export async function sendPushToAll(payload) {
         );
       } catch (err) {
         if (err.statusCode === 410 || err.statusCode === 404) {
-          // Subscription expirovala — smaž ji
           await sql`DELETE FROM push_subscriptions WHERE endpoint = ${sub.endpoint}`.catch(() => {});
         }
       }

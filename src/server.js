@@ -151,6 +151,7 @@ const { default: toneracekRoutes }  = await import('./routes/toneracek.js');
 const { default: settingsRoutes }   = await import('./routes/settings.js');
 const { default: monitoringRoutes } = await import('./routes/monitoring.js');
 const { default: pushRoutes }       = await import('./routes/push.js');
+const { default: userSettingsRoutes } = await import('./routes/user-settings.js');
 
 await fastify.register(apiRoutes);
 await fastify.register(dashboardRoutes);
@@ -163,6 +164,7 @@ await fastify.register(toneracekRoutes);
 await fastify.register(settingsRoutes);
 await fastify.register(monitoringRoutes);
 await fastify.register(pushRoutes);
+await fastify.register(userSettingsRoutes);
 
 // ── Error handlers ────────────────────────────────────────────
 

@@ -110,21 +110,6 @@
 
 </div>
 
-  <!-- Push notifikace -->
-  <div class="card" style="grid-column:1/-1;">
-    <div class="card-header">Push notifikace</div>
-    <div class="card-body">
-      <p style="margin:0 0 16px;color:var(--text-muted);font-size:14px;">
-        Dostávejte okamžité upozornění na telefonu nebo počítači, když přijde nová objednávka.
-      </p>
-      <div id="pushStatus" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <span id="pushLabel" style="font-size:14px;color:var(--text-muted);">Zjišťuji stav…</span>
-        <button id="pushBtn" class="btn btn-primary btn-sm" style="display:none;" onclick="togglePush()">Povolit notifikace</button>
-      </div>
-      <p id="pushError" style="margin:10px 0 0;font-size:13px;color:var(--danger);display:none;"></p>
-    </div>
-  </div>
-
 </div>
 
 <script>
@@ -148,95 +133,4 @@ function previewFoto(input) {
   reader.readAsDataURL(input.files[0]);
 }
 
-// ── Push notifikace ────────────────────────────────────────────
-(async function initPush() {
-  const label = document.getElementById('pushLabel');
-  const btn   = document.getElementById('pushBtn');
-  const errEl = document.getElementById('pushError');
-
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    label.textContent = 'Váš prohlížeč nepodporuje push notifikace.';
-    return;
-  }
-
-  const res = await fetch('/api/push/vapid-key');
-  if (!res.ok) { label.textContent = 'Push není nakonfigurován na serveru.'; return; }
-  const { publicKey } = await res.json();
-
-  const reg = await navigator.serviceWorker.ready;
-  const sub = await reg.pushManager.getSubscription();
-
-  if (sub) {
-    // Ověř, že je skutečně uložena na serveru
-    const st = await fetch('/api/push/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint }) }).then(r => r.json()).catch(() => ({}));
-    if (st.subscribed) {
-      label.textContent = 'Notifikace jsou zapnuty na tomto zařízení.';
-      btn.textContent = 'Vypnout notifikace';
-      btn.classList.replace('btn-primary', 'btn-outline');
-      btn.style.display = '';
-      return;
-    }
-  }
-
-  label.textContent = 'Notifikace jsou vypnuty.';
-  btn.textContent = 'Povolit notifikace';
-  btn.style.display = '';
-
-  window._pushVapidKey = publicKey;
-  window._pushReg = reg;
-})();
-
-async function togglePush() {
-  const label = document.getElementById('pushLabel');
-  const btn   = document.getElementById('pushBtn');
-  const errEl = document.getElementById('pushError');
-
-  btn.disabled = true;
-  errEl.style.display = 'none';
-
-  const reg = window._pushReg || (await navigator.serviceWorker.ready);
-  const existing = await reg.pushManager.getSubscription();
-
-  if (existing) {
-    // Odhlásit
-    await fetch('/api/push/unsubscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: existing.endpoint }) });
-    await existing.unsubscribe();
-    label.textContent = 'Notifikace jsou vypnuty.';
-    btn.textContent = 'Povolit notifikace';
-    btn.classList.replace('btn-outline', 'btn-primary');
-    btn.disabled = false;
-    return;
-  }
-
-  // Přihlásit
-  const permission = await Notification.requestPermission();
-  if (permission !== 'granted') {
-    errEl.textContent = 'Svolení k notifikacím bylo zamítnuto. Povolte ho v nastavení prohlížeče.';
-    errEl.style.display = '';
-    btn.disabled = false;
-    return;
-  }
-
-  try {
-    const sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(window._pushVapidKey),
-    });
-    await fetch('/api/push/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sub) });
-    label.textContent = 'Notifikace jsou zapnuty na tomto zařízení.';
-    btn.textContent = 'Vypnout notifikace';
-    btn.classList.replace('btn-primary', 'btn-outline');
-  } catch (e) {
-    errEl.textContent = 'Nepodařilo se aktivovat notifikace: ' + e.message;
-    errEl.style.display = '';
-  }
-  btn.disabled = false;
-}
-
-function urlBase64ToUint8Array(base64String) {
-  const padding = '='.repeat((4 - base64String.length % 4) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const raw = atob(base64);
-  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
-}
 </script>

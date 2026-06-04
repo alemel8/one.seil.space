@@ -1,0 +1,214 @@
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Nastavení</h1>
+    <p>Osobní nastavení vašeho účtu</p>
+  </div>
+</div>
+
+<% if (saved) { %>
+<div style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+  ✓ Nastavení uloženo
+</div>
+<% } %>
+
+<div style="max-width:720px;display:flex;flex-direction:column;gap:24px;">
+
+  <!-- Notifikace -->
+  <div class="card">
+    <div class="card-header"><strong>Notifikace</strong></div>
+    <div class="card-body" style="display:flex;flex-direction:column;gap:20px;">
+
+      <!-- Push subscription pro toto zařízení -->
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div style="font-size:14px;font-weight:600;color:var(--text);">Push notifikace na tomto zařízení</div>
+        <div style="font-size:13px;color:var(--text-muted);line-height:1.5;">
+          Zapněte pro příjem notifikací v reálném čase na tomto telefonu nebo počítači — i při zamčené obrazovce.
+        </div>
+        <div id="pushStatus" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px;">
+          <span id="pushLabel" style="font-size:13px;color:var(--text-muted);">Zjišťuji stav…</span>
+          <button id="pushBtn" class="btn btn-primary btn-sm" style="display:none;" onclick="togglePush()">Povolit notifikace</button>
+        </div>
+        <p id="pushError" style="margin:4px 0 0;font-size:13px;color:var(--danger);display:none;"></p>
+      </div>
+
+      <div style="border-top:1px solid var(--border);"></div>
+
+      <!-- Typy notifikací -->
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:12px;">Typy notifikací</div>
+
+        <label id="prefRow" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;gap:16px;">
+          <div>
+            <div style="font-size:14px;font-weight:500;color:var(--text);">Nová objednávka</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Upozornění při každé nové objednávce z e-shopu</div>
+          </div>
+          <div class="toggle-wrap" style="flex-shrink:0;">
+            <input type="checkbox" id="prefNewOrder" class="toggle-input" <%= prefs.notify_new_order ? 'checked' : '' %> onchange="savePref('new_order', this.checked)">
+            <span class="toggle-switch" onclick="document.getElementById('prefNewOrder').click()"></span>
+          </div>
+        </label>
+
+      </div>
+
+      <p id="prefMsg" style="font-size:13px;color:var(--text-muted);display:none;"></p>
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Push subscription toggle ──────────────────────────────────
+(async function initPush() {
+  const label = document.getElementById('pushLabel');
+  const btn   = document.getElementById('pushBtn');
+
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    label.textContent = 'Váš prohlížeč nepodporuje push notifikace.';
+    return;
+  }
+
+  const res = await fetch('/api/push/vapid-key');
+  if (!res.ok) { label.textContent = 'Push není nakonfigurován na serveru.'; return; }
+  const { publicKey } = await res.json();
+
+  window._pushVapidKey = publicKey;
+  window._pushReg = await navigator.serviceWorker.ready;
+
+  const sub = await window._pushReg.pushManager.getSubscription();
+  if (sub) {
+    const st = await fetch('/api/push/status', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: sub.endpoint }),
+    }).then(r => r.json()).catch(() => ({}));
+    if (st.subscribed) {
+      setEnabled(true);
+      return;
+    }
+  }
+  setEnabled(false);
+})();
+
+function setEnabled(on) {
+  const label = document.getElementById('pushLabel');
+  const btn   = document.getElementById('pushBtn');
+  if (on) {
+    label.textContent = 'Notifikace jsou zapnuty na tomto zařízení.';
+    btn.textContent = 'Vypnout notifikace';
+    btn.className = 'btn btn-outline btn-sm';
+  } else {
+    label.textContent = 'Notifikace jsou vypnuty.';
+    btn.textContent = 'Povolit notifikace';
+    btn.className = 'btn btn-primary btn-sm';
+  }
+  btn.style.display = '';
+}
+
+async function togglePush() {
+  const btn   = document.getElementById('pushBtn');
+  const errEl = document.getElementById('pushError');
+  btn.disabled = true;
+  errEl.style.display = 'none';
+
+  const reg = window._pushReg || (await navigator.serviceWorker.ready);
+  const existing = await reg.pushManager.getSubscription();
+
+  if (existing) {
+    await fetch('/api/push/unsubscribe', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: existing.endpoint }),
+    });
+    await existing.unsubscribe();
+    setEnabled(false);
+    btn.disabled = false;
+    return;
+  }
+
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') {
+    errEl.textContent = 'Svolení k notifikacím bylo zamítnuto. Povolte ho v nastavení prohlížeče.';
+    errEl.style.display = '';
+    btn.disabled = false;
+    return;
+  }
+
+  try {
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(window._pushVapidKey),
+    });
+    await fetch('/api/push/subscribe', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sub),
+    });
+    setEnabled(true);
+  } catch (e) {
+    errEl.textContent = 'Nepodařilo se aktivovat notifikace: ' + e.message;
+    errEl.style.display = '';
+  }
+  btn.disabled = false;
+}
+
+// ── Notifikační preference ────────────────────────────────────
+async function savePref(type, value) {
+  const msg = document.getElementById('prefMsg');
+  msg.style.display = 'none';
+  try {
+    await fetch('/api/push/prefs', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notify_new_order: type === 'new_order' ? value : undefined }),
+    });
+    msg.textContent = 'Uloženo.';
+    msg.style.color = 'var(--text-muted)';
+    msg.style.display = '';
+    setTimeout(() => msg.style.display = 'none', 2000);
+  } catch {
+    msg.textContent = 'Chyba při ukládání.';
+    msg.style.color = 'var(--danger)';
+    msg.style.display = '';
+  }
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+</script>
+
+<style>
+.toggle-input { display: none; }
+.toggle-wrap { display: inline-flex; align-items: center; }
+.toggle-switch {
+  display: block;
+  position: relative;
+  width: 38px;
+  height: 22px;
+  background: var(--gray-300, #d1d5db);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.toggle-switch::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  top: 3px;
+  left: 3px;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,.25);
+}
+.toggle-input:checked ~ .toggle-switch,
+.toggle-input:checked + .toggle-switch {
+  background: var(--primary);
+}
+.toggle-input:checked ~ .toggle-switch::after,
+.toggle-input:checked + .toggle-switch::after {
+  transform: translateX(16px);
+}
+</style>
