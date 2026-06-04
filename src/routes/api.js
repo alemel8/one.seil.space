@@ -1,4 +1,5 @@
 import { getDb, generateId } from '../db.js';
+import { sendPushToAll } from '../push.js';
 
 // ── Ověření API klíče ────────────────────────────────────────
 
@@ -205,6 +206,12 @@ export default async function apiRoutes(fastify) {
     } catch (err) {
       fastify.log.warn({ err }, 'CRM upsert selhal (nekritické)');
     }
+
+    sendPushToAll({
+      title: `Nová objednávka — ${shop.shop_name}`,
+      body: `#${orderNumber} · ${customer.firstName} ${customer.lastName} · ${b.totalPrice} ${b.currency ?? 'CZK'}`,
+      url: `/ucetnictvi/objednavky/${orderId}`,
+    }).catch(() => {});
 
     return reply.code(201).send({ orderId, orderNumber, sourceShop: shop.shop_id_slug, invoiceNumber });
   });

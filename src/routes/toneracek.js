@@ -1,5 +1,6 @@
 import { getDb, generateId } from '../db.js';
 import { sendOrderStatusEmail } from '../email.js';
+import { sendPushToAll } from '../push.js';
 
 const ORDER_STATUSES = ['Přijata', 'Ve zpracování', 'Vyřízena', 'Stornována'];
 
@@ -307,6 +308,12 @@ export default async function toneracekRoutes(fastify) {
     } catch (err) {
       fastify.log.warn({ err }, 'CRM upsert selhal (nekritické)');
     }
+
+    sendPushToAll({
+      title: 'Nová objednávka — Toneráček',
+      body: `#${orderNumber} · ${customer.firstName} ${customer.lastName} · ${totalPrice} CZK`,
+      url: `/ucetnictvi/objednavky/${orderId}`,
+    }).catch(() => {});
 
     return reply.send({ orderId, orderNumber, invoiceNumber });
   });

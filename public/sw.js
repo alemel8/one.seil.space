@@ -23,6 +23,33 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
+// Push notifikace
+self.addEventListener('push', event => {
+  let data = { title: 'Nová objednávka', body: '', url: '/ucetnictvi/objednavky' };
+  try { data = { ...data, ...event.data.json() }; } catch {}
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: '/static/img/icon-192.png',
+      badge: '/static/img/icon-192.png',
+      data: { url: data.url },
+      vibrate: [200, 100, 200],
+    })
+  );
+});
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const url = event.notification.data?.url || '/';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+      const existing = list.find(c => c.url.includes(self.location.origin) && 'focus' in c);
+      if (existing) return existing.focus().then(c => c.navigate(url));
+      return clients.openWindow(url);
+    })
+  );
+});
+
 // Fetch — network first, fallback na cache pro statiku
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
