@@ -184,6 +184,30 @@ function bulkClearAll() {
                 <label class="form-label required">Dodavatel</label>
                 <input type="text" name="supplier" id="rfSupplier" class="form-control" required>
               </div>
+              <div class="form-group">
+                <label class="form-label">DIČ</label>
+                <input type="text" name="supplier_dic" id="rfSupplierDic" class="form-control" placeholder="CZ12345678">
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <div class="form-group">
+                  <label class="form-label">Ulice</label>
+                  <input type="text" name="supplier_address" id="rfSupplierAddress" class="form-control">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Město</label>
+                  <input type="text" name="supplier_city" id="rfSupplierCity" class="form-control">
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:100px 1fr;gap:10px;">
+                <div class="form-group">
+                  <label class="form-label">PSČ</label>
+                  <input type="text" name="supplier_zip" id="rfSupplierZip" class="form-control">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Stát</label>
+                  <input type="text" name="supplier_country" id="rfSupplierCountry" class="form-control" value="Česká republika">
+                </div>
+              </div>
 
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
                 <div class="form-group">
@@ -461,6 +485,28 @@ function bulkClearAll() {
     if (dl) dl.innerHTML = list.map(a => `<option value="${a.code}">${a.code} — ${a.name}</option>`).join('');
   }).catch(() => {});
 
+  // ── Intercept form submit → fetch FormData (pro odeslání PDF přílohy) ─
+  document.getElementById('rfForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = e.target.querySelector('[type=submit]');
+    btn.disabled = true;
+    btn.textContent = 'Ukládám…';
+
+    const fd = new FormData(e.target);
+    if (currentFile) fd.append('attachment', currentFile, currentFile.name);
+
+    try {
+      const resp = await fetch('/ucetnictvi/prijate-faktury/vytvorit', { method: 'POST', body: fd });
+      if (!resp.ok) throw new Error('Chyba serveru');
+      const data = await resp.json();
+      window.location.href = `/ucetnictvi/prijate-faktury/${data.id}`;
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = 'Přidat fakturu';
+      alert('Chyba při ukládání: ' + err.message);
+    }
+  });
+
   // ── ARES lookup ──────────────────────────────────────────
   const aresBadge   = document.getElementById('rfAresBadge');
   const aresSpinner = document.getElementById('rfAresSpinner');
@@ -481,16 +527,17 @@ function bulkClearAll() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Nenalezeno');
 
-      // Vyplň název dodavatele pokud je prázdný
-      const supplierEl = document.getElementById('rfSupplier');
-      if (supplierEl && (!supplierEl.value || supplierEl.value.trim() === '')) {
-        supplierEl.value = data.name || '';
-      }
+      const fill = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+      // Vyplň název dodavatele pouze pokud je prázdný
+      if (!document.getElementById('rfSupplier')?.value?.trim()) fill('rfSupplier', data.name);
+      fill('rfSupplierDic',     data.dic);
+      fill('rfSupplierAddress', data.address);
+      fill('rfSupplierCity',    data.city);
+      fill('rfSupplierZip',     data.zip);
 
-      // Zobraz potvrzení s adresou
       const addr = [data.address, data.city, data.zip].filter(Boolean).join(', ');
       aresBadge.style.cssText = 'display:block;background:#dcfce7;color:#166534;border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;';
-      aresBadge.innerHTML = `<strong>${data.name}</strong>${addr ? '<br><span style="opacity:.8;">' + addr + '</span>' : ''}`;
+      aresBadge.innerHTML = `<strong>${data.name}</strong>${data.dic ? ' · DIČ: ' + data.dic : ''}${addr ? '<br><span style="opacity:.8;">' + addr + '</span>' : ''}`;
     } catch (err) {
       aresBadge.style.cssText = 'display:block;background:var(--danger-bg);color:var(--danger);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;';
       aresBadge.textContent = err.message;

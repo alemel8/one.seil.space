@@ -10,7 +10,8 @@ import { existsSync } from 'node:fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '../..');
-const PDFS_DIR = path.join(projectRoot, 'data/pdfs');
+const PDFS_DIR   = path.join(projectRoot, 'data/pdfs');
+const MEDIA_DIR  = path.join(projectRoot, 'data/media');
 
 const STATUSES_ISSUED   = ['Nezaplacena', 'Zaplacena', 'Po splatnosti', 'Storno'];
 const STATUSES_RECEIVED = ['Nezaplacena', 'Zaplacena', 'Po splatnosti', 'Storno'];
@@ -321,6 +322,7 @@ export default async function invoicesRoutes(fastify) {
     return reply.view('pages/invoices/received-detail.ejs', {
       pageTitle: `Přijatá ${invoice.number}`, currentPath: '/ucetnictvi/prijate-faktury',
       user: request.user, invoice, bankTx, STATUSES_RECEIVED,
+      saved: request.query.saved === '1',
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -331,17 +333,24 @@ export default async function invoicesRoutes(fastify) {
     const totalAmount = b.total_amount ? parseFloat(b.total_amount) : (amount + vatAmount);
     await sql`
       UPDATE accounting_invoices SET
-        number       = ${b.number || ''},
-        supplier     = ${(b.supplier||'').trim()},
-        supplier_ico = ${(b.supplier_ico||'').trim() || null},
-        amount       = ${amount},
-        vat_amount   = ${vatAmount},
-        total_amount = ${totalAmount},
-        currency     = ${b.currency || 'CZK'},
-        issue_date   = ${b.issue_date || new Date().toISOString().split('T')[0]},
-        due_date     = ${b.due_date || null},
-        notes        = ${(b.notes||'').trim()},
-        modified_at  = NOW()
+        number           = ${b.number || ''},
+        supplier         = ${(b.supplier||'').trim()},
+        supplier_ico     = ${(b.supplier_ico||'').trim() || null},
+        supplier_dic     = ${(b.supplier_dic||'').trim()},
+        supplier_address = ${(b.supplier_address||'').trim()},
+        supplier_city    = ${(b.supplier_city||'').trim()},
+        supplier_zip     = ${(b.supplier_zip||'').trim()},
+        supplier_country = ${(b.supplier_country||'Česká republika').trim()},
+        amount           = ${amount},
+        vat_amount       = ${vatAmount},
+        total_amount     = ${totalAmount},
+        currency         = ${b.currency || 'CZK'},
+        issue_date       = ${b.issue_date || new Date().toISOString().split('T')[0]},
+        due_date         = ${b.due_date || null},
+        notes            = ${(b.notes||'').trim()},
+        account_debit    = ${(b.account_debit||'').trim()},
+        account_credit   = ${(b.account_credit||'').trim()},
+        modified_at      = NOW()
       WHERE id = ${request.params.id} AND type = 'received'
     `;
     return reply.redirect(`/ucetnictvi/prijate-faktury/${request.params.id}`);
@@ -371,27 +380,80 @@ export default async function invoicesRoutes(fastify) {
   });
 
   fastify.post('/ucetnictvi/prijate-faktury/vytvorit', async (request, reply) => {
-    const b = request.body || {};
-    const amount     = parseFloat(b.amount     || 0);
-    const vatAmount  = parseFloat(b.vat_amount || 0);
+    // Parsuj multipart (přichází z fetch FormData — i bez souboru)
+    const fields = {};
+    let attachmentPath = null;
+
+    const parts = request.parts();
+    for await (const part of parts) {
+      if (part.file) {
+        const mime = part.mimetype || '';
+        if (mime === 'application/pdf' || mime.startsWith('image/')) {
+          const buf = await part.toBuffer();
+          if (buf.length > 0) {
+            if (!existsSync(MEDIA_DIR)) await import('node:fs/promises').then(fs => fs.mkdir(MEDIA_DIR, { recursive: true }));
+            const ext = mime === 'application/pdf' ? '.pdf' : (mime === 'image/png' ? '.png' : '.jpg');
+            const filename = `inv_recv_${Date.now()}${ext}`;
+            await writeFile(path.join(MEDIA_DIR, filename), buf);
+            attachmentPath = filename;
+          }
+        } else {
+          await part.toBuffer(); // consume
+        }
+      } else {
+        fields[part.fieldname] = part.value ?? '';
+      }
+    }
+
+    const b = fields;
+    const amount      = parseFloat(b.amount      || 0);
+    const vatAmount   = parseFloat(b.vat_amount  || 0);
     const totalAmount = b.total_amount ? parseFloat(b.total_amount) : (amount + vatAmount);
+    const newId = generateId();
+
     await sql`
       INSERT INTO accounting_invoices
-        (id, type, number, supplier, supplier_ico, amount, vat_amount, total_amount, currency,
-         status, issue_date, due_date, notes, account_debit, account_credit)
+        (id, type, number, supplier, supplier_ico, supplier_dic,
+         supplier_address, supplier_city, supplier_zip, supplier_country,
+         amount, vat_amount, total_amount, currency,
+         status, issue_date, due_date, notes, account_debit, account_credit,
+         attachment_path)
       VALUES (
-        ${generateId()}, 'received',
+        ${newId}, 'received',
         ${b.number || ''}, ${(b.supplier||'').trim()},
         ${(b.supplier_ico||'').trim() || null},
+        ${(b.supplier_dic||'').trim()},
+        ${(b.supplier_address||'').trim()},
+        ${(b.supplier_city||'').trim()},
+        ${(b.supplier_zip||'').trim()},
+        ${(b.supplier_country||'Česká republika').trim()},
         ${amount}, ${vatAmount}, ${totalAmount},
         ${b.currency || 'CZK'}, ${b.status || 'Nezaplacena'},
         ${b.issue_date || new Date().toISOString().split('T')[0]},
         ${b.due_date || null}, ${(b.notes||'').trim()},
         ${(b.account_debit  || '').trim()},
-        ${(b.account_credit || '').trim()}
+        ${(b.account_credit || '').trim()},
+        ${attachmentPath}
       )
     `;
-    return reply.redirect('/ucetnictvi/prijate-faktury');
+    // Odpovídáme JSON (front-end přesměruje)
+    return reply.code(201).send({ id: newId });
+  });
+
+  // ── Upload přílohy k existující přijaté faktuře ───────────────
+  fastify.post('/ucetnictvi/prijate-faktury/:id/priloha', async (request, reply) => {
+    if (!request.user) return reply.code(401).send('Unauthorized');
+    const data = await request.file();
+    if (!data) return reply.code(400).send('Žádný soubor');
+    const mime = data.mimetype || '';
+    if (mime !== 'application/pdf' && !mime.startsWith('image/')) return reply.code(400).send('Neplatný typ');
+    const buf = await data.toBuffer();
+    if (!existsSync(MEDIA_DIR)) await import('node:fs/promises').then(fs => fs.mkdir(MEDIA_DIR, { recursive: true }));
+    const ext = mime === 'application/pdf' ? '.pdf' : (mime === 'image/png' ? '.png' : '.jpg');
+    const filename = `inv_recv_${request.params.id}${ext}`;
+    await writeFile(path.join(MEDIA_DIR, filename), buf);
+    await sql`UPDATE accounting_invoices SET attachment_path = ${filename}, modified_at = NOW() WHERE id = ${request.params.id}`;
+    return reply.redirect(`/ucetnictvi/prijate-faktury/${request.params.id}?saved=1`);
   });
 
   // ── Export CSV ────────────────────────────────────────────────

@@ -5,8 +5,9 @@
   const statusCl = invoice.status==='Zaplacena'    ? '#166534' :
                    invoice.status==='Po splatnosti' ? '#991b1b' :
                    invoice.status==='Storno'        ? '#6b7280' : '#92400e';
-  const fmt = (n) => Number(n||0).toLocaleString('cs-CZ', {minimumFractionDigits:2});
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('cs-CZ') : '—';
+  const fmt = n  => Number(n||0).toLocaleString('cs-CZ', {minimumFractionDigits:2});
+  const fmtD = d => d ? new Date(d).toLocaleDateString('cs-CZ') : '—';
+  const isOverdue = invoice.due_date && invoice.status !== 'Zaplacena' && invoice.status !== 'Storno' && new Date(invoice.due_date) < new Date();
 %>
 
 <div class="page-header">
@@ -18,70 +19,148 @@
     </div>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <% if (invoice.attachment_path) { %>
+    <a href="/media/<%= invoice.attachment_path %>" target="_blank" class="btn btn-outline btn-sm">📄 Otevřít přílohu</a>
+    <% } %>
     <button class="btn btn-outline" data-modal-open="modalEdit">✏️ Upravit</button>
-    <button class="btn btn-outline" data-modal-open="modalStatus">🔄 Změnit stav</button>
+    <button class="btn btn-outline" data-modal-open="modalStatus">🔄 Stav</button>
   </div>
 </div>
 
-<div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;">
+<% if (saved) { %>
+<div style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:10px 16px;border-radius:8px;margin-bottom:16px;">✓ Uloženo</div>
+<% } %>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;align-items:start;">
 
   <!-- Levý sloupec -->
   <div style="display:flex;flex-direction:column;gap:20px;">
 
     <!-- Dodavatel -->
     <div class="card">
-      <div class="card-header">Dodavatel</div>
-      <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div>
-          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Název</div>
-          <div style="font-weight:600;"><%= invoice.supplier || '—' %></div>
-        </div>
-        <div>
-          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">IČO</div>
-          <div><%= invoice.supplier_ico || '—' %></div>
+      <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+        <strong>Dodavatel</strong>
+        <% if (invoice.supplier_ico) { %>
+        <a href="https://ares.gov.cz/ekonomicke-subjekty?ico=<%= invoice.supplier_ico %>" target="_blank" style="font-size:12px;color:var(--primary);">Ověřit v ARES ↗</a>
+        <% } %>
+      </div>
+      <div class="card-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div>
+            <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Název</div>
+            <div style="font-weight:600;font-size:15px;"><%= invoice.supplier || '—' %></div>
+          </div>
+          <div>
+            <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">IČO</div>
+            <div style="font-weight:500;"><%= invoice.supplier_ico || '—' %></div>
+          </div>
+          <% if (invoice.supplier_dic) { %>
+          <div>
+            <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">DIČ</div>
+            <div><%= invoice.supplier_dic %></div>
+          </div>
+          <% } %>
+          <% if (invoice.supplier_address || invoice.supplier_city) { %>
+          <div style="<%= !invoice.supplier_dic ? 'grid-column:1/-1' : '' %>">
+            <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Adresa</div>
+            <div style="line-height:1.5;">
+              <% if (invoice.supplier_address) { %><%= invoice.supplier_address %><br><% } %>
+              <%= [invoice.supplier_zip, invoice.supplier_city].filter(Boolean).join(' ') || '—' %>
+              <% if (invoice.supplier_country && invoice.supplier_country !== 'Česká republika') { %><br><%= invoice.supplier_country %><% } %>
+            </div>
+          </div>
+          <% } %>
         </div>
       </div>
     </div>
 
-    <!-- Termíny -->
+    <!-- Termíny a platba -->
     <div class="card">
-      <div class="card-header">Termíny</div>
+      <div class="card-header"><strong>Termíny a platba</strong></div>
       <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
         <div>
           <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Datum přijetí</div>
-          <div style="font-weight:500;"><%= fmtDate(invoice.issue_date) %></div>
+          <div style="font-weight:500;"><%= fmtD(invoice.issue_date) %></div>
         </div>
         <div>
-          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Splatnost</div>
-          <% const isOverdue = invoice.due_date && invoice.status !== 'Zaplacena' && invoice.status !== 'Storno' && new Date(invoice.due_date) < new Date(); %>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Datum splatnosti</div>
           <div style="font-weight:500;<%= isOverdue ? 'color:var(--danger);' : '' %>">
-            <%= fmtDate(invoice.due_date) %>
-            <% if (isOverdue) { %><span style="font-size:11px;"> ⚠</span><% } %>
+            <%= fmtD(invoice.due_date) %><%= isOverdue ? ' ⚠' : '' %>
           </div>
         </div>
         <% if (invoice.paid_date) { %>
         <div>
           <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Zaplaceno</div>
-          <div style="font-weight:500;color:#166534;"><%= fmtDate(invoice.paid_date) %></div>
+          <div style="font-weight:500;color:#166534;"><%= fmtD(invoice.paid_date) %></div>
         </div>
         <% } %>
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Měna</div>
+          <div><%= invoice.currency || 'CZK' %></div>
+        </div>
       </div>
     </div>
+
+    <!-- Předkontace / účtování -->
+    <% if (invoice.account_debit || invoice.account_credit) { %>
+    <div class="card">
+      <div class="card-header"><strong>Účtování (předkontace)</strong></div>
+      <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">MD (má dáti)</div>
+          <div style="font-family:monospace;font-size:15px;font-weight:600;"><%= invoice.account_debit || '—' %></div>
+        </div>
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">D (dal)</div>
+          <div style="font-family:monospace;font-size:15px;font-weight:600;"><%= invoice.account_credit || '—' %></div>
+        </div>
+      </div>
+    </div>
+    <% } %>
 
     <!-- Poznámka -->
     <% if (invoice.notes) { %>
     <div class="card">
-      <div class="card-header">Poznámka / předmět plnění</div>
+      <div class="card-header"><strong>Poznámka / předmět plnění</strong></div>
       <div class="card-body" style="color:var(--text-secondary);line-height:1.6;"><%= invoice.notes %></div>
     </div>
     <% } %>
 
-    <!-- Bankovní transakce -->
+    <!-- Příloha -->
+    <div class="card">
+      <div class="card-header"><strong>Příloha (PDF / foto faktury)</strong></div>
+      <div class="card-body">
+        <% if (invoice.attachment_path) { %>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <a href="/media/<%= invoice.attachment_path %>" target="_blank" style="color:var(--primary);font-weight:500;text-decoration:none;"><%= invoice.attachment_path %></a>
+          </div>
+          <a href="/media/<%= invoice.attachment_path %>" target="_blank" class="btn btn-outline btn-sm">Otevřít</a>
+        </div>
+        <% } else { %>
+        <form method="post" action="/ucetnictvi/prijate-faktury/<%= invoice.id %>/priloha" enctype="multipart/form-data">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <label style="cursor:pointer;">
+              <input type="file" name="file" accept="application/pdf,image/*" style="display:none;" onchange="this.form.submit()">
+              <span class="btn btn-outline btn-sm">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Nahrát PDF / foto
+              </span>
+            </label>
+            <span style="font-size:12px;color:var(--text-muted);">Žádná příloha</span>
+          </div>
+        </form>
+        <% } %>
+      </div>
+    </div>
+
+    <!-- Spárovaná transakce -->
     <% if (bankTx) { %>
     <div class="card">
       <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
-        <span>Spárovaná transakce</span>
-        <form method="post" action="/ucetnictvi/banka/<%= bankTx.id %>/zrusit-parovani" style="display:inline;" onsubmit="return confirm('Zrušit párování?')">
+        <strong>Spárovaná bankovní transakce</strong>
+        <form method="post" action="/ucetnictvi/banka/<%= bankTx.id %>/zrusit-parovani" onsubmit="return confirm('Zrušit párování?')">
           <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger);">Zrušit párování</button>
         </form>
       </div>
@@ -96,7 +175,7 @@
         </div>
         <div>
           <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Datum</div>
-          <div><%= fmtDate(bankTx.date || bankTx.transaction_date) %></div>
+          <div><%= fmtD(bankTx.date || bankTx.transaction_date) %></div>
         </div>
       </div>
     </div>
@@ -104,43 +183,49 @@
 
   </div>
 
-  <!-- Pravý sloupec: rekapitulace + akce -->
+  <!-- Pravý sloupec -->
   <div style="display:flex;flex-direction:column;gap:16px;">
 
+    <!-- Rekapitulace -->
     <div class="card">
-      <div class="card-header">Rekapitulace</div>
+      <div class="card-header"><strong>Rekapitulace</strong></div>
       <div class="card-body">
-        <div style="display:flex;justify-content:space-between;padding:5px 0;color:var(--text-muted);font-size:13px;">
+        <div style="display:flex;justify-content:space-between;padding:6px 0;color:var(--text-muted);font-size:13px;border-bottom:1px solid var(--border);">
           <span>Základ bez DPH</span>
           <span><%= fmt(invoice.amount) %> <%= invoice.currency %></span>
         </div>
-        <div style="display:flex;justify-content:space-between;padding:5px 0;color:var(--text-muted);font-size:13px;">
+        <div style="display:flex;justify-content:space-between;padding:6px 0;color:var(--text-muted);font-size:13px;border-bottom:1px solid var(--border);">
           <span>DPH</span>
           <span><%= fmt(invoice.vat_amount) %> <%= invoice.currency %></span>
         </div>
-        <hr style="margin:8px 0;border:none;border-top:1px solid var(--border);">
-        <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:16px;font-weight:700;color:var(--danger);">
+        <div style="display:flex;justify-content:space-between;padding:10px 0 4px;font-size:17px;font-weight:700;color:var(--danger);">
           <span>K úhradě</span>
           <span><%= fmt(invoice.total_amount) %> <%= invoice.currency %></span>
         </div>
       </div>
     </div>
 
+    <!-- Akce -->
     <div class="card">
-      <div class="card-header">Akce</div>
+      <div class="card-header"><strong>Akce</strong></div>
       <div class="card-body" style="display:flex;flex-direction:column;gap:8px;">
         <button class="btn btn-outline" data-modal-open="modalEdit" style="width:100%;">✏️ Upravit fakturu</button>
         <button class="btn btn-ghost" data-modal-open="modalStatus" style="width:100%;">🔄 Změnit stav</button>
         <% if (!bankTx && invoice.status !== 'Zaplacena') { %>
         <a href="/ucetnictvi/banka?parovat=<%= invoice.id %>" class="btn btn-ghost" style="width:100%;text-align:center;">🔗 Spárovat s bankou</a>
         <% } %>
+        <form method="post" action="/ucetnictvi/prijate-faktury/pohoda-xml" target="_blank">
+          <input type="hidden" name="ids" value="<%= invoice.id %>">
+          <button type="submit" class="btn btn-ghost" style="width:100%;">↓ POHODA XML</button>
+        </form>
       </div>
     </div>
 
-    <div style="font-size:12px;color:var(--text-muted);padding:4px 0;">
-      ID: <%= invoice.id %><br>
-      Vytvořeno: <%= fmtDate(invoice.created_at) %><br>
-      Upraveno:  <%= fmtDate(invoice.modified_at) %>
+    <!-- Metadata -->
+    <div style="font-size:12px;color:var(--text-muted);padding:4px 8px;line-height:1.8;">
+      <div><span style="opacity:.7;">ID:</span> <code style="font-size:11px;"><%= invoice.id %></code></div>
+      <div><span style="opacity:.7;">Vytvořeno:</span> <%= fmtD(invoice.created_at) %></div>
+      <div><span style="opacity:.7;">Upraveno:</span> <%= fmtD(invoice.modified_at) %></div>
     </div>
 
   </div>
@@ -174,27 +259,24 @@
 
 <!-- Modal: Úprava faktury -->
 <div id="modalEdit" class="modal-backdrop" onclick="if(event.target===this)this.classList.remove('open')">
-  <div class="modal">
+  <div class="modal modal-lg">
     <div class="modal-header">
-      <h2 class="modal-title">Upravit fakturu</h2>
+      <h2 class="modal-title">Upravit přijatou fakturu</h2>
       <button class="modal-close" onclick="document.getElementById('modalEdit').classList.remove('open')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
     <form method="post" action="/ucetnictvi/prijate-faktury/<%= invoice.id %>/upravit">
       <div class="modal-body">
-        <div class="form-grid">
+        <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:14px;">
+
+          <div class="form-group col-span-2" style="border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:4px;">
+            <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Faktura</div>
+          </div>
+
           <div class="form-group">
             <label class="form-label required">Číslo faktury</label>
             <input type="text" name="number" class="form-control" value="<%= invoice.number %>" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label required">Dodavatel</label>
-            <input type="text" name="supplier" class="form-control" value="<%= invoice.supplier||'' %>" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label">IČO dodavatele</label>
-            <input type="text" name="supplier_ico" class="form-control" value="<%= invoice.supplier_ico||'' %>">
           </div>
           <div class="form-group">
             <label class="form-label">Měna</label>
@@ -224,8 +306,50 @@
           </div>
           <div class="form-group col-span-2">
             <label class="form-label">Poznámka / předmět plnění</label>
-            <textarea name="notes" class="form-control" rows="3"><%= invoice.notes||'' %></textarea>
+            <textarea name="notes" class="form-control" rows="2"><%= invoice.notes||'' %></textarea>
           </div>
+          <div class="form-group">
+            <label class="form-label">Předkontace MD</label>
+            <input type="text" name="account_debit" class="form-control" value="<%= invoice.account_debit||'' %>" placeholder="518">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Předkontace D</label>
+            <input type="text" name="account_credit" class="form-control" value="<%= invoice.account_credit||'' %>" placeholder="321">
+          </div>
+
+          <div class="form-group col-span-2" style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px;">
+            <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Dodavatel</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label required">Název dodavatele</label>
+            <input type="text" name="supplier" class="form-control" value="<%= invoice.supplier||'' %>" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">IČO</label>
+            <input type="text" name="supplier_ico" class="form-control" value="<%= invoice.supplier_ico||'' %>">
+          </div>
+          <div class="form-group">
+            <label class="form-label">DIČ</label>
+            <input type="text" name="supplier_dic" class="form-control" value="<%= invoice.supplier_dic||'' %>" placeholder="CZ12345678">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Ulice</label>
+            <input type="text" name="supplier_address" class="form-control" value="<%= invoice.supplier_address||'' %>">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Město</label>
+            <input type="text" name="supplier_city" class="form-control" value="<%= invoice.supplier_city||'' %>">
+          </div>
+          <div class="form-group">
+            <label class="form-label">PSČ</label>
+            <input type="text" name="supplier_zip" class="form-control" value="<%= invoice.supplier_zip||'' %>">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Stát</label>
+            <input type="text" name="supplier_country" class="form-control" value="<%= invoice.supplier_country||'Česká republika' %>">
+          </div>
+
         </div>
       </div>
       <div class="modal-footer">

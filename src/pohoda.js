@@ -70,6 +70,10 @@ function invoiceToXml(inv, items = [], idx = 1) {
           <typ:address>
             <typ:company>${esc(partnerName)}</typ:company>
             ${partnerIco ? `<typ:ico>${esc(partnerIco)}</typ:ico>` : ''}
+            ${inv.type === 'received' && inv.supplier_dic     ? `<typ:dic>${esc(inv.supplier_dic)}</typ:dic>` : ''}
+            ${inv.type === 'received' && inv.supplier_address ? `<typ:street>${esc(inv.supplier_address)}</typ:street>` : ''}
+            ${inv.type === 'received' && inv.supplier_city    ? `<typ:city>${esc(inv.supplier_city)}</typ:city>` : ''}
+            ${inv.type === 'received' && inv.supplier_zip     ? `<typ:zip>${esc(inv.supplier_zip)}</typ:zip>` : ''}
           </typ:address>
         </inv:partnerIdentity>
         <inv:paymentType>
