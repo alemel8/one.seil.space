@@ -1,146 +1,496 @@
 <%
-  const orderStatusStyle = s => ({
-    'Přijata':       'background:#dbeafe;color:#1e40af',
-    'Ve zpracování': 'background:#fef3c7;color:#92400e',
-    'Vyřízena':      'background:#dcfce7;color:#166534',
-    'Stornována':    'background:#fee2e2;color:#991b1b',
-  }[s] || 'background:#f1f5f9;color:#475569');
+  const fmt  = n  => Number(n||0).toLocaleString('cs-CZ', {minimumFractionDigits:2});
+  const fmtD = d  => d ? new Date(d).toLocaleDateString('cs-CZ') : '—';
+  const currentTab = tab || 'zakladni';
 %>
 
 <div class="page-header">
   <div class="page-header-left">
-    <h1><%= company.name %></h1>
-    <p><%= company.company_type %> · <%= company.country || '' %><%= company.city ? (company.country ? ', ' + company.city : company.city) : '' %></p>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <a href="/crm/firmy" class="btn btn-ghost btn-sm">← Firmy</a>
+      <h1 style="margin:0;"><%= company.name %></h1>
+      <span class="badge" style="background:var(--info-bg);color:var(--info);"><%= company.company_type || 'Zákazník' %></span>
+      <% if (company.company_status === 'Aktivní') { %>
+        <span class="badge" style="background:#dcfce7;color:#166534;">Aktivní</span>
+      <% } else if (company.company_status) { %>
+        <span class="badge" style="background:#f3f4f6;color:#6b7280;"><%= company.company_status %></span>
+      <% } %>
+    </div>
   </div>
-  <div style="display:flex;gap:8px;">
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
     <% if (company.ico) { %>
-    <button id="aresBtn" class="btn btn-outline" onclick="loadAres('<%= company.ico %>', '<%= company.id %>')">
-      🔍 Aktualizovat z ARES
+    <form method="post" action="/crm/firmy/<%= company.id %>/ares" id="aresForm" style="display:none;"></form>
+    <button type="button" class="btn btn-outline btn-sm" onclick="syncAres()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      Sync ARES
     </button>
     <% } %>
-    <a href="/crm/firmy" class="btn btn-outline">← Zpět na firmy</a>
+    <button class="btn btn-outline btn-sm" data-modal-open="modalEdit">✏️ Upravit</button>
   </div>
 </div>
 
-<% if (typeof aresUpdated !== 'undefined' && aresUpdated) { %>
-<div style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:12px 16px;border-radius:8px;margin-bottom:16px;">✓ Data aktualizována z ARES</div>
+<% if (saved) { %>
+<div style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:10px 16px;border-radius:8px;margin-bottom:16px;">✓ Uloženo</div>
+<% } %>
+<% if (aresUpdated) { %>
+<div style="background:var(--info-bg);color:var(--info);border:1px solid #bae6fd;padding:10px 16px;border-radius:8px;margin-bottom:16px;">✓ Data aktualizována z ARES</div>
 <% } %>
 
-<!-- ARES hidden form -->
-<form id="aresForm" method="post" action="/crm/firmy/<%= company.id %>/ares" style="display:none;">
-  <input type="hidden" name="name"><input type="hidden" name="ico"><input type="hidden" name="dic">
-  <input type="hidden" name="address"><input type="hidden" name="city"><input type="hidden" name="zip">
-  <input type="hidden" name="raw">
-</form>
-<script>
-async function loadAres(ico, companyId) {
-  const btn = document.getElementById('aresBtn');
-  btn.textContent = '⏳ Načítám z ARES...';
-  btn.disabled = true;
-  try {
-    const res = await fetch(`/api/ares/${ico}`);
-    const data = await res.json();
-    if (!res.ok) { alert('ARES: ' + data.error); btn.textContent = '🔍 Aktualizovat z ARES'; btn.disabled = false; return; }
-    if (confirm(`Aktualizovat firemní data z ARES?\n\nNázev: ${data.name}\nAdresa: ${data.address}, ${data.zip} ${data.city}\nDIČ: ${data.dic}`)) {
-      const form = document.getElementById('aresForm');
-      form.name.value    = data.name;
-      form.ico.value     = data.ico;
-      form.dic.value     = data.dic;
-      form.address.value = data.address;
-      form.city.value    = data.city;
-      form.zip.value     = data.zip;
-      form.raw.value     = JSON.stringify(data.raw);
-      form.submit();
-    } else { btn.textContent = '🔍 Aktualizovat z ARES'; btn.disabled = false; }
-  } catch(e) { alert('Chyba: ' + e.message); btn.textContent = '🔍 Aktualizovat z ARES'; btn.disabled = false; }
-}
-</script>
+<!-- Tabs -->
+<nav style="display:flex;gap:2px;border-bottom:2px solid var(--border);margin-bottom:24px;overflow-x:auto;">
+  <% [
+    ['zakladni',   'Základní informace'],
+    ['kontakty',   'Kontakty (' + stats.totalContacts + ')'],
+    ['objednavky', 'Objednávky (' + stats.totalOrders + ')'],
+    ['faktury',    'Faktury (' + stats.totalInvoices + ')'],
+    ['smlouvy',    'Smlouvy (' + contracts.length + ')'],
+    ['poznamky',   'Poznámky'],
+  ].forEach(function(item) {
+    const key = item[0]; const label = item[1];
+  %>
+  <a href="?tab=<%= key %>"
+     style="padding:10px 18px;font-size:13px;font-weight:500;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-2px;text-decoration:none;transition:color .15s,border-color .15s;color:<%= currentTab===key ? 'var(--primary)' : 'var(--text-muted)' %>;border-bottom-color:<%= currentTab===key ? 'var(--primary)' : 'transparent' %>;">
+    <%= label %>
+  </a>
+  <% }) %>
+</nav>
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+<!-- ══ TAB: ZÁKLADNÍ INFORMACE ══ -->
+<% if (currentTab === 'zakladni') { %>
 
-  <!-- Základní info -->
-  <div class="card">
-    <div class="card-body">
-      <h2 style="font-size:14px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px;">Základní informace</h2>
-      <dl style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13px;">
-        <dt style="color:var(--text-muted);">Typ</dt>
-        <dd><%= company.company_type %></dd>
-        <dt style="color:var(--text-muted);">Země</dt>
-        <dd><%= company.country || '—' %></dd>
-        <dt style="color:var(--text-muted);">Město</dt>
-        <dd><%= company.city || '—' %></dd>
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;align-items:start;">
+  <div style="display:flex;flex-direction:column;gap:20px;">
+
+    <!-- Dashboard KPI -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+      <div class="card" style="text-align:center;">
+        <div class="card-body" style="padding:16px 12px;">
+          <div style="font-size:26px;font-weight:700;color:var(--primary);"><%= stats.totalContacts %></div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Kontaktů</div>
+        </div>
+      </div>
+      <div class="card" style="text-align:center;">
+        <div class="card-body" style="padding:16px 12px;">
+          <div style="font-size:26px;font-weight:700;color:var(--primary);"><%= stats.totalOrders %></div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Objednávek</div>
+        </div>
+      </div>
+      <div class="card" style="text-align:center;">
+        <div class="card-body" style="padding:16px 12px;">
+          <div style="font-size:26px;font-weight:700;color:var(--primary);"><%= stats.totalInvoices %></div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Faktur</div>
+        </div>
+      </div>
+      <div class="card" style="grid-column:span 2;text-align:center;">
+        <div class="card-body" style="padding:16px;">
+          <div style="font-size:22px;font-weight:700;color:#166534;"><%= fmt(stats.totalInvoiced) %> CZK</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Celkem fakturováno (<%= stats.paidInvoices %> zaplaceno)</div>
+        </div>
+      </div>
+      <div class="card" style="text-align:center;">
+        <div class="card-body" style="padding:16px 12px;">
+          <div style="font-size:26px;font-weight:700;color:<%= stats.openOrders > 0 ? '#b45309' : 'var(--text-muted)' %>;"><%= stats.openOrders %></div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Otevřených obj.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Identifikace -->
+    <div class="card">
+      <div class="card-header"><strong>Identifikace</strong></div>
+      <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">IČO</div>
+          <div style="font-weight:600;font-family:monospace;"><%= company.ico || '—' %></div>
+        </div>
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">DIČ</div>
+          <div style="font-family:monospace;"><%= company.dic || '—' %></div>
+        </div>
+        <% if (company.legal_form) { %>
+        <div style="grid-column:1/-1;">
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Právní forma</div>
+          <div><%= company.legal_form %></div>
+        </div>
+        <% } %>
+        <% if (company.registration_info) { %>
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Spisová značka</div>
+          <div style="font-family:monospace;font-weight:500;"><%= company.registration_info %></div>
+        </div>
+        <% } %>
+        <% if (company.founded_date) { %>
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Datum vzniku</div>
+          <div><%= fmtD(company.founded_date) %></div>
+        </div>
+        <% } %>
+        <% if (company.ares_synced_at) { %>
+        <div style="grid-column:1/-1;">
+          <div style="color:var(--text-muted);font-size:11px;">ARES naposledy synchronizován: <%= fmtD(company.ares_synced_at) %></div>
+        </div>
+        <% } %>
+      </div>
+    </div>
+
+    <!-- Adresa a kontakt -->
+    <div class="card">
+      <div class="card-header"><strong>Adresa a kontakt</strong></div>
+      <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div style="grid-column:1/-1;">
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Adresa</div>
+          <div style="line-height:1.6;">
+            <% if (company.address) { %><%= company.address %><br><% } %>
+            <%= [company.zip, company.city].filter(Boolean).join(' ') || '—' %>
+            <% if (company.country && company.country !== 'Česká republika') { %><br><%= company.country %><% } %>
+          </div>
+        </div>
         <% if (company.email) { %>
-        <dt style="color:var(--text-muted);">E-mail</dt>
-        <dd><a href="mailto:<%= company.email %>" style="color:var(--primary);"><%= company.email %></a></dd>
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">E-mail</div>
+          <a href="mailto:<%= company.email %>" style="color:var(--primary);"><%= company.email %></a>
+        </div>
         <% } %>
         <% if (company.phone) { %>
-        <dt style="color:var(--text-muted);">Telefon</dt>
-        <dd><%= company.phone %></dd>
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Telefon</div>
+          <a href="tel:<%= company.phone %>" style="color:var(--primary);"><%= company.phone %></a>
+        </div>
         <% } %>
         <% if (company.website) { %>
-        <dt style="color:var(--text-muted);">Web</dt>
-        <dd><a href="<%= company.website %>" target="_blank" rel="noopener" style="color:var(--primary);"><%= company.website %></a></dd>
+        <div style="grid-column:1/-1;">
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Web</div>
+          <a href="<%= company.website %>" target="_blank" style="color:var(--primary);"><%= company.website %></a>
+        </div>
         <% } %>
-      </dl>
-      <% if (company.notes) { %>
-      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">Poznámky</div>
-        <p style="font-size:13px;color:var(--text-primary);line-height:1.5;"><%= company.notes %></p>
       </div>
-      <% } %>
     </div>
+
+    <% if (company.notes) { %>
+    <div class="card">
+      <div class="card-header"><strong>Poznámky</strong></div>
+      <div class="card-body" style="white-space:pre-wrap;color:var(--text-secondary);line-height:1.6;"><%= company.notes %></div>
+    </div>
+    <% } %>
   </div>
 
-  <!-- Kontakty -->
-  <div class="card">
-    <div class="card-body">
-      <h2 style="font-size:14px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px;">Kontakty (<%= contacts.length %>)</h2>
-      <% if (contacts.length > 0) { %>
-        <% contacts.forEach(c => { %>
-        <a href="/crm/kontakty/<%= c.id %>" style="display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);text-decoration:none;color:inherit;">
-          <div style="width:34px;height:34px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;">
-            <%= (c.first_name || '').charAt(0).toUpperCase() %><%= (c.last_name || '').charAt(0).toUpperCase() %>
-          </div>
-          <div>
-            <div style="font-size:13px;font-weight:500;"><%= c.first_name %> <%= c.last_name %><% if (c.is_registered) { %> <span class="badge" style="background:#dcfce7;color:#166534;font-size:10px;">Registrovaný</span><% } %></div>
-            <div style="font-size:12px;color:var(--text-muted);"><%= c.title || '' %><%= (c.title && c.email) ? ' · ' : '' %><%= c.email || '' %></div>
-          </div>
-        </a>
-        <% }); %>
-      <% } else { %>
-        <p style="color:var(--text-muted);font-size:13px;">Žádné kontakty</p>
-      <% } %>
+  <!-- Pravý sloupec: metadata -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    <div class="card">
+      <div class="card-header"><strong>Záznam</strong></div>
+      <div class="card-body" style="font-size:13px;display:flex;flex-direction:column;gap:12px;">
+        <div>
+          <div style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">Typ</div>
+          <div><%= company.company_type || 'Zákazník' %></div>
+        </div>
+        <div>
+          <div style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">Vytvořeno</div>
+          <div><%= fmtD(company.created_at) %></div>
+          <% if (creator) { %>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;"><%= creator.first_name %> <%= creator.last_name %></div>
+          <% } else if (company.source) { %>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Zdroj: <%= company.source %></div>
+          <% } %>
+        </div>
+        <div>
+          <div style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">Naposledy upraveno</div>
+          <div><%= fmtD(company.modified_at) %></div>
+          <% if (editor) { %>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;"><%= editor.first_name %> <%= editor.last_name %></div>
+          <% } %>
+        </div>
+        <div>
+          <div style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">ID</div>
+          <code style="font-size:10px;word-break:break-all;"><%= company.id %></code>
+        </div>
+      </div>
     </div>
+    <% if (company.ico) { %>
+    <a href="https://ares.gov.cz/ekonomicke-subjekty?ico=<%= company.ico %>" target="_blank" class="btn btn-ghost btn-sm" style="text-align:center;">Ověřit v ARES ↗</a>
+    <% } %>
   </div>
-
 </div>
 
-<% if (orders && orders.length > 0) { %>
-<div class="card" style="margin-top:20px;">
-  <div class="card-body">
-    <h2 style="font-size:14px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px;">Objednávky (<%= orders.length %>)</h2>
-    <table style="width:100%;border-collapse:collapse;font-size:13px;">
-      <thead>
-        <tr style="border-bottom:2px solid var(--border);">
-          <th style="text-align:left;padding:0 0 8px;font-weight:600;color:var(--text-muted);">Č. objednávky</th>
-          <th style="text-align:left;padding:0 0 8px;font-weight:600;color:var(--text-muted);">Zákazník</th>
-          <th style="text-align:left;padding:0 0 8px;font-weight:600;color:var(--text-muted);">Stav</th>
-          <th style="text-align:right;padding:0 0 8px;font-weight:600;color:var(--text-muted);">Částka</th>
-          <th style="text-align:right;padding:0 0 8px;font-weight:600;color:var(--text-muted);">Datum</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% orders.forEach(o => { %>
-        <tr style="border-bottom:1px solid var(--border);cursor:pointer;" onclick="window.location='/ucetnictvi/objednavky/<%= o.id %>'">
-          <td style="padding:10px 0;font-weight:500;">#<%= o.order_number %></td>
-          <td style="padding:10px 0;color:var(--text-muted);"><%= o.first_name %> <%= o.last_name %></td>
-          <td style="padding:10px 0;"><span class="badge" style="<%= orderStatusStyle(o.status) %>"><%= o.status %></span></td>
-          <td style="padding:10px 0;text-align:right;font-variant-numeric:tabular-nums;"><%= o.total_price.toLocaleString('cs-CZ') %> Kč</td>
-          <td style="padding:10px 0;text-align:right;color:var(--text-muted);"><%= new Date(o.created_at).toLocaleDateString('cs-CZ') %></td>
-        </tr>
-        <% }); %>
-      </tbody>
-    </table>
+<!-- ══ TAB: KONTAKTY ══ -->
+<% } else if (currentTab === 'kontakty') { %>
+
+<div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+  <button class="btn btn-primary btn-sm" data-modal-open="modalAddContact">+ Přidat kontakt</button>
+</div>
+<% if (contacts.length > 0) { %>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;">
+  <% contacts.forEach(function(c) { %>
+  <div class="card" style="cursor:pointer;" onclick="location.href='/crm/kontakty/<%= c.id %>'">
+    <div class="card-body" style="display:flex;gap:12px;align-items:center;">
+      <div style="width:44px;height:44px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;font-size:15px;">
+        <%= (c.first_name||'').charAt(0) %><%= (c.last_name||'').charAt(0) %>
+      </div>
+      <div style="min-width:0;">
+        <div style="font-weight:600;"><%= [c.title, c.first_name, c.last_name].filter(Boolean).join(' ') %></div>
+        <% if (c.email) { %><div style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= c.email %></div><% } %>
+        <% if (c.phone) { %><div style="font-size:12px;color:var(--text-muted);"><%= c.phone %></div><% } %>
+      </div>
+    </div>
+  </div>
+  <% }) %>
+</div>
+<% } else { %>
+<div style="text-align:center;padding:48px;color:var(--text-muted);">Žádné kontakty. Přidejte první kontakt tlačítkem výše.</div>
+<% } %>
+
+<!-- ══ TAB: OBJEDNÁVKY ══ -->
+<% } else if (currentTab === 'objednavky') { %>
+<% if (orders.length > 0) { %>
+<div class="table-wrapper">
+  <table class="data-table">
+    <thead><tr><th>Číslo</th><th>Zákazník</th><th>Datum</th><th style="text-align:right;">Částka</th><th>Stav</th></tr></thead>
+    <tbody>
+    <% orders.forEach(function(o) {
+         const sc = o.status==='Vyřízena' ? '#dcfce7:#166534' : o.status==='Stornována' ? '#f3f4f6:#6b7280' : '#fef9c3:#92400e';
+         const parts = sc.split(':'); %>
+    <tr style="cursor:pointer;" onclick="location.href='/ucetnictvi/objednavky/<%= o.id %>'">
+      <td style="font-weight:600;">#<%= o.order_number %></td>
+      <td><%= [o.first_name, o.last_name].filter(Boolean).join(' ') || '—' %></td>
+      <td style="color:var(--text-muted);font-size:13px;"><%= fmtD(o.created_at) %></td>
+      <td style="text-align:right;font-weight:600;"><%= fmt(o.total_price) %> CZK</td>
+      <td><span class="badge" style="background:<%= parts[0] %>;color:<%= parts[1] %>;"><%= o.status %></span></td>
+    </tr>
+    <% }) %>
+    </tbody>
+  </table>
+</div>
+<% } else { %>
+<div style="text-align:center;padding:48px;color:var(--text-muted);">Žádné objednávky</div>
+<% } %>
+
+<!-- ══ TAB: FAKTURY ══ -->
+<% } else if (currentTab === 'faktury') { %>
+<% if (invoices.length > 0) { %>
+<div class="table-wrapper">
+  <table class="data-table">
+    <thead><tr><th>Číslo</th><th>Typ</th><th>Datum</th><th>Splatnost</th><th style="text-align:right;">Celkem</th><th>Stav</th></tr></thead>
+    <tbody>
+    <% invoices.forEach(function(inv) {
+         const sc = inv.status==='Zaplacena' ? '#dcfce7:#166534' : inv.status==='Storno' ? '#f3f4f6:#6b7280' : inv.status==='Po splatnosti' ? '#fee2e2:#991b1b' : '#fef9c3:#92400e';
+         const parts = sc.split(':'); %>
+    <tr style="cursor:pointer;" onclick="location.href='/ucetnictvi/<%= inv.type==='issued' ? 'vydane' : 'prijate' %>-faktury/<%= inv.id %>'">
+      <td style="font-weight:600;"><%= inv.number %></td>
+      <td><span style="font-size:12px;color:var(--text-muted);"><%= inv.type==='issued' ? 'Vydaná' : 'Přijatá' %></span></td>
+      <td style="color:var(--text-muted);font-size:13px;"><%= fmtD(inv.issue_date) %></td>
+      <td style="color:var(--text-muted);font-size:13px;"><%= fmtD(inv.due_date) %></td>
+      <td style="text-align:right;font-weight:600;"><%= fmt(inv.total_amount) %> <%= inv.currency %></td>
+      <td><span class="badge" style="background:<%= parts[0] %>;color:<%= parts[1] %>;"><%= inv.status %></span></td>
+    </tr>
+    <% }) %>
+    </tbody>
+  </table>
+</div>
+<% } else { %>
+<div style="text-align:center;padding:48px;color:var(--text-muted);">Žádné faktury</div>
+<% } %>
+
+<!-- ══ TAB: SMLOUVY ══ -->
+<% } else if (currentTab === 'smlouvy') { %>
+<div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+  <button class="btn btn-primary btn-sm" data-modal-open="modalAddContract">+ Přidat smlouvu</button>
+</div>
+<% if (contracts.length > 0) { %>
+<div style="display:flex;flex-direction:column;gap:12px;">
+  <% contracts.forEach(function(c) {
+       const sc = c.status==='Aktivní' ? '#dcfce7:#166534' : c.status==='Ukončená' ? '#f3f4f6:#6b7280' : '#fef9c3:#92400e';
+       const parts = sc.split(':'); %>
+  <div class="card">
+    <div class="card-body" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;margin-bottom:4px;"><%= c.title || 'Bez názvu' %></div>
+        <div style="font-size:12px;color:var(--text-muted);">
+          <% if (c.type) { %><%= c.type %> · <% } %>
+          Podpis: <%= fmtD(c.signed_date) %><% if (c.end_date) { %> · Platnost do: <%= fmtD(c.end_date) %><% } %><% if (c.amount) { %> · <%= fmt(c.amount) %> <%= c.currency %><% } %>
+        </div>
+        <% if (c.notes) { %><div style="font-size:12px;color:var(--text-muted);margin-top:4px;"><%= c.notes %></div><% } %>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+        <span class="badge" style="background:<%= parts[0] %>;color:<%= parts[1] %>;"><%= c.status %></span>
+        <form method="post" action="/crm/smlouvy/<%= c.id %>/smazat" onsubmit="return confirm('Smazat smlouvu?')">
+          <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger);">Smazat</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <% }) %>
+</div>
+<% } else { %>
+<div style="text-align:center;padding:48px;color:var(--text-muted);">Žádné smlouvy. Přidejte první smlouvu tlačítkem výše.</div>
+<% } %>
+
+<!-- ══ TAB: POZNÁMKY ══ -->
+<% } else if (currentTab === 'poznamky') { %>
+<div style="max-width:720px;">
+  <div class="card">
+    <div class="card-header"><strong>Poznámky k firmě</strong></div>
+    <form method="post" action="/crm/firmy/<%= company.id %>">
+      <input type="hidden" name="name"              value="<%= company.name %>">
+      <input type="hidden" name="company_type"      value="<%= company.company_type %>">
+      <input type="hidden" name="ico"               value="<%= company.ico %>">
+      <input type="hidden" name="dic"               value="<%= company.dic %>">
+      <input type="hidden" name="address"           value="<%= company.address %>">
+      <input type="hidden" name="city"              value="<%= company.city %>">
+      <input type="hidden" name="zip"               value="<%= company.zip %>">
+      <input type="hidden" name="country"           value="<%= company.country %>">
+      <input type="hidden" name="email"             value="<%= company.email %>">
+      <input type="hidden" name="phone"             value="<%= company.phone %>">
+      <input type="hidden" name="legal_form"        value="<%= company.legal_form %>">
+      <input type="hidden" name="founded_date"      value="<%= company.founded_date?.toISOString?.()?.slice(0,10)||'' %>">
+      <input type="hidden" name="registration_info" value="<%= company.registration_info %>">
+      <input type="hidden" name="company_status"    value="<%= company.company_status %>">
+      <div class="card-body">
+        <textarea name="notes" class="form-control" rows="10" placeholder="Interní poznámky, informace o spolupráci…"><%= company.notes||'' %></textarea>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid var(--border);">
+        <button type="submit" class="btn btn-primary">Uložit poznámky</button>
+      </div>
+    </form>
   </div>
 </div>
 <% } %>
+
+<!-- ═══ Modály ═══ -->
+
+<!-- Edit firmy -->
+<div id="modalEdit" class="modal-backdrop" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h2 class="modal-title">Upravit firmu</h2>
+      <button class="modal-close" onclick="document.getElementById('modalEdit').classList.remove('open')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form method="post" action="/crm/firmy/<%= company.id %>">
+      <div class="modal-body">
+        <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-group col-span-2"><label class="form-label required">Název</label><input type="text" name="name" class="form-control" value="<%= company.name %>" required></div>
+          <div class="form-group"><label class="form-label">Typ</label>
+            <select name="company_type" class="form-select">
+              <% ['Zákazník','Dodavatel','Partner','Jiný'].forEach(function(t) { %><option value="<%= t %>" <%= company.company_type===t?'selected':'' %>><%= t %></option><% }) %>
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">Stav</label><input type="text" name="company_status" class="form-control" value="<%= company.company_status||'' %>"></div>
+          <div class="form-group"><label class="form-label">IČO</label><input type="text" name="ico" class="form-control" value="<%= company.ico||'' %>"></div>
+          <div class="form-group"><label class="form-label">DIČ</label><input type="text" name="dic" class="form-control" value="<%= company.dic||'' %>"></div>
+          <div class="form-group col-span-2"><label class="form-label">Právní forma</label><input type="text" name="legal_form" class="form-control" value="<%= company.legal_form||'' %>"></div>
+          <div class="form-group"><label class="form-label">Datum vzniku</label><input type="date" name="founded_date" class="form-control" value="<%= company.founded_date?.toISOString?.()?.slice(0,10)||'' %>"></div>
+          <div class="form-group"><label class="form-label">Spisová značka</label><input type="text" name="registration_info" class="form-control" value="<%= company.registration_info||'' %>"></div>
+          <div class="form-group col-span-2"><label class="form-label">Adresa</label><input type="text" name="address" class="form-control" value="<%= company.address||'' %>"></div>
+          <div class="form-group"><label class="form-label">Město</label><input type="text" name="city" class="form-control" value="<%= company.city||'' %>"></div>
+          <div class="form-group"><label class="form-label">PSČ</label><input type="text" name="zip" class="form-control" value="<%= company.zip||'' %>"></div>
+          <div class="form-group"><label class="form-label">Stát</label><input type="text" name="country" class="form-control" value="<%= company.country||'Česká republika' %>"></div>
+          <div class="form-group"><label class="form-label">E-mail</label><input type="email" name="email" class="form-control" value="<%= company.email||'' %>"></div>
+          <div class="form-group"><label class="form-label">Telefon</label><input type="text" name="phone" class="form-control" value="<%= company.phone||'' %>"></div>
+          <div class="form-group"><label class="form-label">Web</label><input type="url" name="website" class="form-control" value="<%= company.website||'' %>"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('modalEdit').classList.remove('open')">Zrušit</button>
+        <button type="submit" class="btn btn-primary">Uložit</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Přidat kontakt -->
+<div id="modalAddContact" class="modal-backdrop" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal modal-sm">
+    <div class="modal-header"><h2 class="modal-title">Přidat kontakt</h2>
+      <button class="modal-close" onclick="document.getElementById('modalAddContact').classList.remove('open')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <form method="post" action="/crm/kontakty/vytvorit">
+      <input type="hidden" name="company_id" value="<%= company.id %>">
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:12px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="form-group"><label class="form-label">Jméno</label><input type="text" name="first_name" class="form-control"></div>
+          <div class="form-group"><label class="form-label required">Příjmení</label><input type="text" name="last_name" class="form-control" required></div>
+        </div>
+        <div class="form-group"><label class="form-label">Titul</label><input type="text" name="title" class="form-control" placeholder="Ing., Mgr., …"></div>
+        <div class="form-group"><label class="form-label">E-mail</label><input type="email" name="email" class="form-control"></div>
+        <div class="form-group"><label class="form-label">Telefon</label><input type="text" name="phone" class="form-control"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('modalAddContact').classList.remove('open')">Zrušit</button>
+        <button type="submit" class="btn btn-primary">Přidat</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Přidat smlouvu -->
+<div id="modalAddContract" class="modal-backdrop" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal">
+    <div class="modal-header"><h2 class="modal-title">Přidat smlouvu</h2>
+      <button class="modal-close" onclick="document.getElementById('modalAddContract').classList.remove('open')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <form method="post" action="/crm/firmy/<%= company.id %>/smlouvy/vytvorit">
+      <div class="modal-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-group col-span-2"><label class="form-label required">Název smlouvy</label><input type="text" name="title" class="form-control" required placeholder="Rámcová smlouva o spolupráci"></div>
+        <div class="form-group"><label class="form-label">Typ</label>
+          <select name="type" class="form-select">
+            <option value="">— vyberte —</option>
+            <option>Rámcová smlouva</option><option>Servisní smlouva</option><option>NDA</option><option>Smlouva o dílo</option><option>Nájemní smlouva</option><option>Jiná</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Stav</label>
+          <select name="status" class="form-select">
+            <option>Aktivní</option><option>Návrh</option><option>Ukončená</option><option>Pozastavená</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Datum podpisu</label><input type="date" name="signed_date" class="form-control"></div>
+        <div class="form-group"><label class="form-label">Platnost do</label><input type="date" name="end_date" class="form-control"></div>
+        <div class="form-group"><label class="form-label">Hodnota</label><input type="number" name="amount" class="form-control" step="0.01"></div>
+        <div class="form-group"><label class="form-label">Měna</label><select name="currency" class="form-select"><option value="CZK">CZK</option><option value="EUR">EUR</option></select></div>
+        <div class="form-group col-span-2"><label class="form-label">Poznámka</label><textarea name="notes" class="form-control" rows="2"></textarea></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('modalAddContract').classList.remove('open')">Zrušit</button>
+        <button type="submit" class="btn btn-primary">Uložit smlouvu</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('[data-modal-open]').forEach(function(b) {
+  b.addEventListener('click', function() {
+    var el = document.getElementById(b.dataset.modalOpen);
+    if (el) el.classList.add('open');
+  });
+});
+
+async function syncAres() {
+  var ico = '<%= company.ico %>';
+  if (!ico) return;
+  var btn = event.target.closest('button');
+  btn.disabled = true; btn.textContent = 'Načítám…';
+  try {
+    var res  = await fetch('/api/ares/' + ico);
+    var data = await res.json();
+    if (!res.ok) { alert('ARES: ' + (data.error || 'chyba')); btn.disabled=false; btn.textContent='Sync ARES'; return; }
+    var form = document.getElementById('aresForm');
+    var set  = function(n, v) { var i=document.createElement('input'); i.type='hidden'; i.name=n; i.value=v||''; form.appendChild(i); };
+    set('name',              data.name);
+    set('ico',               data.ico);
+    set('dic',               data.dic);
+    set('address',           data.address);
+    set('city',              data.city);
+    set('zip',               data.zip);
+    set('country',           data.country);
+    set('legal_form',        data.legal_form);
+    set('founded_date',      data.founded_date || '');
+    set('registration_info', data.registration_info || '');
+    set('company_status',    data.company_status || '');
+    set('raw',               JSON.stringify(data.raw));
+    form.submit();
+  } catch(e) {
+    alert('ARES nedostupný: ' + e.message);
+    btn.disabled=false; btn.textContent='Sync ARES';
+  }
+}
+</script>
