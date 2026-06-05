@@ -305,8 +305,9 @@ function bulkClearAll() {
 /* Dvousloupec — 50/50 */
 .rf-split {
   display: flex;
+  flex: 1;           /* musí vyplnit #rfPhaseForm do šířky i výšky */
   min-height: 0;
-  align-self: stretch;
+  width: 100%;
 }
 .rf-left {
   flex: 1;
@@ -422,7 +423,7 @@ function bulkClearAll() {
     document.getElementById('rfAresBadge').style.display = 'none';
     document.getElementById('rfForm').reset();
     document.getElementById('rfIssueDate').value = new Date().toISOString().split('T')[0];
-    zoomIdx = 2;
+    zoomIdx = 2; baseW = 0; baseH = 0;
     if (zoomLabel) { zoomLabel.textContent = '100%'; zoomFitBtn.style.display = 'none'; }
   }
 
@@ -441,31 +442,38 @@ function bulkClearAll() {
   });
 
   // ── Zoom ─────────────────────────────────────────────────
+  // Panel zůstane pevný. Iframe/img se zvětšuje → panel scrolluje.
   const ZOOM_STEPS = [50, 75, 100, 125, 150, 175, 200];
-  // zoomIdx, zoomLabel, zoomFitBtn, zoomInBtn, zoomOutBtn, previewScroll — deklarovány nahoře
+  let baseW = 0; // šířka panelu při 100 %
+  let baseH = 0; // výška panelu při 100 %
 
   function rfApplyZoom() {
-    const level  = ZOOM_STEPS[zoomIdx];
-    zoomLabel.textContent = level + '%';
-    zoomFitBtn.style.display  = level !== 100 ? 'flex' : 'none';
-    zoomInBtn.disabled        = zoomIdx === ZOOM_STEPS.length - 1;
-    zoomOutBtn.disabled       = zoomIdx === 0;
+    const level = ZOOM_STEPS[zoomIdx];
+    zoomLabel.textContent    = level + '%';
+    zoomFitBtn.style.display = level !== 100 ? 'flex' : 'none';
+    zoomInBtn.disabled       = zoomIdx === ZOOM_STEPS.length - 1;
+    zoomOutBtn.disabled      = zoomIdx === 0;
 
+    const scale   = level / 100;
     const isPdf   = currentFile?.type === 'application/pdf';
     const el      = isPdf ? iframe : imgPreview;
-    const scroll  = previewScroll;
-    const scale   = level / 100;
 
-    if (level === 100) {
-      // Celý dokument — vyplní kontejner bez scrollbaru
-      el.style.width  = '100%';
-      el.style.height = isPdf ? (scroll.clientHeight || 800) + 'px' : 'auto';
-      el.style.zoom   = '';
+    if (!baseW) {
+      baseW = previewScroll.clientWidth  || 600;
+      baseH = previewScroll.clientHeight || 800;
+    }
+
+    const w = Math.round(baseW * scale);
+    const h = Math.round(baseH * scale);
+
+    if (isPdf) {
+      // Iframe se fyzicky zvětší → PDF viewer uvnitř překreslí stránku na novou velikost
+      el.style.width  = w + 'px';
+      el.style.height = h + 'px';
     } else {
-      // Zoom — nastav zoom CSS property, šířka/výška se mění layoutem
-      el.style.width  = '100%';
-      el.style.height = isPdf ? (scroll.clientHeight || 800) + 'px' : 'auto';
-      el.style.zoom   = scale;
+      // Obrázek: zachovat poměr stran
+      el.style.width  = w + 'px';
+      el.style.height = 'auto';
     }
   }
 
@@ -489,22 +497,22 @@ function bulkClearAll() {
     phForm.style.alignItems    = 'stretch';
     phForm.style.overflow      = 'hidden';
 
-    // Reset zoom
-    zoomIdx = 2;
-    rfApplyZoom();
-
+    // Zobraz preview element
     if (file.type === 'application/pdf') {
-      iframe.style.display = 'block';
-      iframe.src           = currentBlobUrl;
+      iframe.style.display     = 'block';
       imgPreview.style.display = 'none';
+      iframe.src               = currentBlobUrl;
     } else {
       imgPreview.style.display = 'block';
-      imgPreview.src           = currentBlobUrl;
       iframe.style.display     = 'none';
+      imgPreview.src           = currentBlobUrl;
     }
 
-    // Aplikuj zoom po nahrání (čekáme na render)
-    setTimeout(rfApplyZoom, 100);
+    // Počkej na renderování layoutu, pak zachyť rozměry a nastav 100 % zoom
+    zoomIdx = 2;
+    baseW = 0;
+    baseH = 0;
+    setTimeout(rfApplyZoom, 80);
   }
 
   // ── AI vytěžení (na klik) ────────────────────────────────
