@@ -103,7 +103,6 @@ function bulkClearAll() {
 
 <!-- Modal: Nová přijatá faktura -->
 <input type="file" id="rfFileInput" accept="application/pdf,image/*" style="display:none">
-<input type="file" id="rfFileInputManual" accept="application/pdf,image/*" style="display:none">
 
 <div id="modalCreate" class="modal-backdrop" onclick="if(event.target===this)rfClose()">
   <div class="modal rf-modal" id="rfModalInner">
@@ -115,68 +114,47 @@ function bulkClearAll() {
       </button>
     </div>
 
-    <!-- ── Fáze 1: Výběr způsobu ── -->
-    <div id="rfPhaseUpload" class="modal-body" style="display:flex;flex-direction:column;gap:12px;">
-      <!-- AI upload -->
+    <!-- ── Fáze 1: Upload ── -->
+    <div id="rfPhaseUpload" class="modal-body" style="padding:32px 28px;">
       <label for="rfFileInput" class="rf-drop-zone" id="rfDropZone">
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
           <polyline points="14 2 14 8 20 8"/>
           <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
         </svg>
-        <p style="margin:10px 0 3px;font-weight:600;color:var(--text-primary);font-size:14px;">Nahrát PDF / foto a vytěžit automaticky</p>
-        <p style="margin:0;font-size:12px;color:var(--text-muted);">Přetáhněte soubor nebo klikněte — Claude vyplní pole za vás</p>
+        <p style="margin:12px 0 4px;font-weight:600;color:var(--text-primary);font-size:15px;">Nahrát fakturu</p>
+        <p style="margin:0;font-size:13px;color:var(--text-muted);">PDF nebo foto — přetáhněte nebo klikněte</p>
       </label>
-      <!-- Ruční zadání -->
-      <button type="button" class="rf-manual-btn" onclick="rfOpenManual()">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-        </svg>
-        <div>
-          <div style="font-weight:600;font-size:14px;color:var(--text-primary);">Nahrát přijatou fakturu ručně</div>
-          <div style="font-size:12px;color:var(--text-muted);">Zobrazí formulář a volitelný náhled PDF</div>
-        </div>
-      </button>
     </div>
 
     <!-- ── Fáze 2: Načítání AI ── -->
     <div id="rfPhaseLoading" class="modal-body" style="display:none;text-align:center;padding:60px 24px;">
       <div class="rf-spinner"></div>
-      <p style="margin-top:16px;color:var(--text-muted);font-size:14px;">Claude analyzuje fakturu…</p>
+      <p style="margin-top:16px;color:var(--text-muted);font-size:14px;">Analyzuji fakturu…</p>
     </div>
 
     <!-- ── Fáze 3: 2-sloupcový layout ── -->
     <div id="rfPhaseForm" style="display:none;flex:1;min-height:0;overflow:hidden;">
-      <div style="display:flex;height:100%;">
+      <div class="rf-split">
 
-        <!-- Levá polovina -->
-        <div style="flex:1;border-right:1px solid var(--border);background:var(--bg-page);display:flex;flex-direction:column;min-width:0;">
-          <div style="padding:10px 14px;font-size:11px;font-weight:600;color:var(--text-muted);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;justify-content:space-between;">
-            <span>Náhled faktury</span>
-            <!-- Tlačítko pro nahrání v ručním režimu -->
-            <label for="rfFileInputManual" id="rfManualUploadBtn" style="display:none;cursor:pointer;font-size:11px;color:var(--primary);font-weight:600;">+ Nahrát PDF</label>
-          </div>
-          <!-- Placeholder v ručním režimu (před nahráním PDF) -->
-          <div id="rfLeftPlaceholder" style="display:none;flex:1;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:var(--text-muted);">
-            <label for="rfFileInputManual" class="rf-drop-zone rf-drop-zone-sm" id="rfDropZoneManual">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
-              </svg>
-              <p style="margin:8px 0 2px;font-weight:600;font-size:13px;color:var(--text-primary);">Přidat PDF pro náhled</p>
-              <p style="margin:0;font-size:12px;color:var(--text-muted);">Volitelné — pouze pro zobrazení</p>
-            </label>
-          </div>
-          <!-- PDF embed -->
-          <embed id="rfPdfEmbed" src="" type="application/pdf" style="display:none;flex:1;width:100%;border:none;">
+        <!-- Levá část: náhled dokumentu -->
+        <div class="rf-left">
+          <iframe id="rfIframe" src="about:blank" style="display:none;flex:1;width:100%;border:none;min-height:0;"></iframe>
+          <img id="rfImgPreview" src="" alt="" style="display:none;flex:1;width:100%;object-fit:contain;min-height:0;">
         </div>
 
-        <!-- Pravá polovina: Formulář -->
-        <div style="flex:0 0 400px;overflow-y:auto;display:flex;flex-direction:column;">
-          <form id="rfForm" method="post" action="/ucetnictvi/prijate-faktury/vytvorit" style="flex:1;display:flex;flex-direction:column;">
-            <div style="padding:20px;display:flex;flex-direction:column;gap:14px;flex:1;">
+        <!-- Pravá část: formulář -->
+        <div class="rf-right">
+          <!-- Horní lišta s AI tlačítkem -->
+          <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:flex-end;flex-shrink:0;">
+            <button type="button" id="rfAiBtn" class="btn btn-outline btn-sm" onclick="rfRunAi()" style="display:flex;align-items:center;gap:6px;font-size:12px;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              Vytěžit automaticky
+            </button>
+          </div>
+
+          <form id="rfForm" method="post" action="/ucetnictvi/prijate-faktury/vytvorit" style="flex:1;display:flex;flex-direction:column;min-height:0;">
+            <div style="padding:16px;display:flex;flex-direction:column;gap:12px;flex:1;overflow-y:auto;">
 
               <div id="rfAiBadge" style="display:none;border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;font-weight:600;"></div>
 
@@ -192,7 +170,7 @@ function bulkClearAll() {
                 <label class="form-label">IČO dodavatele</label>
                 <input type="text" name="supplier_ico" id="rfSupplierIco" class="form-control" placeholder="Nepovinné">
               </div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
                 <div class="form-group">
                   <label class="form-label">Základ bez DPH</label>
                   <input type="number" name="amount" id="rfAmount" class="form-control" step="0.01" min="0" value="0">
@@ -202,7 +180,7 @@ function bulkClearAll() {
                   <input type="number" name="vat_amount" id="rfVat" class="form-control" step="0.01" min="0" value="0">
                 </div>
               </div>
-              <div style="display:grid;grid-template-columns:1fr 80px;gap:12px;">
+              <div style="display:grid;grid-template-columns:1fr 80px;gap:10px;">
                 <div class="form-group">
                   <label class="form-label">Celková částka</label>
                   <input type="number" name="total_amount" id="rfTotal" class="form-control" step="0.01" min="0" value="0">
@@ -216,13 +194,13 @@ function bulkClearAll() {
                   </select>
                 </div>
               </div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
                 <div class="form-group">
                   <label class="form-label">Datum přijetí</label>
                   <input type="date" name="issue_date" id="rfIssueDate" class="form-control" value="<%= new Date().toISOString().split('T')[0] %>">
                 </div>
                 <div class="form-group">
-                  <label class="form-label">Datum splatnosti</label>
+                  <label class="form-label">Splatnost</label>
                   <input type="date" name="due_date" id="rfDueDate" class="form-control">
                 </div>
               </div>
@@ -237,21 +215,22 @@ function bulkClearAll() {
               </div>
               <div class="form-group">
                 <label class="form-label">Poznámka / předmět plnění</label>
-                <textarea name="notes" id="rfNotes" class="form-control" rows="3"></textarea>
+                <textarea name="notes" id="rfNotes" class="form-control" rows="2"></textarea>
               </div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
                 <div class="form-group">
                   <label class="form-label">Předkontace MD</label>
-                  <input type="text" name="account_debit" id="rfAccountDebit" class="form-control" placeholder="např. 518" list="rfAcList" autocomplete="off">
+                  <input type="text" name="account_debit" id="rfAccountDebit" class="form-control" placeholder="518" list="rfAcList" autocomplete="off">
                 </div>
                 <div class="form-group">
                   <label class="form-label">Předkontace D</label>
-                  <input type="text" name="account_credit" id="rfAccountCredit" class="form-control" placeholder="např. 321" list="rfAcList" autocomplete="off">
+                  <input type="text" name="account_credit" id="rfAccountCredit" class="form-control" placeholder="321" list="rfAcList" autocomplete="off">
                 </div>
               </div>
               <datalist id="rfAcList"></datalist>
             </div>
-            <div class="modal-footer" style="border-top:1px solid var(--border);background:var(--bg-card);">
+
+            <div class="modal-footer" style="border-top:1px solid var(--border);background:var(--bg-card);flex-shrink:0;">
               <button type="button" class="btn btn-ghost" onclick="rfClose()">Zrušit</button>
               <button type="submit" class="btn btn-primary">Přidat fakturu</button>
             </div>
@@ -266,15 +245,15 @@ function bulkClearAll() {
 
 <style>
 .rf-modal {
-  max-width: 520px;
-  width: 95vw;
-  transition: max-width 0.3s ease;
+  max-width: 500px;
+  width: 96vw;
   display: flex;
   flex-direction: column;
-  max-height: 90vh;
+  max-height: 92vh;
+  transition: max-width 0.25s ease, height 0.25s ease;
 }
 .rf-modal.rf-expanded {
-  max-width: min(1200px, 96vw);
+  max-width: min(1160px, 96vw);
   height: 90vh;
 }
 .rf-drop-zone {
@@ -283,7 +262,7 @@ function bulkClearAll() {
   align-items: center;
   border: 2px dashed var(--border-strong);
   border-radius: var(--radius-lg);
-  padding: 36px 24px;
+  padding: 48px 24px;
   text-align: center;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
@@ -291,30 +270,36 @@ function bulkClearAll() {
 }
 .rf-drop-zone:hover, .rf-drop-zone.rf-over {
   border-color: var(--primary);
-  background: var(--primary-light);
+  background: var(--primary-light, rgba(79,70,229,0.04));
 }
-.rf-drop-zone-sm {
-  padding: 24px 20px;
-  margin: 16px;
-}
-.rf-manual-btn {
+/* Dvousloupec */
+.rf-split {
   display: flex;
-  align-items: center;
-  gap: 14px;
-  width: 100%;
-  padding: 16px 18px;
-  background: var(--bg-card);
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius-lg);
-  cursor: pointer;
-  text-align: left;
-  transition: border-color 0.15s, background 0.15s;
+  height: 100%;
 }
-.rf-manual-btn:hover {
-  border-color: var(--border-strong);
-  background: var(--bg-card-hover);
+.rf-left {
+  flex: 1;
+  border-right: 1px solid var(--border);
+  background: var(--bg-page);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
 }
-.rf-manual-btn svg { flex-shrink: 0; color: var(--text-muted); }
+.rf-right {
+  flex: 0 0 380px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+/* Mobile: svisle */
+@media (max-width: 700px) {
+  .rf-modal.rf-expanded { height: 95vh; }
+  .rf-split { flex-direction: column; }
+  .rf-left { flex: 0 0 42vh; border-right: none; border-bottom: 1px solid var(--border); }
+  .rf-right { flex: 1; min-height: 0; }
+}
 .rf-spinner {
   width: 40px; height: 40px;
   border: 3px solid var(--border);
@@ -328,19 +313,19 @@ function bulkClearAll() {
 
 <script>
 (function () {
-  const backdrop        = document.getElementById('modalCreate');
-  const inner           = document.getElementById('rfModalInner');
-  const phUpload        = document.getElementById('rfPhaseUpload');
-  const phLoading       = document.getElementById('rfPhaseLoading');
-  const phForm          = document.getElementById('rfPhaseForm');
-  const fileInputAi     = document.getElementById('rfFileInput');
-  const fileInputManual = document.getElementById('rfFileInputManual');
-  const dropZone        = document.getElementById('rfDropZone');
-  const dropZoneManual  = document.getElementById('rfDropZoneManual');
-  const embed           = document.getElementById('rfPdfEmbed');
-  const leftPlaceholder = document.getElementById('rfLeftPlaceholder');
-  const aiBadge         = document.getElementById('rfAiBadge');
-  let currentBlobUrl    = null;
+  const backdrop    = document.getElementById('modalCreate');
+  const inner       = document.getElementById('rfModalInner');
+  const phUpload    = document.getElementById('rfPhaseUpload');
+  const phLoading   = document.getElementById('rfPhaseLoading');
+  const phForm      = document.getElementById('rfPhaseForm');
+  const fileInput   = document.getElementById('rfFileInput');
+  const dropZone    = document.getElementById('rfDropZone');
+  const iframe      = document.getElementById('rfIframe');
+  const imgPreview  = document.getElementById('rfImgPreview');
+  const aiBadge     = document.getElementById('rfAiBadge');
+  const aiBtn       = document.getElementById('rfAiBtn');
+  let currentFile   = null;
+  let currentBlobUrl = null;
 
   // ── Open / close ──────────────────────────────────────────
   document.querySelectorAll('[data-modal-open="modalCreate"]').forEach(b =>
@@ -353,126 +338,101 @@ function bulkClearAll() {
   window.rfClose = function () {
     backdrop.classList.remove('open');
     if (currentBlobUrl) { URL.revokeObjectURL(currentBlobUrl); currentBlobUrl = null; }
+    currentFile = null;
   };
 
   function rfReset() {
     inner.classList.remove('rf-expanded');
-    phUpload.style.display  = '';
+    phUpload.style.display  = 'block';
     phLoading.style.display = 'none';
     phForm.style.display    = 'none';
-    fileInputAi.value       = '';
-    fileInputManual.value   = '';
+    fileInput.value         = '';
     aiBadge.style.display   = 'none';
+    iframe.src              = 'about:blank';
+    iframe.style.display    = 'none';
+    imgPreview.src          = '';
+    imgPreview.style.display = 'none';
     document.getElementById('rfForm').reset();
     document.getElementById('rfIssueDate').value = new Date().toISOString().split('T')[0];
   }
 
-  // ── AI upload: file input + drag & drop ───────────────────
-  fileInputAi.addEventListener('change', () => {
-    if (fileInputAi.files[0]) handleAiFile(fileInputAi.files[0]);
+  // ── File input + drag & drop ──────────────────────────────
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) handleFile(fileInput.files[0]);
   });
 
-  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('rf-over'); });
+  dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('rf-over'); });
   dropZone.addEventListener('dragleave', () => dropZone.classList.remove('rf-over'));
   dropZone.addEventListener('drop', e => {
     e.preventDefault();
     dropZone.classList.remove('rf-over');
     const f = e.dataTransfer?.files?.[0];
-    if (f && f.type === 'application/pdf') handleAiFile(f);
+    if (f) handleFile(f);
   });
 
-  async function handleAiFile(file) {
+  function handleFile(file) {
+    currentFile = file;
     if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
     currentBlobUrl = URL.createObjectURL(file);
 
-    phUpload.style.display  = 'none';
-    phLoading.style.display = '';
+    phUpload.style.display = 'none';
+    inner.classList.add('rf-expanded');
+    phForm.style.display   = 'flex';
+    phForm.style.flex      = '1';
+
+    // Zobraz náhled vlevo
+    if (file.type === 'application/pdf') {
+      iframe.src           = currentBlobUrl;
+      iframe.style.display = 'block';
+      iframe.style.flex    = '1';
+      imgPreview.style.display = 'none';
+    } else {
+      imgPreview.src           = currentBlobUrl;
+      imgPreview.style.display = 'block';
+      imgPreview.style.flex    = '1';
+      iframe.style.display     = 'none';
+    }
+  }
+
+  // ── AI vytěžení (na klik) ────────────────────────────────
+  window.rfRunAi = async function () {
+    if (!currentFile) return;
+    aiBtn.disabled = true;
+    aiBtn.textContent = 'Analyzuji…';
+    aiBadge.style.display = 'none';
 
     try {
       const fd = new FormData();
-      fd.append('file', file, file.name);
+      fd.append('file', currentFile, currentFile.name);
       const resp = await fetch('/ucetnictvi/prijate-faktury/analyze-pdf', { method: 'POST', body: fd });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Chyba serveru');
-      rfExpandForm(data, null);
-    } catch (err) {
-      rfExpandForm(null, err.message);
-    }
-  }
 
-  // ── Ruční zadání ─────────────────────────────────────────
-  window.rfOpenManual = function () {
-    phUpload.style.display  = 'none';
-    phLoading.style.display = 'none';
-    rfExpandForm(null, null, true);
-  };
-
-  fileInputManual.addEventListener('change', () => {
-    if (fileInputManual.files[0]) showManualPdf(fileInputManual.files[0]);
-  });
-
-  if (dropZoneManual) {
-    dropZoneManual.addEventListener('dragover', e => { e.preventDefault(); dropZoneManual.classList.add('rf-over'); });
-    dropZoneManual.addEventListener('dragleave', () => dropZoneManual.classList.remove('rf-over'));
-    dropZoneManual.addEventListener('drop', e => {
-      e.preventDefault();
-      dropZoneManual.classList.remove('rf-over');
-      const f = e.dataTransfer?.files?.[0];
-      if (f && f.type === 'application/pdf') showManualPdf(f);
-    });
-  }
-
-  function showManualPdf(file) {
-    if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
-    currentBlobUrl = URL.createObjectURL(file);
-    leftPlaceholder.style.display = 'none';
-    embed.style.display = '';
-    embed.setAttribute('src', currentBlobUrl);
-  }
-
-  // ── Společné: rozbalení do 2 sloupců ─────────────────────
-  function rfExpandForm(data, errMsg, manualMode) {
-    phLoading.style.display = 'none';
-    phUpload.style.display  = 'none';
-
-    // Levá strana
-    if (manualMode) {
-      leftPlaceholder.style.display = 'flex';
-      embed.style.display = 'none';
-    } else {
-      leftPlaceholder.style.display = 'none';
-      embed.style.display = currentBlobUrl ? '' : 'none';
-      if (currentBlobUrl) embed.setAttribute('src', currentBlobUrl);
-    }
-
-    // AI badge
-    if (data) {
       setVal('rfNumber',      data.number);
       setVal('rfSupplier',    data.supplier);
       setVal('rfSupplierIco', data.supplier_ico);
-      setVal('rfAmount',      data.amount != null ? String(data.amount) : '');
-      setVal('rfVat',         data.vat_amount != null ? String(data.vat_amount) : '');
+      setVal('rfAmount',      data.amount      != null ? String(data.amount)       : '');
+      setVal('rfVat',         data.vat_amount  != null ? String(data.vat_amount)   : '');
       setVal('rfTotal',       data.total_amount != null ? String(data.total_amount) : '');
       setVal('rfIssueDate',   data.issue_date);
       setVal('rfDueDate',     data.due_date);
       setVal('rfNotes',       data.notes);
       if (data.currency) document.getElementById('rfCurrency').value = data.currency;
-      aiBadge.style.cssText = 'display:block;background:var(--primary-light);color:var(--primary-dark);border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;font-weight:600;';
-      aiBadge.textContent = '✦ Pole byla předvyplněna z PDF — zkontrolujte prosím hodnoty';
-    } else if (errMsg) {
-      aiBadge.style.cssText = 'display:block;background:var(--danger-bg);color:var(--danger);border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;font-weight:600;';
-      aiBadge.textContent = '⚠ ' + errMsg + ' — vyplňte pole ručně.';
+
+      aiBadge.style.cssText = 'display:block;background:var(--primary-light,rgba(79,70,229,0.08));color:var(--primary-dark,var(--primary));border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;font-weight:600;margin-bottom:4px;';
+      aiBadge.textContent = '✦ Pole byla předvyplněna — zkontrolujte prosím hodnoty';
+    } catch (err) {
+      aiBadge.style.cssText = 'display:block;background:var(--danger-bg);color:var(--danger);border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;font-weight:600;margin-bottom:4px;';
+      aiBadge.textContent = '⚠ ' + err.message;
     }
 
-    inner.classList.add('rf-expanded');
-    phForm.style.display = 'flex';
-    phForm.style.flex    = '1';
-    phForm.style.minHeight = '0';
-  }
+    aiBtn.disabled = false;
+    aiBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Vytěžit automaticky';
+  };
 
   function setVal(id, val) {
     const el = document.getElementById(id);
-    if (el && val != null && val !== '') el.value = val;
+    if (el && val != null && val !== '' && val !== 'null') el.value = val;
   }
 
   // Předkontace autocomplete
