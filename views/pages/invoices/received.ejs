@@ -137,26 +137,11 @@ function bulkClearAll() {
     <div id="rfPhaseForm" style="display:none;flex:1;min-height:0;overflow:hidden;flex-direction:row;align-items:stretch;">
       <div class="rf-split">
 
-        <!-- Levá část: náhled dokumentu -->
+        <!-- Levá část: náhled dokumentu (vždy 50 % šířky, browser PDF viewer má vlastní zoom) -->
         <div class="rf-left">
-          <!-- Zoom toolbar -->
-          <div class="rf-zoom-bar">
-            <button type="button" id="rfZoomOut" class="rf-zoom-btn" onclick="rfZoomStep(-1)" title="Oddálit">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            </button>
-            <span id="rfZoomLabel" style="font-size:12px;font-weight:600;color:var(--text-muted);min-width:38px;text-align:center;">100%</span>
-            <button type="button" id="rfZoomIn" class="rf-zoom-btn" onclick="rfZoomStep(1)" title="Přiblížit">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            </button>
-            <button type="button" id="rfZoomFit" class="rf-zoom-btn rf-zoom-fit" onclick="rfZoomReset()" title="Celý dokument" style="display:none;font-size:11px;padding:0 8px;gap:4px;">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-              Celý dokument
-            </button>
-          </div>
-          <!-- Preview area -->
-          <div id="rfPreviewScroll" style="flex:1;overflow:auto;">
-            <iframe id="rfIframe" src="about:blank" style="display:none;width:100%;border:none;"></iframe>
-            <img id="rfImgPreview" src="" alt="" style="display:none;width:100%;height:auto;display:block;">
+          <div style="flex:1;position:relative;overflow:hidden;">
+            <iframe id="rfIframe" src="about:blank" style="display:none;position:absolute;inset:0;width:100%;height:100%;border:none;"></iframe>
+            <img id="rfImgPreview" src="" alt="" style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:contain;">
           </div>
         </div>
 
@@ -326,33 +311,6 @@ function bulkClearAll() {
   min-height: 0;
   overflow: hidden;
 }
-/* Zoom toolbar */
-.rf-zoom-bar {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-  background: var(--bg-card);
-}
-.rf-zoom-btn {
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--border);
-  background: var(--bg-card);
-  border-radius: var(--radius-sm, 6px);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-muted);
-  transition: background 0.15s, color 0.15s;
-  padding: 0;
-}
-.rf-zoom-btn:hover { background: var(--bg-page); color: var(--text-primary); }
-.rf-zoom-btn:disabled { opacity: 0.35; cursor: default; }
-.rf-zoom-fit { width: auto; }
 /* Mobile: svisle */
 @media (max-width: 700px) {
   .rf-modal.rf-expanded { height: 95vh; }
@@ -373,25 +331,19 @@ function bulkClearAll() {
 
 <script>
 (function () {
-  const backdrop      = document.getElementById('modalCreate');
-  const inner         = document.getElementById('rfModalInner');
-  const phUpload      = document.getElementById('rfPhaseUpload');
-  const phLoading     = document.getElementById('rfPhaseLoading');
-  const phForm        = document.getElementById('rfPhaseForm');
-  const fileInput     = document.getElementById('rfFileInput');
-  const dropZone      = document.getElementById('rfDropZone');
-  const iframe        = document.getElementById('rfIframe');
-  const imgPreview    = document.getElementById('rfImgPreview');
-  const aiBadge       = document.getElementById('rfAiBadge');
-  const aiBtn         = document.getElementById('rfAiBtn');
-  const zoomLabel     = document.getElementById('rfZoomLabel');
-  const zoomFitBtn    = document.getElementById('rfZoomFit');
-  const zoomInBtn     = document.getElementById('rfZoomIn');
-  const zoomOutBtn    = document.getElementById('rfZoomOut');
-  const previewScroll = document.getElementById('rfPreviewScroll');
-  let currentFile     = null;
-  let currentBlobUrl  = null;
-  let zoomIdx         = 2;
+  const backdrop     = document.getElementById('modalCreate');
+  const inner        = document.getElementById('rfModalInner');
+  const phUpload     = document.getElementById('rfPhaseUpload');
+  const phLoading    = document.getElementById('rfPhaseLoading');
+  const phForm       = document.getElementById('rfPhaseForm');
+  const fileInput    = document.getElementById('rfFileInput');
+  const dropZone     = document.getElementById('rfDropZone');
+  const iframe       = document.getElementById('rfIframe');
+  const imgPreview   = document.getElementById('rfImgPreview');
+  const aiBadge      = document.getElementById('rfAiBadge');
+  const aiBtn        = document.getElementById('rfAiBtn');
+  let currentFile    = null;
+  let currentBlobUrl = null;
 
   // ── Open / close ──────────────────────────────────────────
   // rfOpen je voláno přímo z onclick atributu tlačítka — musí být na window
@@ -416,15 +368,11 @@ function bulkClearAll() {
     aiBadge.style.display    = 'none';
     iframe.src               = 'about:blank';
     iframe.style.display     = 'none';
-    iframe.style.zoom        = '';
     imgPreview.src           = '';
     imgPreview.style.display = 'none';
-    imgPreview.style.zoom    = '';
     document.getElementById('rfAresBadge').style.display = 'none';
     document.getElementById('rfForm').reset();
     document.getElementById('rfIssueDate').value = new Date().toISOString().split('T')[0];
-    zoomIdx = 2; baseW = 0; baseH = 0;
-    if (zoomLabel) { zoomLabel.textContent = '100%'; zoomFitBtn.style.display = 'none'; }
   }
 
   // ── File input + drag & drop ──────────────────────────────
@@ -441,54 +389,12 @@ function bulkClearAll() {
     if (f) handleFile(f);
   });
 
-  // ── Zoom ─────────────────────────────────────────────────
-  // Panel zůstane pevný. Iframe/img se zvětšuje → panel scrolluje.
-  const ZOOM_STEPS = [50, 75, 100, 125, 150, 175, 200];
-  let baseW = 0; // šířka panelu při 100 %
-  let baseH = 0; // výška panelu při 100 %
-
-  function rfApplyZoom() {
-    const level = ZOOM_STEPS[zoomIdx];
-    zoomLabel.textContent    = level + '%';
-    zoomFitBtn.style.display = level !== 100 ? 'flex' : 'none';
-    zoomInBtn.disabled       = zoomIdx === ZOOM_STEPS.length - 1;
-    zoomOutBtn.disabled      = zoomIdx === 0;
-
-    const scale   = level / 100;
-    const isPdf   = currentFile?.type === 'application/pdf';
-    const el      = isPdf ? iframe : imgPreview;
-
-    if (!baseW) {
-      baseW = previewScroll.clientWidth  || 600;
-      baseH = previewScroll.clientHeight || 800;
-    }
-
-    const w = Math.round(baseW * scale);
-    const h = Math.round(baseH * scale);
-
-    if (isPdf) {
-      // Iframe se fyzicky zvětší → PDF viewer uvnitř překreslí stránku na novou velikost
-      el.style.width  = w + 'px';
-      el.style.height = h + 'px';
-    } else {
-      // Obrázek: zachovat poměr stran
-      el.style.width  = w + 'px';
-      el.style.height = 'auto';
-    }
-  }
-
-  window.rfZoomStep = function (dir) {
-    zoomIdx = Math.max(0, Math.min(ZOOM_STEPS.length - 1, zoomIdx + dir));
-    rfApplyZoom();
-  };
-  window.rfZoomReset = function () { zoomIdx = 2; rfApplyZoom(); };
-
   function handleFile(file) {
     currentFile = file;
     if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
     currentBlobUrl = URL.createObjectURL(file);
 
-    phUpload.style.display = 'none';
+    phUpload.style.display     = 'none';
     inner.classList.add('rf-expanded');
     phForm.style.display       = 'flex';
     phForm.style.flex          = '1';
@@ -497,7 +403,6 @@ function bulkClearAll() {
     phForm.style.alignItems    = 'stretch';
     phForm.style.overflow      = 'hidden';
 
-    // Zobraz preview element
     if (file.type === 'application/pdf') {
       iframe.style.display     = 'block';
       imgPreview.style.display = 'none';
@@ -507,12 +412,6 @@ function bulkClearAll() {
       iframe.style.display     = 'none';
       imgPreview.src           = currentBlobUrl;
     }
-
-    // Počkej na renderování layoutu, pak zachyť rozměry a nastav 100 % zoom
-    zoomIdx = 2;
-    baseW = 0;
-    baseH = 0;
-    setTimeout(rfApplyZoom, 80);
   }
 
   // ── AI vytěžení (na klik) ────────────────────────────────
