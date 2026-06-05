@@ -134,7 +134,7 @@ function bulkClearAll() {
     </div>
 
     <!-- ── Fáze 3: 2-sloupcový layout ── -->
-    <div id="rfPhaseForm" style="display:none;flex:1;min-height:0;overflow:hidden;">
+    <div id="rfPhaseForm" style="display:none;flex:1;min-height:0;overflow:hidden;flex-direction:row;align-items:stretch;">
       <div class="rf-split">
 
         <!-- Levá část: náhled dokumentu -->
@@ -275,7 +275,9 @@ function bulkClearAll() {
 /* Dvousloupec */
 .rf-split {
   display: flex;
-  height: 100%;
+  /* height:100% zde nefunguje — výška pochází ze stretch flex itemu, ne z procent */
+  min-height: 0;
+  align-self: stretch;
 }
 .rf-left {
   flex: 1;
@@ -284,6 +286,7 @@ function bulkClearAll() {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 .rf-right {
@@ -377,20 +380,23 @@ function bulkClearAll() {
 
     phUpload.style.display = 'none';
     inner.classList.add('rf-expanded');
-    phForm.style.display   = 'flex';
-    phForm.style.flex      = '1';
+    // Nutno nastavit všechny flex vlastnosti explicitně
+    phForm.style.display        = 'flex';
+    phForm.style.flex           = '1';
+    phForm.style.minHeight      = '0';
+    phForm.style.flexDirection  = 'row';
+    phForm.style.alignItems     = 'stretch';
+    phForm.style.overflow       = 'hidden';
 
-    // Zobraz náhled vlevo
+    // Zobraz náhled vlevo — výšku přebírá stretch z rf-left
     if (file.type === 'application/pdf') {
-      iframe.src           = currentBlobUrl;
-      iframe.style.display = 'block';
-      iframe.style.flex    = '1';
+      iframe.style.cssText = 'display:block;width:100%;height:100%;border:none;flex:1;min-height:0;';
+      iframe.src = currentBlobUrl;
       imgPreview.style.display = 'none';
     } else {
-      imgPreview.src           = currentBlobUrl;
-      imgPreview.style.display = 'block';
-      imgPreview.style.flex    = '1';
-      iframe.style.display     = 'none';
+      imgPreview.style.cssText = 'display:block;width:100%;height:100%;object-fit:contain;flex:1;min-height:0;';
+      imgPreview.src = currentBlobUrl;
+      iframe.style.display = 'none';
     }
   }
 
