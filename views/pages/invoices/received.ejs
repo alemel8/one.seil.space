@@ -5,7 +5,7 @@
   </div>
   <div style="display:flex;gap:8px;">
     <a href="/ucetnictvi/prijate-faktury/export.csv" class="btn btn-outline btn-sm">↓ CSV</a>
-    <button class="btn btn-primary" data-modal-open="modalCreate">+ Přidat fakturu</button>
+    <button class="btn btn-primary" onclick="rfOpen()">+ Přidat fakturu</button>
   </div>
 </div>
 
@@ -331,15 +331,15 @@ function bulkClearAll() {
   let currentBlobUrl = null;
 
   // ── Open / close ──────────────────────────────────────────
-  document.querySelectorAll('[data-modal-open="modalCreate"]').forEach(b =>
-    b.addEventListener('click', rfOpen)
-  );
+  // rfOpen je voláno přímo z onclick atributu tlačítka — musí být na window
   window.rfOpen = function () {
     backdrop.classList.add('open');
+    document.body.style.overflow = 'hidden';
     rfReset();
   };
   window.rfClose = function () {
     backdrop.classList.remove('open');
+    document.body.style.overflow = '';
     if (currentBlobUrl) { URL.revokeObjectURL(currentBlobUrl); currentBlobUrl = null; }
     currentFile = null;
   };
