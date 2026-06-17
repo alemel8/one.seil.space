@@ -322,6 +322,45 @@ export default async function toneracekRoutes(fastify) {
       fastify.log.warn({ err }, 'CRM upsert selhal (nekritické)');
     }
 
+    // Platba převodem: rovnou vystavit a odeslat zálohovou fakturu s platebními údaji
+    if (PAYMENT_LABELS[paymentMethod] === 'Bankovní převod') {
+      try {
+        const { generateProformaForOrder } = await import('./invoices.js');
+        const { renderInvoicePdf } = await import('../pdf.js');
+        const { sendInvoiceEmail } = await import('../email.js');
+
+        const [freshOrder] = await sql`SELECT * FROM shop_orders WHERE id = ${orderId}`;
+        const proforma = await generateProformaForOrder(sql, freshOrder);
+
+        const proformaItems = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${proforma.id}`;
+        const [issuer] = await sql`SELECT * FROM company_settings LIMIT 1`;
+        const vatMap = {};
+        for (const it of proformaItems) {
+          const r = it.vat_rate;
+          if (!vatMap[r]) vatMap[r] = { rate: r, base: 0, vat: 0 };
+          vatMap[r].base += Number(it.amount);
+          vatMap[r].vat  += Number(it.vat_amount);
+        }
+        const pdfBuffer = await renderInvoicePdf({ invoice: proforma, items: proformaItems, issuer: issuer || {}, vatSummary: Object.values(vatMap) });
+
+        if (customer.email) {
+          await sendInvoiceEmail({
+            invoice: proforma, issuer: issuer || {}, email: customer.email, pdfBuffer,
+            from: 'Toneráček.cz <ahoj@toneracek.cz>',
+            subject: `Zálohová faktura ${proforma.number} k objednávce #${orderNumber}`,
+            intro: `děkujeme za objednávku č. <strong>${orderNumber}</strong>. V příloze naleznete zálohovou fakturu — po jejím uhrazení vám vystavíme a zašleme běžnou fakturu.`,
+            paymentDetails: {
+              accountNumber: issuer?.bank_account || '',
+              iban: issuer?.iban || '',
+              variableSymbol: proforma.number.replace(/[^0-9]/g, ''),
+            },
+          });
+        }
+      } catch (err) {
+        fastify.log.error({ err }, 'Chyba při vystavení/odeslání zálohové faktury');
+      }
+    }
+
     sendPushToAll({
       title: 'Nová objednávka — Toneráček',
       body: `#${orderNumber} · ${customer.firstName} ${customer.lastName} · ${totalPrice} CZK`,
@@ -400,12 +439,11 @@ export default async function toneracekRoutes(fastify) {
     const items        = await sql`SELECT * FROM shop_order_items WHERE order_id = ${order.id}`;
     const [invoice]    = await sql`SELECT id, number FROM accounting_invoices WHERE order_id = ${order.id} AND type = 'issued' LIMIT 1`;
     const [proforma]   = await sql`SELECT id, number, status FROM accounting_invoices WHERE order_id = ${order.id} AND type = 'proforma' LIMIT 1`;
-    const invoiceSeries = await sql`SELECT id, name FROM invoice_number_series WHERE active = TRUE ORDER BY name`;
 
     return reply.view('pages/toneracek/order-detail.ejs', {
       pageTitle: `Objednávka #${order.order_number}`,
       currentPath: '/ucetnictvi/objednavky', user: request.user,
-      order, items, ORDER_STATUSES, invoice: invoice || null, proforma: proforma || null, invoiceSeries,
+      order, items, ORDER_STATUSES, invoice: invoice || null, proforma: proforma || null,
       error: request.query.error || null,
     }, { layout: 'layouts/base.ejs' });
   });
@@ -447,119 +485,56 @@ export default async function toneracekRoutes(fastify) {
     `;
     if (!order) return reply.code(404).send('Objednávka nenalezena');
 
-    await sql`UPDATE shop_orders SET status = ${status}, modified_at = NOW() WHERE id = ${order.id}`;
+    // ── Automatické vystavení faktury při přepnutí na "Vyřízena" ──
+    if (status === 'Vyřízena') {
+      const [existingInvoice] = await sql`SELECT id FROM accounting_invoices WHERE order_id = ${order.id} AND type = 'issued' LIMIT 1`;
+      if (!existingInvoice) {
+        const isTransfer = order.payment_method === 'Bankovní převod';
+        const [proforma] = await sql`SELECT * FROM accounting_invoices WHERE order_id = ${order.id} AND type = 'proforma' LIMIT 1`;
+        if (isTransfer && (!proforma || proforma.status !== 'Zaplacena')) {
+          return reply.redirect(`/ucetnictvi/objednavky/${order.id}?error=proforma-nezaplacena`);
+        }
 
-    // ── Automatické akce při dokončení ────────────────────────
-    if (status === 'dokoncena') {
-      try {
-        // 1. Auto-generace faktury (pokud ještě neexistuje)
-        const [existing] = await sql`SELECT id FROM accounting_invoices WHERE order_id = ${order.id} LIMIT 1`;
-        let invoiceId = existing?.id;
-
-        if (!invoiceId) {
-          const { generateId, getDb } = await import('../db.js');
+        try {
+          const { generateInvoiceForOrder } = await import('./invoices.js');
           const { renderInvoicePdf } = await import('../pdf.js');
           const { sendInvoiceEmail } = await import('../email.js');
 
-          // Auto-vybrat řadu podle shop_id
-          const [series] = await sql`
-            SELECT * FROM invoice_number_series
-            WHERE shop_id = ${order.shop_id} AND active = TRUE
-            LIMIT 1
-          `;
-          const seriesId = series?.id || null;
+          const invoice = await generateInvoiceForOrder(sql, order, { fromProforma: isTransfer ? proforma : null });
+          fastify.log.info({ invoiceId: invoice.id, number: invoice.number }, 'Auto-faktura vygenerována');
 
-          // Číslo faktury
-          let number = order.invoice_number || '';
-          if (!number && seriesId) {
-            const { nextInvoiceNumber } = await import('./invoices.js').then(() => ({})).catch(() => ({}));
-            // Inline next number logic
-            const [s] = await sql`UPDATE invoice_number_series SET current_number = current_number + 1 WHERE id = ${seriesId} RETURNING *`;
-            const n = s.current_number;
-            number = `${s.prefix}-${String(n).padStart(s.padding, '0')}`;
+          if (order.email) {
+            const items = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${invoice.id}`;
+            const [company] = await sql`SELECT * FROM company_settings LIMIT 1`;
+            const issuer = company || {};
+
+            const vatMap = {};
+            for (const it of items) {
+              const r = it.vat_rate;
+              if (!vatMap[r]) vatMap[r] = { rate: r, base: 0, vat: 0 };
+              vatMap[r].base += Number(it.amount);
+              vatMap[r].vat  += Number(it.vat_amount);
+            }
+            const vatSummary = Object.values(vatMap);
+
+            const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary });
+            await sendInvoiceEmail({
+              invoice, issuer, email: order.email, pdfBuffer,
+              subject: `Objednávka #${order.order_number} vyřízena — faktura v příloze`,
+              intro: `Vaše objednávka č. <strong>${order.order_number}</strong> byla úspěšně vyřízena.<br>V příloze naleznete fakturu.`,
+            });
+            fastify.log.info({ email: order.email }, 'Email s fakturou odeslán');
           }
-          if (!number) number = `FV-${new Date().getFullYear()}-${order.order_number}`;
-
-          const vatRate = 21;
-          const totalWithVat = Number(order.total_price);
-          const base   = +(totalWithVat / (1 + vatRate / 100)).toFixed(2);
-          const vatAmt = +(totalWithVat - base).toFixed(2);
-
-          invoiceId = generateId();
-          await sql`
-            INSERT INTO accounting_invoices
-              (id, type, series_id, number, status,
-               shop_id, order_id, crm_contact_id, crm_company_id,
-               client_name, client_ico, client_dic, client_address,
-               amount, vat_amount, total_amount, currency, issue_date, due_date, notes)
-            VALUES (
-              ${invoiceId}, 'issued', ${seriesId}, ${number}, 'Nezaplacena',
-              ${order.shop_id}, ${order.id},
-              ${order.crm_contact_id || null}, ${order.crm_company_id || null},
-              ${`${order.first_name} ${order.last_name}`.trim() || order.company || ''},
-              ${order.ic || ''}, ${order.dic || ''},
-              ${[order.address, (order.zip + ' ' + order.city).trim()].filter(Boolean).join(', ')},
-              ${base}, ${vatAmt}, ${totalWithVat},
-              ${order.currency || 'CZK'},
-              ${new Date().toISOString().split('T')[0]}, NULL,
-              ${order.payment_method ? `Platba: ${order.payment_method}` : ''}
-            )
-          `;
-
-          // Položky faktury
-          const orderItems = await sql`SELECT * FROM shop_order_items WHERE order_id = ${order.id}`;
-          for (const item of orderItems) {
-            const itemBase  = +(Number(item.price) / (1 + vatRate / 100) * item.quantity).toFixed(2);
-            const itemVat   = +(Number(item.price) * item.quantity - itemBase).toFixed(2);
-            const itemTotal = +(Number(item.price) * item.quantity).toFixed(2);
-            await sql`
-              INSERT INTO accounting_invoice_items
-                (invoice_id, name, quantity, unit, price_per_unit, vat_rate, amount, vat_amount, total)
-              VALUES (
-                ${invoiceId}, ${item.name}, ${item.quantity}, 'ks',
-                ${Number(item.price)}, ${vatRate}, ${itemBase}, ${itemVat}, ${itemTotal}
-              )
-            `;
-          }
-
-          fastify.log.info({ invoiceId, number }, 'Auto-faktura vygenerována');
+        } catch (err) {
+          fastify.log.error({ err }, 'Chyba auto-generace faktury/emailu při vyřízení objednávky');
         }
-
-        // 2. Odeslat email s potvrzením + fakturou v příloze
-        if (order.email) {
-          const { renderInvoicePdf } = await import('../pdf.js');
-          const { sendInvoiceEmail } = await import('../email.js');
-          const [invoice] = await sql`SELECT * FROM accounting_invoices WHERE id = ${invoiceId}`;
-          const items = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${invoiceId}`;
-          const [company] = await sql`SELECT * FROM company_settings LIMIT 1`;
-          const issuer = company || {};
-
-          // Výpočet DPH souhrnu
-          const vatMap = {};
-          for (const it of items) {
-            const r = it.vat_rate;
-            if (!vatMap[r]) vatMap[r] = { rate: r, base: 0, vat: 0 };
-            vatMap[r].base += Number(it.amount);
-            vatMap[r].vat  += Number(it.vat_amount);
-          }
-          const vatSummary = Object.values(vatMap);
-
-          const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary });
-          await sendInvoiceEmail({
-            invoice, issuer, email: order.email, pdfBuffer,
-            subject: `Objednávka #${order.order_number} vyřízena — faktura v příloze`,
-            intro: `Vaše objednávka č. <strong>${order.order_number}</strong> byla úspěšně vyřízena.<br>V příloze naleznete fakturu.`,
-          });
-          fastify.log.info({ email: order.email }, 'Email s fakturou odeslán');
-        }
-
-      } catch (err) {
-        fastify.log.error({ err }, 'Chyba auto-generace faktury/emailu při dokončení objednávky');
       }
     }
 
-    // Ruční email o stavu (jiné statusy)
-    if ((send_email === 'on' || send_email === '1') && status !== 'dokoncena') {
+    await sql`UPDATE shop_orders SET status = ${status}, modified_at = NOW() WHERE id = ${order.id}`;
+
+    // Ruční email o stavu (u "Vyřízena" se odeslal už výše spolu s fakturou)
+    if ((send_email === 'on' || send_email === '1') && status !== 'Vyřízena') {
       try {
         await sendOrderStatusEmail({
           orderNumber: order.order_number,

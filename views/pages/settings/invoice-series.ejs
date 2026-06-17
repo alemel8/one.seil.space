@@ -32,7 +32,7 @@
         <% series.forEach(s => { %>
         <tr>
           <td style="font-weight:500;"><%= s.name %></td>
-          <td><%= s.entity_type === 'objednavka' ? 'Objednávka' : 'Faktura' %></td>
+          <td><%= { objednavka: 'Objednávka', zalohova_faktura: 'Zálohová faktura' }[s.entity_type] || 'Faktura' %></td>
           <td>
             <code style="background:var(--gray-100);padding:2px 6px;border-radius:4px;font-size:12px;"><%= s.example %></code>
           </td>
@@ -85,6 +85,7 @@
           <label class="form-label">Typ řady</label>
           <select name="entity_type" class="form-select">
             <option value="faktura">Faktura</option>
+            <option value="zalohova_faktura">Zálohová faktura</option>
             <option value="objednavka">Objednávka</option>
           </select>
         </div>

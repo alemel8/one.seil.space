@@ -92,27 +92,36 @@ export async function sendOrderStatusEmail({ orderNumber, email, customerName, s
   if (error) throw new Error(`Resend error: ${error.message}`);
 }
 
-export async function sendInvoiceEmail({ invoice, issuer, email, pdfBuffer, subject, intro }) {
+export async function sendInvoiceEmail({ invoice, issuer, email, pdfBuffer, subject, intro, from, paymentDetails }) {
   if (!process.env.RESEND_API_KEY) {
     console.log(`[DEV EMAIL] Invoice ${invoice.number} → ${email}`);
     return;
   }
 
-  const from = issuer.email
+  const emailFrom = from || (issuer.email
     ? `${issuer.name} <${issuer.email}>`
-    : `one.seil.space <noreply@seil.cz>`;
+    : `one.seil.space <noreply@seil.cz>`);
 
   const emailSubject = subject || `Faktura ${invoice.number} — ${issuer.name}`;
   const emailIntro  = intro  || `v příloze zasíláme fakturu č. <strong>${invoice.number}</strong>.`;
 
+  const paymentBlock = paymentDetails ? `
+<div style="background:#f8f9fa;border-radius:8px;padding:16px 20px;margin:16px 0;">
+  <p style="margin:0 0 8px;font-weight:600;">Platební údaje</p>
+  ${paymentDetails.accountNumber ? `<p style="margin:2px 0;">Číslo účtu: <strong>${paymentDetails.accountNumber}</strong></p>` : ''}
+  ${paymentDetails.iban ? `<p style="margin:2px 0;">IBAN: <strong>${paymentDetails.iban}</strong></p>` : ''}
+  <p style="margin:2px 0;">Variabilní symbol: <strong>${paymentDetails.variableSymbol}</strong></p>
+</div>` : '';
+
   const { error } = await resend.emails.send({
-    from,
+    from: emailFrom,
     to: [email],
     subject: emailSubject,
     html: `<p>Dobrý den,</p>
 <p>${emailIntro}</p>
 <p>Celková částka k úhradě: <strong>${Number(invoice.total_amount).toLocaleString('cs-CZ', {minimumFractionDigits:2})} ${invoice.currency || 'Kč'}</strong></p>
 ${invoice.due_date ? `<p>Splatnost: ${new Date(invoice.due_date).toLocaleDateString('cs-CZ')}</p>` : ''}
+${paymentBlock}
 <p>Děkujeme za spolupráci.</p>
 <p>${issuer.name}</p>`,
     attachments: [{

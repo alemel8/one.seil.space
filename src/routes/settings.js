@@ -98,7 +98,7 @@ export default async function settingsRoutes(fastify) {
         ${parseInt(b.padding || '4', 10)},
         ${b.shop_id ? parseInt(b.shop_id, 10) : null},
         TRUE,
-        ${b.entity_type === 'objednavka' ? 'objednavka' : 'faktura'},
+        ${['objednavka', 'zalohova_faktura'].includes(b.entity_type) ? b.entity_type : 'faktura'},
         ${format || null}
       )
     `;

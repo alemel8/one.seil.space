@@ -2,6 +2,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getHistoryDb } from '../db.js';
+import { CITY_COORDS, normalizeCityName, projectToMap } from '../cz-cities.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -49,39 +50,67 @@ export default async function dashboardRoutes(fastify) {
   // ── Domovská stránka ─────────────────────────────────────────
   fastify.get('/', async (request, reply) => {
     const now = new Date();
-    const mStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
-    const mEnd   = new Date(now.getFullYear(), now.getMonth()+1, 0).toISOString().slice(0,10);
+    const monthOptions = [];
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      const label = d.toLocaleDateString('cs-CZ', { month: 'long', year: 'numeric' });
+      monthOptions.push({ value, label });
+    }
+    const defaultMonth = monthOptions[0].value;
+    const selectedMonth = /^\d{4}-\d{2}$/.test(request.query.month || '') ? request.query.month : defaultMonth;
+    const [selYear, selMonthNum] = selectedMonth.split('-').map(Number);
+    const mStart = `${selectedMonth}-01`;
+    const mEnd   = new Date(selYear, selMonthNum, 0).toISOString().slice(0,10);
 
     const [
-      [issued], [received], [overdueCount], [ordersWaiting],
-      [crmFirmy], [crmKontakty], [crmNew], [team], [uctenky],
+      [issued], [received], [overdueCount], [ordersWaiting], [uctenky], cityRows,
     ] = await Promise.all([
       sql`SELECT COALESCE(SUM(total_amount),0)::numeric AS v, COUNT(*)::int AS n FROM accounting_invoices WHERE type='issued'   AND issue_date BETWEEN ${mStart} AND ${mEnd}`,
       sql`SELECT COALESCE(SUM(total_amount),0)::numeric AS v, COUNT(*)::int AS n FROM accounting_invoices WHERE type='received' AND issue_date BETWEEN ${mStart} AND ${mEnd}`,
-      sql`SELECT COUNT(*)::int AS n FROM accounting_invoices WHERE status='Po splatnosti'`,
-      sql`SELECT COUNT(*)::int AS n FROM shop_orders WHERE status NOT IN ('dokoncena','zrusena','storno')`,
-      sql`SELECT COUNT(*)::int AS n FROM crm_companies`,
-      sql`SELECT COUNT(*)::int AS n FROM crm_contacts`,
-      sql`SELECT COUNT(*)::int AS n FROM crm_contacts WHERE created_at >= NOW() - INTERVAL '30 days'`,
-      sql`SELECT COUNT(*)::int AS n FROM users WHERE is_active=TRUE`,
+      sql`SELECT COUNT(*)::int AS n FROM accounting_invoices WHERE status='Po splatnosti' AND issue_date BETWEEN ${mStart} AND ${mEnd}`,
+      sql`SELECT COUNT(*)::int AS n FROM shop_orders WHERE status = 'Přijata' AND created_at BETWEEN ${mStart} AND ${mEnd}::date + INTERVAL '1 day'`,
       sql`SELECT COUNT(*)::int AS n, COALESCE(SUM(total_amount),0)::numeric AS v FROM receipts WHERE receipt_date BETWEEN ${mStart} AND ${mEnd}`,
+      sql`
+        SELECT COALESCE(NULLIF(TRIM(city), ''), NULLIF(TRIM(shipping_city), '')) AS order_city, COUNT(*)::int AS n
+        FROM shop_orders
+        WHERE created_at BETWEEN ${mStart} AND ${mEnd}::date + INTERVAL '1 day'
+        GROUP BY order_city
+      `,
     ]);
 
     const latest = readLatest();
     const vpsOk = !latest.error && !latest.stale;
 
+    // ── Mapa: agregace objednávek podle města (fakturační, jinak doručovací) ──
+    const cityCounts = new Map();
+    const unmapped = new Map();
+    for (const row of cityRows) {
+      if (!row.order_city) continue;
+      const key = normalizeCityName(row.order_city);
+      const coords = CITY_COORDS[key];
+      if (coords) {
+        const prev = cityCounts.get(key);
+        cityCounts.set(key, { label: coords[2], n: (prev?.n || 0) + row.n, lat: coords[0], lon: coords[1] });
+      } else {
+        unmapped.set(key, { label: row.order_city.trim(), n: (unmapped.get(key)?.n || 0) + row.n });
+      }
+    }
+    const mapPoints = [...cityCounts.values()].map(c => ({ ...c, ...projectToMap(c.lat, c.lon) }));
+    const otherCities = [...unmapped.values()].sort((a, b) => b.n - a.n);
+
     return reply.view('pages/home.ejs', {
       pageTitle: 'Přehled', currentPath: '/',
       user: request.user,
+      selectedMonth, monthOptions,
       kpi: {
         issuedMonth: Number(issued.v), issuedCount: issued.n,
         receivedMonth: Number(received.v), receivedCount: received.n,
         overdue: overdueCount.n,
         ordersWaiting: ordersWaiting.n,
-        firmy: crmFirmy.n, kontakty: crmKontakty.n, crmNew: crmNew.n,
-        team: team.n,
         uctenkyCount: uctenky.n, uctenkyMonth: Number(uctenky.v),
       },
+      mapPoints, otherCities,
       vps: vpsOk ? { ram: latest.memory, cpu: latest.cpu, disk: latest.disk } : null,
     }, { layout: 'layouts/base.ejs' });
   });
