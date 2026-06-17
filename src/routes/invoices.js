@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { renderSeriesNumber } from '../series-format.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '../..');
@@ -45,9 +46,7 @@ async function nextInvoiceNumber(sql, seriesId) {
     WHERE id = ${seriesId} AND active = TRUE RETURNING *
   `;
   if (!series) throw new Error('Číselná řada nenalezena nebo není aktivní');
-  const num = String(series.current_number).padStart(series.padding, '0');
-  const yearPart = series.year ? `-${series.year}` : '';
-  return `${series.prefix}${yearPart}-${num}`;
+  return renderSeriesNumber(series);
 }
 
 export default async function invoicesRoutes(fastify) {
@@ -82,7 +81,7 @@ export default async function invoicesRoutes(fastify) {
   });
 
   fastify.get('/ucetnictvi/vydane-faktury/:id', async (request, reply) => {
-    const [invoice] = await sql`SELECT * FROM accounting_invoices WHERE id = ${request.params.id} AND type = 'issued'`;
+    const [invoice] = await sql`SELECT * FROM accounting_invoices WHERE id = ${request.params.id} AND type IN ('issued', 'proforma')`;
     if (!invoice) return reply.code(404).send('Faktura nenalezena');
     const items = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${invoice.id} ORDER BY id`;
     const vatSummary = calcVatSummary(items);
@@ -133,60 +132,21 @@ export default async function invoicesRoutes(fastify) {
     return reply.redirect(`/ucetnictvi/vydane-faktury/${id}`);
   });
 
-  // Auto-generace faktury z objednávky
-  fastify.post('/ucetnictvi/objednavky/:id/generovat-fakturu', async (request, reply) => {
-    if (!request.user) return reply.redirect('/prihlasit');
-    const b = request.body || {};
-
-    const [order] = await sql`SELECT * FROM shop_orders WHERE id = ${request.params.id}`;
-    if (!order) return reply.code(404).send('Objednávka nenalezena');
-
-    // Zkontroluj, jestli už faktura existuje
-    const [existing] = await sql`SELECT id FROM accounting_invoices WHERE order_id = ${order.id} LIMIT 1`;
-    if (existing) return reply.redirect(`/ucetnictvi/vydane-faktury/${existing.id}`);
-
-    const orderItems = await sql`SELECT * FROM shop_order_items WHERE order_id = ${order.id}`;
-    const issuer = await getIssuer(sql);
-
-    // Číslo faktury
-    let number = order.invoice_number || '';
-    if (!number && b.series_id) {
-      number = await nextInvoiceNumber(sql, parseInt(b.series_id, 10));
-    }
-    if (!number) number = order.invoice_number || `FV-${new Date().getFullYear()}-${order.order_number}`;
-
-    // Výpočet DPH (21% default pro eshop objednávky)
-    const vatRate = 21;
-    const totalWithVat = Number(order.total_price);
-    const base   = +(totalWithVat / (1 + vatRate / 100)).toFixed(2);
-    const vatAmt = +(totalWithVat - base).toFixed(2);
-
-    const invoiceId = generateId();
-
-    await sql`
-      INSERT INTO accounting_invoices
-        (id, type, series_id, number, status,
-         shop_id, order_id, crm_contact_id, crm_company_id,
-         client_name, client_ico, client_dic, client_address,
-         amount, vat_amount, total_amount, currency,
-         issue_date, due_date)
-      VALUES (
-        ${invoiceId}, 'issued',
-        ${b.series_id ? parseInt(b.series_id, 10) : null},
-        ${number}, 'Nezaplacena',
-        ${order.shop_id}, ${order.id},
-        ${order.crm_contact_id || null}, ${order.crm_company_id || null},
-        ${`${order.first_name} ${order.last_name}`.trim() || order.company || ''},
-        ${order.ic || ''}, ${order.dic || ''},
-        ${[order.address, order.zip + ' ' + order.city].filter(Boolean).join(', ')},
-        ${base}, ${vatAmt}, ${totalWithVat},
-        ${order.currency || 'CZK'},
-        ${new Date().toISOString().split('T')[0]},
-        ${b.due_date || null}
-      )
+  // Výchozí číselná řada podle eshopu, ze kterého objednávka přišla
+  async function pickDefaultSeries(shopId, entityType) {
+    const [series] = await sql`
+      SELECT id FROM invoice_number_series
+      WHERE shop_id = ${shopId} AND entity_type = ${entityType} AND active = TRUE
+      ORDER BY id LIMIT 1
     `;
+    return series?.id || null;
+  }
 
-    // Položky
+  function defaultDueDate(days) {
+    return new Date(Date.now() + days * 86400000).toISOString().split('T')[0];
+  }
+
+  async function insertOrderInvoiceItems(orderItems, invoiceId, vatRate) {
     for (const item of orderItems) {
       const itemBase   = +(Number(item.price) / (1 + vatRate / 100) * item.quantity).toFixed(2);
       const itemVat    = +(Number(item.price) * item.quantity - itemBase).toFixed(2);
@@ -201,6 +161,120 @@ export default async function invoicesRoutes(fastify) {
         )
       `;
     }
+  }
+
+  // Vystavit zálohovou fakturu z objednávky (platba převodem)
+  fastify.post('/ucetnictvi/objednavky/:id/generovat-zalohovou-fakturu', async (request, reply) => {
+    if (!request.user) return reply.redirect('/prihlasit');
+    const b = request.body || {};
+
+    const [order] = await sql`SELECT * FROM shop_orders WHERE id = ${request.params.id}`;
+    if (!order) return reply.code(404).send('Objednávka nenalezena');
+
+    const [existing] = await sql`SELECT id FROM accounting_invoices WHERE order_id = ${order.id} AND type = 'proforma' LIMIT 1`;
+    if (existing) return reply.redirect(`/ucetnictvi/objednavky/${order.id}`);
+
+    const orderItems = await sql`SELECT * FROM shop_order_items WHERE order_id = ${order.id}`;
+
+    const seriesId = b.series_id ? parseInt(b.series_id, 10) : await pickDefaultSeries(order.shop_id, 'faktura');
+    let number = '';
+    if (seriesId) number = await nextInvoiceNumber(sql, seriesId);
+    if (!number) number = `ZF-${new Date().getFullYear()}-${order.order_number}`;
+
+    const vatRate = 21;
+    const totalWithVat = Number(order.total_price);
+    const base   = +(totalWithVat / (1 + vatRate / 100)).toFixed(2);
+    const vatAmt = +(totalWithVat - base).toFixed(2);
+
+    const invoiceId = generateId();
+    await sql`
+      INSERT INTO accounting_invoices
+        (id, type, series_id, number, status,
+         shop_id, order_id, crm_contact_id, crm_company_id,
+         client_name, client_ico, client_dic, client_address,
+         amount, vat_amount, total_amount, currency,
+         issue_date, due_date)
+      VALUES (
+        ${invoiceId}, 'proforma',
+        ${seriesId},
+        ${number}, 'Nezaplacena',
+        ${order.shop_id}, ${order.id},
+        ${order.crm_contact_id || null}, ${order.crm_company_id || null},
+        ${`${order.first_name} ${order.last_name}`.trim() || order.company || ''},
+        ${order.ic || ''}, ${order.dic || ''},
+        ${[order.address, order.zip + ' ' + order.city].filter(Boolean).join(', ')},
+        ${base}, ${vatAmt}, ${totalWithVat},
+        ${order.currency || 'CZK'},
+        ${new Date().toISOString().split('T')[0]},
+        ${b.due_date || defaultDueDate(7)}
+      )
+    `;
+
+    await insertOrderInvoiceItems(orderItems, invoiceId, vatRate);
+
+    return reply.redirect(`/ucetnictvi/objednavky/${order.id}`);
+  });
+
+  // Auto-generace faktury z objednávky
+  fastify.post('/ucetnictvi/objednavky/:id/generovat-fakturu', async (request, reply) => {
+    if (!request.user) return reply.redirect('/prihlasit');
+    const b = request.body || {};
+
+    const [order] = await sql`SELECT * FROM shop_orders WHERE id = ${request.params.id}`;
+    if (!order) return reply.code(404).send('Objednávka nenalezena');
+
+    // Zkontroluj, jestli už faktura existuje
+    const [existing] = await sql`SELECT id FROM accounting_invoices WHERE order_id = ${order.id} AND type = 'issued' LIMIT 1`;
+    if (existing) return reply.redirect(`/ucetnictvi/vydane-faktury/${existing.id}`);
+
+    // Platba převodem: nejdřív musí být uhrazena zálohová faktura
+    const isTransfer = order.payment_method === 'Bankovní převod';
+    const [proforma] = await sql`SELECT * FROM accounting_invoices WHERE order_id = ${order.id} AND type = 'proforma' LIMIT 1`;
+    if (isTransfer && (!proforma || proforma.status !== 'Zaplacena')) {
+      return reply.redirect(`/ucetnictvi/objednavky/${order.id}?error=proforma-nezaplacena`);
+    }
+
+    const orderItems = await sql`SELECT * FROM shop_order_items WHERE order_id = ${order.id}`;
+
+    // Číslo faktury — výchozí řada eshopu (pokud nastavena), jinak placeholder z objednávky
+    const seriesId = b.series_id ? parseInt(b.series_id, 10) : await pickDefaultSeries(order.shop_id, 'faktura');
+    let number = '';
+    if (seriesId) number = await nextInvoiceNumber(sql, seriesId);
+    if (!number) number = order.invoice_number || `FV-${new Date().getFullYear()}-${order.order_number}`;
+
+    // Výpočet DPH (21% default pro eshop objednávky)
+    const vatRate = 21;
+    const totalWithVat = Number(order.total_price);
+    const base   = +(totalWithVat / (1 + vatRate / 100)).toFixed(2);
+    const vatAmt = +(totalWithVat - base).toFixed(2);
+
+    const invoiceId = generateId();
+    const alreadyPaid = isTransfer && proforma?.status === 'Zaplacena';
+
+    await sql`
+      INSERT INTO accounting_invoices
+        (id, type, series_id, number, status, paid_date,
+         shop_id, order_id, crm_contact_id, crm_company_id, proforma_invoice_id,
+         client_name, client_ico, client_dic, client_address,
+         amount, vat_amount, total_amount, currency,
+         issue_date, due_date)
+      VALUES (
+        ${invoiceId}, 'issued',
+        ${seriesId},
+        ${number}, ${alreadyPaid ? 'Zaplacena' : 'Nezaplacena'}, ${alreadyPaid ? new Date().toISOString().split('T')[0] : null},
+        ${order.shop_id}, ${order.id},
+        ${order.crm_contact_id || null}, ${order.crm_company_id || null}, ${proforma?.id || null},
+        ${`${order.first_name} ${order.last_name}`.trim() || order.company || ''},
+        ${order.ic || ''}, ${order.dic || ''},
+        ${[order.address, order.zip + ' ' + order.city].filter(Boolean).join(', ')},
+        ${base}, ${vatAmt}, ${totalWithVat},
+        ${order.currency || 'CZK'},
+        ${new Date().toISOString().split('T')[0]},
+        ${b.due_date || null}
+      )
+    `;
+
+    await insertOrderInvoiceItems(orderItems, invoiceId, vatRate);
 
     return reply.redirect(`/ucetnictvi/vydane-faktury/${invoiceId}`);
   });
@@ -217,7 +291,7 @@ export default async function invoicesRoutes(fastify) {
 
   // PDF endpoint
   fastify.get('/ucetnictvi/vydane-faktury/:id/pdf', async (request, reply) => {
-    const [invoice] = await sql`SELECT * FROM accounting_invoices WHERE id = ${request.params.id} AND type = 'issued'`;
+    const [invoice] = await sql`SELECT * FROM accounting_invoices WHERE id = ${request.params.id} AND type IN ('issued', 'proforma')`;
     if (!invoice) return reply.code(404).send('Faktura nenalezena');
 
     const items = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${invoice.id} ORDER BY id`;
@@ -233,7 +307,7 @@ export default async function invoicesRoutes(fastify) {
 
   // Odeslat fakturu emailem
   fastify.post('/ucetnictvi/vydane-faktury/:id/odeslat-email', async (request, reply) => {
-    const [invoice] = await sql`SELECT * FROM accounting_invoices WHERE id = ${request.params.id} AND type = 'issued'`;
+    const [invoice] = await sql`SELECT * FROM accounting_invoices WHERE id = ${request.params.id} AND type IN ('issued', 'proforma')`;
     if (!invoice) return reply.code(404).send('Faktura nenalezena');
 
     const { email } = request.body || {};

@@ -550,7 +550,8 @@ table.data-table {
   }
   .rf-modal.rf-expanded > #rfPhaseForm > div > div:last-child,
   .rc-modal.rc-expanded > #rcPhaseForm > div > div:last-child {
-    flex: none !important;
+    flex: 1 !important;
+    min-height: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
   }

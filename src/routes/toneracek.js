@@ -1,8 +1,10 @@
 import { getDb, generateId } from '../db.js';
 import { sendOrderStatusEmail } from '../email.js';
 import { sendPushToAll } from '../push.js';
+import { renderSeriesNumber } from '../series-format.js';
+import { fetchPacketLabelPdf } from '../packeta.js';
 
-const ORDER_STATUSES = ['Přijata', 'Ve zpracování', 'Vyřízena', 'Stornována'];
+const ORDER_STATUSES = ['Přijata', 'Vyřízena', 'Stornována'];
 
 const PAYMENT_LABELS = {
   card: 'Platba kartou',
@@ -244,12 +246,23 @@ export default async function toneracekRoutes(fastify) {
 
     const { customer, shipping, paymentMethod, items, totalPrice, ipAddress } = b;
 
-    // Číslo objednávky — per-shop sekvence
-    const [last] = await sql`
-      SELECT order_number FROM shop_orders WHERE shop_id = ${shopId}
-      ORDER BY CAST(order_number AS INTEGER) DESC LIMIT 1
+    // Číslo objednávky — výchozí číselná řada eshopu (pokud nastavena), jinak per-shop sekvence
+    const [orderSeries] = await sql`
+      SELECT * FROM invoice_number_series
+      WHERE shop_id = ${shopId} AND entity_type = 'objednavka' AND active = TRUE
+      ORDER BY id LIMIT 1
     `;
-    const orderNumber = last ? String(parseInt(last.order_number, 10) + 1) : '10001';
+    let orderNumber;
+    if (orderSeries) {
+      const [updated] = await sql`UPDATE invoice_number_series SET current_number = current_number + 1 WHERE id = ${orderSeries.id} RETURNING *`;
+      orderNumber = renderSeriesNumber(updated);
+    } else {
+      const [last] = await sql`
+        SELECT order_number FROM shop_orders WHERE shop_id = ${shopId}
+        ORDER BY CAST(order_number AS INTEGER) DESC LIMIT 1
+      `;
+      orderNumber = last ? String(parseInt(last.order_number, 10) + 1) : '10001';
+    }
 
     const now = new Date();
     const invoiceNumber = `FV-${now.getFullYear()}-${orderNumber}`;
@@ -385,14 +398,37 @@ export default async function toneracekRoutes(fastify) {
     `;
     if (!order) return reply.code(404).send('Objednávka nenalezena');
     const items        = await sql`SELECT * FROM shop_order_items WHERE order_id = ${order.id}`;
-    const [invoice]    = await sql`SELECT id, number FROM accounting_invoices WHERE order_id = ${order.id} LIMIT 1`;
+    const [invoice]    = await sql`SELECT id, number FROM accounting_invoices WHERE order_id = ${order.id} AND type = 'issued' LIMIT 1`;
+    const [proforma]   = await sql`SELECT id, number, status FROM accounting_invoices WHERE order_id = ${order.id} AND type = 'proforma' LIMIT 1`;
     const invoiceSeries = await sql`SELECT id, name FROM invoice_number_series WHERE active = TRUE ORDER BY name`;
 
     return reply.view('pages/toneracek/order-detail.ejs', {
       pageTitle: `Objednávka #${order.order_number}`,
       currentPath: '/ucetnictvi/objednavky', user: request.user,
-      order, items, ORDER_STATUSES, invoice: invoice || null, invoiceSeries,
+      order, items, ORDER_STATUSES, invoice: invoice || null, proforma: proforma || null, invoiceSeries,
+      error: request.query.error || null,
     }, { layout: 'layouts/base.ejs' });
+  });
+
+  // ── Admin: Stažení PDF štítku přímo z Packeta API ──────────
+
+  fastify.get('/ucetnictvi/objednavky/:id/stitek', async (request, reply) => {
+    if (!request.user) return reply.redirect('/prihlasit');
+    const shopId = await getToneracekShopId(sql);
+    const [order] = await sql`
+      SELECT tracking_number FROM shop_orders WHERE id = ${request.params.id} AND shop_id = ${shopId}
+    `;
+    if (!order?.tracking_number) return reply.code(404).send('Zásilka nenalezena');
+
+    try {
+      const pdf = await fetchPacketLabelPdf(order.tracking_number);
+      reply.header('Content-Type', 'application/pdf');
+      reply.header('Content-Disposition', `inline; filename="stitek-${order.tracking_number}.pdf"`);
+      return reply.send(pdf);
+    } catch (err) {
+      fastify.log.error({ err }, 'Chyba při stažení štítku z Packeta API');
+      return reply.code(502).send(`Nepodařilo se stáhnout štítek: ${err.message}`);
+    }
   });
 
   // ── Admin: Změna stavu ─────────────────────────────────────

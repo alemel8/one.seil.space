@@ -1,4 +1,5 @@
 import { getDb, generateId } from '../db.js';
+import { renderSeriesNumber } from '../series-format.js';
 
 export default async function settingsRoutes(fastify) {
   const sql = getDb();
@@ -62,12 +63,16 @@ export default async function settingsRoutes(fastify) {
   // ── Číselné řady ─────────────────────────────────────────────
 
   fastify.get('/nastaveni/ciselne-rady', async (request, reply) => {
-    const series = await sql`
+    const seriesRows = await sql`
       SELECT s.*, sh.name AS shop_name
       FROM invoice_number_series s
       LEFT JOIN shops sh ON s.shop_id = sh.id
       ORDER BY s.active DESC, s.name
     `;
+    const series = seriesRows.map(s => ({
+      ...s,
+      example: renderSeriesNumber({ ...s, current_number: s.current_number + 1 }),
+    }));
     const shops = await sql`SELECT id, name FROM shops WHERE active = TRUE ORDER BY name`;
     return reply.view('pages/settings/invoice-series.ejs', {
       pageTitle: 'Číselné řady', currentPath: '/nastaveni/ciselne-rady',
@@ -79,19 +84,22 @@ export default async function settingsRoutes(fastify) {
 
   fastify.post('/nastaveni/ciselne-rady/vytvorit', async (request, reply) => {
     const b = request.body || {};
-    if (!b.name || !b.prefix) return reply.redirect('/nastaveni/ciselne-rady?error=missing');
+    const format = (b.format || '').trim();
+    if (!b.name || (!b.prefix && !format)) return reply.redirect('/nastaveni/ciselne-rady?error=missing');
     const startNum = Math.max(0, parseInt(b.start_number || '1', 10));
     await sql`
       INSERT INTO invoice_number_series
-        (name, prefix, year, current_number, start_number, padding, shop_id, active)
+        (name, prefix, year, current_number, start_number, padding, shop_id, active, entity_type, format)
       VALUES (
-        ${b.name.trim()}, ${b.prefix.trim().toUpperCase()},
+        ${b.name.trim()}, ${(b.prefix || '').trim().toUpperCase()},
         ${b.year ? parseInt(b.year, 10) : null},
         ${startNum - 1},
         ${startNum},
         ${parseInt(b.padding || '4', 10)},
         ${b.shop_id ? parseInt(b.shop_id, 10) : null},
-        TRUE
+        TRUE,
+        ${b.entity_type === 'objednavka' ? 'objednavka' : 'faktura'},
+        ${format || null}
       )
     `;
     return reply.redirect('/nastaveni/ciselne-rady?saved=1');
@@ -207,9 +215,7 @@ export default async function settingsRoutes(fastify) {
     `;
     if (!series) return reply.code(404).send({ error: 'Číselná řada nenalezena' });
 
-    const num = String(series.current_number).padStart(series.padding, '0');
-    const yearPart = series.year ? `-${series.year}` : '';
-    const number = `${series.prefix}${yearPart}-${num}`;
+    const number = renderSeriesNumber(series);
     return reply.send({ number, seriesId: series.id });
   });
 }

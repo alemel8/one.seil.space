@@ -1,7 +1,6 @@
 <%
   const statusStyle = {
     'Přijata':        'background:#dbeafe;color:#1e40af',
-    'Ve zpracování':  'background:#fef3c7;color:#92400e',
     'Vyřízena':       'background:#dcfce7;color:#166534',
     'Stornována':     'background:#fee2e2;color:#991b1b',
   }[order.status] || 'background:#f1f5f9;color:#475569';
@@ -120,12 +119,14 @@
           <% } %>
 
           <% if (order.tracking_number) { %>
+          <%
+            const trackId = order.tracking_number.replace(/\s+/g, '');
+            const trackingUrl = `https://tracking.packeta.com/cs/${/^[A-Za-z]/.test(trackId) ? trackId : 'Z' + trackId}`;
+          %>
           <dt style="color:var(--text-muted);">Číslo zásilky</dt>
           <dd style="margin:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            <strong style="font-family:monospace;"><%= order.tracking_number %></strong>
-            <% if (order.label_url) { %>
-              <a href="<%= order.label_url %>" target="_blank" class="btn btn-outline btn-sm">Štítek PDF</a>
-            <% } %>
+            <a href="<%= trackingUrl %>" target="_blank" style="font-family:monospace;font-weight:600;color:var(--primary);text-decoration:none;"><%= order.tracking_number %></a>
+            <a href="/ucetnictvi/objednavky/<%= order.id %>/stitek" target="_blank" class="btn btn-outline btn-sm">Štítek PDF</a>
           </dd>
           <% } %>
         </dl>
@@ -170,10 +171,49 @@
     </div>
 
     <!-- Generovat fakturu -->
+    <%
+      const isTransfer = order.payment_method === 'Bankovní převod';
+      const proformaPaid = proforma && proforma.status === 'Zaplacena';
+    %>
     <div class="card" style="margin-bottom:0;">
       <div class="card-body">
         <h2 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 12px;">Faktura</h2>
-        <% if (invoice) { %>
+
+        <% if (typeof error !== 'undefined' && error === 'proforma-nezaplacena') { %>
+          <div class="alert" style="background:#fee2e2;color:#991b1b;padding:10px 12px;border-radius:8px;font-size:12px;margin-bottom:12px;">Nejprve musí být uhrazena zálohová faktura.</div>
+        <% } %>
+
+        <% if (isTransfer && proforma) { %>
+          <div style="margin-bottom:10px;font-size:13px;">
+            <span style="color:var(--text-muted);">Zálohová faktura:</span>
+            <a href="/ucetnictvi/vydane-faktury/<%= proforma.id %>" style="color:var(--primary);font-weight:500;"> <%= proforma.number %></a>
+            <span class="badge" style="margin-left:6px;<%= proformaPaid ? 'background:#dcfce7;color:#166534;' : 'background:#fef3c7;color:#92400e;' %>"><%= proforma.status %></span>
+          </div>
+          <a href="/ucetnictvi/vydane-faktury/<%= proforma.id %>/pdf" target="_blank" class="btn btn-outline" style="width:100%;text-align:center;margin-bottom:10px;">📄 Stáhnout zálohovou fakturu</a>
+        <% } %>
+
+        <% if (isTransfer && !proforma && !invoice) { %>
+          <!-- Krok 1: zálohová faktura -->
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Platba převodem — nejprve vystavte zálohovou fakturu. Běžná faktura půjde vystavit až po jejím uhrazení.</p>
+          <form method="post" action="/ucetnictvi/objednavky/<%= order.id %>/generovat-zalohovou-fakturu">
+            <div style="margin-bottom:10px;">
+              <label class="form-label" style="font-size:12px;">Číselná řada</label>
+              <select name="series_id" class="form-select">
+                <option value="">— Výchozí řada eshopu —</option>
+                <% if (typeof invoiceSeries !== 'undefined') { invoiceSeries.forEach(s => { %>
+                <option value="<%= s.id %>"><%= s.name %></option>
+                <% }) } %>
+              </select>
+            </div>
+            <div style="margin-bottom:10px;">
+              <label class="form-label" style="font-size:12px;">Datum splatnosti</label>
+              <input type="date" name="due_date" class="form-control" value="<%= new Date(Date.now()+7*86400000).toISOString().split('T')[0] %>">
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%;">Vystavit zálohovou fakturu</button>
+          </form>
+        <% } else if (isTransfer && proforma && !proformaPaid && !invoice) { %>
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:0;">Po přijetí platby (párování s bankovní transakcí) bude možné vystavit běžnou fakturu.</p>
+        <% } else if (invoice) { %>
           <div style="margin-bottom:10px;font-size:13px;">
             <span style="color:var(--text-muted);">Faktura vystavena:</span>
             <a href="/ucetnictvi/vydane-faktury/<%= invoice.id %>" style="color:var(--primary);font-weight:500;"> <%= invoice.number %></a>
@@ -185,7 +225,7 @@
             <div style="margin-bottom:10px;">
               <label class="form-label" style="font-size:12px;">Číselná řada</label>
               <select name="series_id" class="form-select">
-                <option value="">— Použít číslo z objednávky —</option>
+                <option value="">— Výchozí řada eshopu —</option>
                 <% if (typeof invoiceSeries !== 'undefined') { invoiceSeries.forEach(s => { %>
                 <option value="<%= s.id %>"><%= s.name %></option>
                 <% }) } %>

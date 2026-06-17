@@ -18,6 +18,7 @@
     <thead>
       <tr>
         <th>Název</th>
+        <th>Typ</th>
         <th>Formát</th>
         <th>Eshop</th>
         <th>Aktuální č.</th>
@@ -29,15 +30,11 @@
     <tbody>
       <% if (series && series.length > 0) { %>
         <% series.forEach(s => { %>
-        <%
-          const num = String(s.current_number + 1).padStart(s.padding, '0');
-          const yearPart = s.year ? `-${s.year}` : '';
-          const example = `${s.prefix}${yearPart}-${num}`;
-        %>
         <tr>
           <td style="font-weight:500;"><%= s.name %></td>
+          <td><%= s.entity_type === 'objednavka' ? 'Objednávka' : 'Faktura' %></td>
           <td>
-            <code style="background:var(--gray-100);padding:2px 6px;border-radius:4px;font-size:12px;"><%= example %></code>
+            <code style="background:var(--gray-100);padding:2px 6px;border-radius:4px;font-size:12px;"><%= s.example %></code>
           </td>
           <td><%= s.shop_name || '—' %></td>
           <td><%= s.current_number %></td>
@@ -63,7 +60,7 @@
         </tr>
         <% }) %>
       <% } else { %>
-        <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);">Žádné číselné řady. Vytvořte první.</td></tr>
+        <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);">Žádné číselné řady. Vytvořte první.</td></tr>
       <% } %>
     </tbody>
   </table>
@@ -84,10 +81,29 @@
           <input type="text" name="name" class="form-control" placeholder="Toneráček vydané faktury 2026" required>
         </div>
 
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label">Typ řady</label>
+          <select name="entity_type" class="form-select">
+            <option value="faktura">Faktura</option>
+            <option value="objednavka">Objednávka</option>
+          </select>
+        </div>
+
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label">Vlastní formát (nepovinné)</label>
+          <input type="text" name="format" id="seriesFormatInput" class="form-control" placeholder="TC-YYYY-NNN" oninput="seriesFormatPreview()">
+          <small style="color:var(--text-muted);">
+            Tokeny: <code>YYYY</code>/<code>YY</code> rok, <code>MM</code> měsíc, <code>DD</code> den,
+            <code>X</code> náhodná číslice (např. <code>XXX</code> = 3 znaky), <code>N</code> pořadové číslo (např. <code>NNN</code> = 001).
+            Pokud je vyplněno, má přednost před prefixem/rokem/počtem číslic níže.
+          </small>
+          <div style="margin-top:6px;font-size:12px;color:var(--text-muted);">Náhled: <code id="seriesFormatPreview">—</code></div>
+        </div>
+
         <div class="form-group">
-          <label class="form-label">Prefix *</label>
-          <input type="text" name="prefix" class="form-control" placeholder="TC" maxlength="10" required style="text-transform:uppercase;">
-          <small style="color:var(--text-muted);">Velká písmena, max 10 znaků</small>
+          <label class="form-label">Prefix <span id="seriesPrefixReq">*</span></label>
+          <input type="text" name="prefix" id="seriesPrefixInput" class="form-control" placeholder="TC" maxlength="10" required style="text-transform:uppercase;">
+          <small style="color:var(--text-muted);">Použije se, pokud není vyplněn vlastní formát</small>
         </div>
 
         <div class="form-group">
@@ -136,4 +152,24 @@ document.querySelectorAll('[data-modal-open]').forEach(btn => {
     document.getElementById(btn.dataset.modalOpen).style.display = 'flex';
   });
 });
+
+function seriesFormatPreview() {
+  const format = document.getElementById('seriesFormatInput').value.trim();
+  const prefixInput = document.getElementById('seriesPrefixInput');
+  const prefixReq   = document.getElementById('seriesPrefixReq');
+  const out = document.getElementById('seriesFormatPreview');
+  prefixInput.required = !format;
+  prefixReq.style.display = format ? 'none' : 'inline';
+  if (!format) { out.textContent = '—'; return; }
+  const now = new Date();
+  out.textContent = format.replace(/Y{4}|Y{2}|M{2}|D{2}|X+|N+/g, token => {
+    if (token === 'YYYY') return String(now.getFullYear());
+    if (token === 'YY')   return String(now.getFullYear()).slice(-2);
+    if (token === 'MM')   return String(now.getMonth() + 1).padStart(2, '0');
+    if (token === 'DD')   return String(now.getDate()).padStart(2, '0');
+    if (token[0] === 'X') return '#'.repeat(token.length);
+    if (token[0] === 'N') return '1'.padStart(token.length, '0');
+    return token;
+  });
+}
 </script>

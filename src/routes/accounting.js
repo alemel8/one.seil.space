@@ -1,5 +1,4 @@
 import { getDb, generateId } from '../db.js';
-import { parseFioCsv } from '../fio-parser.js';
 
 // Pozn: vydané a přijaté faktury jsou v src/routes/invoices.js
 // Tento soubor spravuje bankovní záznamy, manuální položky a Fio CSV import
@@ -43,21 +42,11 @@ export default async function accountingRoutes(fastify) {
       LIMIT ${perPage} OFFSET ${offset}
     `;
 
-    const imports = await sql`
-      SELECT i.*, a.name AS account_name
-      FROM accounting_bank_imports i
-      LEFT JOIN accounting_bank_accounts a ON i.bank_account_id = a.id
-      ORDER BY i.imported_at DESC LIMIT 50
-    `;
-    const allAccounts = await sql`SELECT * FROM accounting_bank_accounts WHERE active = TRUE`;
-
     return reply.view('pages/accounting/bank.ejs', {
       pageTitle: 'Banka', currentPath: '/ucetnictvi/banka',
       user: request.user, transactions, total: count,
       currentPage: page, totalPages: Math.ceil(count / perPage),
-      q, typeFilter, imports, accounts: allAccounts,
-      tab: request.query.tab || 'transakce',
-      importResult: request.query.result ? JSON.parse(decodeURIComponent(request.query.result)) : null,
+      q, typeFilter,
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -131,94 +120,73 @@ export default async function accountingRoutes(fastify) {
     return reply.redirect('/ucetnictvi/banka');
   });
 
-  // ── Import Fio CSV ────────────────────────────────────────────
+  // ── Webhook: příjem transakce z Make (Fio) ───────────────────
+  //
+  // POST /api/webhook/banka
+  // Header: x-api-key: <BANK_WEBHOOK_SECRET>
+  // Body (JSON, jedno pole nebo pole transakcí):
+  // {
+  //   "external_id": "12345678",
+  //   "transaction_date": "2024-01-15",   // nebo "date"
+  //   "amount": 1500.00,                   // kladné = příjem, záporné = výdaj
+  //   "currency": "CZK",
+  //   "counterparty_account": "1234567890/0800",
+  //   "counterparty_name": "Firma s.r.o.",
+  //   "variable_symbol": "20240001",
+  //   "constant_symbol": "0308",
+  //   "specific_symbol": "",
+  //   "message": "Platba faktury"
+  // }
 
-  fastify.get('/ucetnictvi/banka/import', async (request, reply) => {
-    const imports = await sql`
-      SELECT i.*, a.name AS account_name, COUNT(t.id)::int AS tx_count
-      FROM accounting_bank_imports i
-      JOIN accounting_bank_accounts a ON i.bank_account_id = a.id
-      LEFT JOIN accounting_bank_transactions t ON t.import_id = i.id
-      GROUP BY i.id, a.name
-      ORDER BY i.imported_at DESC LIMIT 20
-    `;
-    const accounts = await sql`SELECT * FROM accounting_bank_accounts WHERE active = TRUE`;
-    return reply.view('pages/accounting/bank-import.ejs', {
-      pageTitle: 'Import Fio CSV', currentPath: '/ucetnictvi/banka',
-      user: request.user, imports, accounts,
-      result: request.query.result ? JSON.parse(decodeURIComponent(request.query.result)) : null,
-    }, { layout: 'layouts/base.ejs' });
-  });
-
-  fastify.post('/ucetnictvi/banka/import', async (request, reply) => {
-    let csvText = '';
-    let filename = 'upload.csv';
-    let bankAccountId;
-
-    try {
-      const parts = request.parts();
-      for await (const part of parts) {
-        if (part.type === 'file' && part.fieldname === 'csvfile') {
-          filename = part.filename;
-          const chunks = [];
-          for await (const chunk of part.file) chunks.push(chunk);
-          csvText = Buffer.concat(chunks).toString('utf8');
-        } else if (part.type === 'field' && part.fieldname === 'bank_account_id') {
-          bankAccountId = parseInt(part.value, 10);
-        }
-      }
-    } catch (err) {
-      return reply.redirect('/ucetnictvi/banka/import?result=' + encodeURIComponent(JSON.stringify({ error: err.message })));
+  fastify.post('/api/webhook/banka', async (request, reply) => {
+    const secret = process.env.BANK_WEBHOOK_SECRET;
+    if (!secret || request.headers['x-api-key'] !== secret) {
+      return reply.status(401).send({ ok: false, error: 'Unauthorized' });
     }
 
-    if (!csvText) return reply.redirect('/ucetnictvi/banka/import?result=' + encodeURIComponent(JSON.stringify({ error: 'Soubor nebyl nahrán' })));
-
-    // Zajisti výchozí bankovní účet
+    const accounts = await sql`SELECT id FROM accounting_bank_accounts WHERE active = TRUE LIMIT 1`;
+    let bankAccountId = accounts[0]?.id;
     if (!bankAccountId) {
-      const [acc] = await sql`SELECT id FROM accounting_bank_accounts WHERE active = TRUE LIMIT 1`;
-      if (acc) {
-        bankAccountId = acc.id;
-      } else {
-        const [newAcc] = await sql`
-          INSERT INTO accounting_bank_accounts (name, bank_name, account_number, currency)
-          VALUES ('Hlavní účet', 'Fio banka', '2800828200/2010', 'CZK') RETURNING id
-        `;
-        bankAccountId = newAcc.id;
-      }
+      const [acc] = await sql`
+        INSERT INTO accounting_bank_accounts (name, bank_name, account_number, currency)
+        VALUES ('Hlavní účet', 'Fio banka', '2800828200/2010', 'CZK') RETURNING id
+      `;
+      bankAccountId = acc.id;
     }
 
-    let parsed;
-    try {
-      parsed = parseFioCsv(csvText);
-    } catch (err) {
-      return reply.redirect('/ucetnictvi/banka/import?result=' + encodeURIComponent(JSON.stringify({ error: `Chyba parsování: ${err.message}` })));
-    }
-
-    const [importRecord] = await sql`
-      INSERT INTO accounting_bank_imports
-        (bank_account_id, filename, format, date_from, date_to, imported_by)
-      VALUES (${bankAccountId}, ${filename}, 'fio_csv',
-              ${parsed.meta.dateFrom || null}, ${parsed.meta.dateTo || null},
-              ${request.user.id})
-      RETURNING id
-    `;
-    const importId = importRecord.id;
+    const body = request.body;
+    const items = Array.isArray(body) ? body : [body];
 
     let imported = 0, skipped = 0, matched = 0;
 
-    for (const rec of parsed.records) {
-      // Deduplikace podle external_id
-      const exists = await sql`SELECT id FROM accounting_bank_transactions WHERE external_id = ${rec.external_id} LIMIT 1`;
-      if (exists[0]) { skipped++; continue; }
+    for (const rec of items) {
+      const externalId = rec.external_id ?? rec.transactionId ?? rec.id ?? null;
 
-      // Auto-párování: variabilní symbol = číslo faktury (bez mezer, písmen)
+      if (externalId) {
+        const exists = await sql`SELECT id FROM accounting_bank_transactions WHERE external_id = ${String(externalId)} LIMIT 1`;
+        if (exists[0]) { skipped++; continue; }
+      }
+
+      const rawAmount  = parseFloat(rec.amount ?? 0);
+      const type       = rawAmount < 0 ? 'debit' : 'credit';
+      const amount     = Math.abs(rawAmount);
+      const currency   = rec.currency || 'CZK';
+      const txDate     = rec.transaction_date || rec.date || new Date().toISOString().split('T')[0];
+      const vs         = rec.variable_symbol || rec.variableSymbol || '';
+      const ks         = rec.constant_symbol  || rec.constantSymbol  || '';
+      const ss         = rec.specific_symbol  || rec.specificSymbol  || '';
+      const msg        = rec.message          || rec.userDescription || rec.description || '';
+      const cpAccount  = rec.counterparty_account || rec.counterpartyAccountNumber || '';
+      const cpName     = rec.counterparty_name    || rec.counterpartyName    || '';
+
+      // Auto-párování: variabilní symbol = číslo faktury
       let matchedInvoiceId = null;
-      if (rec.variable_symbol) {
-        const vs = rec.variable_symbol.replace(/\s/g, '');
+      if (vs) {
+        const vsClean = vs.replace(/\s/g, '');
         const [inv] = await sql`
           SELECT id FROM accounting_invoices
-          WHERE type = 'issued' AND status != 'Zaplacena'
-            AND REPLACE(REPLACE(number, '-', ''), '/', '') LIKE ${'%' + vs + '%'}
+          WHERE type IN ('issued', 'proforma') AND status != 'Zaplacena'
+            AND REPLACE(REPLACE(number, '-', ''), '/', '') LIKE ${'%' + vsClean + '%'}
           LIMIT 1
         `;
         if (inv) {
@@ -229,23 +197,23 @@ export default async function accountingRoutes(fastify) {
 
       await sql`
         INSERT INTO accounting_bank_transactions
-          (bank_account_id, import_id, external_id, type, amount, currency,
+          (bank_account_id, external_id, type, amount, currency,
            counterparty_account, counterparty_name,
            variable_symbol, constant_symbol, specific_symbol,
            message, transaction_date, matched_invoice_id)
         VALUES (
-          ${bankAccountId}, ${importId}, ${rec.external_id}, ${rec.type}, ${rec.amount}, ${rec.currency},
-          ${rec.counterparty_account}, ${rec.counterparty_name},
-          ${rec.variable_symbol}, ${rec.constant_symbol}, ${rec.specific_symbol},
-          ${rec.message}, ${rec.transaction_date}, ${matchedInvoiceId}
+          ${bankAccountId}, ${externalId ? String(externalId) : null},
+          ${type}, ${amount}, ${currency},
+          ${cpAccount}, ${cpName},
+          ${vs}, ${ks}, ${ss},
+          ${msg}, ${txDate}, ${matchedInvoiceId}
         )
       `;
 
-      // Automaticky označ spárované faktury jako zaplacené
       if (matchedInvoiceId) {
         await sql`
           UPDATE accounting_invoices
-          SET status = 'Zaplacena', paid_date = ${rec.transaction_date}, modified_at = NOW()
+          SET status = 'Zaplacena', paid_date = ${txDate}, modified_at = NOW()
           WHERE id = ${matchedInvoiceId} AND status != 'Zaplacena'
         `;
       }
@@ -253,15 +221,7 @@ export default async function accountingRoutes(fastify) {
       imported++;
     }
 
-    // Aktualizuj statistiku importu
-    await sql`
-      UPDATE accounting_bank_imports
-      SET rows_imported = ${imported}, rows_skipped = ${skipped}, rows_matched = ${matched}
-      WHERE id = ${importId}
-    `;
-
-    const result = { imported, skipped, matched, total: parsed.records.length };
-    return reply.redirect('/ucetnictvi/banka?tab=historie&result=' + encodeURIComponent(JSON.stringify(result)));
+    return reply.send({ ok: true, imported, skipped, matched });
   });
 
   // Zrušení párování (faktura nebo účtenka)
