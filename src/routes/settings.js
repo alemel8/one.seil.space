@@ -165,6 +165,36 @@ export default async function settingsRoutes(fastify) {
     return reply.redirect('/nastaveni/eshopy');
   });
 
+  // ── Detail eshopu (healthcheck + alerty) ──────────────────────
+
+  fastify.get('/nastaveni/eshopy/:id', async (request, reply) => {
+    const [shop] = await sql`SELECT * FROM shops WHERE id = ${request.params.id}`;
+    if (!shop) return reply.code(404).send('Eshop nenalezen');
+
+    const checks = await sql`
+      SELECT h.*, r.ok, r.status_code, r.latency_ms, r.checked_at, r.error
+      FROM healthchecks h
+      LEFT JOIN LATERAL (
+        SELECT ok, status_code, latency_ms, checked_at, error
+        FROM healthcheck_results WHERE check_id = h.id ORDER BY checked_at DESC LIMIT 1
+      ) r ON TRUE
+      WHERE h.shop_id = ${shop.id} ORDER BY h.name
+    `;
+    const keys = await sql`SELECT * FROM api_keys WHERE shop_id = ${shop.id} ORDER BY created_at DESC`;
+    const channels = await sql`SELECT * FROM notification_channels ORDER BY name`;
+    const rules = await sql`
+      SELECT r.*, c.name AS channel_name FROM notification_rules r
+      LEFT JOIN notification_channels c ON r.channel_id = c.id
+      WHERE r.event_type = 'app_down' ORDER BY r.id
+    `;
+
+    return reply.view('pages/settings/shop-detail.ejs', {
+      pageTitle: shop.name, currentPath: '/nastaveni/eshopy',
+      user: request.user, shop, checks, keys, channels, rules,
+      saved: request.query.saved === '1', newKey: request.query.newKey || null,
+    }, { layout: 'layouts/base.ejs' });
+  });
+
   // ── Účetní osnova (číselník účtů MD/D) ───────────────────────
 
   fastify.get('/nastaveni/ucetni-osnova', async (request, reply) => {

@@ -2,8 +2,14 @@
 // Spouštěn intervalem v server.js po startu.
 
 import { getDb } from './db.js';
+import { sendPushToAll } from './push.js';
 
 const sql = getDb();
+
+// Odstraní markdown formátování (**, emoji odrážky) pro čistý text v push notifikaci
+function toPlainText(message) {
+  return message.replace(/\*\*/g, '').replace(/^[🔴⚠️📋]\s*/m, '').trim();
+}
 
 // Vrátí true pokud jsme toto upozornění poslali v posledních `cooldownMs` ms
 async function alreadyNotified(eventType, eventKey, cooldownMs = 3_600_000) {
@@ -46,7 +52,7 @@ async function sendEmailNotification(toEmail, subject, text) {
   });
 }
 
-async function dispatchAlert(eventType, eventKey, message) {
+async function dispatchAlert(eventType, eventKey, message, opts = {}) {
   const channels = await sql`
     SELECT c.* FROM notification_rules r
     JOIN notification_channels c ON r.channel_id = c.id
@@ -58,6 +64,12 @@ async function dispatchAlert(eventType, eventKey, message) {
         await sendDiscord(ch.target, message);
       } else if (ch.type === 'email') {
         await sendEmailNotification(ch.target, `[one.seil.space] ${eventType}`, message);
+      } else if (ch.type === 'push') {
+        await sendPushToAll({
+          title: opts.title || `[one.seil.space] ${eventType}`,
+          body: toPlainText(message),
+          url: opts.url || '/nastaveni/healthchecky',
+        }, eventType);
       }
       await logNotification(eventType, eventKey, ch.id, message);
     } catch (err) {
@@ -94,7 +106,10 @@ export async function runHealthchecks() {
       const notified = await alreadyNotified('app_down', check.id);
       if (!notified) {
         const msg = `🔴 **${check.name}** je nedostupný!\nURL: ${check.url}\nChyba: ${error || `HTTP ${statusCode}`}`;
-        await dispatchAlert('app_down', check.id, msg);
+        await dispatchAlert('app_down', check.id, msg, {
+          title: `🔴 ${check.name} je nedostupný`,
+          url: check.shop_id ? `/nastaveni/eshopy/${check.shop_id}` : '/nastaveni/healthchecky',
+        });
       }
     }
   }
@@ -133,6 +148,7 @@ export async function checkVpsThresholds(latest) {
     try {
       if (rule.type === 'discord') await sendDiscord(rule.target, msg);
       else if (rule.type === 'email') await sendEmailNotification(rule.target, `[VPS Alert] ${label} ${val}${unit}`, msg);
+      else if (rule.type === 'push') await sendPushToAll({ title: `⚠️ VPS ${label} ${val}${unit}`, body: toPlainText(msg), url: '/nastaveni/healthchecky' }, rule.event_type);
       await logNotification(rule.event_type, 'vps', rule.channel_id, msg);
     } catch (e) {
       console.error('[NOTIFY VPS] Error', e.message);
@@ -158,5 +174,8 @@ export async function checkOverdueInvoices() {
   ).join('\n');
   const msg = `📋 **${overdue.length} faktur po splatnosti**:\n${list}${overdue.length > 5 ? `\n…a dalších ${overdue.length - 5}` : ''}`;
 
-  await dispatchAlert('invoice_overdue', 'daily', msg);
+  await dispatchAlert('invoice_overdue', 'daily', msg, {
+    title: `📋 ${overdue.length} faktur po splatnosti`,
+    url: '/ucetnictvi/vydane-faktury',
+  });
 }

@@ -173,18 +173,23 @@
       <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
         <div class="form-group">
           <label class="form-label">Typ</label>
-          <select name="type" class="form-select" id="channelType" onchange="document.getElementById('channelHint').textContent=this.value==='discord'?'Webhook URL z Discord → Server Settings → Integrations → Webhooks':'E-mailová adresa pro příjem alertů'">
+          <select name="type" class="form-select" id="channelType" onchange="
+            document.getElementById('channelHint').textContent = this.value==='discord' ? 'Webhook URL z Discord → Server Settings → Integrations → Webhooks' : this.value==='email' ? 'E-mailová adresa pro příjem alertů' : 'Odesílá se jako systémová notifikace všem přihlášeným uživatelům s povolenými push notifikacemi v prohlížeči';
+            document.getElementById('targetField').style.display = this.value==='push' ? 'none' : '';
+            document.getElementById('targetInput').required = this.value!=='push';
+          ">
             <option value="discord">Discord Webhook</option>
             <option value="email">E-mail</option>
+            <option value="push">Systémová notifikace (push)</option>
           </select>
         </div>
         <div class="form-group">
           <label class="form-label required">Název kanálu</label>
           <input type="text" name="name" class="form-control" placeholder="např. #alerty" required>
         </div>
-        <div class="form-group">
+        <div class="form-group" id="targetField">
           <label class="form-label required">Webhook URL / E-mail</label>
-          <input type="text" name="target" class="form-control" placeholder="https://discord.com/api/webhooks/…" required>
+          <input type="text" name="target" id="targetInput" class="form-control" placeholder="https://discord.com/api/webhooks/…" required>
           <small id="channelHint" style="color:var(--text-muted);font-size:12px;margin-top:4px;display:block;">Webhook URL z Discord → Server Settings → Integrations → Webhooks</small>
         </div>
       </div>

@@ -28,7 +28,7 @@
     <tbody>
       <% shops.forEach(sh => { %>
       <tr>
-        <td style="font-weight:500;"><%= sh.name %></td>
+        <td style="font-weight:500;"><a href="/nastaveni/eshopy/<%= sh.id %>" style="color:var(--text-primary);text-decoration:none;"><%= sh.name %></a></td>
         <td><code style="background:var(--gray-100);padding:2px 6px;border-radius:4px;font-size:12px;"><%= sh.slug %></code></td>
         <td><a href="<%= sh.url %>" target="_blank" style="color:var(--primary);"><%- sh.url || '—' %></a></td>
         <td><%= sh.key_count %></td>

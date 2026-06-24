@@ -18,34 +18,38 @@ export default async function monitoringRoutes(fastify) {
   fastify.post('/nastaveni/healthchecky/vytvorit', async (request, reply) => {
     if (!request.user?.is_admin) return reply.code(403).send('Pouze admin');
     const b = request.body || {};
-    await sql`INSERT INTO healthchecks (name, url, interval_s) VALUES (${b.name}, ${b.url}, ${parseInt(b.interval_s||300,10)})`;
-    return reply.redirect('/nastaveni/healthchecky');
+    const shopId = b.shop_id ? parseInt(b.shop_id, 10) : null;
+    await sql`INSERT INTO healthchecks (name, url, interval_s, shop_id) VALUES (${b.name}, ${b.url}, ${parseInt(b.interval_s||300,10)}, ${shopId})`;
+    return reply.redirect(b.returnTo || '/nastaveni/healthchecky');
   });
 
   fastify.post('/nastaveni/healthchecky/:id/smazat', async (request, reply) => {
     if (!request.user?.is_admin) return reply.code(403).send('Pouze admin');
+    const b = request.body || {};
     await sql`DELETE FROM healthchecks WHERE id = ${request.params.id}`;
-    return reply.redirect('/nastaveni/healthchecky');
+    return reply.redirect(b.returnTo || '/nastaveni/healthchecky');
   });
 
   fastify.post('/nastaveni/healthchecky/:id/toggle', async (request, reply) => {
     if (!request.user?.is_admin) return reply.code(403).send('Pouze admin');
+    const b = request.body || {};
     await sql`UPDATE healthchecks SET active = NOT active WHERE id = ${request.params.id}`;
-    return reply.redirect('/nastaveni/healthchecky');
+    return reply.redirect(b.returnTo || '/nastaveni/healthchecky');
   });
 
   // ── Notifikační kanály ────────────────────────────────────────
   fastify.post('/nastaveni/notifikace/kanal/vytvorit', async (request, reply) => {
     if (!request.user?.is_admin) return reply.code(403).send('Pouze admin');
     const b = request.body || {};
-    await sql`INSERT INTO notification_channels (type, name, target) VALUES (${b.type}, ${b.name}, ${b.target})`;
-    return reply.redirect('/nastaveni/healthchecky');
+    await sql`INSERT INTO notification_channels (type, name, target) VALUES (${b.type}, ${b.name}, ${b.target || '*'})`;
+    return reply.redirect(b.returnTo || '/nastaveni/healthchecky');
   });
 
   fastify.post('/nastaveni/notifikace/kanal/:id/smazat', async (request, reply) => {
     if (!request.user?.is_admin) return reply.code(403).send('Pouze admin');
+    const b = request.body || {};
     await sql`DELETE FROM notification_channels WHERE id = ${request.params.id}`;
-    return reply.redirect('/nastaveni/healthchecky');
+    return reply.redirect(b.returnTo || '/nastaveni/healthchecky');
   });
 
   // ── Notifikační pravidla ──────────────────────────────────────
@@ -53,13 +57,14 @@ export default async function monitoringRoutes(fastify) {
     if (!request.user?.is_admin) return reply.code(403).send('Pouze admin');
     const b = request.body || {};
     await sql`INSERT INTO notification_rules (event_type, threshold, channel_id) VALUES (${b.event_type}, ${b.threshold ? parseFloat(b.threshold) : null}, ${parseInt(b.channel_id,10)})`;
-    return reply.redirect('/nastaveni/healthchecky');
+    return reply.redirect(b.returnTo || '/nastaveni/healthchecky');
   });
 
   fastify.post('/nastaveni/notifikace/pravidlo/:id/smazat', async (request, reply) => {
     if (!request.user?.is_admin) return reply.code(403).send('Pouze admin');
+    const b = request.body || {};
     await sql`DELETE FROM notification_rules WHERE id = ${request.params.id}`;
-    return reply.redirect('/nastaveni/healthchecky');
+    return reply.redirect(b.returnTo || '/nastaveni/healthchecky');
   });
 
   // ── API: aktuální stav healthchecků (pro homepage dashboard) ──
