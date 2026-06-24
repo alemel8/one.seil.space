@@ -1,6 +1,10 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+let resend = null;
+function getResend() {
+  if (!resend) resend = new Resend(process.env.RESEND_API_KEY);
+  return resend;
+}
 const FROM = 'Toneráček.cz <ahoj@toneracek.cz>';
 
 const STATUS_CONFIG = {
@@ -82,7 +86,7 @@ export async function sendOrderStatusEmail({ orderNumber, email, customerName, s
     return;
   }
 
-  const { error } = await resend.emails.send({
+  const { error } = await getResend().emails.send({
     from: FROM,
     to: [email],
     subject: `Objednávka #${orderNumber} – ${config.subject}`,
@@ -113,7 +117,7 @@ export async function sendInvoiceEmail({ invoice, issuer, email, pdfBuffer, subj
   <p style="margin:2px 0;">Variabilní symbol: <strong>${paymentDetails.variableSymbol}</strong></p>
 </div>` : '';
 
-  const { error } = await resend.emails.send({
+  const { error } = await getResend().emails.send({
     from: emailFrom,
     to: [email],
     subject: emailSubject,
