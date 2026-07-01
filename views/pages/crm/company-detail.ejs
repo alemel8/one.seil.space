@@ -101,11 +101,11 @@
       <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
         <div>
           <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">IČO</div>
-          <div style="font-weight:600;font-family:monospace;"><%= company.ico || '—' %></div>
+          <div style="font-weight:600;font-family:var(--font-mono);"><%= company.ico || '—' %></div>
         </div>
         <div>
           <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">DIČ</div>
-          <div style="font-family:monospace;"><%= company.dic || '—' %></div>
+          <div style="font-family:var(--font-mono);"><%= company.dic || '—' %></div>
         </div>
         <% if (company.legal_form) { %>
         <div style="grid-column:1/-1;">
@@ -116,7 +116,7 @@
         <% if (company.registration_info) { %>
         <div>
           <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Spisová značka</div>
-          <div style="font-family:monospace;font-weight:500;"><%= company.registration_info %></div>
+          <div style="font-family:var(--font-mono);font-weight:500;"><%= company.registration_info %></div>
         </div>
         <% } %>
         <% if (company.founded_date) { %>

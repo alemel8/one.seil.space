@@ -223,7 +223,7 @@
         }
         el.innerHTML = `<table class="data-table"><thead><tr><th>Číslo</th><th>Název</th><th style="text-align:right;">Částka</th><th>Datum</th><th></th></tr></thead><tbody>` +
           rows.map(r => `<tr>
-            <td style="font-weight:600;font-family:monospace;font-size:13px;">${r.number || '—'}</td>
+            <td style="font-weight:600;font-family:var(--font-mono);font-size:13px;letter-spacing:0.3px;">${r.number || '—'}</td>
             <td style="font-size:13px;">${r.name || '—'}</td>
             <td style="text-align:right;font-weight:600;">${Number(r.total_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2})} ${r.currency}</td>
             <td style="color:var(--text-muted);font-size:12px;">${r.date ? new Date(r.date).toLocaleDateString('cs-CZ') : '—'}</td>

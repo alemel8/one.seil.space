@@ -5,7 +5,7 @@
 *, *::before, *::after { box-sizing: border-box; }
 
 body.app-body {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-primary);
   background: var(--bg-page);
   color: var(--text-primary);
   margin: 0;
@@ -63,10 +63,10 @@ body.app-body {
   width: 100%;
   padding: 10px 16px;
   background: var(--primary);
-  color: #0D1117;
+  color: var(--deep-space);
   border: none;
   border-radius: var(--radius-md);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-primary);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -77,8 +77,8 @@ body.app-body {
 
 .btn-new-deal:hover {
   background: var(--primary-hover);
-  box-shadow: 0 4px 12px rgba(0, 212, 232, 0.35);
-  color: #0D1117;
+  box-shadow: 0 4px 12px rgba(20, 230, 230, 0.35);
+  color: var(--deep-space);
 }
 
 .btn-new-deal svg { flex-shrink: 0; }
@@ -99,9 +99,10 @@ body.app-body {
 
 .nav-section-label {
   padding: 12px 20px 4px;
+  font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 1px;
+  letter-spacing: 1.2px;
   text-transform: uppercase;
   color: var(--sidebar-text);
   opacity: 0.5;
@@ -595,10 +596,10 @@ body.app-body {
   height: 48px;
   border-radius: 50%;
   background: var(--primary);
-  color: #fff;
+  color: var(--white);
   border: none;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(120, 196, 30, 0.40);
+  box-shadow: 0 4px 14px rgba(20, 230, 230, 0.40);
   transition: background var(--transition-base), box-shadow var(--transition-base);
   -webkit-tap-highlight-color: transparent;
   flex-shrink: 0;

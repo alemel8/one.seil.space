@@ -46,7 +46,7 @@
             <tr style="border-bottom:1px solid var(--border);">
               <td style="padding:10px 0;">
                 <%= item.name %>
-                <% if (item.sku) { %><br><span style="font-size:11px;color:var(--text-muted);font-family:monospace;">SKU: <%= item.sku %></span><% } %>
+                <% if (item.sku) { %><br><span style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);">SKU: <%= item.sku %></span><% } %>
               </td>
               <td style="text-align:center;padding:10px 0;"><%= item.quantity %></td>
               <td style="text-align:right;padding:10px 0;font-variant-numeric:tabular-nums;">
@@ -109,7 +109,7 @@
           <% if (order.pickup_point_name) { %>
           <dt style="color:var(--text-muted);">Výdejní místo</dt>
           <dd style="margin:0;font-weight:500;"><%= order.pickup_point_name %>
-            <% if (order.pickup_point_id) { %><br><span style="font-size:11px;color:var(--text-muted);font-family:monospace;">ID: <%= order.pickup_point_id %></span><% } %>
+            <% if (order.pickup_point_id) { %><br><span style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);">ID: <%= order.pickup_point_id %></span><% } %>
           </dd>
           <% } %>
 
@@ -125,7 +125,7 @@
           %>
           <dt style="color:var(--text-muted);">Číslo zásilky</dt>
           <dd style="margin:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            <a href="<%= trackingUrl %>" target="_blank" style="font-family:monospace;font-weight:600;color:var(--primary);text-decoration:none;"><%= order.tracking_number %></a>
+            <a href="<%= trackingUrl %>" target="_blank" style="font-family:var(--font-mono);font-weight:600;color:var(--primary);text-decoration:none;"><%= order.tracking_number %></a>
             <a href="/ucetnictvi/objednavky/<%= order.id %>/stitek" target="_blank" class="btn btn-outline btn-sm">Štítek PDF</a>
           </dd>
           <% } %>
@@ -262,7 +262,7 @@
           <% if (order.ip_address) { %>
           <div style="display:flex;justify-content:space-between;">
             <dt>IP adresa</dt>
-            <dd style="margin:0;font-family:monospace;font-size:11px;"><%= order.ip_address %></dd>
+            <dd style="margin:0;font-family:var(--font-mono);font-size:11px;"><%= order.ip_address %></dd>
           </div>
           <% } %>
         </dl>

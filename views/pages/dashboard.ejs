@@ -106,7 +106,7 @@
           <% latest.docker.containers.forEach(c => { %>
             <tr>
               <td style="font-weight:500;"><%= c.name %></td>
-              <td style="font-size:12px;color:var(--text-muted);font-family:monospace;"><%= c.image %></td>
+              <td style="font-size:12px;color:var(--text-muted);font-family:var(--font-mono);"><%= c.image %></td>
               <td><%= c.status %></td>
               <td>
                 <% if (c.healthy) { %>

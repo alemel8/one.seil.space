@@ -4,11 +4,22 @@
 
 :root {
   /* Brand */
-  --primary:          #00D4E8;
-  --primary-dark:     #00AEC4;
-  --primary-hover:    #00C2D6;
-  --primary-light:    #E0F9FC;
-  --accent-blue:      #2B6DAD;
+  --primary:          #14E6E6;
+  --primary-dark:     #0F7E89;
+  --primary-hover:    #10CCCC;
+  --primary-light:    #E3FBFB;
+  --accent-blue:      var(--petrol);
+
+  /* SEIL brand palette (design/SEIL Brand Identity.pdf v1.0, 06/2026) */
+  --seil-cyan:        #14E6E6;
+  --deep-space:       #0A1626;
+  --petrol:           #0F7E89;
+  --slate:            #8A93A3;
+  --mist:             #EDF1F6;
+
+  /* Fonts */
+  --font-primary:     'Space Grotesk', sans-serif;
+  --font-mono:        'Space Mono', monospace;
 
   /* Neutrals */
   --black:            #0D0D0D;
@@ -25,12 +36,12 @@
   --gray-900:         #111827;
 
   /* Sidebar */
-  --sidebar-bg:       #141920;
-  --sidebar-hover:    #1E2530;
-  --sidebar-active:   #1E2A40;
-  --sidebar-text:     #8A95A3;
+  --sidebar-bg:       #0A1626;
+  --sidebar-hover:    #131F33;
+  --sidebar-active:   #13253D;
+  --sidebar-text:     #8A93A3;
   --sidebar-text-active: #FFFFFF;
-  --sidebar-border:   #1E2530;
+  --sidebar-border:   #131F33;
   --sidebar-width:    260px;
 
   /* Layout */
@@ -39,7 +50,7 @@
   --topbar-border:    #E8ECF0;
 
   /* Light mode surfaces */
-  --bg-page:          #F0F2F5;
+  --bg-page:          #EDF1F6;
   --bg-card:          #FFFFFF;
   --bg-card-hover:    #FAFBFC;
   --text-primary:     #111827;
@@ -83,12 +94,12 @@
    DARK MODE
    ============================================================ */
 [data-theme="dark"] {
-  --topbar-bg:        #1A1F2A;
+  --topbar-bg:        #0F1E30;
   --topbar-border:    #252D3A;
 
-  --bg-page:          #0F1319;
-  --bg-card:          #1A1F2A;
-  --bg-card-hover:    #1E2530;
+  --bg-page:          #0A1626;
+  --bg-card:          #141F30;
+  --bg-card-hover:    #182437;
   --text-primary:     #E8EAED;
   --text-secondary:   #8A95A3;
   --text-muted:       #5A6472;

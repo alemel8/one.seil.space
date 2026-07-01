@@ -108,11 +108,11 @@
       <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
         <div>
           <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">MD (má dáti)</div>
-          <div style="font-family:monospace;font-size:15px;font-weight:600;"><%= invoice.account_debit || '—' %></div>
+          <div style="font-family:var(--font-mono);font-size:15px;font-weight:600;"><%= invoice.account_debit || '—' %></div>
         </div>
         <div>
           <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">D (dal)</div>
-          <div style="font-family:monospace;font-size:15px;font-weight:600;"><%= invoice.account_credit || '—' %></div>
+          <div style="font-family:var(--font-mono);font-size:15px;font-weight:600;"><%= invoice.account_credit || '—' %></div>
         </div>
       </div>
     </div>

@@ -70,7 +70,7 @@
           }[o.status] || 'background:#f1f5f9;color:#475569';
         %>
         <tr class="clickable-row" style="cursor:pointer;" onclick="window.location='/ucetnictvi/objednavky/<%= o.id %>'">
-          <td style="font-weight:600;font-family:monospace;">#<%= o.order_number %></td>
+          <td style="font-weight:600;font-family:var(--font-mono);">#<%= o.order_number %></td>
           <td style="font-weight:500;"><%= o.first_name %> <%= o.last_name %></td>
           <td style="font-size:13px;color:var(--text-muted);"><%= o.email %></td>
           <td style="font-variant-numeric:tabular-nums;font-weight:500;"><%= o.total_price.toLocaleString('cs-CZ') %> Kč</td>
