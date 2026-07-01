@@ -1,0 +1,192 @@
+<%
+  const fmtD = d => d ? new Date(d).toLocaleDateString('cs-CZ') : '—';
+  const fmtDT = d => d ? new Date(d).toLocaleString('cs-CZ') : '—';
+  const statusColor = s => ({
+    'Aktivní':      ['var(--success-bg)', '#166534'],
+    'Pozastaveno':  ['var(--warning-bg)', '#92400e'],
+    'Dokončeno':    ['var(--info-bg)',    '#1e40af'],
+    'V přípravě':   ['var(--gray-100)',   'var(--gray-600)'],
+  }[s] || ['var(--gray-100)', 'var(--gray-600)']);
+  const sc = statusColor(item.status);
+  const meta = PROJECT_TYPES[item.type] || { label: item.type, icon: 'web.svg', color: 'var(--text-muted)' };
+%>
+
+<div class="page-header">
+  <div class="page-header-left">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <a href="/projekty/<%= item.project_id %>?tab=podprojekty" class="btn btn-ghost btn-sm">← <%= item.project_name %></a>
+      <span class="project-type-swatch" style="background:<%= meta.color %>22;">
+        <span class="project-type-icon" style="--icon-url:url(/static/img/project-types/<%= meta.icon %>);--icon-color:<%= meta.color %>;"></span>
+      </span>
+      <h1 style="margin:0;"><%= item.name %></h1>
+      <span class="badge" style="background:<%= sc[0] %>;color:<%= sc[1] %>;"><%= item.status %></span>
+    </div>
+    <p><%= meta.label %> · Klient: <a href="/crm/firmy/<%= item.company_id %>" style="color:var(--primary);"><%= item.company_name %></a></p>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button class="btn btn-outline btn-sm" data-modal-open="modalEditItem">✏️ Upravit</button>
+    <form method="post" action="/projekty/podprojekty/<%= item.id %>/smazat" onsubmit="return confirm('Smazat tento podprojekt?');" style="display:inline;">
+      <button type="submit" class="btn btn-outline btn-sm" style="color:var(--danger);">Smazat</button>
+    </form>
+  </div>
+</div>
+
+<% if (saved) { %>
+<div style="background:var(--success-bg);color:#166534;border:1px solid #bbf7d0;padding:10px 16px;border-radius:8px;margin-bottom:16px;">✓ Uloženo</div>
+<% } %>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;align-items:start;">
+  <div style="display:flex;flex-direction:column;gap:16px;">
+
+    <% if (item.description) { %>
+    <div class="card">
+      <div class="card-header"><strong>Popis</strong></div>
+      <div class="card-body" style="white-space:pre-wrap;color:var(--text-secondary);line-height:1.6;"><%= item.description %></div>
+    </div>
+    <% } %>
+
+    <div class="card">
+      <div class="card-header"><strong>Provoz</strong></div>
+      <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div style="grid-column:1/-1;">
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Kde to běží</div>
+          <div><%= item.hosting_provider || '—' %></div>
+        </div>
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Produkce</div>
+          <% if (item.production_url) { %><a href="<%= item.production_url %>" target="_blank" style="color:var(--primary);"><%= item.production_url %></a><% } else { %>—<% } %>
+        </div>
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Staging</div>
+          <% if (item.staging_url) { %><a href="<%= item.staging_url %>" target="_blank" style="color:var(--primary);"><%= item.staging_url %></a><% } else { %>—<% } %>
+        </div>
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Repozitář</div>
+          <% if (item.repo_url) { %><a href="<%= item.repo_url %>" target="_blank" style="color:var(--primary);"><%= item.repo_url %></a><% } else { %>—<% } %>
+        </div>
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Tech stack</div>
+          <div><%= item.tech_stack || '—' %></div>
+        </div>
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Datum spuštění</div>
+          <div><%= fmtD(item.go_live_date) %></div>
+        </div>
+      </div>
+    </div>
+
+    <% if (item.notes) { %>
+    <div class="card">
+      <div class="card-header"><strong>Poznámky</strong></div>
+      <div class="card-body" style="white-space:pre-wrap;color:var(--text-secondary);line-height:1.6;"><%= item.notes %></div>
+    </div>
+    <% } %>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    <!-- Monitoring panel -->
+    <div class="card">
+      <div class="card-header"><strong>Monitoring</strong></div>
+      <div class="card-body">
+        <% if (health) { %>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <% if (health.ok === true) { %>
+              <span style="width:9px;height:9px;border-radius:50%;background:var(--success);display:inline-block;flex-shrink:0;"></span>
+              <span style="font-weight:600;color:#166534;">Běží</span>
+            <% } else if (health.ok === false) { %>
+              <span style="width:9px;height:9px;border-radius:50%;background:var(--danger);display:inline-block;flex-shrink:0;"></span>
+              <span style="font-weight:600;color:var(--danger);">Nedostupné</span>
+            <% } else { %>
+              <span style="width:9px;height:9px;border-radius:50%;background:var(--gray-400);display:inline-block;flex-shrink:0;"></span>
+              <span style="font-weight:600;color:var(--text-muted);">Zatím bez dat</span>
+            <% } %>
+          </div>
+          <div style="font-size:13px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;">
+            <div><%= health.name %></div>
+            <% if (health.latency_ms) { %><div>Odezva: <%= health.latency_ms %> ms</div><% } %>
+            <% if (health.checked_at) { %><div>Poslední kontrola: <%= fmtDT(health.checked_at) %></div><% } %>
+            <% if (health.error) { %><div style="color:var(--danger);"><%= health.error %></div><% } %>
+          </div>
+          <a href="/monitoring" style="display:inline-block;margin-top:10px;font-size:12px;color:var(--primary);">Zobrazit monitoring →</a>
+        <% } else { %>
+          <div style="color:var(--text-muted);font-size:13px;">Bez napojeného healthchecku. Přidejte ho tlačítkem Upravit.</div>
+        <% } %>
+      </div>
+    </div>
+
+    <% if (shop) { %>
+    <div class="card">
+      <div class="card-header"><strong>Napojený eshop</strong></div>
+      <div class="card-body" style="font-size:13px;">
+        <div style="font-weight:600;margin-bottom:4px;"><%= shop.name %></div>
+        <% if (shop.url) { %><a href="<%= shop.url %>" target="_blank" style="color:var(--primary);"><%= shop.url %></a><% } %>
+      </div>
+    </div>
+    <% } %>
+
+    <div class="card">
+      <div class="card-header"><strong>Záznam</strong></div>
+      <div class="card-body" style="font-size:13px;display:flex;flex-direction:column;gap:12px;">
+        <div>
+          <div style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">Vytvořeno</div>
+          <div><%= fmtD(item.created_at) %></div>
+        </div>
+        <div>
+          <div style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">Naposledy upraveno</div>
+          <div><%= fmtD(item.modified_at) %></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Upravit podprojekt -->
+<div class="modal-backdrop" id="modalEditItem">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h2 class="modal-title">Upravit podprojekt</h2>
+      <button class="modal-close" data-modal-close="modalEditItem">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form method="post" action="/projekty/podprojekty/<%= item.id %>">
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:16px;">
+        <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-group col-span-2"><label class="form-label required">Název</label><input type="text" name="name" class="form-control" value="<%= item.name %>" required></div>
+          <div class="form-group">
+            <label class="form-label">Stav</label>
+            <select name="status" class="form-select">
+              <% ITEM_STATUSES.forEach(s => { %><option value="<%= s %>" <%= item.status===s?'selected':'' %>><%= s %></option><% }) %>
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">Datum spuštění</label><input type="date" name="go_live_date" class="form-control" value="<%= item.go_live_date?.toISOString?.()?.slice(0,10)||'' %>"></div>
+          <div class="form-group col-span-2"><label class="form-label">Popis</label><textarea name="description" class="form-control" rows="2"><%= item.description||'' %></textarea></div>
+          <div class="form-group col-span-2"><label class="form-label">Kde to běží (hosting)</label><input type="text" name="hosting_provider" class="form-control" value="<%= item.hosting_provider||'' %>"></div>
+          <div class="form-group"><label class="form-label">Produkční URL</label><input type="url" name="production_url" class="form-control" value="<%= item.production_url||'' %>"></div>
+          <div class="form-group"><label class="form-label">Staging URL</label><input type="url" name="staging_url" class="form-control" value="<%= item.staging_url||'' %>"></div>
+          <div class="form-group"><label class="form-label">Repozitář</label><input type="url" name="repo_url" class="form-control" value="<%= item.repo_url||'' %>"></div>
+          <div class="form-group"><label class="form-label">Tech stack</label><input type="text" name="tech_stack" class="form-control" value="<%= item.tech_stack||'' %>"></div>
+          <div class="form-group">
+            <label class="form-label">Napojený eshop</label>
+            <select name="shop_id" class="form-select">
+              <option value="">— žádný —</option>
+              <% shops.forEach(s => { %><option value="<%= s.id %>" <%= item.shop_id===s.id?'selected':'' %>><%= s.name %></option><% }) %>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Napojený healthcheck</label>
+            <select name="healthcheck_id" class="form-select">
+              <option value="">— žádný —</option>
+              <% healthchecks.forEach(h => { %><option value="<%= h.id %>" <%= item.healthcheck_id===h.id?'selected':'' %>><%= h.name %></option><% }) %>
+            </select>
+          </div>
+          <div class="form-group col-span-2"><label class="form-label">Poznámky</label><textarea name="notes" class="form-control" rows="2"><%= item.notes||'' %></textarea></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" data-modal-close="modalEditItem">Zrušit</button>
+        <button type="submit" class="btn btn-primary">Uložit</button>
+      </div>
+    </form>
+  </div>
+</div>

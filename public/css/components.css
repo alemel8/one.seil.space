@@ -88,6 +88,61 @@
 .badge-reselling { background: var(--primary-light); color: var(--primary-dark); }
 .badge-brokering { background: #FEF3C7; color: #B45309; }
 
+/* ── Project type icon (mask-based, recolorable per type) ───── */
+.project-type-icon {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  background-color: var(--icon-color, currentColor);
+  -webkit-mask-image: var(--icon-url);
+  mask-image: var(--icon-url);
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+.project-type-swatch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+.project-type-swatch .project-type-icon { width: 20px; height: 20px; }
+
+.project-type-pick {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.project-type-pick-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 8px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+.project-type-pick-label:hover { border-color: var(--primary); }
+.project-type-pick:checked + .project-type-pick-label {
+  border-color: var(--primary);
+  background: var(--primary-light);
+  color: var(--text-primary);
+}
+
 /* ── KPI Cards ────────────────────────────────────────────── */
 .kpi-grid {
   display: grid;

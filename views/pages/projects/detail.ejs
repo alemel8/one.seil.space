@@ -1,0 +1,299 @@
+<%
+  const fmtD = d => d ? new Date(d).toLocaleDateString('cs-CZ') : '—';
+  const currentTab = tab || 'prehled';
+  const statusColor = s => ({
+    'Aktivní':      ['var(--success-bg)', '#166534'],
+    'Pozastaveno':  ['var(--warning-bg)', '#92400e'],
+    'Dokončeno':    ['var(--info-bg)',    '#1e40af'],
+    'Archivováno':  ['var(--gray-100)',   'var(--gray-600)'],
+    'V přípravě':   ['var(--gray-100)',   'var(--gray-600)'],
+  }[s] || ['var(--gray-100)', 'var(--gray-600)']);
+  const sc = statusColor(project.status);
+%>
+
+<div class="page-header">
+  <div class="page-header-left">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <a href="/projekty" class="btn btn-ghost btn-sm">← Projekty</a>
+      <h1 style="margin:0;"><%= project.name %></h1>
+      <span class="badge" style="background:<%= sc[0] %>;color:<%= sc[1] %>;"><%= project.status %></span>
+    </div>
+    <p>Klient: <a href="/crm/firmy/<%= project.company_id %>" style="color:var(--primary);"><%= project.company_name %></a></p>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button class="btn btn-outline btn-sm" data-modal-open="modalEditProject">✏️ Upravit</button>
+    <form method="post" action="/projekty/<%= project.id %>/smazat" onsubmit="return confirm('Smazat projekt včetně všech podprojektů?');" style="display:inline;">
+      <button type="submit" class="btn btn-outline btn-sm" style="color:var(--danger);">Smazat</button>
+    </form>
+  </div>
+</div>
+
+<% if (saved) { %>
+<div style="background:var(--success-bg);color:#166534;border:1px solid #bbf7d0;padding:10px 16px;border-radius:8px;margin-bottom:16px;">✓ Uloženo</div>
+<% } %>
+
+<!-- Tabs -->
+<nav style="display:flex;gap:2px;border-bottom:2px solid var(--border);margin-bottom:24px;overflow-x:auto;">
+  <% [['prehled','Přehled'], ['podprojekty', 'Podprojekty (' + items.length + ')']].forEach(function(it) { %>
+  <a href="?tab=<%= it[0] %>"
+     style="padding:10px 18px;font-size:13px;font-weight:500;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-2px;text-decoration:none;transition:color .15s,border-color .15s;color:<%= currentTab===it[0] ? 'var(--primary)' : 'var(--text-muted)' %>;border-bottom-color:<%= currentTab===it[0] ? 'var(--primary)' : 'transparent' %>;">
+    <%= it[1] %>
+  </a>
+  <% }) %>
+</nav>
+
+<!-- ══ TAB: PŘEHLED ══ -->
+<% if (currentTab === 'prehled') { %>
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;align-items:start;">
+  <div style="display:flex;flex-direction:column;gap:16px;">
+
+    <div class="card">
+      <div class="card-header"><strong>Základní informace</strong></div>
+      <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Kontaktní osoba</div>
+          <div><% const pc = contacts.find(c => c.id === project.primary_contact_id); %><%= pc ? [pc.first_name, pc.last_name].filter(Boolean).join(' ') : '—' %></div>
+        </div>
+        <div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Datum zahájení</div>
+          <div><%= fmtD(project.start_date) %></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><strong>Brand identita</strong></div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:14px;">
+        <% if (project.brand_primary_color || project.brand_secondary_color) { %>
+        <div style="display:flex;gap:20px;">
+          <% if (project.brand_primary_color) { %>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:<%= project.brand_primary_color %>;display:inline-block;"></span>
+            <code style="font-size:12px;"><%= project.brand_primary_color %></code>
+          </div>
+          <% } %>
+          <% if (project.brand_secondary_color) { %>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:<%= project.brand_secondary_color %>;display:inline-block;"></span>
+            <code style="font-size:12px;"><%= project.brand_secondary_color %></code>
+          </div>
+          <% } %>
+        </div>
+        <% } %>
+        <% if (project.brand_fonts) { %>
+        <div><div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Fonty</div><div><%= project.brand_fonts %></div></div>
+        <% } %>
+        <% if (project.brand_assets_url) { %>
+        <div><div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Zdroje / brand manuál</div><a href="<%= project.brand_assets_url %>" target="_blank" style="color:var(--primary);"><%= project.brand_assets_url %></a></div>
+        <% } %>
+        <% if (project.brand_notes) { %>
+        <div><div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Poznámky k brandu</div><div style="white-space:pre-wrap;color:var(--text-secondary);"><%= project.brand_notes %></div></div>
+        <% } %>
+        <% if (!project.brand_primary_color && !project.brand_secondary_color && !project.brand_fonts && !project.brand_assets_url && !project.brand_notes) { %>
+        <div style="color:var(--text-muted);font-size:13px;">Zatím nevyplněno — doplňte tlačítkem Upravit.</div>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><strong>Fakturace</strong></div>
+      <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div><div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Splatnost</div><div><%= project.billing_payment_terms_days ? project.billing_payment_terms_days + ' dní' : '—' %></div></div>
+        <div><div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Měna</div><div><%= project.billing_currency %></div></div>
+        <div><div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Hodinová sazba</div><div><%= project.billing_hourly_rate ? project.billing_hourly_rate + ' ' + project.billing_currency + '/h' : '—' %></div></div>
+        <% if (project.billing_notes) { %>
+        <div style="grid-column:1/-1;"><div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Poznámky k fakturaci</div><div style="white-space:pre-wrap;color:var(--text-secondary);"><%= project.billing_notes %></div></div>
+        <% } %>
+      </div>
+    </div>
+
+    <% if (project.notes) { %>
+    <div class="card">
+      <div class="card-header"><strong>Poznámky</strong></div>
+      <div class="card-body" style="white-space:pre-wrap;color:var(--text-secondary);line-height:1.6;"><%= project.notes %></div>
+    </div>
+    <% } %>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    <div class="card">
+      <div class="card-header"><strong>Záznam</strong></div>
+      <div class="card-body" style="font-size:13px;display:flex;flex-direction:column;gap:12px;">
+        <div>
+          <div style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">Vytvořeno</div>
+          <div><%= fmtD(project.created_at) %></div>
+        </div>
+        <div>
+          <div style="color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">Naposledy upraveno</div>
+          <div><%= fmtD(project.modified_at) %></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TAB: PODPROJEKTY ══ -->
+<% } else if (currentTab === 'podprojekty') { %>
+
+<div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+  <button class="btn btn-primary btn-sm" data-modal-open="modalAddItem">+ Přidat podprojekt</button>
+</div>
+
+<% if (items.length > 0) { %>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;">
+  <% items.forEach(it => { const meta = PROJECT_TYPES[it.type] || { label: it.type, icon: 'web.svg', color: 'var(--text-muted)' }; const isc = statusColor(it.status); %>
+  <div class="card" style="cursor:pointer;" onclick="location.href='/projekty/podprojekty/<%= it.id %>'">
+    <div class="card-body" style="display:flex; gap:12px;">
+      <div class="project-type-swatch" style="background:<%= meta.color %>22;">
+        <span class="project-type-icon" style="--icon-url:url(/static/img/project-types/<%= meta.icon %>);--icon-color:<%= meta.color %>;"></span>
+      </div>
+      <div style="min-width:0;flex:1;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= it.name %></div>
+          <span class="badge" style="background:<%= isc[0] %>;color:<%= isc[1] %>;flex-shrink:0;"><%= it.status %></span>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;"><%= meta.label %></div>
+        <% if (it.production_url) { %>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= it.production_url.replace(/^https?:\/\//,'') %></div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+  <% }) %>
+</div>
+<% } else { %>
+<div style="text-align:center;padding:48px;color:var(--text-muted);">Žádné podprojekty. Přidejte první tlačítkem výše.</div>
+<% } %>
+
+<% } %>
+
+<!-- ═══ Modály ═══ -->
+
+<!-- Upravit projekt -->
+<div class="modal-backdrop" id="modalEditProject">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h2 class="modal-title">Upravit projekt</h2>
+      <button class="modal-close" data-modal-close="modalEditProject">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form method="post" action="/projekty/<%= project.id %>">
+      <input type="hidden" name="tab" value="<%= currentTab %>">
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:20px;">
+
+        <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-group col-span-2"><label class="form-label required">Název projektu</label><input type="text" name="name" class="form-control" value="<%= project.name %>" required></div>
+          <div class="form-group">
+            <label class="form-label">Stav</label>
+            <select name="status" class="form-select">
+              <% PROJECT_STATUSES.forEach(s => { %><option value="<%= s %>" <%= project.status===s?'selected':'' %>><%= s %></option><% }) %>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Kontaktní osoba</label>
+            <select name="primary_contact_id" class="form-select">
+              <option value="">— nevybráno —</option>
+              <% contacts.forEach(c => { %>
+              <option value="<%= c.id %>" <%= project.primary_contact_id===c.id?'selected':'' %>><%= [c.first_name, c.last_name].filter(Boolean).join(' ') %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">Datum zahájení</label><input type="date" name="start_date" class="form-control" value="<%= project.start_date?.toISOString?.()?.slice(0,10)||'' %>"></div>
+        </div>
+
+        <div>
+          <div style="font-weight:600;margin-bottom:10px;">Brand identita</div>
+          <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:14px;">
+            <div class="form-group"><label class="form-label">Primární barva</label><input type="text" name="brand_primary_color" class="form-control" value="<%= project.brand_primary_color||'' %>" placeholder="#14E6E6"></div>
+            <div class="form-group"><label class="form-label">Sekundární barva</label><input type="text" name="brand_secondary_color" class="form-control" value="<%= project.brand_secondary_color||'' %>" placeholder="#0A1626"></div>
+            <div class="form-group col-span-2"><label class="form-label">Fonty</label><input type="text" name="brand_fonts" class="form-control" value="<%= project.brand_fonts||'' %>" placeholder="např. Space Grotesk, Inter"></div>
+            <div class="form-group col-span-2"><label class="form-label">Odkaz na zdroje / brand manuál</label><input type="url" name="brand_assets_url" class="form-control" value="<%= project.brand_assets_url||'' %>" placeholder="https://drive.google.com/…"></div>
+            <div class="form-group col-span-2"><label class="form-label">Poznámky k brandu</label><textarea name="brand_notes" class="form-control" rows="2"><%= project.brand_notes||'' %></textarea></div>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-weight:600;margin-bottom:10px;">Fakturace</div>
+          <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;gap:14px;">
+            <div class="form-group"><label class="form-label">Splatnost (dní)</label><input type="number" name="billing_payment_terms_days" class="form-control" value="<%= project.billing_payment_terms_days||'' %>"></div>
+            <div class="form-group"><label class="form-label">Měna</label><select name="billing_currency" class="form-select"><option value="CZK" <%= project.billing_currency==='CZK'?'selected':'' %>>CZK</option><option value="EUR" <%= project.billing_currency==='EUR'?'selected':'' %>>EUR</option></select></div>
+            <div class="form-group"><label class="form-label">Hodinová sazba</label><input type="number" step="0.01" name="billing_hourly_rate" class="form-control" value="<%= project.billing_hourly_rate||'' %>"></div>
+            <div class="form-group col-span-3"><label class="form-label">Poznámky k fakturaci</label><textarea name="billing_notes" class="form-control" rows="2"><%= project.billing_notes||'' %></textarea></div>
+          </div>
+        </div>
+
+        <div class="form-group"><label class="form-label">Obecné poznámky</label><textarea name="notes" class="form-control" rows="2"><%= project.notes||'' %></textarea></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" data-modal-close="modalEditProject">Zrušit</button>
+        <button type="submit" class="btn btn-primary">Uložit</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Přidat podprojekt -->
+<div class="modal-backdrop" id="modalAddItem">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h2 class="modal-title">Přidat podprojekt</h2>
+      <button class="modal-close" data-modal-close="modalAddItem">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form method="post" action="/projekty/<%= project.id %>/podprojekty/vytvorit">
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:16px;">
+
+        <div class="form-group">
+          <label class="form-label required">Typ</label>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;">
+            <% Object.entries(PROJECT_TYPES).forEach(([key, meta], i) => { %>
+            <input type="radio" name="type" id="type_<%= key %>" value="<%= key %>" class="project-type-pick" <%= i===0?'checked':'' %> required>
+            <label for="type_<%= key %>" class="project-type-pick-label">
+              <span class="project-type-icon" style="--icon-url:url(/static/img/project-types/<%= meta.icon %>);--icon-color:<%= meta.color %>;width:20px;height:20px;"></span>
+              <%= meta.label %>
+            </label>
+            <% }) %>
+          </div>
+        </div>
+
+        <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-group col-span-2"><label class="form-label">Název</label><input type="text" name="name" class="form-control" placeholder="Ponechte prázdné pro název typu"></div>
+          <div class="form-group">
+            <label class="form-label">Stav</label>
+            <select name="status" class="form-select">
+              <% ITEM_STATUSES.forEach(s => { %><option value="<%= s %>" <%= s==='V přípravě'?'selected':'' %>><%= s %></option><% }) %>
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">Datum spuštění</label><input type="date" name="go_live_date" class="form-control"></div>
+          <div class="form-group col-span-2"><label class="form-label">Popis</label><textarea name="description" class="form-control" rows="2" placeholder="Co tento podprojekt zahrnuje…"></textarea></div>
+          <div class="form-group col-span-2"><label class="form-label">Kde to běží (hosting)</label><input type="text" name="hosting_provider" class="form-control" placeholder="např. Coolify — VPS #1"></div>
+          <div class="form-group"><label class="form-label">Produkční URL</label><input type="url" name="production_url" class="form-control" placeholder="https://…"></div>
+          <div class="form-group"><label class="form-label">Staging URL</label><input type="url" name="staging_url" class="form-control" placeholder="https://staging…"></div>
+          <div class="form-group"><label class="form-label">Repozitář</label><input type="url" name="repo_url" class="form-control" placeholder="https://github.com/…"></div>
+          <div class="form-group"><label class="form-label">Tech stack</label><input type="text" name="tech_stack" class="form-control" placeholder="Node.js, PostgreSQL…"></div>
+          <div class="form-group">
+            <label class="form-label">Napojený eshop</label>
+            <select name="shop_id" class="form-select">
+              <option value="">— žádný —</option>
+              <% shops.forEach(s => { %><option value="<%= s.id %>"><%= s.name %></option><% }) %>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Napojený healthcheck</label>
+            <select name="healthcheck_id" class="form-select">
+              <option value="">— žádný —</option>
+              <% healthchecks.forEach(h => { %><option value="<%= h.id %>"><%= h.name %></option><% }) %>
+            </select>
+          </div>
+          <div class="form-group col-span-2"><label class="form-label">Poznámky</label><textarea name="notes" class="form-control" rows="2"></textarea></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" data-modal-close="modalAddItem">Zrušit</button>
+        <button type="submit" class="btn btn-primary">Přidat podprojekt</button>
+      </div>
+    </form>
+  </div>
+</div>

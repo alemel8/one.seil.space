@@ -143,6 +143,7 @@ fastify.addHook('onRequest', async (request, reply) => {
 const { default: apiRoutes }        = await import('./routes/api.js');
 const { default: dashboardRoutes }  = await import('./routes/dashboard.js');
 const { default: crmRoutes }        = await import('./routes/crm.js');
+const { default: projectsRoutes }   = await import('./routes/projects.js');
 const { default: peopleRoutes }     = await import('./routes/people.js');
 const { default: accountingRoutes } = await import('./routes/accounting.js');
 const { default: invoicesRoutes }   = await import('./routes/invoices.js');
@@ -156,6 +157,7 @@ const { default: userSettingsRoutes } = await import('./routes/user-settings.js'
 await fastify.register(apiRoutes);
 await fastify.register(dashboardRoutes);
 await fastify.register(crmRoutes);
+await fastify.register(projectsRoutes);
 await fastify.register(peopleRoutes);
 await fastify.register(accountingRoutes);
 await fastify.register(invoicesRoutes);
