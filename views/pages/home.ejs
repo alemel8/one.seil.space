@@ -65,18 +65,27 @@
 
   <!-- Mapa objednávek podle města -->
   <div class="dash-section-label" style="margin-bottom:10px;">Objednávky podle města — <%= monthLabel %></div>
-  <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;align-items:start;">
-    <div class="cz-map-wrap">
-      <img src="/static/img/cz-mapa.svg" alt="Mapa ČR" class="cz-map-bg">
-      <% mapPoints.forEach(p => { %>
-      <div class="cz-map-pin" style="left:<%= p.xPct.toFixed(2) %>%;top:<%= p.yPct.toFixed(2) %>%;" title="<%= p.label %>: <%= p.n %> objednávek">
-        <span class="cz-map-dot"><%= p.n %></span>
-        <span class="cz-map-pin-label"><%= p.label %></span>
+  <div style="display:grid;grid-template-columns:minmax(220px,320px) 1fr;gap:20px;align-items:start;">
+    <div class="cz-map-card" id="czMapCard">
+      <div class="cz-map-toolbar">
+        <button type="button" class="cz-map-btn" data-action="zoom-out" aria-label="Oddálit mapu">−</button>
+        <button type="button" class="cz-map-btn" data-action="zoom-in" aria-label="Přiblížit mapu">+</button>
+        <button type="button" class="cz-map-btn" data-action="fullscreen" aria-label="Zobrazit mapu na celou obrazovku">⛶</button>
       </div>
-      <% }) %>
-      <% if (mapPoints.length === 0) { %>
-      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:13px;">Žádné objednávky v tomto měsíci</div>
-      <% } %>
+      <div class="cz-map-wrap" id="czMapWrap">
+        <div class="cz-map-inner" id="czMapInner">
+          <img src="/static/img/cz-mapa.svg" alt="Mapa ČR" class="cz-map-bg">
+          <% mapPoints.forEach(p => { %>
+          <div class="cz-map-pin" style="left:<%= p.xPct.toFixed(2) %>%;top:<%= p.yPct.toFixed(2) %>%;" title="<%= p.label %>: <%= p.n %> objednávek">
+            <span class="cz-map-dot"><%= p.n %></span>
+            <span class="cz-map-pin-label"><%= p.label %></span>
+          </div>
+          <% }) %>
+          <% if (mapPoints.length === 0) { %>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:13px;">Žádné objednávky v tomto měsíci</div>
+          <% } %>
+        </div>
+      </div>
     </div>
     <div>
       <% if (otherCities.length > 0) { %>
@@ -90,10 +99,6 @@
         <% }) %>
       </div>
       <% } %>
-      <p style="font-size:11px;color:var(--text-muted);margin-top:14px;">
-        Mapa: Vojtěch Veselý, <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" style="color:var(--text-muted);">CC BY-SA 4.0</a>,
-        <a href="https://commons.wikimedia.org/wiki/File:Czech_Republic_location_map_blank.svg" target="_blank" style="color:var(--text-muted);">Wikimedia Commons</a>
-      </p>
     </div>
   </div>
 </div>
@@ -228,13 +233,53 @@
 .kpi-grid .kpi-card:nth-child(5) { animation-delay: 200ms; }
 .kpi-grid .kpi-card:nth-child(6) { animation-delay: 250ms; }
 
+.cz-map-card {
+  position: relative;
+}
+.cz-map-toolbar {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  gap: 4px;
+}
+.cz-map-btn {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--transition-fast, 150ms ease), color var(--transition-fast, 150ms ease), border-color var(--transition-fast, 150ms ease);
+}
+.cz-map-btn:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
 .cz-map-wrap {
   position: relative;
   width: 100%;
+  max-width: 320px;
   aspect-ratio: 1004.4976 / 611.14276;
   background: var(--bg-page, #f8f9fa);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md, 8px);
   overflow: hidden;
+}
+.cz-map-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-origin: center center;
+  transition: transform 0.2s ease;
 }
 .cz-map-bg {
   position: absolute;
@@ -268,12 +313,53 @@
 }
 .cz-map-pin-label {
   font-size: 9px;
+  font-family: var(--font-mono);
   color: var(--text-muted);
   margin-top: 2px;
   white-space: nowrap;
-  background: rgba(255,255,255,0.85);
+  background: var(--bg-card);
   padding: 0 3px;
   border-radius: 3px;
+}
+
+/* Fullscreen mode */
+.cz-map-card:fullscreen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-page);
+  padding: 40px;
+}
+.cz-map-card:fullscreen .cz-map-wrap {
+  width: 90vw;
+  max-width: 1100px;
+  height: auto;
+}
+.cz-map-card:fullscreen .cz-map-toolbar {
+  top: 24px;
+  right: 24px;
+}
+.cz-map-card:fullscreen .cz-map-btn,
+.cz-map-card:-webkit-full-screen .cz-map-btn {
+  width: 34px;
+  height: 34px;
+  font-size: 18px;
+}
+.cz-map-card:-webkit-full-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-page);
+  padding: 40px;
+}
+.cz-map-card:-webkit-full-screen .cz-map-wrap {
+  width: 90vw;
+  max-width: 1100px;
+  height: auto;
+}
+.cz-map-card:-webkit-full-screen .cz-map-toolbar {
+  top: 24px;
+  right: 24px;
 }
 </style>
 
@@ -341,5 +427,47 @@
   }).catch(() => {
     document.getElementById('hcBody').innerHTML = '<span style="color:var(--text-muted);font-size:13px;">Nedostupné</span>';
   });
+
+  // Mapa — zoom a celá obrazovka
+  const mapCard  = document.getElementById('czMapCard');
+  const mapInner = document.getElementById('czMapInner');
+  if (mapCard && mapInner) {
+    const MIN_ZOOM = 1, MAX_ZOOM = 2.5, STEP = 0.25;
+    let zoom = 1;
+
+    function applyZoom() {
+      mapInner.style.transform = 'scale(' + zoom + ')';
+    }
+
+    function isFullscreen() {
+      return document.fullscreenElement === mapCard || document.webkitFullscreenElement === mapCard;
+    }
+
+    mapCard.querySelectorAll('[data-action]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const action = btn.dataset.action;
+        if (action === 'zoom-in') {
+          zoom = Math.min(MAX_ZOOM, +(zoom + STEP).toFixed(2));
+          applyZoom();
+        } else if (action === 'zoom-out') {
+          zoom = Math.max(MIN_ZOOM, +(zoom - STEP).toFixed(2));
+          applyZoom();
+        } else if (action === 'fullscreen') {
+          if (!isFullscreen()) {
+            (mapCard.requestFullscreen || mapCard.webkitRequestFullscreen)?.call(mapCard);
+          } else {
+            (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+          }
+        }
+      });
+    });
+
+    ['fullscreenchange', 'webkitfullscreenchange'].forEach(evt => {
+      document.addEventListener(evt, () => {
+        zoom = 1;
+        applyZoom();
+      });
+    });
+  }
 })();
 </script>
