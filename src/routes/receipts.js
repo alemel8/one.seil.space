@@ -154,14 +154,27 @@ export default async function receiptsRoutes(fastify) {
     return reply.redirect('/ucetnictvi/uctenky');
   });
 
-  // ── POHODA XML export ─────────────────────────────────────────
+  // ── POHODA XML export (agenda Pokladna) ───────────────────────
   fastify.post('/ucetnictvi/uctenky/pohoda-xml', async (request, reply) => {
     const ids = [].concat(request.body?.ids || []).map(Number).filter(Boolean);
     const receipts = ids.length > 0
       ? await sql`SELECT * FROM receipts WHERE id = ANY(${ids}) ORDER BY receipt_date DESC`
       : await sql`SELECT * FROM receipts ORDER BY receipt_date DESC`;
 
-    const xml = buildPohodaXml(receipts.map(r => ({ ...r, _type: 'receipt' })));
+    // IČO určuje účetní jednotku, do které POHODA balíček naimportuje
+    const [company] = await sql`SELECT * FROM company_settings LIMIT 1`;
+    if (!company?.ico) {
+      return reply.code(400).type('text/plain; charset=utf-8').send(
+        'Chybí IČO firmy — POHODA bez něj nepozná účetní jednotku. Doplňte jej v Nastavení → Firma.'
+      );
+    }
+
+    const xml = buildPohodaXml(receipts.map(r => ({ ...r, _type: 'receipt' })), {
+      ico:         company.ico,
+      cashAccount: company.pohoda_cash_account || 'Pokladna',
+      predkontace: company.pohoda_predkontace  || '',
+      note:        'Účtenky z one.seil.space',
+    });
     reply.header('Content-Type', 'application/xml; charset=utf-8');
     reply.header('Content-Disposition', 'attachment; filename="pohoda-uctenky.xml"');
     return reply.send(xml);

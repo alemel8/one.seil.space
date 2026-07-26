@@ -112,6 +112,32 @@
     </div>
   </div>
 
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header"><strong>Export do POHODY</strong></div>
+    <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+
+      <div class="form-group" style="grid-column:1/-1;">
+        <p style="font-size:13px;color:var(--text-muted);margin:0;">
+          Účetní jednotku určuje IČO výše — musí přesně odpovídat IČO účetní jednotky
+          otevřené v POHODĚ, jinak import balíček odmítne.
+        </p>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Pokladna v POHODĚ</label>
+        <input type="text" name="pohoda_cash_account" value="<%= company.pohoda_cash_account || 'Pokladna' %>" class="form-control" maxlength="20" placeholder="Pokladna">
+        <small style="color:var(--text-muted);">Přesný název pokladny z agendy Pokladna, kam se účtenky naimportují.</small>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Předkontace účtenek</label>
+        <input type="text" name="pohoda_predkontace" value="<%= company.pohoda_predkontace || '' %>" class="form-control" maxlength="20" placeholder="např. 3Vd">
+        <small style="color:var(--text-muted);">Volitelné. Prázdné = POHODA nastaví „Nevím“.</small>
+      </div>
+
+    </div>
+  </div>
+
   <button type="submit" class="btn btn-primary">Uložit nastavení</button>
 
 </form>

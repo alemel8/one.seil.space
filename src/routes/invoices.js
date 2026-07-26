@@ -609,7 +609,8 @@ export default async function invoicesRoutes(fastify) {
       return { ...inv, _items: items };
     }));
 
-    const xml = buildPohodaXml(withItems);
+    const issuer = await getIssuer(sql);
+    const xml = buildPohodaXml(withItems, { ico: issuer.ico, note: 'Vydané faktury z one.seil.space' });
     reply.header('Content-Type', 'application/xml; charset=utf-8');
     reply.header('Content-Disposition', 'attachment; filename="pohoda-vydane-faktury.xml"');
     return reply.send(xml);
@@ -621,7 +622,8 @@ export default async function invoicesRoutes(fastify) {
       ? await sql`SELECT * FROM accounting_invoices WHERE type='received' AND id = ANY(${ids}) ORDER BY issue_date DESC`
       : await sql`SELECT * FROM accounting_invoices WHERE type='received' ORDER BY issue_date DESC`;
 
-    const xml = buildPohodaXml(invoices);
+    const issuer = await getIssuer(sql);
+    const xml = buildPohodaXml(invoices, { ico: issuer.ico, note: 'Přijaté faktury z one.seil.space' });
     reply.header('Content-Type', 'application/xml; charset=utf-8');
     reply.header('Content-Disposition', 'attachment; filename="pohoda-prijate-faktury.xml"');
     return reply.send(xml);
