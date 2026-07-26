@@ -138,6 +138,23 @@
     </div>
   </div>
 
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header"><strong>Google Disk — přijaté faktury</strong></div>
+    <div class="card-body" style="display:grid;grid-template-columns:1fr;gap:16px;">
+
+      <div class="form-group">
+        <label class="form-label">ID složky „SEIL - účetnictví“</label>
+        <input type="text" name="gdrive_root_folder_id" value="<%= company.gdrive_root_folder_id || '' %>" class="form-control" placeholder="1AbCdEf…">
+        <small style="color:var(--text-muted);">
+          ID najdete v URL složky na Google Disku: <code>drive.google.com/drive/folders/<strong>ID</strong></code>.
+          Uvnitř se očekává struktura rok → měsíc → Přijaté faktury.
+          Složku nasdílejte service accountu (viz proměnná <code>GOOGLE_SERVICE_ACCOUNT_JSON</code>) s právem Čtenář.
+        </small>
+      </div>
+
+    </div>
+  </div>
+
   <button type="submit" class="btn btn-primary">Uložit nastavení</button>
 
 </form>

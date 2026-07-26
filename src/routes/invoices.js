@@ -24,6 +24,39 @@ async function getIssuer(sql) {
   return company || {};
 }
 
+// ── AI: vytěžení dat přijaté faktury z PDF/obrázku ───────────
+
+const EXTRACT_PROMPT = `Z tohoto dokladu vyextrahuj data přijaté faktury. Vrať POUZE platný JSON objekt bez markdown bloků ani dalšího textu:
+{"number":"číslo faktury od dodavatele","supplier":"název dodavatele","supplier_ico":"IČO nebo null","amount":základ_bez_DPH_číslo,"vat_amount":DPH_číslo,"total_amount":celková_částka_číslo,"currency":"CZK","issue_date":"YYYY-MM-DD nebo null","due_date":"YYYY-MM-DD nebo null","notes":"předmět plnění nebo null"}`;
+
+async function extractInvoiceData(buf, mimeType, log) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey || apiKey.length < 20 || apiKey.includes('XXX')) {
+    throw new Error('ANTHROPIC_API_KEY není nastavena na serveru. Nastavte ji v prostředí (Coolify env vars).');
+  }
+
+  const base64 = buf.toString('base64');
+  const contentBlock = mimeType.startsWith('image/')
+    ? { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } }
+    : { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } };
+
+  const message = await new Anthropic({ apiKey }).messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 1024,
+    messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: EXTRACT_PROMPT }] }],
+  });
+
+  const text = (message.content?.[0]?.text || '{}').trim()
+    .replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    log?.warn({ text }, 'Claude vrátil neplatný JSON');
+    return {};
+  }
+}
+
 // ── Výpočet DPH souhrnu ───────────────────────────────────────
 
 function calcVatSummary(items) {
@@ -354,11 +387,6 @@ export default async function invoicesRoutes(fastify) {
 
   // ── AI: vytěžení dat z PDF přijaté faktury ───────────────────
   fastify.post('/ucetnictvi/prijate-faktury/analyze-pdf', async (request, reply) => {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey || apiKey.length < 20 || apiKey.includes('XXX')) {
-      return reply.code(503).send({ error: 'ANTHROPIC_API_KEY není nastavena na serveru. Nastavte ji v prostředí (Coolify env vars).' });
-    }
-
     const data = await request.file();
     if (!data) return reply.code(400).send({ error: 'Žádný soubor nebyl nahrán.' });
 
@@ -366,43 +394,12 @@ export default async function invoicesRoutes(fastify) {
     if (buf.length === 0) return reply.code(400).send({ error: 'Nahraný soubor je prázdný.' });
     if (buf.length > 20 * 1024 * 1024) return reply.code(400).send({ error: 'Soubor je příliš velký (max 20 MB).' });
 
-    const mimeType = data.mimetype || 'application/pdf';
-    const base64 = buf.toString('base64');
-
     try {
-      const client = new Anthropic({ apiKey });
-
-      const contentBlock = mimeType.startsWith('image/')
-        ? { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } }
-        : { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } };
-
-      const message = await client.messages.create({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 1024,
-        messages: [{
-          role: 'user',
-          content: [
-            contentBlock,
-            {
-              type: 'text',
-              text: `Z tohoto dokladu vyextrahuj data přijaté faktury. Vrať POUZE platný JSON objekt bez markdown bloků ani dalšího textu:
-{"number":"číslo faktury od dodavatele","supplier":"název dodavatele","supplier_ico":"IČO nebo null","amount":základ_bez_DPH_číslo,"vat_amount":DPH_číslo,"total_amount":celková_částka_číslo,"currency":"CZK","issue_date":"YYYY-MM-DD nebo null","due_date":"YYYY-MM-DD nebo null","notes":"předmět plnění nebo null"}`,
-            },
-          ],
-        }],
-      });
-
-      const text = (message.content?.[0]?.text || '{}').trim()
-        .replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
-
-      let extracted = {};
-      try { extracted = JSON.parse(text); } catch {
-        fastify.log.warn({ text }, 'Claude vrátil neplatný JSON');
-      }
-      return reply.send(extracted);
+      return reply.send(await extractInvoiceData(buf, data.mimetype || 'application/pdf', fastify.log));
     } catch (err) {
       fastify.log.error({ err }, 'Chyba Anthropic API');
       const msg = err?.message || 'Neznámá chyba';
+      if (msg.includes('ANTHROPIC_API_KEY')) return reply.code(503).send({ error: msg });
       return reply.code(502).send({ error: 'Chyba Claude API: ' + msg });
     }
   });
@@ -533,6 +530,136 @@ export default async function invoicesRoutes(fastify) {
     `;
     // Odpovídáme JSON (front-end přesměruje)
     return reply.code(201).send({ id: newId });
+  });
+
+  // ══════════════════════════════════════════════════════════
+  // IMPORT PŘIJATÝCH FAKTUR Z GOOGLE DISKU
+  // Struktura: <sdílená složka> / <rok> / <měsíc> / Přijaté faktury
+  // ══════════════════════════════════════════════════════════
+
+  const gdriveContext = async (query = {}) => {
+    const company = await getIssuer(sql);
+    const now   = new Date();
+    const year  = parseInt(query.year || now.getFullYear(), 10);
+    // month = '' znamená celý rok
+    const month = query.month === '' ? null
+      : (query.month ? parseInt(query.month, 10) : now.getMonth() + 1);
+    return { company, year, month };
+  };
+
+  fastify.get('/ucetnictvi/prijate-faktury/gdrive', async (request, reply) => {
+    const { isConfigured, serviceAccountEmail, findReceivedInvoices } = await import('../gdrive.js');
+    const { company, year, month } = await gdriveContext(request.query);
+
+    let files = [];
+    let error = null;
+
+    if (!isConfigured()) {
+      error = 'Není nastavena proměnná GOOGLE_SERVICE_ACCOUNT_JSON — doplňte ji v Coolify env vars.';
+    } else if (!company.gdrive_root_folder_id) {
+      error = 'Není vyplněné ID složky na Google Disku — doplňte jej v Nastavení → Firma.';
+    } else {
+      try {
+        files = await findReceivedInvoices({
+          rootFolderId: company.gdrive_root_folder_id, year, month,
+        });
+        const ids = files.map(f => f.id);
+        const imported = ids.length > 0
+          ? await sql`SELECT id, gdrive_file_id FROM accounting_invoices WHERE gdrive_file_id = ANY(${ids})`
+          : [];
+        const byFile = new Map(imported.map(r => [r.gdrive_file_id, r.id]));
+        files = files.map(f => ({ ...f, invoiceId: byFile.get(f.id) || null }));
+      } catch (err) {
+        fastify.log.error({ err }, 'Google Drive listing selhal');
+        error = err.message;
+      }
+    }
+
+    return reply.view('pages/invoices/gdrive.ejs', {
+      pageTitle: 'Import z Google Disku', currentPath: '/ucetnictvi/prijate-faktury',
+      user: request.user, files, error, year, month,
+      serviceAccount: serviceAccountEmail(),
+      rootFolderId: company.gdrive_root_folder_id || '',
+      job: gdriveJob,
+    }, { layout: 'layouts/base.ejs' });
+  });
+
+  // Import jednoho souboru: stáhnout → vytěžit Claudem → založit fakturu
+  const importGdriveFile = async (fileId) => {
+    const { downloadFile, getFile } = await import('../gdrive.js');
+
+    // Přeskoč, co už v systému je (dvojklik na tlačítko, souběžný běh)
+    const [existing] = await sql`SELECT id FROM accounting_invoices WHERE gdrive_file_id = ${fileId}`;
+    if (existing) return 'skipped';
+
+    const meta = await getFile(fileId);
+    const buf  = await downloadFile(fileId);
+    const mime = meta.mimeType || 'application/pdf';
+    const d    = await extractInvoiceData(buf, mime, fastify.log);
+
+    if (!existsSync(MEDIA_DIR)) await import('node:fs/promises').then(fs => fs.mkdir(MEDIA_DIR, { recursive: true }));
+    const ext = mime === 'application/pdf' ? '.pdf' : (mime === 'image/png' ? '.png' : '.jpg');
+    const filename = `inv_recv_gd_${fileId}${ext}`;
+    await writeFile(path.join(MEDIA_DIR, filename), buf);
+
+    const amount      = parseFloat(d.amount     || 0);
+    const vatAmount   = parseFloat(d.vat_amount || 0);
+    const totalAmount = d.total_amount ? parseFloat(d.total_amount) : (amount + vatAmount);
+
+    await sql`
+      INSERT INTO accounting_invoices
+        (id, type, number, supplier, supplier_ico, amount, vat_amount, total_amount,
+         currency, status, issue_date, due_date, notes, attachment_path, gdrive_file_id)
+      VALUES (
+        ${generateId()}, 'received',
+        ${String(d.number || meta.name || '').slice(0, 60)},
+        ${(d.supplier || '').trim()},
+        ${(d.supplier_ico || '').trim() || null},
+        ${amount}, ${vatAmount}, ${totalAmount},
+        ${d.currency || 'CZK'}, 'Nezaplacena',
+        ${d.issue_date || new Date().toISOString().split('T')[0]},
+        ${d.due_date || null},
+        ${(d.notes || '').trim() || meta.name},
+        ${filename}, ${fileId}
+      )
+    `;
+    return 'imported';
+  };
+
+  // Import běží na pozadí — vytěžení jedné faktury trvá ~10 s, celá dávka by
+  // přesáhla timeout proxy. Stav drží jedna proměnná, souběžný běh nedovolíme.
+  let gdriveJob = null;
+
+  fastify.post('/ucetnictvi/prijate-faktury/gdrive/import', async (request, reply) => {
+    const fileIds = [].concat(request.body?.file_ids || []).filter(Boolean);
+    const { year, month } = await gdriveContext(request.body || {});
+    const back = `/ucetnictvi/prijate-faktury/gdrive?year=${year}&month=${month ?? ''}`;
+
+    if (fileIds.length === 0 || gdriveJob?.running) return reply.redirect(back);
+
+    gdriveJob = { running: true, total: fileIds.length, done: 0, imported: 0, skipped: 0, failed: 0, errors: [] };
+
+    // Záměrně bez await — odpovíme hned a klient si stav dotáhne přes /status
+    (async () => {
+      for (const fileId of fileIds) {
+        try {
+          const result = await importGdriveFile(fileId);
+          gdriveJob[result === 'imported' ? 'imported' : 'skipped']++;
+        } catch (err) {
+          fastify.log.error({ err, fileId }, 'Import faktury z Google Disku selhal');
+          gdriveJob.failed++;
+          if (gdriveJob.errors.length < 10) gdriveJob.errors.push(err.message || 'Neznámá chyba');
+        }
+        gdriveJob.done++;
+      }
+      gdriveJob.running = false;
+    })();
+
+    return reply.redirect(back);
+  });
+
+  fastify.get('/ucetnictvi/prijate-faktury/gdrive/status', async (request, reply) => {
+    return reply.send(gdriveJob || { running: false, total: 0, done: 0, imported: 0, skipped: 0, failed: 0, errors: [] });
   });
 
   // ── Upload přílohy k existující přijaté faktuře ───────────────

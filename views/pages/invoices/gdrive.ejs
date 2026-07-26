@@ -1,0 +1,160 @@
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Import z Google Disku</h1>
+    <p>Přijaté faktury ze složky <strong>SEIL - účetnictví</strong> → rok → měsíc → Přijaté faktury</p>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <a href="/ucetnictvi/prijate-faktury" class="btn btn-outline btn-sm">← Zpět na faktury</a>
+  </div>
+</div>
+
+<% if (job) { %>
+<div id="gdJob" class="alert" style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;padding:12px 16px;border-radius:8px;margin-bottom:20px;"
+     data-running="<%= job.running ? '1' : '0' %>">
+  <div id="gdJobText"></div>
+  <div style="height:6px;background:rgba(30,64,175,0.15);border-radius:3px;margin-top:10px;overflow:hidden;">
+    <div id="gdJobBar" style="height:100%;width:0;background:currentColor;transition:width 0.3s;"></div>
+  </div>
+  <ul id="gdJobErrors" style="margin:10px 0 0;padding-left:18px;font-size:13px;"></ul>
+</div>
+<% } %>
+
+<% if (error) { %>
+<div class="alert" style="background:#fee2e2;color:#991b1b;border:1px solid #fecaca;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+  <strong>Nelze načíst soubory:</strong> <%= error %>
+  <% if (serviceAccount) { %>
+  <div style="margin-top:8px;font-size:13px;">
+    Složku na Disku nasdílejte účtu <code><%= serviceAccount %></code> s právem <em>Čtenář</em>.
+  </div>
+  <% } %>
+</div>
+<% } %>
+
+<form method="get" style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center;">
+  <select name="year" class="form-select" style="width:auto;">
+    <% for (let y = new Date().getFullYear() + 1; y >= 2020; y--) { %>
+      <option value="<%= y %>" <%= year === y ? 'selected' : '' %>><%= y %></option>
+    <% } %>
+  </select>
+  <select name="month" class="form-select" style="width:auto;">
+    <option value="" <%= month === null ? 'selected' : '' %>>Celý rok</option>
+    <% ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec'].forEach((m, i) => { %>
+      <option value="<%= i+1 %>" <%= month === i+1 ? 'selected' : '' %>><%= (i+1) + '. ' + m %></option>
+    <% }) %>
+  </select>
+  <button type="submit" class="btn btn-outline">Načíst složku</button>
+</form>
+
+<% const pending = files.filter(f => !f.invoiceId); %>
+
+<form method="post" action="/ucetnictvi/prijate-faktury/gdrive/import" id="gdForm">
+  <input type="hidden" name="year"  value="<%= year %>">
+  <input type="hidden" name="month" value="<%= month === null ? '' : month %>">
+
+  <% if (files.length > 0) { %>
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+    <button type="submit" class="btn btn-primary" id="gdSubmit" <%= pending.length === 0 ? 'disabled' : '' %>>
+      ↓ Naimportovat vybrané (<span id="gdCount"><%= pending.length %></span>)
+    </button>
+    <span style="font-size:13px;color:var(--text-muted);">
+      Každý doklad se stáhne, vytěží Claudem a založí jako přijatá faktura. Může to chvíli trvat.
+    </span>
+  </div>
+  <% } %>
+
+  <div class="table-wrapper">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width:36px;"><input type="checkbox" id="gdAll" onchange="gdToggle(this.checked)" title="Vybrat vše"></th>
+          <th>Soubor</th><th>Složka</th><th>Změněno</th><th>Stav</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (files.length > 0) { %>
+          <% files.forEach(f => { %>
+          <tr>
+            <td>
+              <% if (!f.invoiceId) { %>
+                <input type="checkbox" class="gd-cb" name="file_ids" value="<%= f.id %>" checked onchange="gdUpdate()">
+              <% } %>
+            </td>
+            <td style="font-weight:600;">
+              <% if (f.webViewLink) { %>
+                <a href="<%= f.webViewLink %>" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:none;"><%= f.name %></a>
+              <% } else { %><%= f.name %><% } %>
+            </td>
+            <td style="font-size:12px;color:var(--text-muted);"><%= f.folderPath %></td>
+            <td style="font-size:12px;color:var(--text-muted);">
+              <%= f.modifiedTime ? new Date(f.modifiedTime).toLocaleDateString('cs-CZ') : '—' %>
+            </td>
+            <td>
+              <% if (f.invoiceId) { %>
+                <a href="/ucetnictvi/prijate-faktury/<%= f.invoiceId %>" class="badge" style="background:#dcfce7;color:#166534;text-decoration:none;">Naimportováno</a>
+              <% } else { %>
+                <span class="badge" style="background:#fef9c3;color:#92400e;">Nové</span>
+              <% } %>
+            </td>
+          </tr>
+          <% }) %>
+        <% } else { %>
+          <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:32px;">
+            <%= error ? 'Složku se nepodařilo načíst.' : 'V této složce nejsou žádné doklady.' %>
+          </td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+</form>
+
+<script>
+function gdToggle(checked) {
+  document.querySelectorAll('.gd-cb').forEach(cb => { cb.checked = checked; });
+  gdUpdate();
+}
+function gdUpdate() {
+  const n = document.querySelectorAll('.gd-cb:checked').length;
+  document.getElementById('gdCount').textContent = n;
+  document.getElementById('gdSubmit').disabled = n === 0;
+}
+document.getElementById('gdForm').addEventListener('submit', () => {
+  const btn = document.getElementById('gdSubmit');
+  if (btn) { btn.disabled = true; btn.textContent = 'Spouštím import…'; }
+});
+
+// Import běží na pozadí — dotahujeme stav, dokud neskončí, pak obnovíme seznam
+(function gdJobPoll() {
+  const box = document.getElementById('gdJob');
+  if (!box) return;
+  const text = document.getElementById('gdJobText');
+  const bar  = document.getElementById('gdJobBar');
+  const errs = document.getElementById('gdJobErrors');
+  let wasRunning = box.dataset.running === '1';
+
+  const paint = (j) => {
+    const pct = j.total ? Math.round((j.done / j.total) * 100) : 100;
+    bar.style.width = pct + '%';
+    text.innerHTML = j.running
+      ? '⏳ Zpracovávám <strong>' + j.done + '</strong> z <strong>' + j.total + '</strong> dokladů…'
+      : '✓ Hotovo — naimportováno <strong>' + j.imported + '</strong>'
+        + (j.skipped ? ', přeskočeno ' + j.skipped : '')
+        + (j.failed  ? ', <strong>' + j.failed + '</strong> selhalo' : '') + '.';
+    if (!j.running && j.failed) {
+      box.style.background = '#fef9c3'; box.style.color = '#92400e'; box.style.borderColor = '#fde68a';
+    } else if (!j.running) {
+      box.style.background = '#dcfce7'; box.style.color = '#166534'; box.style.borderColor = '#bbf7d0';
+    }
+    errs.innerHTML = (j.errors || []).map(e => '<li>' + e.replace(/[<>]/g, '') + '</li>').join('');
+  };
+
+  const tick = async () => {
+    try {
+      const j = await (await fetch('/ucetnictvi/prijate-faktury/gdrive/status')).json();
+      paint(j);
+      if (j.running) return setTimeout(tick, 2000);
+      if (wasRunning) location.reload(); // seznam přepneme na „Naimportováno“
+    } catch { setTimeout(tick, 5000); }
+  };
+  tick();
+})();
+</script>

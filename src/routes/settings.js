@@ -42,6 +42,7 @@ export default async function settingsRoutes(fastify) {
           invoice_note = ${(b.invoice_note ||'').trim()},
           pohoda_cash_account = ${(b.pohoda_cash_account ||'').trim() || 'Pokladna'},
           pohoda_predkontace  = ${(b.pohoda_predkontace  ||'').trim()},
+          gdrive_root_folder_id = ${(b.gdrive_root_folder_id ||'').trim()},
           updated_at   = NOW()
         WHERE id = ${existing.id}
       `;
@@ -50,7 +51,7 @@ export default async function settingsRoutes(fastify) {
         INSERT INTO company_settings
           (name, ico, dic, address, city, zip, country, phone, email,
            bank_account, bank_name, iban, swift, vat_payer, invoice_note,
-           pohoda_cash_account, pohoda_predkontace)
+           pohoda_cash_account, pohoda_predkontace, gdrive_root_folder_id)
         VALUES (${(b.name||'').trim()}, ${(b.ico||'').trim()}, ${(b.dic||'').trim()},
                 ${(b.address||'').trim()}, ${(b.city||'').trim()}, ${(b.zip||'').trim()},
                 ${(b.country||'Česká republika').trim()}, ${(b.phone||'').trim()},
@@ -59,7 +60,8 @@ export default async function settingsRoutes(fastify) {
                 ${b.vat_payer === 'on' || b.vat_payer === '1'},
                 ${(b.invoice_note||'').trim()},
                 ${(b.pohoda_cash_account||'').trim() || 'Pokladna'},
-                ${(b.pohoda_predkontace||'').trim()})
+                ${(b.pohoda_predkontace||'').trim()},
+                ${(b.gdrive_root_folder_id||'').trim()})
       `;
     }
     return reply.redirect('/nastaveni/firma?saved=1');
