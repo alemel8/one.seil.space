@@ -96,7 +96,13 @@ export async function sendOrderStatusEmail({ orderNumber, email, customerName, s
   if (error) throw new Error(`Resend error: ${error.message}`);
 }
 
-export async function sendInvoiceEmail({ invoice, issuer, email, pdfBuffer, subject, intro, from, paymentDetails }) {
+/** Odkaz na sledování zásilky Packety; čísla bez písmene na začátku mají prefix Z. */
+export function packetaTrackingUrl(trackingNumber) {
+  const id = String(trackingNumber).replace(/\s+/g, '');
+  return `https://tracking.packeta.com/cs/${/^[A-Za-z]/.test(id) ? id : 'Z' + id}`;
+}
+
+export async function sendInvoiceEmail({ invoice, issuer, email, pdfBuffer, subject, intro, from, paymentDetails, trackingNumber }) {
   if (!process.env.RESEND_API_KEY) {
     console.log(`[DEV EMAIL] Invoice ${invoice.number} → ${email}`);
     return;
@@ -117,6 +123,15 @@ export async function sendInvoiceEmail({ invoice, issuer, email, pdfBuffer, subj
   <p style="margin:2px 0;">Variabilní symbol: <strong>${paymentDetails.variableSymbol}</strong></p>
 </div>` : '';
 
+  // Volitelný blok – vykreslí se jen když volající tracking pošle, takže
+  // ostatní typy faktur zůstávají beze změny.
+  const trackingBlock = trackingNumber ? `
+<div style="background:#eff6ff;border-radius:8px;padding:16px 20px;margin:16px 0;">
+  <p style="margin:0 0 8px;font-weight:600;">Sledování zásilky</p>
+  <p style="margin:2px 0;">Číslo zásilky: <strong>${trackingNumber}</strong></p>
+  <p style="margin:8px 0 0;"><a href="${packetaTrackingUrl(trackingNumber)}" style="color:#0891b2;">Sledovat zásilku →</a></p>
+</div>` : '';
+
   const { error } = await getResend().emails.send({
     from: emailFrom,
     to: [email],
@@ -126,6 +141,7 @@ export async function sendInvoiceEmail({ invoice, issuer, email, pdfBuffer, subj
 <p>Celková částka k úhradě: <strong>${Number(invoice.total_amount).toLocaleString('cs-CZ', {minimumFractionDigits:2})} ${invoice.currency || 'Kč'}</strong></p>
 ${invoice.due_date ? `<p>Splatnost: ${new Date(invoice.due_date).toLocaleDateString('cs-CZ')}</p>` : ''}
 ${paymentBlock}
+${trackingBlock}
 <p>Děkujeme za spolupráci.</p>
 <p>${issuer.name}</p>`,
     attachments: [{

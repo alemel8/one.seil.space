@@ -517,13 +517,21 @@ export default async function toneracekRoutes(fastify) {
             }
             const vatSummary = Object.values(vatMap);
 
+            // Tracking je v DB už od založení objednávky (e-shop podá zásilku
+            // u Packety a hned zavolá PATCH /orders/:id/tracking), takže tady
+            // je k dispozici a jde ven jedním e-mailem spolu s fakturou.
             const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary });
             await sendInvoiceEmail({
               invoice, issuer, email: order.email, pdfBuffer,
-              subject: `Objednávka #${order.order_number} vyřízena — faktura v příloze`,
-              intro: `Vaše objednávka č. <strong>${order.order_number}</strong> byla úspěšně vyřízena.<br>V příloze naleznete fakturu.`,
+              trackingNumber: order.tracking_number || undefined,
+              subject: order.tracking_number
+                ? `Objednávka #${order.order_number} vyřízena a předána dopravci`
+                : `Objednávka #${order.order_number} vyřízena — faktura v příloze`,
+              intro: order.tracking_number
+                ? `Vaše objednávka č. <strong>${order.order_number}</strong> byla vyřízena a předána dopravci.<br>V příloze naleznete fakturu, níže sledovací číslo zásilky.`
+                : `Vaše objednávka č. <strong>${order.order_number}</strong> byla úspěšně vyřízena.<br>V příloze naleznete fakturu.`,
             });
-            fastify.log.info({ email: order.email }, 'Email s fakturou odeslán');
+            fastify.log.info({ email: order.email, tracking: order.tracking_number || null }, 'Email s fakturou odeslán');
           }
         } catch (err) {
           fastify.log.error({ err }, 'Chyba auto-generace faktury/emailu při vyřízení objednávky');
@@ -533,7 +541,8 @@ export default async function toneracekRoutes(fastify) {
 
     await sql`UPDATE shop_orders SET status = ${status}, modified_at = NOW() WHERE id = ${order.id}`;
 
-    // Ruční email o stavu (u "Vyřízena" se odeslal už výše spolu s fakturou)
+    // Ruční email o stavu. U "Vyřízena" se neposílá – tam už výše odešel
+    // jeden e-mail s fakturou i sledovacím číslem, druhý by byl duplicita.
     if ((send_email === 'on' || send_email === '1') && status !== 'Vyřízena') {
       try {
         await sendOrderStatusEmail({
