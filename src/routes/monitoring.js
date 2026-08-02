@@ -85,43 +85,6 @@ export default async function monitoringRoutes(fastify) {
     return checks;
   });
 
-  // ── Upomínky faktur ───────────────────────────────────────────
-  fastify.post('/ucetnictvi/vydane-faktury/:id/upominka', async (request, reply) => {
-    const [invoice] = await sql`SELECT * FROM accounting_invoices WHERE id = ${request.params.id} AND type='issued'`;
-    if (!invoice) return reply.code(404).send('Faktura nenalezena');
-
-    const { email } = request.body || {};
-    if (!email) return reply.redirect(`/ucetnictvi/vydane-faktury/${invoice.id}?error=noemail`);
-
-    const [issuerRow] = await sql`SELECT * FROM company_settings LIMIT 1`;
-    const issuer = issuerRow || {};
-    const items  = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${invoice.id} ORDER BY id`;
-    const vatMap = {};
-    for (const it of items) {
-      const r = it.vat_rate;
-      if (!vatMap[r]) vatMap[r] = { rate: r, base: 0, vat: 0 };
-      vatMap[r].base += Number(it.amount);
-      vatMap[r].vat  += Number(it.vat_amount);
-    }
-    const vatSummary = Object.values(vatMap);
-
-    const { renderInvoicePdf } = await import('../pdf.js');
-    const { sendInvoiceEmail } = await import('../email.js');
-
-    try {
-      const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary });
-      const daysOverdue = invoice.due_date
-        ? Math.floor((Date.now() - new Date(invoice.due_date).getTime()) / 86400000)
-        : 0;
-      await sendInvoiceEmail({
-        invoice, issuer, email, pdfBuffer,
-        subject: `Upomínka platby — faktura ${invoice.number}`,
-        intro: `dovolujeme si Vás upozornit, že faktura č. <strong>${invoice.number}</strong> je ${daysOverdue > 0 ? `<strong>${daysOverdue} dní po splatnosti</strong>` : 'splatná'}.<br>Prosíme o úhradu v nejbližším možném termínu.`,
-      });
-      return reply.redirect(`/ucetnictvi/vydane-faktury/${invoice.id}?emailSent=1`);
-    } catch (err) {
-      fastify.log.error({ err }, 'Chyba odeslání upomínky');
-      return reply.redirect(`/ucetnictvi/vydane-faktury/${invoice.id}?emailError=1`);
-    }
-  });
+  // Upomínky faktur řeší src/routes/invoices.js — mají tři stupně důrazu,
+  // evidenci v invoice_reminders a log odeslání.
 }

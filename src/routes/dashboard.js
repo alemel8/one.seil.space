@@ -64,7 +64,7 @@ export default async function dashboardRoutes(fastify) {
     const mEnd   = new Date(selYear, selMonthNum, 0).toISOString().slice(0,10);
 
     const [
-      [issued], [received], [overdueCount], [ordersWaiting], [uctenky], cityRows,
+      [issued], [received], [overdueCount], [ordersWaiting], [uctenky], cityRows, [remindersWaiting],
     ] = await Promise.all([
       sql`SELECT COALESCE(SUM(total_amount),0)::numeric AS v, COUNT(*)::int AS n FROM accounting_invoices WHERE type='issued'   AND issue_date BETWEEN ${mStart} AND ${mEnd}`,
       sql`SELECT COALESCE(SUM(total_amount),0)::numeric AS v, COUNT(*)::int AS n FROM accounting_invoices WHERE type='received' AND issue_date BETWEEN ${mStart} AND ${mEnd}`,
@@ -77,6 +77,8 @@ export default async function dashboardRoutes(fastify) {
         WHERE created_at BETWEEN ${mStart} AND ${mEnd}::date + INTERVAL '1 day'
         GROUP BY order_city
       `,
+      // Upomínky se neváží na vybraný měsíc — je to fronta k vyřízení teď
+      sql`SELECT COUNT(*)::int AS n FROM invoice_reminders WHERE status = 'ceka'`,
     ]);
 
     const latest = readLatest();
@@ -107,6 +109,7 @@ export default async function dashboardRoutes(fastify) {
         issuedMonth: Number(issued.v), issuedCount: issued.n,
         receivedMonth: Number(received.v), receivedCount: received.n,
         overdue: overdueCount.n,
+        remindersWaiting: remindersWaiting.n,
         ordersWaiting: ordersWaiting.n,
         uctenkyCount: uctenky.n, uctenkyMonth: Number(uctenky.v),
       },

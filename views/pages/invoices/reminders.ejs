@@ -1,0 +1,91 @@
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+  <div>
+    <h2 style="margin:0;">Upomínky</h2>
+    <p style="margin:4px 0 0;color:var(--text-muted);font-size:13px;">
+      Upomínky připravuje systém automaticky, odesílají se ale vždy ručně.
+    </p>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <% const tabs = [['ceka','Čeká na odeslání'],['odeslana','Odeslané'],['zrusena','Zrušené'],['','Vše']]; %>
+    <% tabs.forEach(([val,label]) => { %>
+    <a href="/ucetnictvi/upominky<%= val ? '?status='+val : '?status=' %>"
+       class="btn btn-sm <%= statusFilter === val ? 'btn-primary' : 'btn-ghost' %>">
+      <%= label %><% if (counts[val]) { %> (<%= counts[val] %>)<% } %>
+    </a>
+    <% }) %>
+  </div>
+</div>
+
+<% if (sent) { %>
+<div style="padding:10px 14px;background:var(--success-bg,#dcfce7);color:#15803d;border-radius:8px;margin-bottom:16px;font-size:13px;">
+  Upomínka byla odeslána.
+</div>
+<% } %>
+<% if (error) { %>
+<div style="padding:10px 14px;background:var(--danger-bg,#fee2e2);color:#991b1b;border-radius:8px;margin-bottom:16px;font-size:13px;">
+  Upomínku se nepodařilo odeslat — zkontrolujte e-mail klienta a historii odeslání na faktuře.
+</div>
+<% } %>
+
+<% if (!reminders.length) { %>
+<div class="card"><div class="card-body" style="text-align:center;padding:40px 20px;color:var(--text-muted);">
+  Žádné upomínky<% if (statusFilter === 'ceka') { %> k odeslání. Všechny faktury jsou v pořádku.<% } %>
+</div></div>
+<% } else { %>
+<div class="card">
+  <table class="table" style="width:100%;">
+    <thead>
+      <tr>
+        <th>Stupeň</th>
+        <th>Faktura</th>
+        <th>Klient</th>
+        <th style="text-align:right;">Částka</th>
+        <th>Splatnost</th>
+        <th style="text-align:right;">Po splatnosti</th>
+        <th>E-mail</th>
+        <th style="text-align:right;">Akce</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% reminders.forEach(r => {
+           const badge = r.level >= 3 ? '#fee2e2:#991b1b' : r.level === 2 ? '#ffedd5:#9a3412' : '#fef9c3:#92400e';
+           const [bg, fg] = badge.split(':'); %>
+      <tr>
+        <td>
+          <span class="badge" style="background:<%= bg %>;color:<%= fg %>;">
+            <%= r.level %>. <%= r.level >= 3 ? 'předžalobní' : r.level === 2 ? 'upomínka' : 'upozornění' %>
+          </span>
+        </td>
+        <td><a href="/ucetnictvi/vydane-faktury/<%= r.invoice_id %>"><%= r.number %></a></td>
+        <td><%= r.client_name %></td>
+        <td style="text-align:right;white-space:nowrap;">
+          <%= Number(r.total_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= r.currency %>
+        </td>
+        <td><%= r.due_date ? new Date(r.due_date).toLocaleDateString('cs-CZ') : '—' %></td>
+        <td style="text-align:right;color:#991b1b;font-weight:600;"><%= r.days_overdue %> dní</td>
+        <td style="font-size:13px;<%= r.email ? '' : 'color:var(--text-muted);' %>">
+          <%= r.email || 'chybí e-mail' %>
+        </td>
+        <td style="text-align:right;white-space:nowrap;">
+          <% if (r.status === 'ceka') { %>
+          <form method="post" action="/ucetnictvi/upominky/<%= r.id %>/odeslat" style="display:inline;">
+            <input type="hidden" name="email" value="<%= r.email %>">
+            <button type="submit" class="btn btn-primary btn-sm" <%= r.email ? '' : 'disabled' %>>Odeslat</button>
+          </form>
+          <form method="post" action="/ucetnictvi/upominky/<%= r.id %>/zrusit" style="display:inline;">
+            <button type="submit" class="btn btn-ghost btn-sm">Zrušit</button>
+          </form>
+          <% } else if (r.status === 'odeslana') { %>
+          <span style="color:var(--text-muted);font-size:13px;">
+            odesláno <%= r.sent_at ? new Date(r.sent_at).toLocaleDateString('cs-CZ') : '' %>
+          </span>
+          <% } else { %>
+          <span style="color:var(--text-muted);font-size:13px;">zrušena</span>
+          <% } %>
+        </td>
+      </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<% } %>

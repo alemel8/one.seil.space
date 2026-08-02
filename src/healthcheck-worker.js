@@ -157,7 +157,63 @@ export async function checkVpsThresholds(latest) {
 }
 
 // ── Kontrola faktur po splatnosti ─────────────────────────────
+//
+// Tři kroky: přeřadit prošlé faktury do stavu "Po splatnosti", připravit
+// upomínky podle nastavených prahů a jednou denně o tom dát vědět.
+// Upomínky se odsud nikdy neodesílají — jen se zakládají ve stavu 'ceka'.
+
+const DEFAULT_REMINDER_LEVELS = [{ level: 1, days: 3 }, { level: 2, days: 14 }, { level: 3, days: 30 }];
+
+/** Faktury, kterým prošla splatnost, přepne na "Po splatnosti". */
+export async function markOverdueInvoices() {
+  const updated = await sql`
+    UPDATE accounting_invoices
+    SET status = 'Po splatnosti', modified_at = NOW()
+    WHERE type IN ('issued', 'proforma')
+      AND status = 'Nezaplacena'
+      AND due_date IS NOT NULL
+      AND due_date < CURRENT_DATE
+    RETURNING id, number
+  `;
+  return updated.length;
+}
+
+/** Založí chybějící upomínky pro faktury po splatnosti. */
+export async function prepareReminders() {
+  const [company] = await sql`SELECT reminder_levels FROM company_settings LIMIT 1`;
+  const levels = Array.isArray(company?.reminder_levels) && company.reminder_levels.length
+    ? company.reminder_levels
+    : DEFAULT_REMINDER_LEVELS;
+
+  const overdue = await sql`
+    SELECT id, due_date, (CURRENT_DATE - due_date)::int AS days_overdue
+    FROM accounting_invoices
+    WHERE type = 'issued' AND status = 'Po splatnosti' AND due_date IS NOT NULL
+  `;
+
+  let created = 0;
+  for (const inv of overdue) {
+    // Jen nejvyšší dosažený stupeň — ať klientovi nechodí tři upomínky naráz
+    const reached = levels
+      .filter(l => inv.days_overdue >= Number(l.days))
+      .sort((a, b) => Number(b.level) - Number(a.level))[0];
+    if (!reached) continue;
+
+    const [row] = await sql`
+      INSERT INTO invoice_reminders (invoice_id, level, days_overdue, status)
+      VALUES (${inv.id}, ${Number(reached.level)}, ${inv.days_overdue}, 'ceka')
+      ON CONFLICT (invoice_id, level) DO NOTHING
+      RETURNING id
+    `;
+    if (row) created++;
+  }
+  return created;
+}
+
 export async function checkOverdueInvoices() {
+  await markOverdueInvoices();
+  await prepareReminders();
+
   const overdue = await sql`
     SELECT id, number, client_name, total_amount, currency, due_date
     FROM accounting_invoices
@@ -172,10 +228,15 @@ export async function checkOverdueInvoices() {
   const list = overdue.slice(0, 5).map(i =>
     `• ${i.number} — ${i.client_name} — ${Number(i.total_amount).toLocaleString('cs-CZ')} ${i.currency}`
   ).join('\n');
-  const msg = `📋 **${overdue.length} faktur po splatnosti**:\n${list}${overdue.length > 5 ? `\n…a dalších ${overdue.length - 5}` : ''}`;
+  const [{ waiting }] = await sql`
+    SELECT COUNT(*)::int AS waiting FROM invoice_reminders WHERE status = 'ceka'
+  `;
+  const reminderLine = waiting ? `\n\n✉️ ${waiting} upomínek čeká na odeslání.` : '';
+
+  const msg = `📋 **${overdue.length} faktur po splatnosti**:\n${list}${overdue.length > 5 ? `\n…a dalších ${overdue.length - 5}` : ''}${reminderLine}`;
 
   await dispatchAlert('invoice_overdue', 'daily', msg, {
     title: `📋 ${overdue.length} faktur po splatnosti`,
-    url: '/ucetnictvi/vydane-faktury',
+    url: waiting ? '/ucetnictvi/upominky' : '/ucetnictvi/vydane-faktury',
   });
 }

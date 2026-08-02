@@ -59,7 +59,12 @@ KPI na domovské stránce: počty faktur, objednávek, CRM kontaktů, členů t�
 | `GET /ucetnictvi/vydane-faktury/:id` | Detail faktury |
 | `GET /ucetnictvi/vydane-faktury/:id/pdf` | Stáhnout PDF |
 | `POST /ucetnictvi/vydane-faktury/:id/odeslat-email` | Odeslat fakturu e-mailem |
+| `POST /ucetnictvi/vydane-faktury/:id/upravit` | Upravit hlavičku i položky |
 | `POST /ucetnictvi/vydane-faktury/:id/stav` | Změnit stav faktury |
+| `POST /ucetnictvi/vydane-faktury/:id/upominka` | Odeslat upomínku (ručně) |
+| `GET /ucetnictvi/upominky` | Fronta připravených upomínek |
+| `POST /ucetnictvi/upominky/:id/odeslat` | Odeslat upomínku ze seznamu |
+| `POST /ucetnictvi/upominky/:id/zrusit` | Zrušit upomínku |
 | `GET /ucetnictvi/prijate-faktury` | Seznam přijatých faktur |
 | `POST /ucetnictvi/prijate-faktury/vytvorit` | Vytvořit přijatou fakturu |
 | `GET /ucetnictvi/prijate-faktury/:id` | Detail přijaté faktury |
@@ -67,6 +72,40 @@ KPI na domovské stránce: počty faktur, objednávek, CRM kontaktů, členů t�
 | `GET /ucetnictvi/opakujici-se-faktury` | Správa šablon opakujících se faktur |
 | `POST /ucetnictvi/opakujici-se-faktury/vytvorit` | Nová šablona |
 | `POST /ucetnictvi/opakujici-se-faktury/:id/toggle` | Aktivovat / deaktivovat |
+
+### Vystavení faktury
+
+Ruční faktura se zadává po položkách (popis, množství, MJ, cena/MJ, sazba DPH).
+Základ, DPH i celkovou částku počítá vždy server z odeslaných řádků — součty
+ve formuláři jsou jen náhled. Server odmítne fakturu bez klienta, bez položek,
+s nulovou částkou nebo s číslem, které už existuje (`accounting_invoices` má
+unikátní index na dvojici typ + číslo).
+
+### PDF a odeslání
+
+PDF vykresluje `src/pdf.js` přes headless Chromium ze šablony
+`views/pdf/invoice.ejs`. Variabilní symbol počítá `invoiceVs()` v
+`src/series-format.js` — z čísla vezme posledních 10 číslic, aby se vešel do
+limitu banky a zároveň zůstal podřetězcem čísla faktury, na kterém stojí
+auto-párování plateb.
+
+Odeslání e-mailem předvyplní adresu z faktury, jinak ji dohledá v CRM (kontakt →
+firma → IČO). Každý pokus se zapíše do `invoice_emails` včetně chyby, odeslané
+PDF se archivuje do `data/pdfs` a cesta se uloží do `pdf_path`.
+
+### Hlídání splatnosti a upomínky
+
+`checkOverdueInvoices()` v `src/healthcheck-worker.js` běží každých 5 minut a:
+
+1. `markOverdueInvoices()` — přepne prošlé faktury z „Nezaplacena" na „Po splatnosti",
+2. `prepareReminders()` — podle prahů v `company_settings.reminder_levels`
+   (výchozí 3 / 14 / 30 dní) založí upomínku ve stavu `ceka`; vždy jen nejvyšší
+   dosažený stupeň, ať klientovi nechodí tři naráz,
+3. jednou denně pošle souhrn do nastavených notifikačních kanálů.
+
+**Upomínky se nikdy neodesílají automaticky.** Worker je jen připraví do fronty na
+`/ucetnictvi/upominky`, odeslání spouští člověk. Tři stupně důrazu (upozornění →
+upomínka → předžalobní výzva) definuje `sendReminderEmail()` v `src/email.js`.
 
 ---
 
@@ -194,3 +233,43 @@ Pinguje registrované URL v nastaveném intervalu. Zapisuje výsledky do `health
 
 ### VPS kolektor (`src/collector.js`)
 Běží jako cron přímo na VPS hostu (ne v Dockeru). Sbírá: RAM, CPU, disk, swap, uptime, PostgreSQL stats, Docker kontejnery, SSL certifikáty, stáří záloh. Výstup: `latest.json` + append do `history.sqlite`.
+
+---
+
+## Import faktur z POHODY (`scripts/import-faktury-xlsx.js`)
+
+Ruční import Excel exportů z POHODY do `accounting_invoices`. Soubory se
+nahrají do adresáře `import/`:
+
+| Soubor | Cíl |
+|---|---|
+| `FA vyd.xlsx` | `type='issued'` |
+| `FA prija.xlsx` | `type='received'` |
+
+```bash
+node --env-file=.env scripts/import-faktury-xlsx.js --dry-run    # náhled
+node --env-file=.env scripts/import-faktury-xlsx.js              # import
+node --env-file=.env scripts/import-faktury-xlsx.js --sync-status # + srovnání úhrad
+```
+
+**Hlídání duplicit** (skript je idempotentní, lze spouštět opakovaně):
+
+1. podle čísla dokladu (POHODA `Číslo`) proti `number`,
+2. podle variabilního symbolu proti `number` — zachytí faktury, které do
+   systému přitekly importem z Disku a jsou vedené pod číslem dodavatele;
+   ty se sloučí do existujícího záznamu (zůstane `id` i příloha),
+   s `--no-merge` se jen přeskočí,
+3. kontrolní shoda dodavatel + datum + částka → jen varování do logu.
+
+**Mapování částek:** `amount` je součet všech sazeb (`Kč 0`, `Kč snížená`,
+`Kč základní`, `Kč 2 snížená`), `vat_amount` součet všech DPH sazeb.
+Doklady v cizí měně mají v POHODĚ korunový ekvivalent — ukládá se ten
+(`currency='CZK'`) a původní částka jde do `notes`.
+
+**Stav:** `K likvidaci = 0` → Zaplacena (`paid_date` = datum likvidace),
+jinak po splatnosti / nezaplacena podle `Splatno`. `--sync-status` srovná
+stav a datum úhrady i u faktur, které v DB už jsou — POHODA je zdroj
+pravdy pro platby.
+
+XLSX čte `scripts/lib/xlsx-lite.js` (rozbalení ZIP přes `zlib` + parsování
+XML), aby projekt nemusel záviset na balíčku `xlsx` s otevřenými CVE.

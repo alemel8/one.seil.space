@@ -1,13 +1,13 @@
 import { getDb, generateId } from '../db.js';
 import { renderInvoicePdf } from '../pdf.js';
-import { sendInvoiceEmail } from '../email.js';
+import { sendInvoiceEmail, sendReminderEmail } from '../email.js';
 import { buildPohodaXml } from '../pohoda.js';
 import Anthropic from '@anthropic-ai/sdk';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { writeFile } from 'node:fs/promises';
+import { writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { renderSeriesNumber } from '../series-format.js';
+import { renderSeriesNumber, invoiceVs } from '../series-format.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '../..');
@@ -16,6 +16,13 @@ const MEDIA_DIR  = path.join(projectRoot, 'data/media');
 
 const STATUSES_ISSUED   = ['Nezaplacena', 'Zaplacena', 'Po splatnosti', 'Storno'];
 const STATUSES_RECEIVED = ['Nezaplacena', 'Zaplacena', 'Po splatnosti', 'Storno'];
+
+const FORM_ERRORS = {
+  klient:    'Vyplňte klienta.',
+  polozky:   'Faktura musí mít alespoň jednu položku s popisem.',
+  castka:    'Celková částka musí být větší než nula.',
+  duplicita: 'Faktura s tímto číslem už existuje.',
+};
 
 // ── Načtení nastavení firmy (issuer) ─────────────────────────
 
@@ -69,6 +76,162 @@ function calcVatSummary(items) {
     byRate[rate].total += Number(item.total);
   }
   return Object.values(byRate).sort((a, b) => b.rate - a.rate);
+}
+
+// ── Položky z formuláře ──────────────────────────────────────
+//
+// Formulář posílá řádky jako paralelní pole (item_name, item_qty, …).
+// Jeden řádek přijde jako string, víc řádků jako pole — proto toArray.
+
+function toArray(v) {
+  if (v == null) return [];
+  return Array.isArray(v) ? v : [v];
+}
+
+function parseItemRows(body) {
+  const names  = toArray(body.item_name);
+  const qtys   = toArray(body.item_qty);
+  const units  = toArray(body.item_unit);
+  const prices = toArray(body.item_price);
+  const rates  = toArray(body.item_vat);
+
+  const items = [];
+  for (let i = 0; i < names.length; i++) {
+    const name = String(names[i] ?? '').trim();
+    if (!name) continue;
+
+    const quantity     = parseFloat(qtys[i])   || 0;
+    const pricePerUnit = parseFloat(prices[i]) || 0;
+    const vatRate      = parseFloat(rates[i])  || 0;
+
+    const amount    = round2(quantity * pricePerUnit);
+    const vatAmount = round2(amount * vatRate / 100);
+
+    items.push({
+      name, quantity, unit: String(units[i] ?? 'ks').trim() || 'ks',
+      pricePerUnit, vatRate, amount, vatAmount, total: round2(amount + vatAmount),
+    });
+  }
+  return items;
+}
+
+function round2(n) {
+  return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+}
+
+function sumItems(items) {
+  const amount    = round2(items.reduce((s, it) => s + it.amount, 0));
+  const vatAmount = round2(items.reduce((s, it) => s + it.vatAmount, 0));
+  return { amount, vatAmount, total: round2(amount + vatAmount) };
+}
+
+// ── Napojení faktury na CRM ──────────────────────────────────
+
+async function findCrmCompanyId(sql, ico, name) {
+  if (ico) {
+    const [byIco] = await sql`SELECT id FROM crm_companies WHERE ico = ${ico} LIMIT 1`;
+    if (byIco) return byIco.id;
+  }
+  if (name) {
+    const [byName] = await sql`SELECT id FROM crm_companies WHERE LOWER(name) = ${name.toLowerCase()} LIMIT 1`;
+    if (byName) return byName.id;
+  }
+  return null;
+}
+
+async function findCrmContactId(sql, email) {
+  if (!email) return null;
+  const [row] = await sql`SELECT id FROM crm_contacts WHERE LOWER(email) = ${email.toLowerCase()} LIMIT 1`;
+  return row?.id ?? null;
+}
+
+/** E-mail klienta: přednostně z faktury, jinak dohledaný v CRM. */
+async function resolveClientEmail(sql, invoice) {
+  if (invoice.client_email) return invoice.client_email;
+
+  if (invoice.crm_contact_id) {
+    const [c] = await sql`SELECT email FROM crm_contacts WHERE id = ${invoice.crm_contact_id}`;
+    if (c?.email) return c.email;
+  }
+  if (invoice.crm_company_id) {
+    const [c] = await sql`SELECT email FROM crm_companies WHERE id = ${invoice.crm_company_id}`;
+    if (c?.email) return c.email;
+  }
+  if (invoice.client_ico) {
+    const [c] = await sql`SELECT email FROM crm_companies WHERE ico = ${invoice.client_ico} AND email <> '' LIMIT 1`;
+    if (c?.email) return c.email;
+  }
+  return '';
+}
+
+// ── Odeslané e-maily ─────────────────────────────────────────
+
+async function logInvoiceEmail(sql, { invoiceId, kind, level = null, email, subject, status, error = '', userId = null }) {
+  await sql`
+    INSERT INTO invoice_emails (invoice_id, kind, reminder_level, email, subject, status, error, sent_by)
+    VALUES (${invoiceId}, ${kind}, ${level}, ${email}, ${subject}, ${status}, ${error}, ${userId ?? null})
+  `;
+}
+
+/** Uloží odeslané PDF, ať je dohledatelné, co přesně klient dostal. */
+async function storeInvoicePdf(invoice, pdfBuffer, log) {
+  try {
+    if (!existsSync(PDFS_DIR)) await mkdir(PDFS_DIR, { recursive: true });
+    const name = `faktura-${invoice.id}.pdf`;
+    await writeFile(path.join(PDFS_DIR, name), pdfBuffer);
+    return name;
+  } catch (err) {
+    // Archivace je vedlejší — když selže, e-mail už stejně odešel
+    log?.warn({ err }, 'PDF faktury se nepodařilo uložit');
+    return null;
+  }
+}
+
+// ── Odeslání upomínky ────────────────────────────────────────
+//
+// Sdílené oběma cestami: tlačítkem na detailu faktury i seznamem upomínek.
+// Upomínku vždy spouští člověk — worker ji jen připraví do stavu 'ceka'.
+
+export function daysOverdue(dueDate, today = new Date()) {
+  if (!dueDate) return 0;
+  const diff = today - new Date(dueDate);
+  return Math.max(0, Math.floor(diff / 86400000));
+}
+
+async function deliverReminder(sql, { invoice, email, level, reminderId = null, daysOverdue: days, userId, log }) {
+  const issuer = await getIssuer(sql);
+  const overdue = days ?? daysOverdue(invoice.due_date);
+  let subject = `Upomínka — faktura ${invoice.number}`;
+
+  try {
+    const items = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${invoice.id} ORDER BY id`;
+    const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary: calcVatSummary(items) });
+
+    ({ subject } = await sendReminderEmail({
+      invoice, issuer, email, pdfBuffer, level, daysOverdue: overdue,
+      paymentDetails: {
+        accountNumber:  issuer.bank_account || '',
+        iban:           issuer.iban || '',
+        variableSymbol: invoiceVs(invoice.number),
+      },
+    }));
+
+    // Upomínka odeslaná z detailu faktury nemusí mít připravený záznam
+    await sql`
+      INSERT INTO invoice_reminders (invoice_id, level, days_overdue, status, sent_at, sent_to)
+      VALUES (${invoice.id}, ${level}, ${overdue}, 'odeslana', NOW(), ${email})
+      ON CONFLICT (invoice_id, level)
+      DO UPDATE SET status = 'odeslana', sent_at = NOW(), sent_to = ${email}
+    `;
+    await logInvoiceEmail(sql, { invoiceId: invoice.id, kind: 'upominka', level, email, subject,
+                                 status: 'odeslano', userId });
+    return { ok: true };
+  } catch (err) {
+    log?.error({ err }, 'Chyba odeslání upomínky');
+    await logInvoiceEmail(sql, { invoiceId: invoice.id, kind: 'upominka', level, email, subject,
+                                 status: 'chyba', error: err.message, userId });
+    return { ok: false, error: err.message };
+  }
 }
 
 // ── Generování čísla z číselné řady ──────────────────────────
@@ -242,6 +405,7 @@ export default async function invoicesRoutes(fastify) {
       user: request.user, invoices, total: count,
       currentPage: page, totalPages: Math.ceil(count / perPage),
       q, statusFilter, STATUSES_ISSUED, series,
+      formError: FORM_ERRORS[request.query.formError] || '',
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -255,45 +419,92 @@ export default async function invoicesRoutes(fastify) {
       : [null];
     const emailSent  = request.query.emailSent  === '1';
     const emailError = request.query.emailError === '1';
+    const emailLog   = await sql`
+      SELECT * FROM invoice_emails WHERE invoice_id = ${invoice.id} ORDER BY sent_at DESC LIMIT 10
+    `;
+    const reminders  = await sql`
+      SELECT * FROM invoice_reminders WHERE invoice_id = ${invoice.id} ORDER BY level
+    `;
     return reply.view('pages/invoices/issued-detail.ejs', {
       pageTitle: `Faktura ${invoice.number}`, currentPath: '/ucetnictvi/vydane-faktury',
       user: request.user, invoice, items, vatSummary, STATUSES_ISSUED, order,
-      emailSent, emailError,
+      emailSent, emailError, emailLog, reminders,
+      suggestedEmail: await resolveClientEmail(sql, invoice),
+      formError: FORM_ERRORS[request.query.formError] || '',
     }, { layout: 'layouts/base.ejs' });
   });
 
   // Vytvořit vydanou fakturu manuálně
   fastify.post('/ucetnictvi/vydane-faktury/vytvorit', async (request, reply) => {
     const b = request.body || {};
-    const id = generateId();
+    const fail = code => reply.redirect(`/ucetnictvi/vydane-faktury?formError=${code}`);
 
-    let number = b.number || '';
-    if (!number && b.series_id) {
-      number = await nextInvoiceNumber(sql, parseInt(b.series_id, 10));
+    const clientName = (b.client_name || '').trim();
+    if (!clientName) return fail('klient');
+
+    const items = parseItemRows(b);
+    if (!items.length) return fail('polozky');
+
+    const { amount, vatAmount, total } = sumItems(items);
+    if (total <= 0) return fail('castka');
+
+    // Ruční číslo nesmí kolidovat; číslo z řady je z podstaty nové
+    const manualNumber = (b.number || '').trim();
+    if (manualNumber) {
+      const [clash] = await sql`
+        SELECT id FROM accounting_invoices WHERE type = 'issued' AND number = ${manualNumber} LIMIT 1
+      `;
+      if (clash) return fail('duplicita');
     }
+
+    let number = manualNumber;
+    if (!number && b.series_id) number = await nextInvoiceNumber(sql, parseInt(b.series_id, 10));
     if (!number) number = `FV-${new Date().getFullYear()}-${Date.now()}`;
 
-    const amount    = parseFloat(b.amount    || 0);
-    const vatAmount = parseFloat(b.vat_amount || 0);
-    const total     = amount + vatAmount;
+    const id = generateId();
+    const clientIco = (b.client_ico || '').trim();
 
-    await sql`
-      INSERT INTO accounting_invoices
-        (id, type, series_id, number, status, client_name, client_ico, client_dic, client_address,
-         amount, vat_amount, total_amount, currency, issue_date, due_date, notes)
-      VALUES (
-        ${id}, 'issued',
-        ${b.series_id ? parseInt(b.series_id, 10) : null},
-        ${number}, ${b.status || 'Nezaplacena'},
-        ${(b.client_name||'').trim()}, ${(b.client_ico||'').trim()},
-        ${(b.client_dic||'').trim()}, ${(b.client_address||'').trim()},
-        ${amount}, ${vatAmount}, ${total},
-        ${b.currency || 'CZK'},
-        ${b.issue_date || new Date().toISOString().split('T')[0]},
-        ${b.due_date || null},
-        ${(b.notes||'').trim()}
-      )
-    `;
+    try {
+      await sql.begin(async tx => {
+        await tx`
+          INSERT INTO accounting_invoices
+            (id, type, series_id, number, status, client_name, client_ico, client_dic, client_address,
+             client_email, crm_company_id, crm_contact_id,
+             amount, vat_amount, total_amount, currency, issue_date, due_date, notes,
+             account_debit, account_credit)
+          VALUES (
+            ${id}, 'issued',
+            ${b.series_id ? parseInt(b.series_id, 10) : null},
+            ${number}, ${b.status || 'Nezaplacena'},
+            ${clientName}, ${clientIco},
+            ${(b.client_dic||'').trim()}, ${(b.client_address||'').trim()},
+            ${(b.client_email||'').trim().toLowerCase()},
+            ${await findCrmCompanyId(sql, clientIco, clientName)},
+            ${await findCrmContactId(sql, (b.client_email||'').trim())},
+            ${amount}, ${vatAmount}, ${total},
+            ${b.currency || 'CZK'},
+            ${b.issue_date || new Date().toISOString().split('T')[0]},
+            ${b.due_date || null},
+            ${(b.notes||'').trim()},
+            ${(b.account_debit||'').trim()}, ${(b.account_credit||'').trim()}
+          )
+        `;
+        for (const it of items) {
+          await tx`
+            INSERT INTO accounting_invoice_items
+              (invoice_id, name, quantity, unit, price_per_unit, vat_rate, amount, vat_amount, total)
+            VALUES (
+              ${id}, ${it.name}, ${it.quantity}, ${it.unit},
+              ${it.pricePerUnit}, ${it.vatRate}, ${it.amount}, ${it.vatAmount}, ${it.total}
+            )
+          `;
+        }
+      });
+    } catch (err) {
+      if (err.code === '23505') return fail('duplicita');   // unique_violation
+      throw err;
+    }
+
     return reply.redirect(`/ucetnictvi/vydane-faktury/${id}`);
   });
 
@@ -333,6 +544,62 @@ export default async function invoicesRoutes(fastify) {
     return reply.redirect(`/ucetnictvi/vydane-faktury/${invoice.id}`);
   });
 
+  // Úprava vydané faktury (hlavička i položky)
+  fastify.post('/ucetnictvi/vydane-faktury/:id/upravit', async (request, reply) => {
+    const [invoice] = await sql`
+      SELECT id FROM accounting_invoices WHERE id = ${request.params.id} AND type IN ('issued', 'proforma')
+    `;
+    if (!invoice) return reply.code(404).send('Faktura nenalezena');
+
+    const b = request.body || {};
+    const back = code => reply.redirect(`/ucetnictvi/vydane-faktury/${invoice.id}?formError=${code}`);
+
+    const clientName = (b.client_name || '').trim();
+    if (!clientName) return back('klient');
+
+    // Položky se posílají celé; když nepřijdou, hlavička se upraví a rozpis zůstane
+    const items = parseItemRows(b);
+    const totals = items.length
+      ? sumItems(items)
+      : { amount: parseFloat(b.amount) || 0, vatAmount: parseFloat(b.vat_amount) || 0,
+          total: round2((parseFloat(b.amount) || 0) + (parseFloat(b.vat_amount) || 0)) };
+
+    await sql.begin(async tx => {
+      await tx`
+        UPDATE accounting_invoices SET
+          client_name = ${clientName},
+          client_ico = ${(b.client_ico||'').trim()},
+          client_dic = ${(b.client_dic||'').trim()},
+          client_address = ${(b.client_address||'').trim()},
+          client_email = ${(b.client_email||'').trim().toLowerCase()},
+          issue_date = ${b.issue_date || null},
+          due_date = ${b.due_date || null},
+          notes = ${(b.notes||'').trim()},
+          account_debit = ${(b.account_debit||'').trim()},
+          account_credit = ${(b.account_credit||'').trim()},
+          amount = ${totals.amount}, vat_amount = ${totals.vatAmount}, total_amount = ${totals.total},
+          modified_at = NOW()
+        WHERE id = ${invoice.id}
+      `;
+
+      if (items.length) {
+        await tx`DELETE FROM accounting_invoice_items WHERE invoice_id = ${invoice.id}`;
+        for (const it of items) {
+          await tx`
+            INSERT INTO accounting_invoice_items
+              (invoice_id, name, quantity, unit, price_per_unit, vat_rate, amount, vat_amount, total)
+            VALUES (
+              ${invoice.id}, ${it.name}, ${it.quantity}, ${it.unit},
+              ${it.pricePerUnit}, ${it.vatRate}, ${it.amount}, ${it.vatAmount}, ${it.total}
+            )
+          `;
+        }
+      }
+    });
+
+    return reply.redirect(`/ucetnictvi/vydane-faktury/${invoice.id}`);
+  });
+
   // Změna stavu faktury
   fastify.post('/ucetnictvi/vydane-faktury/:id/stav', async (request, reply) => {
     const { status } = request.body || {};
@@ -364,21 +631,122 @@ export default async function invoicesRoutes(fastify) {
     const [invoice] = await sql`SELECT * FROM accounting_invoices WHERE id = ${request.params.id} AND type IN ('issued', 'proforma')`;
     if (!invoice) return reply.code(404).send('Faktura nenalezena');
 
-    const { email } = request.body || {};
+    const email = (request.body?.email || '').trim();
     if (!email) return reply.redirect(`/ucetnictvi/vydane-faktury/${invoice.id}?error=noemail`);
 
     const items = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${invoice.id} ORDER BY id`;
     const issuer = await getIssuer(sql);
     const vatSummary = calcVatSummary(items);
+    const subject = `Faktura ${invoice.number} — ${issuer.name}`;
 
     try {
       const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary });
-      await sendInvoiceEmail({ invoice, issuer, email, pdfBuffer });
+      await sendInvoiceEmail({
+        invoice, issuer, email, pdfBuffer, subject,
+        paymentDetails: {
+          accountNumber:  issuer.bank_account || '',
+          iban:           issuer.iban || '',
+          variableSymbol: invoiceVs(invoice.number),
+        },
+      });
+
+      const pdfPath = await storeInvoicePdf(invoice, pdfBuffer, fastify.log);
+      await sql`
+        UPDATE accounting_invoices
+        SET client_email = ${email},
+            pdf_path = COALESCE(${pdfPath}, pdf_path),
+            modified_at = NOW()
+        WHERE id = ${invoice.id}
+      `;
+      await logInvoiceEmail(sql, { invoiceId: invoice.id, kind: 'faktura', email, subject,
+                                   status: 'odeslano', userId: request.user?.id });
+
       return reply.redirect(`/ucetnictvi/vydane-faktury/${invoice.id}?emailSent=1`);
     } catch (err) {
       fastify.log.error({ err }, 'Chyba odeslání faktury emailem');
+      await logInvoiceEmail(sql, { invoiceId: invoice.id, kind: 'faktura', email, subject,
+                                   status: 'chyba', error: err.message, userId: request.user?.id });
       return reply.redirect(`/ucetnictvi/vydane-faktury/${invoice.id}?emailError=1`);
     }
+  });
+
+  // Odeslat upomínku k faktuře — vždy ruční akce
+  fastify.post('/ucetnictvi/vydane-faktury/:id/upominka', async (request, reply) => {
+    const [invoice] = await sql`
+      SELECT * FROM accounting_invoices WHERE id = ${request.params.id} AND type IN ('issued', 'proforma')
+    `;
+    if (!invoice) return reply.code(404).send('Faktura nenalezena');
+
+    const back = q => reply.redirect(`/ucetnictvi/vydane-faktury/${invoice.id}${q}`);
+    const email = (request.body?.email || '').trim();
+    if (!email) return back('?error=noemail');
+
+    const level = Math.min(3, Math.max(1, parseInt(request.body?.level, 10) || 2));
+    const result = await deliverReminder(sql, {
+      invoice, email, level, userId: request.user?.id, log: fastify.log,
+    });
+
+    return back(result.ok ? '?emailSent=1' : '?emailError=1');
+  });
+
+  // ══════════════════════════════════════════════════════════
+  // UPOMÍNKY
+  // ══════════════════════════════════════════════════════════
+
+  fastify.get('/ucetnictvi/upominky', async (request, reply) => {
+    const statusFilter = (request.query.status || 'ceka').trim();
+
+    const reminders = await sql`
+      SELECT r.*, i.number, i.client_name, i.client_email, i.client_ico,
+             i.total_amount, i.currency, i.due_date, i.status AS invoice_status,
+             i.crm_company_id, i.crm_contact_id
+      FROM invoice_reminders r
+      JOIN accounting_invoices i ON i.id = r.invoice_id
+      ${statusFilter ? sql`WHERE r.status = ${statusFilter}` : sql``}
+      ORDER BY r.level DESC, r.days_overdue DESC
+    `;
+
+    // E-mail se dohledává až tady, ať se v seznamu dá rovnou odeslat
+    const rows = [];
+    for (const r of reminders) {
+      rows.push({ ...r, email: await resolveClientEmail(sql, r) });
+    }
+
+    const counts = await sql`
+      SELECT status, COUNT(*)::int AS n FROM invoice_reminders GROUP BY status
+    `;
+
+    return reply.view('pages/invoices/reminders.ejs', {
+      pageTitle: 'Upomínky', currentPath: '/ucetnictvi/upominky',
+      user: request.user, reminders: rows, statusFilter,
+      counts: Object.fromEntries(counts.map(c => [c.status, c.n])),
+      sent: request.query.sent === '1', error: request.query.error === '1',
+    }, { layout: 'layouts/base.ejs' });
+  });
+
+  // Odeslat připravenou upomínku ze seznamu
+  fastify.post('/ucetnictvi/upominky/:id/odeslat', async (request, reply) => {
+    const [reminder] = await sql`SELECT * FROM invoice_reminders WHERE id = ${parseInt(request.params.id, 10)}`;
+    if (!reminder) return reply.code(404).send('Upomínka nenalezena');
+
+    const [invoice] = await sql`SELECT * FROM accounting_invoices WHERE id = ${reminder.invoice_id}`;
+    if (!invoice) return reply.code(404).send('Faktura nenalezena');
+
+    const email = (request.body?.email || '').trim() || await resolveClientEmail(sql, invoice);
+    if (!email) return reply.redirect('/ucetnictvi/upominky?error=1');
+
+    const result = await deliverReminder(sql, {
+      invoice, email, level: reminder.level, reminderId: reminder.id,
+      daysOverdue: reminder.days_overdue, userId: request.user?.id, log: fastify.log,
+    });
+
+    return reply.redirect(`/ucetnictvi/upominky?${result.ok ? 'sent=1' : 'error=1'}`);
+  });
+
+  // Zrušit upomínku (např. klient zaplatil mimo systém)
+  fastify.post('/ucetnictvi/upominky/:id/zrusit', async (request, reply) => {
+    await sql`UPDATE invoice_reminders SET status = 'zrusena' WHERE id = ${parseInt(request.params.id, 10)}`;
+    return reply.redirect('/ucetnictvi/upominky');
   });
 
   // ══════════════════════════════════════════════════════════

@@ -136,7 +136,7 @@
       <td class="label">Forma platby</td>
       <td class="value">Bankovní převod</td>
       <td class="label" style="padding-left:40px;">Variabilní symbol</td>
-      <td class="value"><%= invoice.number.replace(/[^0-9]/g, '') || invoice.number %></td>
+      <td class="value"><%= vs || invoice.number %></td>
     </tr>
     <% if (invoice.order_number) { %>
     <tr>
@@ -169,6 +169,19 @@
         <td style="text-align:right;font-weight:500;"><%= Number(item.total).toLocaleString('cs-CZ', {minimumFractionDigits:2}) %> Kč</td>
       </tr>
       <% }) %>
+      <%# Faktury bez rozpisu (import z POHODY) — ať tabulka není prázdná %>
+      <% if (!items.length) {
+           const base = Number(invoice.amount) || 0;
+           const rate = base ? Math.round((Number(invoice.vat_amount) || 0) / base * 100) : 0; %>
+      <tr>
+        <td><%= invoice.notes || 'Fakturovaná částka' %></td>
+        <td style="text-align:center;">1</td>
+        <td style="text-align:center;">ks</td>
+        <td style="text-align:right;"><%= base.toLocaleString('cs-CZ', {minimumFractionDigits:2}) %> Kč</td>
+        <td style="text-align:center;"><%= rate %> %</td>
+        <td style="text-align:right;font-weight:500;"><%= Number(invoice.total_amount).toLocaleString('cs-CZ', {minimumFractionDigits:2}) %> Kč</td>
+      </tr>
+      <% } %>
     </tbody>
   </table>
 
@@ -235,7 +248,7 @@
       </div>
       <div>
         <div class="label">Variabilní symbol</div>
-        <div><strong><%= invoice.number.replace(/[^0-9]/g, '') || invoice.number %></strong></div>
+        <div><strong><%= vs || invoice.number %></strong></div>
       </div>
     </div>
   </div>

@@ -18,6 +18,8 @@ Viz `.env.example` pro kompletní přehled. Klíčové proměnné:
 | `SESSION_SECRET` | Min. 32 znaků, náhodný řetězec |
 | `COOKIE_SECURE` | `true` v produkci za HTTPS |
 | `RESEND_API_KEY` | API klíč pro odesílání e-mailů |
+| `MAIL_FROM` | Odesílatel faktur a upomínek (`SEIL s.r.o. <noreply@seil.cz>`) |
+| `MAIL_REPLY_TO` | Kam chodí odpovědi klientů (`obchod@seil.cz`) |
 | `ANTHROPIC_API_KEY` | Claude API pro AI analýzu účtenek |
 | `VAPID_PUBLIC_KEY` | Web Push public key |
 | `VAPID_PRIVATE_KEY` | Web Push private key |
@@ -28,6 +30,23 @@ Viz `.env.example` pro kompletní přehled. Klíčové proměnné:
 ### Generování VAPID klíčů (jednorázové)
 ```bash
 node -e "import('web-push').then(wp => { const k = wp.default.generateVAPIDKeys(); console.log(k); })"
+```
+
+### Ověření odesílání e-mailů
+
+Doména v `MAIL_FROM` musí být ověřená v Resendu (SPF + DKIM), jinak API zprávy
+odmítne. Kontrola nastavení bez odeslání:
+
+```bash
+node scripts/test-email.js                    # v produkčním kontejneru
+node --env-file=.env scripts/test-email.js    # lokálně
+```
+
+S adresou skript pošle testovací zprávu — hodí se po každé změně klíče
+nebo odesílatele:
+
+```bash
+node scripts/test-email.js ales@seil.cz
 ```
 
 ---

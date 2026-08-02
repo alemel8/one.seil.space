@@ -33,3 +33,16 @@ export function renderSeriesNumber(series, date = new Date()) {
     return token;
   });
 }
+
+/**
+ * Variabilní symbol z čísla faktury.
+ *
+ * Banky přijímají nejvýše 10 číslic, takže z čísla vezmeme číslice a necháme
+ * posledních 10 — konec čísla nese pořadí, začátek jen prefix a rok. Zůstává
+ * tak podřetězcem čísla faktury, na kterém stojí auto-párování plateb
+ * v src/routes/accounting.js.
+ */
+export function invoiceVs(number) {
+  const digits = String(number ?? '').replace(/\D/g, '');
+  return digits.slice(-10);
+}

@@ -109,11 +109,16 @@ function bulkClearAll() {
 
 <!-- Modal: Nová faktura -->
 <div id="modalCreate" class="modal-overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
-  <div class="modal" style="max-width:520px;width:90%;">
+  <div class="modal" style="max-width:780px;width:94%;">
     <div class="modal-header">
       <h3>Nová vydaná faktura</h3>
       <button class="modal-close" onclick="document.getElementById('modalCreate').style.display='none'">&times;</button>
     </div>
+    <% if (typeof formError !== 'undefined' && formError) { %>
+    <div style="margin:0 24px;padding:10px 14px;background:var(--danger-bg,#fee2e2);color:#991b1b;border-radius:8px;font-size:13px;">
+      <%= formError %>
+    </div>
+    <% } %>
     <form method="post" action="/ucetnictvi/vydane-faktury/vytvorit">
       <div class="modal-body" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
         <div class="form-group" style="grid-column:1/-1;">
@@ -145,14 +150,13 @@ function bulkClearAll() {
           <label class="form-label">Adresa klienta</label>
           <input type="text" name="client_address" class="form-control">
         </div>
-        <div class="form-group">
-          <label class="form-label">Základ DPH (bez DPH)</label>
-          <input type="number" name="amount" class="form-control" step="0.01" min="0" value="0">
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label">E-mail klienta</label>
+          <input type="email" name="client_email" class="form-control" placeholder="pro odeslání faktury">
         </div>
-        <div class="form-group">
-          <label class="form-label">DPH</label>
-          <input type="number" name="vat_amount" class="form-control" step="0.01" min="0" value="0">
-        </div>
+
+        <%- include('../../includes/invoice-items', { items: [] }) %>
+
         <div class="form-group">
           <label class="form-label">Datum vystavení</label>
           <input type="date" name="issue_date" class="form-control" value="<%= new Date().toISOString().split('T')[0] %>">
@@ -187,6 +191,10 @@ function bulkClearAll() {
 document.querySelectorAll('[data-modal-open]').forEach(btn => {
   btn.addEventListener('click', () => document.getElementById(btn.dataset.modalOpen).style.display = 'flex');
 });
+// Po odmítnutí serverem otevři formulář rovnou i s chybovou hláškou
+<% if (typeof formError !== 'undefined' && formError) { %>
+document.getElementById('modalCreate').style.display = 'flex';
+<% } %>
 // Předkontace autocomplete
 fetch('/api/accounting-chart').then(r => r.json()).then(list => {
   const dl = document.getElementById('acList');

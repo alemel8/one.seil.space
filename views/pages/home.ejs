@@ -55,6 +55,12 @@
       <div class="kpi-formula">Faktur čeká</div>
     </a>
 
+    <a href="/ucetnictvi/upominky" class="kpi-card kpi-link">
+      <div class="kpi-label">Upomínky</div>
+      <div class="kpi-value <%= kpi.remindersWaiting > 0 ? 'negative' : '' %> kpi-anim" data-value="<%= kpi.remindersWaiting %>" data-fmt="int" style="font-size:28px;">—</div>
+      <div class="kpi-formula">K odeslání</div>
+    </a>
+
     <a href="/ucetnictvi/objednavky" class="kpi-card kpi-link">
       <div class="kpi-label">Objednávky</div>
       <div class="kpi-value primary-color kpi-anim" data-value="<%= kpi.ordersWaiting %>" data-fmt="int" style="font-size:28px;">—</div>

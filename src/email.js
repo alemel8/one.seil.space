@@ -7,6 +7,25 @@ function getResend() {
 }
 const FROM = 'Toneráček.cz <ahoj@toneracek.cz>';
 
+// Odesílatel firemní pošty (faktury, upomínky). E-shopové e-maily si
+// odesílatele předávají samy, aby si udržely vlastní branding.
+//
+//   MAIL_FROM      — plná adresa včetně jména, např. "SEIL s.r.o. <noreply@seil.cz>"
+//   MAIL_REPLY_TO  — kam mají chodit odpovědi; z noreply schránky se neodpovídá
+const MAIL_FROM     = process.env.MAIL_FROM || 'SEIL s.r.o. <noreply@seil.cz>';
+const MAIL_REPLY_TO = process.env.MAIL_REPLY_TO || '';
+
+function senderFor(issuer, override) {
+  if (override) return override;
+  if (process.env.MAIL_FROM) return process.env.MAIL_FROM;
+  // Jméno bereme z nastavení firmy, adresu drží noreply
+  return issuer?.name ? `${issuer.name} <noreply@seil.cz>` : MAIL_FROM;
+}
+
+function replyToFor(issuer) {
+  return MAIL_REPLY_TO || issuer?.email || undefined;
+}
+
 const STATUS_CONFIG = {
   'Vyřízena': {
     subject: 'Objednávka vyřízena',
@@ -102,15 +121,105 @@ export function packetaTrackingUrl(trackingNumber) {
   return `https://tracking.packeta.com/cs/${/^[A-Za-z]/.test(id) ? id : 'Z' + id}`;
 }
 
+// ── Upomínky ─────────────────────────────────────────────────
+//
+// Tři stupně důrazu. Upomínku vždy odesílá člověk z UI, worker ji jen
+// připraví — proto tu není žádná automatika, jen text podle stupně.
+
+const REMINDER_LEVELS = {
+  1: {
+    subject: n => `Upozornění na neuhrazenou fakturu ${n}`,
+    heading: 'Upozornění na neuhrazenou fakturu',
+    body: 'dovolujeme si Vás upozornit, že níže uvedená faktura je po splatnosti. Pokud jste platbu mezitím odeslali, považujte prosím tento e-mail za bezpředmětný.',
+    color: '#d97706',
+  },
+  2: {
+    subject: n => `Upomínka — neuhrazená faktura ${n}`,
+    heading: 'Upomínka k úhradě',
+    body: 'evidujeme, že níže uvedená faktura zůstává i přes uplynulou lhůtu splatnosti neuhrazena. Žádáme Vás o její úhradu v nejbližším možném termínu.',
+    color: '#ea580c',
+  },
+  3: {
+    subject: n => `Předžalobní výzva k úhradě faktury ${n}`,
+    heading: 'Předžalobní výzva k úhradě',
+    body: 'přes naše předchozí upomínky nebyla níže uvedená faktura uhrazena. Vyzýváme Vás k její úhradě do 7 dnů od doručení této výzvy. Nebude-li částka v této lhůtě uhrazena, budeme nuceni pohledávku vymáhat soudní cestou.',
+    color: '#dc2626',
+  },
+};
+
+export function reminderLevelConfig(level) {
+  return REMINDER_LEVELS[level] || REMINDER_LEVELS[2];
+}
+
+export async function sendReminderEmail({ invoice, issuer, email, pdfBuffer, level = 2, daysOverdue = 0, paymentDetails }) {
+  const cfg = reminderLevelConfig(level);
+  const subject = cfg.subject(invoice.number);
+
+  if (!process.env.RESEND_API_KEY) {
+    console.log(`[DEV EMAIL] Upomínka ${level} k faktuře ${invoice.number} → ${email}`);
+    return { subject };
+  }
+
+  const money = Number(invoice.total_amount).toLocaleString('cs-CZ', { minimumFractionDigits: 2 });
+  const due   = invoice.due_date ? new Date(invoice.due_date).toLocaleDateString('cs-CZ') : '—';
+
+  const html = `<!DOCTYPE html>
+<html lang="cs"><head><meta charset="utf-8"><title>${subject}</title></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:Inter,-apple-system,sans-serif">
+<div style="max-width:560px;margin:0 auto;padding:32px 16px">
+  <div style="background:${cfg.color};border-radius:14px 14px 0 0;padding:24px 32px;text-align:center">
+    <div style="font-size:20px;font-weight:700;color:#fff">${cfg.heading}</div>
+    <div style="font-size:14px;color:rgba(255,255,255,0.85);margin-top:6px">Faktura ${invoice.number}</div>
+  </div>
+  <div style="background:#fff;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 14px 14px;padding:28px 32px">
+    <p style="font-size:15px;color:#334155;margin:0 0 16px">Dobrý den,</p>
+    <p style="font-size:14px;color:#475569;line-height:1.6;margin:0 0 20px">${cfg.body}</p>
+    <table cellpadding="0" cellspacing="0" width="100%" style="background:#f8fafc;border-radius:10px;padding:8px 0;margin-bottom:20px">
+      <tr><td style="font-size:13px;color:#64748b;padding:6px 16px">Číslo faktury</td>
+          <td style="font-size:13px;color:#0f172a;font-weight:600;padding:6px 16px;text-align:right">${invoice.number}</td></tr>
+      <tr><td style="font-size:13px;color:#64748b;padding:6px 16px">Splatnost</td>
+          <td style="font-size:13px;color:#0f172a;padding:6px 16px;text-align:right">${due}</td></tr>
+      <tr><td style="font-size:13px;color:#64748b;padding:6px 16px">Po splatnosti</td>
+          <td style="font-size:13px;color:${cfg.color};font-weight:600;padding:6px 16px;text-align:right">${daysOverdue} dní</td></tr>
+      <tr><td style="font-size:14px;color:#0f172a;font-weight:600;padding:10px 16px;border-top:1px solid #e2e8f0">Dlužná částka</td>
+          <td style="font-size:15px;color:#0f172a;font-weight:700;padding:10px 16px;text-align:right;border-top:1px solid #e2e8f0">${money} ${invoice.currency || 'Kč'}</td></tr>
+    </table>
+    ${paymentDetails ? `
+    <div style="background:#f8f9fa;border-radius:8px;padding:16px 20px;margin-bottom:20px">
+      <p style="margin:0 0 8px;font-weight:600;font-size:14px">Platební údaje</p>
+      ${paymentDetails.accountNumber ? `<p style="margin:2px 0;font-size:13px">Číslo účtu: <strong>${paymentDetails.accountNumber}</strong></p>` : ''}
+      ${paymentDetails.iban ? `<p style="margin:2px 0;font-size:13px">IBAN: <strong>${paymentDetails.iban}</strong></p>` : ''}
+      <p style="margin:2px 0;font-size:13px">Variabilní symbol: <strong>${paymentDetails.variableSymbol}</strong></p>
+    </div>` : ''}
+    <p style="font-size:13px;color:#64748b;margin:0 0 4px">Fakturu přikládáme znovu v příloze.</p>
+    <p style="font-size:14px;color:#334155;margin:16px 0 0">${issuer.name || ''}</p>
+  </div>
+</div>
+</body></html>`;
+
+  const { error } = await getResend().emails.send({
+    from: senderFor(issuer),
+    replyTo: replyToFor(issuer),
+    to: [email],
+    subject,
+    html,
+    attachments: pdfBuffer ? [{
+      filename: `faktura-${invoice.number}.pdf`,
+      content: Buffer.from(pdfBuffer).toString('base64'),
+    }] : undefined,
+  });
+
+  if (error) throw new Error(`Resend error: ${error.message}`);
+  return { subject };
+}
+
 export async function sendInvoiceEmail({ invoice, issuer, email, pdfBuffer, subject, intro, from, paymentDetails, trackingNumber }) {
   if (!process.env.RESEND_API_KEY) {
     console.log(`[DEV EMAIL] Invoice ${invoice.number} → ${email}`);
     return;
   }
 
-  const emailFrom = from || (issuer.email
-    ? `${issuer.name} <${issuer.email}>`
-    : `one.seil.space <noreply@seil.cz>`);
+  const emailFrom = senderFor(issuer, from);
 
   const emailSubject = subject || `Faktura ${invoice.number} — ${issuer.name}`;
   const emailIntro  = intro  || `v příloze zasíláme fakturu č. <strong>${invoice.number}</strong>.`;
@@ -134,6 +243,7 @@ export async function sendInvoiceEmail({ invoice, issuer, email, pdfBuffer, subj
 
   const { error } = await getResend().emails.send({
     from: emailFrom,
+    replyTo: from ? undefined : replyToFor(issuer),   // e-shop si řídí odpovědi sám
     to: [email],
     subject: emailSubject,
     html: `<p>Dobrý den,</p>

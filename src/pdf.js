@@ -3,6 +3,7 @@ import ejs from 'ejs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
+import { invoiceVs } from './series-format.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -35,12 +36,18 @@ async function getBrowser() {
 
 export async function renderInvoicePdf(data) {
   const templatePath = path.join(projectRoot, 'views/pdf/invoice.ejs');
-  const html = await ejs.renderFile(templatePath, data);
+  // VS se počítá tady, aby ho měly stejný všechny cesty k PDF i e-mailu
+  const html = await ejs.renderFile(templatePath, {
+    ...data,
+    vs: invoiceVs(data.invoice?.number),
+  });
 
   const browser = await getBrowser();
   const page = await browser.newPage();
   try {
-    await page.setContent(html, { waitUntil: 'networkidle0' });
+    // Pozor: 'networkidle0' se u setContent() nikdy nespustí (šablona nedělá
+    // žádný síťový požadavek) a render spadne na 30s timeout.
+    await page.setContent(html, { waitUntil: 'load' });
     const pdf = await page.pdf({
       format: 'A4',
       margin: { top: '15mm', right: '15mm', bottom: '15mm', left: '15mm' },

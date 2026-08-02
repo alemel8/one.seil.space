@@ -11,7 +11,7 @@
     "superuser": "node --env-file=.env scripts/create-superuser.js",
     "migrate:sqlite": "node --env-file=.env scripts/migrate-sqlite-to-postgres.js",
     "migrate:orders": "node --env-file=.env scripts/migrate-airtable-orders.js",
-    "test": "node --test test/"
+    "test": "node --env-file=.env --test test/"
   },
   "engines": {
     "node": ">=20.0.0"

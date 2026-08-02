@@ -1,0 +1,97 @@
+<%#
+  Editor položek faktury — tabulka řádků + živý součet.
+  Očekává proměnnou `items` (pole položek, může být prázdné).
+  Na stránce může být jen jedna instance (používá pevná id).
+%>
+<div class="form-group" style="grid-column:1/-1;">
+  <label class="form-label">Položky *</label>
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="text-align:left;color:var(--text-muted);">
+        <th style="padding:4px 6px 6px 0;font-weight:500;">Popis</th>
+        <th style="padding:4px 6px 6px;font-weight:500;width:80px;">Množ.</th>
+        <th style="padding:4px 6px 6px;font-weight:500;width:70px;">MJ</th>
+        <th style="padding:4px 6px 6px;font-weight:500;width:110px;">Cena/MJ</th>
+        <th style="padding:4px 6px 6px;font-weight:500;width:80px;">DPH %</th>
+        <th style="width:32px;"></th>
+      </tr>
+    </thead>
+    <tbody id="itemRows"></tbody>
+  </table>
+  <button type="button" class="btn btn-ghost btn-sm" id="addItem" style="margin-top:8px;">+ Přidat položku</button>
+</div>
+
+<div class="form-group" style="grid-column:1/-1;background:var(--bg-subtle,#f9fafb);border-radius:8px;padding:12px 16px;">
+  <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-muted);">
+    <span>Základ daně</span><span id="sumBase">0,00 Kč</span>
+  </div>
+  <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-muted);margin-top:4px;">
+    <span>DPH</span><span id="sumVat">0,00 Kč</span>
+  </div>
+  <div style="display:flex;justify-content:space-between;font-weight:600;margin-top:8px;padding-top:8px;border-top:1px solid var(--border,#e5e7eb);">
+    <span>Celkem</span><span id="sumTotal">0,00 Kč</span>
+  </div>
+</div>
+
+<script>
+// Server počítá základ, DPH i celkem znovu z odeslaných řádků;
+// součty tady jsou jen náhled pro toho, kdo fakturu vystavuje.
+(function () {
+  const rows = document.getElementById('itemRows');
+  if (!rows) return;
+  const initial = <%- JSON.stringify((items || []).map(i => ({
+    name: i.name, quantity: Number(i.quantity), unit: i.unit || 'ks',
+    price: Number(i.price_per_unit), vat: Number(i.vat_rate),
+  }))) %>;
+  const RATES = [21, 12, 0];
+  const czk = n => n.toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Kč';
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+
+  function addRow(data) {
+    const d = data || { name: '', quantity: 1, unit: 'ks', price: 0, vat: 21 };
+    const rates = RATES.includes(d.vat) ? RATES : [d.vat, ...RATES];
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="padding:3px 6px 3px 0;"><input type="text"   name="item_name"  class="form-control" required placeholder="Popis položky" value="${esc(d.name)}"></td>
+      <td style="padding:3px 6px;"><input type="number" name="item_qty"   class="form-control" step="0.001" min="0" value="${d.quantity}"></td>
+      <td style="padding:3px 6px;"><input type="text"   name="item_unit"  class="form-control" value="${esc(d.unit)}"></td>
+      <td style="padding:3px 6px;"><input type="number" name="item_price" class="form-control" step="0.01" value="${d.price}"></td>
+      <td style="padding:3px 6px;">
+        <select name="item_vat" class="form-select">
+          ${rates.map(r => `<option value="${r}" ${r === d.vat ? 'selected' : ''}>${r}</option>`).join('')}
+        </select>
+      </td>
+      <td style="padding:3px 0;text-align:right;">
+        <button type="button" class="btn btn-ghost btn-sm" data-remove title="Odebrat">&times;</button>
+      </td>`;
+    rows.appendChild(tr);
+    recalc();
+  }
+
+  function recalc() {
+    let base = 0, vat = 0;
+    for (const tr of rows.children) {
+      const qty   = parseFloat(tr.querySelector('[name=item_qty]').value)   || 0;
+      const price = parseFloat(tr.querySelector('[name=item_price]').value) || 0;
+      const rate  = parseFloat(tr.querySelector('[name=item_vat]').value)   || 0;
+      const line  = Math.round(qty * price * 100) / 100;
+      base += line;
+      vat  += Math.round(line * rate) / 100;
+    }
+    document.getElementById('sumBase').textContent  = czk(base);
+    document.getElementById('sumVat').textContent   = czk(vat);
+    document.getElementById('sumTotal').textContent = czk(base + vat);
+  }
+
+  rows.addEventListener('input', recalc);
+  rows.addEventListener('change', recalc);
+  rows.addEventListener('click', e => {
+    if (!e.target.closest('[data-remove]')) return;
+    if (rows.children.length > 1) e.target.closest('tr').remove();
+    recalc();
+  });
+  document.getElementById('addItem').addEventListener('click', () => addRow());
+
+  if (initial.length) initial.forEach(addRow); else addRow();
+})();
+</script>
