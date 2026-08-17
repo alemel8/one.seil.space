@@ -1,21 +1,26 @@
 /**
  * Import faktur z POHODA Excel exportů do accounting_invoices.
  *
- * Spuštění:
- *   node --env-file=.env scripts/import-faktury-xlsx.js --dry-run
- *   node --env-file=.env scripts/import-faktury-xlsx.js
- *   node --env-file=.env scripts/import-faktury-xlsx.js --no-merge
- *   node --env-file=.env scripts/import-faktury-xlsx.js --sync-status
+ * Spuštění (.env si skript načte sám, --env-file není potřeba):
+ *   node scripts/import-faktury-xlsx.js --dry-run
+ *   node scripts/import-faktury-xlsx.js
+ *   node scripts/import-faktury-xlsx.js --no-merge
+ *   node scripts/import-faktury-xlsx.js --sync-status
  *
  * Přepínače:
  *   --dry-run      nic neukládá, jen vypíše, co by se stalo
  *   --no-merge     shody přes variabilní symbol jen přeskočí (viz níže)
  *   --sync-status  u faktur, které už v DB jsou, srovná stav úhrady
- *                  a datum zaplacení podle POHODY (jinak se nesahá)
+ *                  a datum zaplacení podle POHODY (jinak se nesahá).
+ *                  Fakturu s navázaným bankovním pohybem ale nikdy
+ *                  neshodí na nezaplacenou — viz syncStatus().
  *
  * Zdroje (adresář import/):
- *   FA vyd.xlsx    → accounting_invoices (type='issued')
- *   FA prija.xlsx  → accounting_invoices (type='received')
+ *   FA vyd*.xlsx   → accounting_invoices (type='issued')
+ *   FA pri*.xlsx   → accounting_invoices (type='received')
+ *
+ *   POHODA pojmenovává exporty různě ("FA vyd.xlsx", "FAvyd.xlsx", "FApri.xlsx",
+ *   "FA prijate.xlsx"), soubor se proto hledá podle názvu bez mezer a diakritiky.
  *
  * Hlídání duplicit:
  *   1. Číslo dokladu (POHODA "Číslo") proti number v DB — hlavní klíč.
@@ -26,6 +31,8 @@
  *   3. Kontrolně dodavatel+datum+částka — jen varování do logu.
  */
 
+import './lib/load-env.js';   // musí být první — plní process.env z .env
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import postgres from 'postgres';
@@ -39,7 +46,7 @@ const NO_MERGE    = process.argv.includes('--no-merge');
 const SYNC_STATUS = process.argv.includes('--sync-status');
 
 const sql = postgres(process.env.DATABASE_URL, {
-  ssl: process.env.DATABASE_SSL === 'true',
+  ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false,
   max: 3,
 });
 
@@ -135,14 +142,47 @@ function mapRow(row, today) {
   };
 }
 
-function readImport(file) {
-  return readSheet(path.join(ROOT, 'import', file)).filter(r => str(r['Číslo']));
+/** Název souboru na porovnávací tvar: bez diakritiky, mezer a přípony. */
+function fileKey(name) {
+  return name
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\.xlsx$/i, '')
+    .replace(/[^a-z0-9]/gi, '')
+    .toLowerCase();
+}
+
+/**
+ * Najde v import/ soubor, jehož název začíná daným prefixem ("favyd"/"fapri").
+ * Při více shodách radši spadne — u účetních dat je horší naimportovat
+ * omylem starší export než import nespustit.
+ */
+function findImportFile(prefix, label) {
+  const dir = path.join(ROOT, 'import');
+  const hits = fs.readdirSync(dir)
+    .filter(f => /\.xlsx$/i.test(f) && !f.startsWith('~$') && fileKey(f).startsWith(prefix));
+
+  if (!hits.length) {
+    throw new Error(`v import/ chybí export ${label} (hledá se soubor ${prefix}*.xlsx)`);
+  }
+  if (hits.length > 1) {
+    throw new Error(
+      `v import/ je více exportů ${label}: ${hits.join(', ')} — ` +
+      'nech jen ten aktuální, ať se nenaimportuje starší'
+    );
+  }
+  return path.join(dir, hits[0]);
+}
+
+function readImport(prefix, label) {
+  const file = findImportFile(prefix, label);
+  console.log(`  Soubor: import/${path.basename(file)}`);
+  return readSheet(file).filter(r => str(r['Číslo']));
 }
 
 const stats = {
   issued: 0, issuedSkip: 0,
   received: 0, receivedSkip: 0, receivedMerged: 0,
-  statusSynced: 0, statusDrift: 0,
+  statusSynced: 0, statusDrift: 0, statusProtected: 0,
 };
 const warnings = [];
 
@@ -154,6 +194,18 @@ const warnings = [];
 async function syncStatus(existing, f) {
   const paidDbe = existing.paid_date ?? null;
   if (existing.status === f.status && paidDbe === f.paidDate) return;
+
+  // Navázaný bankovní pohyb je tvrdší důkaz než POHODA: platba na účtu
+  // prokazatelně přišla, v POHODĚ jen chybí likvidace. Takovou fakturu
+  // nikdy neshazujeme zpátky na nezaplacenou, ani s --sync-status.
+  if (existing.status === 'Zaplacena' && f.status !== 'Zaplacena' && existing.bank_transaction_id) {
+    stats.statusProtected++;
+    warnings.push(
+      `${f.number}: v POHODĚ "${f.status}", ale úhradu potvrzuje bankovní pohyb ` +
+      `(uhrazeno ${paidDbe ?? '—'}) — ponecháno "Zaplacena", chybí likvidace v POHODĚ`
+    );
+    return;
+  }
 
   stats.statusDrift++;
   const desc = `${f.number}: stav "${existing.status}" → "${f.status}"` +
@@ -177,13 +229,13 @@ async function syncStatus(existing, f) {
 // ── Vydané faktury ────────────────────────────────────────────
 
 async function importIssued(icoToCompany, today) {
-  console.log('\n━━━ FA vyd.xlsx → vydané faktury ━━━');
-  const rows = readImport('FA vyd.xlsx');
+  console.log('\n━━━ Vydané faktury ━━━');
+  const rows = readImport('favyd', 'vydaných faktur');
   console.log(`  Řádků v souboru: ${rows.length}`);
 
   const existing = new Map(
     (await sql`
-      SELECT id, number, status, paid_date::text AS paid_date
+      SELECT id, number, status, paid_date::text AS paid_date, bank_transaction_id
       FROM accounting_invoices WHERE type = 'issued'
     `).map(r => [r.number, r])
   );
@@ -227,13 +279,13 @@ async function importIssued(icoToCompany, today) {
 // ── Přijaté faktury ───────────────────────────────────────────
 
 async function importReceived(icoToCompany, today) {
-  console.log('\n━━━ FA prija.xlsx → přijaté faktury ━━━');
-  const rows = readImport('FA prija.xlsx');
+  console.log('\n━━━ Přijaté faktury ━━━');
+  const rows = readImport('fapri', 'přijatých faktur');
   console.log(`  Řádků v souboru: ${rows.length}`);
 
   const dbRows = await sql`
     SELECT id, number, supplier, status, issue_date::text AS issue_date,
-           paid_date::text AS paid_date, total_amount
+           paid_date::text AS paid_date, total_amount, bank_transaction_id
     FROM accounting_invoices WHERE type = 'received'
   `;
   const byNumber = new Map(dbRows.map(r => [r.number, r]));
@@ -352,7 +404,8 @@ try {
   console.log('\n=== Hotovo ===');
   console.log(`Vydané:   +${stats.issued} nových, ${stats.issuedSkip} duplicit přeskočeno`);
   console.log(`Přijaté:  +${stats.received} nových, ${stats.receivedMerged} sloučeno, ${stats.receivedSkip} duplicit přeskočeno`);
-  console.log(`Stav úhrady: ${stats.statusDrift} rozdílů oproti POHODĚ, ${stats.statusSynced} srovnáno`);
+  console.log(`Stav úhrady: ${stats.statusDrift} rozdílů oproti POHODĚ, ${stats.statusSynced} srovnáno` +
+              (stats.statusProtected ? `, ${stats.statusProtected} ponecháno podle banky` : ''));
 } catch (err) {
   console.error('\n❌ Chyba:', err.message);
   process.exitCode = 1;
