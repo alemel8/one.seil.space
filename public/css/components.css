@@ -473,6 +473,10 @@ table.data-table {
 
 [data-theme="dark"] .data-table tbody tr:hover { background: var(--sidebar-hover); }
 
+/* Řádek s proklikem na detail. Třída se ve views používala už dřív, ale
+   v CSS chyběla — na vydaných fakturách proto řádky neměly ani kurzor. */
+.clickable-row { cursor: pointer; }
+
 /* ── Page header ──────────────────────────────────────────── */
 .page-header {
   display: flex;
@@ -614,6 +618,20 @@ table.data-table {
   }
 
 }
+
+/* ── Miniatura dokladu v přehledech ────────────────────────── */
+
+.doklad-thumb {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--bg-page);
+  overflow: hidden; color: var(--text-muted); cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.doklad-thumb:hover { border-color: var(--primary); color: var(--primary); }
+.doklad-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.doklad-thumb-empty { border-style: dashed; }
+.doklad-thumb-busy { opacity: 0.5; pointer-events: none; }
 
 /* ── Náhled dokladu (popup) ────────────────────────────────── */
 /* Vlastní vrstva nad .modal-backdrop (z-index 300), aby šel doklad

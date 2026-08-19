@@ -1,0 +1,228 @@
+<%
+  const sb = receipt.status==='Zaúčtována' ? '#dcfce7' : receipt.status==='Storno' ? '#f3f4f6' : '#fef9c3';
+  const sc = receipt.status==='Zaúčtována' ? '#166534' : receipt.status==='Storno' ? '#6b7280' : '#92400e';
+  const fmt  = n => Number(n||0).toLocaleString('cs-CZ', { minimumFractionDigits: 2 });
+  const den  = d => d ? new Date(d).toISOString().split('T')[0] : '';
+  const isImage = (receipt.attachment_mime || '').startsWith('image/');
+  const fileUrl = receipt.attachment_path ? '/doklady/soubor/' + receipt.attachment_path : null;
+%>
+
+<div class="page-header">
+  <div class="page-header-left">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <a href="/ucetnictvi/uctenky" class="btn btn-ghost btn-sm">← Zpět</a>
+      <h1><%= receipt.vendor || 'Účtenka' %></h1>
+      <span class="badge" style="background:<%= sb %>;color:<%= sc %>;font-size:13px;"><%= receipt.status %></span>
+    </div>
+    <p><%= receipt.number ? 'Doklad ' + receipt.number + ' · ' : '' %><%= new Date(receipt.receipt_date).toLocaleDateString('cs-CZ') %> · <%= fmt(receipt.total_amount) %> <%= receipt.currency %></p>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <% if (fileUrl) { %>
+    <a href="<%= fileUrl %>" class="btn btn-outline btn-sm"
+       data-nahled
+       data-nahled-nazev="<%= receipt.attachment_path %>"
+       data-nahled-typ="<%= receipt.attachment_mime || '' %>"
+       data-nahled-velikost="<%= receipt.attachment_size || 0 %>">📄 Zobrazit doklad</a>
+    <% } %>
+    <form method="post" action="/ucetnictvi/uctenky/<%= receipt.id %>/smazat"
+          onsubmit="return confirm('Opravdu smazat tuto účtenku i s dokladem?')" style="display:inline;">
+      <button type="submit" class="btn btn-outline btn-sm" style="color:var(--danger);">Smazat</button>
+    </form>
+  </div>
+</div>
+
+<% if (saved) { %>
+<div style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:10px 16px;border-radius:8px;margin-bottom:16px;">✓ Uloženo</div>
+<% } %>
+<% if (error) { %>
+<div style="background:var(--danger-bg);color:var(--danger);padding:10px 16px;border-radius:8px;margin-bottom:16px;">⚠ <%= error %></div>
+<% } %>
+
+<div class="rd-grid">
+
+  <!-- Doklad -->
+  <div class="card" style="align-self:start;">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <strong>Doklad</strong>
+      <span style="font-size:12px;color:var(--text-muted);">
+        <%= receipt.attachment_size ? Math.round(receipt.attachment_size/1024) + ' kB' : '' %>
+      </span>
+    </div>
+    <div class="card-body">
+      <% if (fileUrl) { %>
+        <a href="<%= fileUrl %>" class="rd-doklad"
+           data-nahled
+           data-nahled-nazev="<%= receipt.attachment_path %>"
+           data-nahled-typ="<%= receipt.attachment_mime || '' %>"
+           data-nahled-velikost="<%= receipt.attachment_size || 0 %>"
+           title="Klikni pro zvětšení">
+          <% if (isImage) { %>
+            <img src="<%= fileUrl %>" alt="Doklad">
+          <% } else { %>
+            <div class="rd-pdf">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <span><%= receipt.attachment_path %></span>
+            </div>
+          <% } %>
+        </a>
+      <% } else { %>
+        <p style="color:var(--text-muted);font-size:13px;margin:0 0 12px;">K této účtence zatím není uložený žádný doklad.</p>
+      <% } %>
+
+      <form method="post" action="/ucetnictvi/uctenky/<%= receipt.id %>/priloha" enctype="multipart/form-data"
+            style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+        <label style="cursor:pointer;">
+          <input type="file" name="file" accept="application/pdf,image/*" style="display:none;" onchange="rdPriloha(this)">
+          <span class="btn btn-outline btn-sm"><%= fileUrl ? 'Nahradit' : 'Nahrát PDF / foto' %></span>
+        </label>
+        <label style="cursor:pointer;">
+          <input type="file" name="file" accept="image/*" capture="environment" style="display:none;" onchange="rdPriloha(this)">
+          <span class="btn btn-outline btn-sm">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;vertical-align:-2px;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            Vyfotit
+          </span>
+        </label>
+        <span id="rdPrilohaInfo" style="font-size:12px;color:var(--text-muted);align-self:center;"></span>
+      </form>
+    </div>
+  </div>
+
+  <!-- Editace -->
+  <form method="post" action="/ucetnictvi/uctenky/<%= receipt.id %>/upravit" class="card" style="align-self:start;">
+    <div class="card-header"><strong>Údaje účtenky</strong></div>
+    <div class="card-body" style="display:flex;flex-direction:column;gap:14px;">
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group">
+          <label class="form-label">Číslo dokladu</label>
+          <input type="text" name="number" class="form-control" value="<%= receipt.number || '' %>" placeholder="Nepovinné">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Datum dokladu</label>
+          <input type="date" name="receipt_date" class="form-control" value="<%= den(receipt.receipt_date) %>">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label required">Dodavatel</label>
+        <input type="text" name="vendor" class="form-control" value="<%= receipt.vendor || '' %>" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">IČO dodavatele</label>
+        <input type="text" name="vendor_ico" class="form-control" value="<%= receipt.vendor_ico || '' %>" placeholder="Nepovinné">
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group">
+          <label class="form-label">Základ bez DPH</label>
+          <input type="number" name="amount" class="form-control" step="0.01" min="0" value="<%= receipt.amount %>">
+        </div>
+        <div class="form-group">
+          <label class="form-label">DPH</label>
+          <input type="number" name="vat_amount" class="form-control" step="0.01" min="0" value="<%= receipt.vat_amount %>">
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 90px;gap:12px;">
+        <div class="form-group">
+          <label class="form-label">Celková částka</label>
+          <input type="number" name="total_amount" class="form-control" step="0.01" min="0" value="<%= receipt.total_amount %>">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Měna</label>
+          <select name="currency" class="form-select">
+            <% ['CZK','EUR','USD'].forEach(c => { %>
+            <option value="<%= c %>" <%= receipt.currency===c?'selected':'' %>><%= c %></option>
+            <% }) %>
+          </select>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group">
+          <label class="form-label">Kategorie</label>
+          <select name="category" class="form-select">
+            <% CATEGORIES.forEach(c => { %>
+            <option value="<%= c %>" <%= receipt.category===c?'selected':'' %>><%= c %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Stav</label>
+          <select name="status" class="form-select">
+            <% STATUSES.forEach(st => { %>
+            <option value="<%= st %>" <%= receipt.status===st?'selected':'' %>><%= st %></option>
+            <% }) %>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Poznámka / předmět nákupu</label>
+        <textarea name="notes" class="form-control" rows="3"><%= receipt.notes || '' %></textarea>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group">
+          <label class="form-label">Předkontace MD</label>
+          <input type="text" name="account_debit" class="form-control" value="<%= receipt.account_debit || '' %>" placeholder="např. 518" list="rdAcList" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Předkontace D</label>
+          <input type="text" name="account_credit" class="form-control" value="<%= receipt.account_credit || '' %>" placeholder="např. 211" list="rdAcList" autocomplete="off">
+        </div>
+      </div>
+      <datalist id="rdAcList"></datalist>
+    </div>
+    <div class="modal-footer" style="border-top:1px solid var(--border);">
+      <a href="/ucetnictvi/uctenky" class="btn btn-ghost">Zpět na seznam</a>
+      <button type="submit" class="btn btn-primary">Uložit změny</button>
+    </div>
+  </form>
+
+</div>
+
+<style>
+.rd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+@media (max-width: 900px) { .rd-grid { grid-template-columns: 1fr; } }
+
+.rd-doklad { display: block; cursor: zoom-in; border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border); }
+.rd-doklad img { display: block; width: 100%; max-height: 460px; object-fit: contain; background: var(--bg-page); }
+.rd-pdf {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 36px 20px; background: var(--bg-page); color: var(--text-muted); font-size: 13px;
+  text-align: center; word-break: break-all;
+}
+</style>
+
+<script>
+// Doklad zmenšíme v prohlížeči a pošleme bez opuštění stránky
+window.rdPriloha = async function (input) {
+  const raw = input.files && input.files[0];
+  if (!raw) return;
+  const info = document.getElementById('rdPrilohaInfo');
+  info.textContent = 'Ukládám…';
+
+  const res = await window.dokladFoto.prepare(raw);
+  const fd = new FormData();
+  fd.append('file', res.file, res.file.name);
+
+  try {
+    const resp = await fetch(input.form.action, { method: 'POST', body: fd });
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      throw new Error(data.error || 'Chyba serveru (' + resp.status + ')');
+    }
+    window.location.reload();
+  } catch (err) {
+    input.value = '';
+    info.textContent = 'Nepodařilo se uložit: ' + err.message;
+  }
+};
+
+fetch('/api/accounting-chart').then(r => r.json()).then(list => {
+  const dl = document.getElementById('rdAcList');
+  if (dl) dl.innerHTML = list.map(a => `<option value="${a.code}">${a.code} — ${a.name}</option>`).join('');
+}).catch(() => {});
+</script>

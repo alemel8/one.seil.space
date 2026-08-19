@@ -28,6 +28,10 @@ services:
       TONERACEK_API_KEY: ${TONERACEK_API_KEY:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
     volumes:
+      # Nahrané přílohy dokladů a profilové fotky. BEZ tohoto mountu žijí
+      # v zapisovatelné vrstvě kontejneru a každý deploy je smaže — v Coolify
+      # musí být stejný persistent volume na /app/data (viz docs/nasazeni.md).
+      - app-data:/app/data
       - vps-stats-ro:/var/lib/vps-stats:ro
     depends_on:
       postgres:
@@ -58,6 +62,7 @@ services:
       retries: 5
 
 volumes:
+  app-data:
   postgres-data:
   vps-stats-ro:
     driver: local

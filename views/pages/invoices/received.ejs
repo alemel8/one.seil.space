@@ -36,7 +36,7 @@
       <tr>
         <th style="width:36px;"><input type="checkbox" id="bulkSelectAll" onchange="bulkToggleAll(this.checked)" title="Vybrat vše"></th>
         <th>Číslo</th><th>Dodavatel</th><th>Přijato</th><th>Splatnost</th>
-        <th style="text-align:right;">Celkem</th><th>Stav</th><th></th>
+        <th style="text-align:right;">Celkem</th><th>Doklad</th><th>Stav</th><th></th>
       </tr>
     </thead>
     <tbody>
@@ -61,6 +61,24 @@
             <% if (isOverdue) { %> ⚠<% } %>
           </td>
           <td style="text-align:right;font-weight:600;"><%= Number(inv.total_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= inv.currency %></td>
+          <td onclick="event.stopPropagation();">
+            <% if (inv.attachment_path) { %>
+              <a href="/doklady/soubor/<%= inv.attachment_path %>" class="doklad-thumb"
+                 data-nahled
+                 data-nahled-nazev="<%= inv.attachment_path %>"
+                 data-nahled-typ="<%= inv.attachment_mime || '' %>"
+                 data-nahled-velikost="<%= inv.attachment_size || 0 %>"
+                 title="Zobrazit doklad<%= inv.attachment_size ? ' ('+Math.round(inv.attachment_size/1024)+' kB)' : '' %>">
+                <% if ((inv.attachment_mime || '').startsWith('image/')) { %>
+                  <img src="/doklady/soubor/<%= inv.attachment_path %>" alt="Doklad" loading="lazy">
+                <% } else { %>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <% } %>
+              </a>
+            <% } else { %>
+              <span style="color:var(--text-muted);font-size:13px;">—</span>
+            <% } %>
+          </td>
           <td><span class="badge" style="background:<%= bg %>;color:<%= cl %>;"><%= inv.status %></span></td>
           <td onclick="event.stopPropagation()">
             <form method="post" action="/ucetnictvi/prijate-faktury/<%= inv.id %>/stav" style="display:inline;">
@@ -73,7 +91,7 @@
         </tr>
         <% }) %>
       <% } else { %>
-        <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);">Žádné přijaté faktury</td></tr>
+        <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-muted);">Žádné přijaté faktury</td></tr>
       <% } %>
     </tbody>
   </table>

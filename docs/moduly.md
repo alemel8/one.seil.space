@@ -114,6 +114,7 @@ upomínka → předžalobní výzva) definuje `sendReminderEmail()` v `src/email
 | Route | Popis |
 |---|---|
 | `GET /ucetnictvi/uctenky` | Seznam účtenek |
+| `GET /ucetnictvi/uctenky/:id` | Detail účtenky s dokladem a editací |
 | `POST /ucetnictvi/uctenky/analyze-pdf` | AI vytěžení z fotky nebo PDF (Claude) |
 | `POST /ucetnictvi/uctenky/vytvorit` | Vytvořit účtenku (multipart — veze i doklad) |
 | `POST /ucetnictvi/uctenky/:id/upravit` | Ruční úprava dat, volitelně výměna dokladu |
@@ -126,6 +127,11 @@ upomínka → předžalobní výzva) definuje `sendReminderEmail()` v `src/email
 AI analýza extrahuje z obrázku/PDF: prodejce, datum, celkovou částku, DPH, kategorii.
 
 Kategorie: Kancelář, Cestovné, Stravné, IT & Software, Marketing, Provoz, Ostatní.
+
+Modal v seznamu účtenku **jen zakládá** (upload → vytěžení → kontrola polí).
+Úpravy má detail: vlevo doklad ve velkém, vpravo formulář. `/:id/upravit`
+proto rozlišuje klienta — formulář z detailu (`Accept: text/html`) dostane
+přesměrování zpět na detail, `fetch` z modalu JSON.
 
 ---
 
@@ -168,7 +174,16 @@ obsluha je delegovaná, takže funguje i na dodatečně vykreslených řádcích
    data-nahled-nazev="x.jpg" data-nahled-typ="image/jpeg" data-nahled-velikost="384000">…</a>
 ```
 
-Ctrl/Cmd+klik nechá odkaz projít do nového panelu. Z kódu jde popup otevřít i
+Zapojený je v seznamu účtenek, na detailu účtenky, v přehledu přijatých faktur
+(nahraná příloha) i vydaných faktur (vygenerované PDF) a na detailu přijaté
+faktury.
+
+Ctrl/Cmd+klik nechá odkaz projít do nového panelu. Obsluha běží ve fázi
+capture — v přehledech visí proklik na detail na celém řádku a buňky ho brzdí
+přes `stopPropagation`, do bublání by se tedy klik na miniaturu nedostal.
+V nainstalované PWA se skrývá „Otevřít v novém panelu": aplikace má vlastní
+úložiště cookies, takže odkaz otevřený v systémovém prohlížeči skončí na
+přihlašovací stránce. Z kódu jde popup otevřít i
 ručně přes `dokladNahled.open({ url, name, mime, size })` — tak se ukazuje
 i doklad, který ještě není nahraný (blob URL právě vybraného souboru).
 

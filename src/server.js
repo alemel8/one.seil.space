@@ -195,6 +195,11 @@ fastify.setErrorHandler(async (err, request, reply) => {
 try {
   await fastify.listen({ port: PORT, host: HOST });
   fastify.log.info(`one.seil.space běží na http://${HOST}:${PORT}`);
+
+  // Nahrané doklady a fotky přežijí deploy jen s persistent volume na /app/data
+  const { checkAttachments } = await import('./attachments.js');
+  await checkAttachments(sql, fastify.log).catch(err =>
+    fastify.log.warn({ err }, 'Kontrolu příloh se nepodařilo provést'));
 } catch (err) {
   fastify.log.error(err);
   process.exit(1);

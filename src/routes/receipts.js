@@ -54,6 +54,25 @@ export default async function receiptsRoutes(fastify) {
     }, { layout: 'layouts/base.ejs' });
   });
 
+  // ── Detail účtenky ───────────────────────────────────────────
+  // Statické segmenty (export.csv, pohoda-xml) mají v routeru přednost
+  // před :id, takže si nepřekáží.
+  fastify.get('/ucetnictvi/uctenky/:id', async (request, reply) => {
+    const id = parseInt(request.params.id, 10);
+    if (!Number.isInteger(id)) return reply.code(404).send('Účtenka nenalezena');
+
+    const [receipt] = await sql`SELECT * FROM receipts WHERE id = ${id}`;
+    if (!receipt) return reply.code(404).send('Účtenka nenalezena');
+
+    return reply.view('pages/receipts/detail.ejs', {
+      pageTitle: `Účtenka ${receipt.number || '#' + receipt.id}`,
+      currentPath: '/ucetnictvi/uctenky',
+      user: request.user, receipt, STATUSES, CATEGORIES,
+      saved: request.query.saved === '1',
+      error: request.query.error || null,
+    }, { layout: 'layouts/base.ejs' });
+  });
+
   // ── AI: vytěžení dat z PDF/obrázku účtenky ───────────────────
   fastify.post('/ucetnictvi/uctenky/analyze-pdf', async (request, reply) => {
     const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -194,6 +213,12 @@ export default async function receiptsRoutes(fastify) {
     `;
 
     if (replaced) await deleteAttachment(replaced);
+
+    // Detail posílá klasický formulář (Accept: text/html) a čeká přesměrování,
+    // modal v seznamu volá fetch a zpracuje JSON.
+    if ((request.headers.accept || '').includes('text/html')) {
+      return reply.redirect(`/ucetnictvi/uctenky/${request.params.id}?saved=1`);
+    }
     return reply.code(200).send({ id: Number(request.params.id) });
   });
 

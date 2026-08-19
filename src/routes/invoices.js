@@ -621,8 +621,10 @@ export default async function invoicesRoutes(fastify) {
 
     const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary });
 
+    // ?download=1 posílá tlačítko Stáhnout v náhledu dokladu
+    const disposition = request.query.download === '1' ? 'attachment' : 'inline';
     reply.header('Content-Type', 'application/pdf');
-    reply.header('Content-Disposition', `inline; filename="faktura-${invoice.number}.pdf"`);
+    reply.header('Content-Disposition', `${disposition}; filename="faktura-${invoice.number}.pdf"`);
     return reply.send(pdfBuffer);
   });
 

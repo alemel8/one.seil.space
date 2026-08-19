@@ -162,3 +162,31 @@ export async function deleteAttachment(filename) {
   if (!/^[A-Za-z0-9._-]+$/.test(name)) return;
   await unlink(path.join(MEDIA_DIR, name)).catch(() => {});
 }
+
+// Ohlásí, kolik příloh evidovaných v DB chybí na disku. Typicky to znamená,
+// že data/media nepřežilo deploy — bez persistent volume žije v zapisovatelné
+// vrstvě kontejneru a každý build ho smaže. Bez téhle hlášky se na to přijde
+// až ve chvíli, kdy někdo doklad hledá.
+export async function checkAttachments(sql, log) {
+  const rows = await sql`
+    SELECT attachment_path FROM receipts            WHERE attachment_path IS NOT NULL
+    UNION ALL
+    SELECT attachment_path FROM accounting_invoices WHERE attachment_path IS NOT NULL
+    UNION ALL
+    SELECT photo AS attachment_path FROM users      WHERE photo IS NOT NULL
+  `;
+  if (rows.length === 0) return { total: 0, missing: 0 };
+
+  const missing = rows.filter(r => !existsSync(path.join(MEDIA_DIR, path.basename(r.attachment_path))));
+  if (missing.length === 0) {
+    log?.info(`[přílohy] ${rows.length} souborů v ${MEDIA_DIR} — vše na místě`);
+  } else if (missing.length === rows.length) {
+    log?.error(
+      `[přílohy] CHYBÍ VŠECH ${rows.length} souborů v ${MEDIA_DIR}. ` +
+      'Adresář zjevně nepřežil deploy — připoj persistent volume na /app/data (viz docs/nasazeni.md).'
+    );
+  } else {
+    log?.warn(`[přílohy] chybí ${missing.length} z ${rows.length} souborů v ${MEDIA_DIR}: ${missing.slice(0, 5).map(m => m.attachment_path).join(', ')}`);
+  }
+  return { total: rows.length, missing: missing.length };
+}

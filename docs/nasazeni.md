@@ -58,11 +58,40 @@ node scripts/test-email.js ales@seil.cz
 3. Domain: `one.seil.space` (Coolify vyřídí HTTPS)
 4. Volume mounts:
    - Host `/var/lib/vps-stats` → Container `/var/lib/vps-stats` (read-only)
-   - Host `/data/one-seil/media` → Container `/app/data/media`
+   - Host `/data/one-seil/data` → Container `/app/data` — **povinné, viz níže**
 5. Nastavit všechny env proměnné
 6. Deploy
 
 Každý `git push origin main` → automatický redeploy.
+
+---
+
+## ⚠ Persistent volume na /app/data
+
+**Bez tohoto mountu každý deploy nenávratně smaže všechny nahrané soubory.**
+
+Dockerfile v obrazu maže `data/` a znovu vytváří prázdný `/app/data`. Co tam
+aplikace za běhu zapíše, žije jen v zapisovatelné vrstvě kontejneru — a tu
+deploy zahodí i s obsahem. Týká se to:
+
+| Cesta | Obsah | Odkaz v DB |
+|---|---|---|
+| `/app/data/media` | doklady účtenek a přijatých faktur, profilové fotky | `receipts.attachment_path`, `accounting_invoices.attachment_path`, `users.photo` |
+| `/app/data/pdfs` | archiv odeslaných faktur v PDF | `accounting_invoices.pdf_path` |
+
+Záznamy v databázi deploy přežijí, soubory ne — v systému pak zůstane doklad,
+který nejde otevřít. Proto se mountuje celý `/app/data`, ne jen `media`.
+
+Kontrola, že je volume opravdu připojený:
+
+```bash
+ssh root@89.221.219.220
+docker inspect <kontejner> --format '{{json .Mounts}}' | python3 -m json.tool
+```
+
+Aplikace to hlásí i sama — při startu porovná soubory na disku s tím, co
+eviduje databáze, a chybějící vypíše do logu (`[přílohy]`). Když chybí všechny,
+je to ERROR a znamená to přesně tohle.
 
 ---
 

@@ -46,16 +46,16 @@
                      r.status==='Storno'        ? '#f3f4f6:#6b7280' : '#fef9c3:#92400e';
           const [bg,cl] = sc.split(':');
         %>
-        <tr>
-          <td><input type="checkbox" class="bulk-cb" value="<%= r.id %>" onchange="bulkUpdate()"></td>
-          <td style="font-weight:600;"><%= r.number || '—' %></td>
+        <tr class="clickable-row" onclick="location.href='/ucetnictvi/uctenky/<%= r.id %>'">
+          <td onclick="event.stopPropagation();"><input type="checkbox" class="bulk-cb" value="<%= r.id %>" onchange="bulkUpdate()"></td>
+          <td style="font-weight:600;color:var(--primary);"><%= r.number || '—' %></td>
           <td><%= r.vendor || '—' %></td>
           <td style="color:var(--text-muted);font-size:13px;"><%= new Date(r.receipt_date).toLocaleDateString('cs-CZ') %></td>
           <td><span style="font-size:12px;color:var(--text-muted);"><%= r.category %></span></td>
           <td style="text-align:right;font-weight:600;"><%= Number(r.total_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= r.currency %></td>
-          <td>
+          <td onclick="event.stopPropagation();">
             <% if (r.attachment_path) { %>
-              <a href="/doklady/soubor/<%= r.attachment_path %>" class="rc-thumb"
+              <a href="/doklady/soubor/<%= r.attachment_path %>" class="doklad-thumb"
                  data-nahled
                  data-nahled-nazev="<%= r.attachment_path %>"
                  data-nahled-typ="<%= r.attachment_mime || '' %>"
@@ -69,7 +69,7 @@
               </a>
             <% } else { %>
               <form method="post" action="/ucetnictvi/uctenky/<%= r.id %>/priloha" enctype="multipart/form-data" style="display:inline;">
-                <label class="rc-thumb rc-thumb-empty" title="Dofotit / nahrát doklad">
+                <label class="doklad-thumb doklad-thumb-empty" title="Dofotit / nahrát doklad">
                   <input type="file" name="file" accept="application/pdf,image/*" style="display:none;" onchange="rcAttachSubmit(this)">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
                 </label>
@@ -77,16 +77,16 @@
             <% } %>
           </td>
           <td><span class="badge" style="background:<%= bg %>;color:<%= cl %>;"><%= r.status %></span></td>
-          <td>
+          <td onclick="event.stopPropagation();">
             <div style="display:flex;gap:6px;align-items:center;">
               <form method="post" action="/ucetnictvi/uctenky/<%= r.id %>/stav" style="display:inline;">
                 <select name="status" class="form-select" style="width:auto;padding:4px 8px;font-size:12px;" onchange="this.form.submit()">
                   <% STATUSES.forEach(s => { %><option value="<%= s %>" <%= r.status===s?'selected':'' %>><%= s %></option><% }) %>
                 </select>
               </form>
-              <button class="btn btn-ghost btn-sm" onclick="rcEditOpen(<%= JSON.stringify(r) %>)" title="Upravit">
+              <a href="/ucetnictvi/uctenky/<%= r.id %>" class="btn btn-ghost btn-sm" title="Otevřít detail">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              </button>
+              </a>
               <form method="post" action="/ucetnictvi/uctenky/<%= r.id %>/smazat" onsubmit="return confirm('Smazat tuto účtenku?')" style="display:inline;">
                 <button type="submit" class="btn btn-ghost btn-sm" title="Smazat" style="color:var(--danger);">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
@@ -313,17 +313,6 @@
 }
 .rc-manual-btn:hover { border-color: var(--border-strong); background: var(--bg-card-hover); }
 .rc-manual-btn svg { flex-shrink: 0; color: var(--text-muted); }
-.rc-thumb {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 40px; height: 40px; border-radius: var(--radius-sm);
-  border: 1px solid var(--border); background: var(--bg-page);
-  overflow: hidden; color: var(--text-muted); cursor: pointer;
-  transition: border-color 0.15s;
-}
-.rc-thumb:hover { border-color: var(--primary); color: var(--primary); }
-.rc-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.rc-thumb-empty { border-style: dashed; }
-.rc-thumb-busy { opacity: 0.5; pointer-events: none; }
 .rc-spinner {
   width: 40px; height: 40px; border: 3px solid var(--border);
   border-top-color: var(--primary); border-radius: 50%;
@@ -354,10 +343,9 @@
   let currentBlobUrl    = null;
   let currentFile       = null;   // připravený (zmenšený) soubor, který se uloží s účtenkou
   let currentPreview    = null;   // co ukázat v popupu — blob nově vybraného souboru i už uložený doklad
-  let editMode          = false;
 
   document.querySelectorAll('[data-modal-open="modalCreate"]').forEach(b =>
-    b.addEventListener('click', () => { editMode = false; rcOpen(); })
+    b.addEventListener('click', rcOpen)
   );
 
   window.rcOpen = function () {
@@ -522,51 +510,6 @@
     if (el && val != null && val !== '') el.value = val;
   }
 
-  // Editace existující záznamu
-  window.rcEditOpen = function (r) {
-    editMode = true;
-    backdrop.classList.add('open');
-    rcReset();
-    document.getElementById('rcModalTitle').textContent = 'Upravit účtenku';
-    document.getElementById('rcSubmitBtn').textContent  = 'Uložit změny';
-    form.action = `/ucetnictvi/uctenky/${r.id}/upravit`;
-
-    phUpload.style.display  = 'none';
-
-    // Už uložený doklad ukážeme vlevo; nový soubor ho po uložení nahradí
-    if (r.attachment_path) {
-      const url = '/doklady/soubor/' + r.attachment_path;
-      leftPlaceholder.style.display = 'none';
-      if ((r.attachment_mime || '').indexOf('image/') === 0) {
-        imgEmbed.style.display = ''; imgEmbed.src = url; embed.style.display = 'none';
-      } else {
-        embed.style.display = ''; embed.src = url; imgEmbed.style.display = 'none';
-      }
-      fileInfo.textContent = r.attachment_size ? window.dokladFoto.formatBytes(r.attachment_size) : '';
-      rcSetPreview({ url: url, name: r.attachment_path, mime: r.attachment_mime || '', size: r.attachment_size || 0 });
-    } else {
-      leftPlaceholder.style.display = 'flex';
-      embed.style.display = imgEmbed.style.display = 'none';
-    }
-
-    setVal('rcNumber',    r.number);
-    setVal('rcVendor',    r.vendor);
-    setVal('rcVendorIco', r.vendor_ico);
-    setVal('rcAmount',    String(r.amount));
-    setVal('rcVat',       String(r.vat_amount));
-    setVal('rcTotal',     String(r.total_amount));
-    setVal('rcDate',      r.receipt_date ? r.receipt_date.toString().split('T')[0] : '');
-    setVal('rcNotes',     r.notes);
-    if (r.currency) document.getElementById('rcCurrency').value = r.currency;
-    if (r.category) document.getElementById('rcCategory').value = r.category;
-    if (r.status)   document.getElementById('rcStatus').value   = r.status;
-
-    inner.classList.add('rc-expanded');
-    phForm.style.display = 'flex';
-    phForm.style.flex    = '1';
-    phForm.style.minHeight = '0';
-  };
-
   // ── Odeslání formuláře ──────────────────────────────────────
   // Nativní submit by soubor vybraný přes JS neodeslal, proto FormData + fetch.
   form.addEventListener('submit', async e => {
@@ -599,7 +542,7 @@
     const raw = input.files && input.files[0];
     if (!raw) return;
     const label = input.closest('label');
-    label?.classList.add('rc-thumb-busy');
+    label?.classList.add('doklad-thumb-busy');
 
     const res = await window.dokladFoto.prepare(raw);
     const fd = new FormData();
@@ -613,7 +556,7 @@
       }
       window.location.reload();
     } catch (err) {
-      label?.classList.remove('rc-thumb-busy');
+      label?.classList.remove('doklad-thumb-busy');
       input.value = '';
       alert('Doklad se nepodařilo uložit: ' + err.message);
     }

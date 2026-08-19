@@ -19,6 +19,14 @@
   var parts = {};
   var state = { url: '', name: '', zoom: false };
 
+  // V nainstalované PWA má aplikace vlastní úložiště cookies — odkaz otevřený
+  // v systémovém prohlížeči tam session nemá a skončí na přihlašovací stránce.
+  // Proto tam nabízíme jen náhled a stažení.
+  function isStandalone() {
+    return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+        || window.navigator.standalone === true;
+  }
+
   function build() {
     el = document.createElement('div');
     el.className = 'dn-backdrop';
@@ -127,6 +135,7 @@
     }
 
     parts.tab.href = url;
+    parts.tab.style.display = isStandalone() ? 'none' : '';
     // Chráněná routa umí vynutit stažení; u blob: URL stačí atribut download
     parts.download.href = url.indexOf('blob:') === 0
       ? url
@@ -146,7 +155,10 @@
     if (!document.querySelector('.modal-backdrop.open')) document.body.style.overflow = '';
   }
 
-  // Delegovaná obsluha — funguje i na dodatečně vykreslených prvcích
+  // Delegovaná obsluha — funguje i na dodatečně vykreslených prvcích.
+  // Ve fázi capture záměrně: v přehledech visí proklik na detail na celém
+  // řádku a buňky ho brzdí přes stopPropagation, takže do bublání by se klik
+  // na miniaturu nedostal a odkaz by místo náhledu otevřel soubor napřímo.
   document.addEventListener('click', function (e) {
     var trigger = e.target.closest('[data-nahled]');
     if (!trigger) return;
@@ -154,13 +166,14 @@
     if (!url) return;
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;   // ať jde otevřít i do panelu
     e.preventDefault();
+    e.stopPropagation();          // ať klik na miniaturu neodnaviguje na detail
     open({
       url: url,
       name: trigger.getAttribute('data-nahled-nazev') || '',
       mime: trigger.getAttribute('data-nahled-typ') || '',
       size: trigger.getAttribute('data-nahled-velikost') || 0,
     });
-  });
+  }, true);
 
   window.dokladNahled = { open: open, close: close };
 })();
