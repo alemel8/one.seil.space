@@ -20,7 +20,7 @@ const DASHBOARD = process.env.TRADE_DASHBOARD
 
 export default async function tradeRoutes(fastify) {
   fastify.get('/trade', async (request, reply) => {
-    if (!request.user) return reply.redirect('/prihlaseni');
+    if (!request.user) return reply.redirect('/prihlasit');
 
     try {
       const [html, info] = await Promise.all([
