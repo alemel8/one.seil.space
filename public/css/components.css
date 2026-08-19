@@ -633,6 +633,14 @@ table.data-table {
 .doklad-thumb-empty { border-style: dashed; }
 .doklad-thumb-busy { opacity: 0.5; pointer-events: none; }
 
+/* Záznam odkazuje na soubor, který na disku není — bez tohohle by se
+   uživateli ukázala jen rozbitá miniatura bez vysvětlení. */
+.doklad-thumb-missing {
+  border-style: dashed; border-color: var(--danger); color: var(--danger);
+  cursor: default; background: var(--danger-bg);
+}
+.doklad-thumb-missing:hover { border-color: var(--danger); color: var(--danger); }
+
 /* ── Náhled dokladu (popup) ────────────────────────────────── */
 /* Vlastní vrstva nad .modal-backdrop (z-index 300), aby šel doklad
    zvětšit i z formuláře účtenky, který sám běží v modalu. */

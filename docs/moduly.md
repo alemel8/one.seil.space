@@ -164,6 +164,12 @@ PDF se nepřepočítává (je to už komprimovaný formát) a projde do stropu u
 proto nepatří: chodí přes `GET /doklady/soubor/:filename`, kam se bez přihlášení
 nedostane. `?download=1` vynutí stažení místo náhledu.
 
+**Chybějící soubor.** `markMissingAttachments()` označí řádky, jejichž
+`attachment_path` na disku není, a šablony místo rozbité miniatury ukážou
+„Doklad chybí" s nabídkou nahrát ho znovu. Stane se to, když se `data/media`
+ztratí — záznam v DB deploy přežije, soubor bez persistent volume ne
+(viz `docs/nasazeni.md`).
+
 **Náhled.** `public/js/doklad-nahled.js` ukáže doklad v popupu nad stránkou —
 obrázek s přiblížením na 100 % (drobné písmo na paragonu je jinak nečitelné),
 PDF v iframu, plus stažení a otevření v novém panelu. Napojuje se deklarativně,

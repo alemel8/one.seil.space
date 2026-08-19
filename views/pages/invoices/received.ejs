@@ -62,7 +62,11 @@
           </td>
           <td style="text-align:right;font-weight:600;"><%= Number(inv.total_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= inv.currency %></td>
           <td onclick="event.stopPropagation();">
-            <% if (inv.attachment_path) { %>
+            <% if (inv.attachment_path && inv.attachment_missing) { %>
+              <span class="doklad-thumb doklad-thumb-missing" title="Doklad chybí — soubor <%= inv.attachment_path %> na serveru není. Nahrajte jej prosím znovu.">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              </span>
+            <% } else if (inv.attachment_path) { %>
               <a href="/doklady/soubor/<%= inv.attachment_path %>" class="doklad-thumb"
                  data-nahled
                  data-nahled-nazev="<%= inv.attachment_path %>"

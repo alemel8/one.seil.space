@@ -163,6 +163,24 @@ export async function deleteAttachment(filename) {
   await unlink(path.join(MEDIA_DIR, name)).catch(() => {});
 }
 
+// Chybí soubor, na který se záznam v DB odkazuje? Stane se to, když se
+// data/media ztratí (chybějící persistent volume) nebo někdo uklidí adresář —
+// v systému pak zůstane doklad, který nejde otevřít. Views to potřebují vědět,
+// aby místo rozbité miniatury ukázaly, že doklad chybí.
+export function attachmentMissing(filename) {
+  if (!filename) return false;
+  return !existsSync(path.join(MEDIA_DIR, path.basename(String(filename))));
+}
+
+// Označí řádky pro šablonu. Je to jeden stat na řádek nad lokálním adresářem,
+// takže na stránce s 25 doklady je to zanedbatelné.
+export function markMissingAttachments(rows) {
+  for (const row of rows) {
+    if (row && row.attachment_path) row.attachment_missing = attachmentMissing(row.attachment_path);
+  }
+  return rows;
+}
+
 // Ohlásí, kolik příloh evidovaných v DB chybí na disku. Typicky to znamená,
 // že data/media nepřežilo deploy — bez persistent volume žije v zapisovatelné
 // vrstvě kontejneru a každý build ho smaže. Bez téhle hlášky se na to přijde

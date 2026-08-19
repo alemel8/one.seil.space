@@ -1,6 +1,6 @@
 import { getDb } from '../db.js';
 import { buildPohodaXml } from '../pohoda.js';
-import { saveAttachment, deleteAttachment, isSupportedMime } from '../attachments.js';
+import { saveAttachment, deleteAttachment, isSupportedMime, markMissingAttachments } from '../attachments.js';
 import Anthropic from '@anthropic-ai/sdk';
 
 const STATUSES = ['Nezaúčtována', 'Zaúčtována', 'Storno'];
@@ -45,6 +45,7 @@ export default async function receiptsRoutes(fastify) {
 
     const [{ count }] = await sql`SELECT COUNT(*)::int AS count FROM receipts ${where}`;
     const receipts    = await sql`SELECT * FROM receipts ${where} ORDER BY receipt_date DESC, id DESC LIMIT ${perPage} OFFSET ${offset}`;
+    markMissingAttachments(receipts);
 
     const totalPages = Math.ceil(count / perPage);
     return reply.view('pages/receipts/list.ejs', {
@@ -63,6 +64,7 @@ export default async function receiptsRoutes(fastify) {
 
     const [receipt] = await sql`SELECT * FROM receipts WHERE id = ${id}`;
     if (!receipt) return reply.code(404).send('Účtenka nenalezena');
+    markMissingAttachments([receipt]);
 
     return reply.view('pages/receipts/detail.ejs', {
       pageTitle: `Účtenka ${receipt.number || '#' + receipt.id}`,

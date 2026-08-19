@@ -19,7 +19,7 @@
     </div>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
-    <% if (invoice.attachment_path) { %>
+    <% if (invoice.attachment_path && !invoice.attachment_missing) { %>
     <a href="/doklady/soubor/<%= invoice.attachment_path %>" class="btn btn-outline btn-sm"
        data-nahled
        data-nahled-nazev="<%= invoice.attachment_path %>"
@@ -134,7 +134,26 @@
     <div class="card">
       <div class="card-header"><strong>Příloha (PDF / foto faktury)</strong></div>
       <div class="card-body">
-        <% if (invoice.attachment_path) { %>
+        <% if (invoice.attachment_path && invoice.attachment_missing) { %>
+        <div style="background:var(--danger-bg);color:var(--danger);border:1px dashed var(--danger);border-radius:var(--radius-md);padding:14px;font-size:13px;margin-bottom:12px;">
+          <strong>Doklad chybí.</strong>
+          Záznam odkazuje na soubor <code><%= invoice.attachment_path %></code>, který na serveru není.
+          Nahrajte jej prosím znovu níže.
+        </div>
+        <form method="post" action="/ucetnictvi/prijate-faktury/<%= invoice.id %>/priloha" enctype="multipart/form-data">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <label style="cursor:pointer;">
+              <input type="file" name="file" accept="application/pdf,image/*" style="display:none;" onchange="prilohaSubmit(this)">
+              <span class="btn btn-outline btn-sm">Nahrát PDF / foto</span>
+            </label>
+            <label style="cursor:pointer;">
+              <input type="file" name="file" accept="image/*" capture="environment" style="display:none;" onchange="prilohaSubmit(this)">
+              <span class="btn btn-outline btn-sm">Vyfotit</span>
+            </label>
+            <span id="prilohaInfo" style="font-size:12px;color:var(--text-muted);"></span>
+          </div>
+        </form>
+        <% } else if (invoice.attachment_path) { %>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
           <a href="/doklady/soubor/<%= invoice.attachment_path %>"
              data-nahled

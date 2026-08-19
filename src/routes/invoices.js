@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { renderSeriesNumber, invoiceVs } from '../series-format.js';
-import { saveAttachment, deleteAttachment, isSupportedMime } from '../attachments.js';
+import { saveAttachment, deleteAttachment, isSupportedMime, markMissingAttachments } from '../attachments.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '../..');
@@ -778,6 +778,7 @@ export default async function invoicesRoutes(fastify) {
   fastify.get('/ucetnictvi/prijate-faktury/:id', async (request, reply) => {
     const [invoice] = await sql`SELECT * FROM accounting_invoices WHERE id = ${request.params.id} AND type = 'received'`;
     if (!invoice) return reply.code(404).send('Faktura nenalezena');
+    markMissingAttachments([invoice]);
     const [bankTx] = invoice.bank_transaction_id
       ? await sql`SELECT * FROM accounting_bank_transactions WHERE id = ${invoice.bank_transaction_id}`
       : [null];
@@ -832,6 +833,7 @@ export default async function invoicesRoutes(fastify) {
 
     const [{ count }] = await sql`SELECT COUNT(*)::int AS count FROM accounting_invoices ${where}`;
     const invoices    = await sql`SELECT * FROM accounting_invoices ${where} ORDER BY issue_date DESC LIMIT ${perPage} OFFSET ${offset}`;
+    markMissingAttachments(invoices);
 
     return reply.view('pages/invoices/received.ejs', {
       pageTitle: 'Přijaté faktury', currentPath: '/ucetnictvi/prijate-faktury',

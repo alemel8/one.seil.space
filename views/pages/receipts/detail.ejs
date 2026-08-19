@@ -4,7 +4,8 @@
   const fmt  = n => Number(n||0).toLocaleString('cs-CZ', { minimumFractionDigits: 2 });
   const den  = d => d ? new Date(d).toISOString().split('T')[0] : '';
   const isImage = (receipt.attachment_mime || '').startsWith('image/');
-  const fileUrl = receipt.attachment_path ? '/doklady/soubor/' + receipt.attachment_path : null;
+  const chybi   = receipt.attachment_path && receipt.attachment_missing;
+  const fileUrl = receipt.attachment_path && !chybi ? '/doklady/soubor/' + receipt.attachment_path : null;
 %>
 
 <div class="page-header">
@@ -65,6 +66,12 @@
             </div>
           <% } %>
         </a>
+      <% } else if (chybi) { %>
+        <div style="background:var(--danger-bg);color:var(--danger);border:1px dashed var(--danger);border-radius:var(--radius-md);padding:16px;font-size:13px;">
+          <strong>Doklad chybí.</strong>
+          Záznam odkazuje na soubor <code><%= receipt.attachment_path %></code>, který na serveru není.
+          Nahrajte jej prosím znovu.
+        </div>
       <% } else { %>
         <p style="color:var(--text-muted);font-size:13px;margin:0 0 12px;">K této účtence zatím není uložený žádný doklad.</p>
       <% } %>
