@@ -8,11 +8,11 @@ import { fileURLToPath } from 'node:url';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { renderSeriesNumber, invoiceVs } from '../series-format.js';
+import { saveAttachment, deleteAttachment, isSupportedMime } from '../attachments.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '../..');
 const PDFS_DIR   = path.join(projectRoot, 'data/pdfs');
-const MEDIA_DIR  = path.join(projectRoot, 'data/media');
 
 const STATUSES_ISSUED   = ['Nezaplacena', 'Zaplacena', 'Po splatnosti', 'Storno'];
 const STATUSES_RECEIVED = ['Nezaplacena', 'Zaplacena', 'Po splatnosti', 'Storno'];
@@ -844,21 +844,23 @@ export default async function invoicesRoutes(fastify) {
     const fields = {};
     let attachmentPath = null;
 
+    let attachmentMime = null;
+    let attachmentSize = null;
+
     const parts = request.parts();
     for await (const part of parts) {
       if (part.file) {
         const mime = part.mimetype || '';
-        if (mime === 'application/pdf' || mime.startsWith('image/')) {
-          const buf = await part.toBuffer();
-          if (buf.length > 0) {
-            if (!existsSync(MEDIA_DIR)) await import('node:fs/promises').then(fs => fs.mkdir(MEDIA_DIR, { recursive: true }));
-            const ext = mime === 'application/pdf' ? '.pdf' : (mime === 'image/png' ? '.png' : '.jpg');
-            const filename = `inv_recv_${Date.now()}${ext}`;
-            await writeFile(path.join(MEDIA_DIR, filename), buf);
-            attachmentPath = filename;
+        const buf  = await part.toBuffer();   // stream je nutné vždy dočíst
+        if (buf.length > 0 && isSupportedMime(mime)) {
+          try {
+            const saved = await saveAttachment(buf, mime, 'inv_recv', { log: fastify.log });
+            attachmentPath = saved.filename;
+            attachmentMime = saved.mime;
+            attachmentSize = saved.size;
+          } catch (err) {
+            return reply.code(400).send({ error: err.message });
           }
-        } else {
-          await part.toBuffer(); // consume
         }
       } else {
         fields[part.fieldname] = part.value ?? '';
@@ -877,7 +879,7 @@ export default async function invoicesRoutes(fastify) {
          supplier_address, supplier_city, supplier_zip, supplier_country,
          amount, vat_amount, total_amount, currency,
          status, issue_date, due_date, notes, account_debit, account_credit,
-         attachment_path)
+         attachment_path, attachment_mime, attachment_size)
       VALUES (
         ${newId}, 'received',
         ${b.number || ''}, ${(b.supplier||'').trim()},
@@ -893,7 +895,7 @@ export default async function invoicesRoutes(fastify) {
         ${b.due_date || null}, ${(b.notes||'').trim()},
         ${(b.account_debit  || '').trim()},
         ${(b.account_credit || '').trim()},
-        ${attachmentPath}
+        ${attachmentPath}, ${attachmentMime}, ${attachmentSize}
       )
     `;
     // Odpovídáme JSON (front-end přesměruje)
@@ -965,10 +967,7 @@ export default async function invoicesRoutes(fastify) {
     const mime = meta.mimeType || 'application/pdf';
     const d    = await extractInvoiceData(buf, mime, fastify.log);
 
-    if (!existsSync(MEDIA_DIR)) await import('node:fs/promises').then(fs => fs.mkdir(MEDIA_DIR, { recursive: true }));
-    const ext = mime === 'application/pdf' ? '.pdf' : (mime === 'image/png' ? '.png' : '.jpg');
-    const filename = `inv_recv_gd_${fileId}${ext}`;
-    await writeFile(path.join(MEDIA_DIR, filename), buf);
+    const saved = await saveAttachment(buf, mime, 'inv_recv_gd', { log: fastify.log });
 
     const amount      = parseFloat(d.amount     || 0);
     const vatAmount   = parseFloat(d.vat_amount || 0);
@@ -977,7 +976,8 @@ export default async function invoicesRoutes(fastify) {
     await sql`
       INSERT INTO accounting_invoices
         (id, type, number, supplier, supplier_ico, amount, vat_amount, total_amount,
-         currency, status, issue_date, due_date, notes, attachment_path, gdrive_file_id)
+         currency, status, issue_date, due_date, notes,
+         attachment_path, attachment_mime, attachment_size, gdrive_file_id)
       VALUES (
         ${generateId()}, 'received',
         ${String(d.number || meta.name || '').slice(0, 60)},
@@ -988,7 +988,7 @@ export default async function invoicesRoutes(fastify) {
         ${d.issue_date || new Date().toISOString().split('T')[0]},
         ${d.due_date || null},
         ${(d.notes || '').trim() || meta.name},
-        ${filename}, ${fileId}
+        ${saved.filename}, ${saved.mime}, ${saved.size}, ${fileId}
       )
     `;
     return 'imported';
@@ -1032,18 +1032,33 @@ export default async function invoicesRoutes(fastify) {
 
   // ── Upload přílohy k existující přijaté faktuře ───────────────
   fastify.post('/ucetnictvi/prijate-faktury/:id/priloha', async (request, reply) => {
-    if (!request.user) return reply.code(401).send('Unauthorized');
+    if (!request.user) return reply.code(401).send({ error: 'Unauthorized' });
+
     const data = await request.file();
-    if (!data) return reply.code(400).send('Žádný soubor');
+    if (!data) return reply.code(400).send({ error: 'Žádný soubor nebyl nahrán.' });
     const mime = data.mimetype || '';
-    if (mime !== 'application/pdf' && !mime.startsWith('image/')) return reply.code(400).send('Neplatný typ');
+    if (!isSupportedMime(mime)) return reply.code(400).send({ error: 'Podporujeme jen PDF nebo obrázek.' });
+
     const buf = await data.toBuffer();
-    if (!existsSync(MEDIA_DIR)) await import('node:fs/promises').then(fs => fs.mkdir(MEDIA_DIR, { recursive: true }));
-    const ext = mime === 'application/pdf' ? '.pdf' : (mime === 'image/png' ? '.png' : '.jpg');
-    const filename = `inv_recv_${request.params.id}${ext}`;
-    await writeFile(path.join(MEDIA_DIR, filename), buf);
-    await sql`UPDATE accounting_invoices SET attachment_path = ${filename}, modified_at = NOW() WHERE id = ${request.params.id}`;
-    return reply.redirect(`/ucetnictvi/prijate-faktury/${request.params.id}?saved=1`);
+    let saved;
+    try {
+      saved = await saveAttachment(buf, mime, 'inv_recv', { log: fastify.log });
+    } catch (err) {
+      fastify.log.warn({ err }, 'Uložení přílohy faktury selhalo');
+      return reply.code(400).send({ error: err.message });
+    }
+
+    const [prev] = await sql`SELECT attachment_path FROM accounting_invoices WHERE id = ${request.params.id}`;
+    await sql`
+      UPDATE accounting_invoices SET
+        attachment_path = ${saved.filename},
+        attachment_mime = ${saved.mime},
+        attachment_size = ${saved.size},
+        modified_at     = NOW()
+      WHERE id = ${request.params.id}
+    `;
+    if (prev?.attachment_path) await deleteAttachment(prev.attachment_path);
+    return reply.send({ id: request.params.id, attachment_path: saved.filename });
   });
 
   // ── Export CSV ────────────────────────────────────────────────

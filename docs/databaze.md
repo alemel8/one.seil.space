@@ -158,6 +158,9 @@ Vydané i přijaté faktury.
 | `shop_order_id` | TEXT → shop_orders | Propojení s objednávkou |
 | `account_debit`, `account_credit` | TEXT | Předkontace (MD/D) |
 | `pdf_path` | TEXT | Cesta k vygenerovanému PDF |
+| `attachment_path` | TEXT | Doklad přijaté faktury v `data/media/` (viz `src/attachments.js`) |
+| `attachment_mime` | TEXT | `image/jpeg`, `application/pdf`, … |
+| `attachment_size` | INT | Velikost v bajtech po zmenšení |
 | `notes` | TEXT | |
 | `created_at` | TIMESTAMPTZ | |
 
@@ -265,7 +268,9 @@ Bankovní pohyby.
 | `category` | TEXT | Kancelář, IT & Software, … |
 | `description` | TEXT | |
 | `account_debit`, `account_credit` | TEXT | Předkontace |
-| `file_path` | TEXT | Uložený soubor v `data/media/` |
+| `attachment_path` | TEXT | Foto / PDF dokladu v `data/media/` (viz `src/attachments.js`) |
+| `attachment_mime` | TEXT | `image/jpeg`, `application/pdf`, … |
+| `attachment_size` | INT | Velikost v bajtech po zmenšení |
 | `ai_raw` | JSONB | Surová odpověď z Claude API |
 | `bank_tx_id` | INT → accounting_bank_transactions | Spárovaná transakce |
 | `created_at` | TIMESTAMPTZ | |

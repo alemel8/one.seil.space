@@ -114,14 +114,49 @@ upomínka → předžalobní výzva) definuje `sendReminderEmail()` v `src/email
 | Route | Popis |
 |---|---|
 | `GET /ucetnictvi/uctenky` | Seznam účtenek |
-| `POST /ucetnictvi/uctenky/nahrat` | Upload a AI analýza (Claude) |
-| `GET /ucetnictvi/uctenky/:id` | Detail účtenky |
+| `POST /ucetnictvi/uctenky/analyze-pdf` | AI vytěžení z fotky nebo PDF (Claude) |
+| `POST /ucetnictvi/uctenky/vytvorit` | Vytvořit účtenku (multipart — veze i doklad) |
+| `POST /ucetnictvi/uctenky/:id/upravit` | Ruční úprava dat, volitelně výměna dokladu |
+| `POST /ucetnictvi/uctenky/:id/priloha` | Dofotit / nahradit doklad u existující účtenky |
 | `POST /ucetnictvi/uctenky/:id/stav` | Změnit stav (Nezaúčtována/Zaúčtována/Storno) |
-| `POST /ucetnictvi/uctenky/:id/upravit` | Ruční úprava dat |
+| `POST /ucetnictvi/uctenky/:id/smazat` | Smazat účtenku i její doklad |
+| `POST /ucetnictvi/uctenky/pohoda-xml` | POHODA XML (agenda Pokladna) |
+| `GET /ucetnictvi/uctenky/export.csv` | CSV export |
 
 AI analýza extrahuje z obrázku/PDF: prodejce, datum, celkovou částku, DPH, kategorii.
 
 Kategorie: Kancelář, Cestovné, Stravné, IT & Software, Marketing, Provoz, Ostatní.
+
+---
+
+## Doklady k účtenkám a fakturám (`src/attachments.js`, `src/routes/documents.js`)
+
+Vytěžený soubor se archivuje, ne zahazuje — účetní ho při kontrole potřebuje
+vidět. Ukládá se do `data/media/` a v DB drží název + typ + velikost
+(`attachment_path`, `attachment_mime`, `attachment_size`).
+
+**Zmenšování.** Fotka z mobilu má 4–12 MB, archivovat ji v plné velikosti nemá
+smysl. Zmenšuje se dvakrát:
+
+1. **v prohlížeči** (`public/js/doklad-foto.js`) — přes canvas, ještě před
+   nahráním, takže se velký soubor vůbec neposílá po síti a Claude vytěžuje
+   stejný odlehčený obrázek, který se pak uloží,
+2. **na serveru** (`src/attachments.js`) — pojistka pro soubory, které přijdou
+   odjinud (import z Google Disku, API, prohlížeč bez canvasu). Používá `sharp`,
+   který je nepovinný: když v runtime chybí, soubor se uloží tak, jak přišel.
+
+Obě vrstvy jedou stejný žebřík (2400 px @ q78 → 1400 px @ q50) a končí, jakmile
+se obrázek vejde pod 5 MB. Delší strana neklesne pod 1400 px, aby zůstalo
+čitelné drobné písmo na paragonu. Server navíc srovná fotku podle EXIF orientace
+a odstraní metadata. Malý PNG/WebP sken pod 1,5 MB se nepřekóduje — převod do
+JPEGu by u drobného písma jen přidal artefakty.
+
+PDF se nepřepočítává (je to už komprimovaný formát) a projde do stropu uploadu
+20 MB — vícestránkový sken od účetní přes 5 MB radši uložíme, než odmítneme.
+
+**Servírování.** `/media/` je veřejné (profilové fotky), účtenky a faktury tam
+proto nepatří: chodí přes `GET /doklady/soubor/:filename`, kam se bez přihlášení
+nedostane. `?download=1` vynutí stažení místo náhledu.
 
 ---
 

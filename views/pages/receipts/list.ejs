@@ -35,7 +35,7 @@
       <tr>
         <th style="width:36px;"><input type="checkbox" id="bulkSelectAll" onchange="bulkToggleAll(this.checked)" title="Vybrat vše"></th>
         <th>Číslo</th><th>Dodavatel</th><th>Datum</th><th>Kategorie</th>
-        <th style="text-align:right;">Celkem</th><th>Stav</th><th></th>
+        <th style="text-align:right;">Celkem</th><th>Doklad</th><th>Stav</th><th></th>
       </tr>
     </thead>
     <tbody>
@@ -53,6 +53,24 @@
           <td style="color:var(--text-muted);font-size:13px;"><%= new Date(r.receipt_date).toLocaleDateString('cs-CZ') %></td>
           <td><span style="font-size:12px;color:var(--text-muted);"><%= r.category %></span></td>
           <td style="text-align:right;font-weight:600;"><%= Number(r.total_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= r.currency %></td>
+          <td>
+            <% if (r.attachment_path) { %>
+              <a href="/doklady/soubor/<%= r.attachment_path %>" target="_blank" class="rc-thumb" title="Otevřít doklad<%= r.attachment_size ? ' ('+Math.round(r.attachment_size/1024)+' kB)' : '' %>">
+                <% if ((r.attachment_mime || '').startsWith('image/')) { %>
+                  <img src="/doklady/soubor/<%= r.attachment_path %>" alt="Doklad" loading="lazy">
+                <% } else { %>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <% } %>
+              </a>
+            <% } else { %>
+              <form method="post" action="/ucetnictvi/uctenky/<%= r.id %>/priloha" enctype="multipart/form-data" style="display:inline;">
+                <label class="rc-thumb rc-thumb-empty" title="Dofotit / nahrát doklad">
+                  <input type="file" name="file" accept="application/pdf,image/*" style="display:none;" onchange="rcAttachSubmit(this)">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                </label>
+              </form>
+            <% } %>
+          </td>
           <td><span class="badge" style="background:<%= bg %>;color:<%= cl %>;"><%= r.status %></span></td>
           <td>
             <div style="display:flex;gap:6px;align-items:center;">
@@ -74,7 +92,7 @@
         </tr>
         <% }) %>
       <% } else { %>
-        <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);">Žádné účtenky</td></tr>
+        <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-muted);">Žádné účtenky</td></tr>
       <% } %>
     </tbody>
   </table>
@@ -91,7 +109,9 @@
 
 <!-- ── Modal: Nová účtenka ── -->
 <input type="file" id="rcFileInput" accept="application/pdf,image/*" style="display:none">
+<input type="file" id="rcFileInputCamera" accept="image/*" capture="environment" style="display:none">
 <input type="file" id="rcFileInputManual" accept="application/pdf,image/*" style="display:none">
+<input type="file" id="rcFileInputManualCam" accept="image/*" capture="environment" style="display:none">
 
 <div id="modalCreate" class="modal-backdrop" onclick="if(event.target===this)rcClose()">
   <div class="modal rc-modal" id="rcModalInner">
@@ -113,6 +133,16 @@
         </svg>
         <p style="margin:10px 0 3px;font-weight:600;color:var(--text-primary);font-size:14px;">Nahrát PDF / foto a vytěžit automaticky</p>
         <p style="margin:0;font-size:12px;color:var(--text-muted);">Přetáhněte soubor nebo klikněte — Claude vyplní pole za vás</p>
+      </label>
+      <label for="rcFileInputCamera" class="rc-manual-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+          <circle cx="12" cy="13" r="4"/>
+        </svg>
+        <div>
+          <div style="font-weight:600;font-size:14px;color:var(--text-primary);">Vyfotit účtenku</div>
+          <div style="font-size:12px;color:var(--text-muted);">Otevře fotoaparát — foto se zmenší a uloží k dokladu</div>
+        </div>
       </label>
       <button type="button" class="rc-manual-btn" onclick="rcOpenManual()">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -138,8 +168,15 @@
 
         <!-- Levá: náhled -->
         <div style="flex:1;border-right:1px solid var(--border);background:var(--bg-page);display:flex;flex-direction:column;min-width:0;">
-          <div style="padding:10px 14px;font-size:11px;font-weight:600;color:var(--text-muted);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:0.5px;">
-            Náhled dokladu
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border);">
+            <span style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">Náhled dokladu</span>
+            <span style="display:flex;align-items:center;gap:8px;">
+              <span id="rcFileInfo" style="font-size:11px;color:var(--text-muted);"></span>
+              <label for="rcFileInputManual" class="btn btn-ghost btn-sm" style="cursor:pointer;padding:2px 8px;font-size:11px;">Nahradit</label>
+              <label for="rcFileInputManualCam" class="btn btn-ghost btn-sm" title="Vyfotit znovu" style="cursor:pointer;padding:2px 8px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              </label>
+            </span>
           </div>
           <div id="rcLeftPlaceholder" style="display:none;flex:1;align-items:center;justify-content:center;">
             <label for="rcFileInputManual" class="rc-drop-zone rc-drop-zone-sm">
@@ -148,8 +185,8 @@
                 <polyline points="14 2 14 8 20 8"/>
                 <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
               </svg>
-              <p style="margin:8px 0 2px;font-weight:600;font-size:13px;color:var(--text-primary);">Přidat PDF / foto pro náhled</p>
-              <p style="margin:0;font-size:12px;color:var(--text-muted);">Volitelné</p>
+              <p style="margin:8px 0 2px;font-weight:600;font-size:13px;color:var(--text-primary);">Přidat PDF / foto dokladu</p>
+              <p style="margin:0;font-size:12px;color:var(--text-muted);">Uloží se k účtence</p>
             </label>
           </div>
           <embed id="rcPdfEmbed" src="" type="application/pdf" style="display:none;flex:1;width:100%;border:none;">
@@ -270,6 +307,17 @@
 }
 .rc-manual-btn:hover { border-color: var(--border-strong); background: var(--bg-card-hover); }
 .rc-manual-btn svg { flex-shrink: 0; color: var(--text-muted); }
+.rc-thumb {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--bg-page);
+  overflow: hidden; color: var(--text-muted); cursor: pointer;
+  transition: border-color 0.15s;
+}
+.rc-thumb:hover { border-color: var(--primary); color: var(--primary); }
+.rc-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.rc-thumb-empty { border-style: dashed; }
+.rc-thumb-busy { opacity: 0.5; pointer-events: none; }
 .rc-spinner {
   width: 40px; height: 40px; border: 3px solid var(--border);
   border-top-color: var(--primary); border-radius: 50%;
@@ -286,7 +334,10 @@
   const phLoading       = document.getElementById('rcPhaseLoading');
   const phForm          = document.getElementById('rcPhaseForm');
   const fileInputAi     = document.getElementById('rcFileInput');
+  const fileInputCamera = document.getElementById('rcFileInputCamera');
   const fileInputManual = document.getElementById('rcFileInputManual');
+  const fileInputManCam = document.getElementById('rcFileInputManualCam');
+  const fileInfo        = document.getElementById('rcFileInfo');
   const dropZone        = document.getElementById('rcDropZone');
   const embed           = document.getElementById('rcPdfEmbed');
   const imgEmbed        = document.getElementById('rcImgEmbed');
@@ -294,6 +345,7 @@
   const aiBadge         = document.getElementById('rcAiBadge');
   const form            = document.getElementById('rcForm');
   let currentBlobUrl    = null;
+  let currentFile       = null;   // připravený (zmenšený) soubor, který se uloží s účtenkou
   let editMode          = false;
 
   document.querySelectorAll('[data-modal-open="modalCreate"]').forEach(b =>
@@ -307,6 +359,7 @@
   window.rcClose = function () {
     backdrop.classList.remove('open');
     if (currentBlobUrl) { URL.revokeObjectURL(currentBlobUrl); currentBlobUrl = null; }
+    currentFile = null;
   };
 
   function rcReset() {
@@ -314,7 +367,11 @@
     phUpload.style.display  = '';
     phLoading.style.display = 'none';
     phForm.style.display    = 'none';
-    fileInputAi.value = fileInputManual.value = '';
+    fileInputAi.value = fileInputManual.value = fileInputCamera.value = fileInputManCam.value = '';
+    currentFile = null;
+    fileInfo.textContent = '';
+    embed.style.display = imgEmbed.style.display = 'none';
+    embed.src = ''; imgEmbed.src = '';
     aiBadge.style.display = 'none';
     form.reset();
     form.action = '/ucetnictvi/uctenky/vytvorit';
@@ -323,9 +380,12 @@
     document.getElementById('rcDate').value = new Date().toISOString().split('T')[0];
   }
 
-  // AI upload
+  // AI upload (nahraný soubor i foto z fotoaparátu)
   fileInputAi.addEventListener('change', () => {
     if (fileInputAi.files[0]) handleAiFile(fileInputAi.files[0]);
+  });
+  fileInputCamera.addEventListener('change', () => {
+    if (fileInputCamera.files[0]) handleAiFile(fileInputCamera.files[0]);
   });
   dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('rc-over'); });
   dropZone.addEventListener('dragleave', () => dropZone.classList.remove('rc-over'));
@@ -335,11 +395,25 @@
     if (f) handleAiFile(f);
   });
 
-  async function handleAiFile(file) {
-    if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
-    currentBlobUrl = URL.createObjectURL(file);
+  // Zmenší fotku ještě v prohlížeči — na vytěžení i do archivu jde stejný,
+  // už odlehčený soubor, takže se velké foto z mobilu nahrává jen jednou.
+  async function prepareFile(file) {
+    const res = await window.dokladFoto.prepare(file);
+    currentFile = res.file;
+    fileInfo.textContent = res.changed
+      ? res.note
+      : window.dokladFoto.formatBytes(res.finalBytes);
+    return res.file;
+  }
+
+  async function handleAiFile(rawFile) {
     phUpload.style.display = 'none';
     phLoading.style.display = '';
+
+    const file = await prepareFile(rawFile);
+    if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
+    currentBlobUrl = URL.createObjectURL(file);
+
     try {
       const fd = new FormData();
       fd.append('file', file, file.name);
@@ -360,8 +434,12 @@
   fileInputManual.addEventListener('change', () => {
     if (fileInputManual.files[0]) showPreview(fileInputManual.files[0]);
   });
+  fileInputManCam.addEventListener('change', () => {
+    if (fileInputManCam.files[0]) showPreview(fileInputManCam.files[0]);
+  });
 
-  function showPreview(file) {
+  async function showPreview(rawFile) {
+    const file = await prepareFile(rawFile);
     if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
     currentBlobUrl = URL.createObjectURL(file);
     leftPlaceholder.style.display = 'none';
@@ -431,8 +509,21 @@
     form.action = `/ucetnictvi/uctenky/${r.id}/upravit`;
 
     phUpload.style.display  = 'none';
-    leftPlaceholder.style.display = 'flex';
-    embed.style.display = imgEmbed.style.display = 'none';
+
+    // Už uložený doklad ukážeme vlevo; nový soubor ho po uložení nahradí
+    if (r.attachment_path) {
+      const url = '/doklady/soubor/' + r.attachment_path;
+      leftPlaceholder.style.display = 'none';
+      if ((r.attachment_mime || '').indexOf('image/') === 0) {
+        imgEmbed.style.display = ''; imgEmbed.src = url; embed.style.display = 'none';
+      } else {
+        embed.style.display = ''; embed.src = url; imgEmbed.style.display = 'none';
+      }
+      fileInfo.textContent = r.attachment_size ? window.dokladFoto.formatBytes(r.attachment_size) : '';
+    } else {
+      leftPlaceholder.style.display = 'flex';
+      embed.style.display = imgEmbed.style.display = 'none';
+    }
 
     setVal('rcNumber',    r.number);
     setVal('rcVendor',    r.vendor);
@@ -450,6 +541,58 @@
     phForm.style.display = 'flex';
     phForm.style.flex    = '1';
     phForm.style.minHeight = '0';
+  };
+
+  // ── Odeslání formuláře ──────────────────────────────────────
+  // Nativní submit by soubor vybraný přes JS neodeslal, proto FormData + fetch.
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = document.getElementById('rcSubmitBtn');
+    const label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Ukládám…';
+
+    const fd = new FormData(form);
+    if (currentFile) fd.append('attachment', currentFile, currentFile.name);
+
+    try {
+      const resp = await fetch(form.action, { method: 'POST', body: fd });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.error || 'Chyba serveru (' + resp.status + ')');
+      }
+      window.location.href = '/ucetnictvi/uctenky';
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = label;
+      aiBadge.style.cssText = 'display:block;background:var(--danger-bg);color:var(--danger);border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;font-weight:600;';
+      aiBadge.textContent = '⚠ ' + err.message;
+    }
+  });
+
+  // Dofocení dokladu přímo v seznamu — zmenšíme a pošleme bez opuštění stránky
+  window.rcAttachSubmit = async function (input) {
+    const raw = input.files && input.files[0];
+    if (!raw) return;
+    const label = input.closest('label');
+    label?.classList.add('rc-thumb-busy');
+
+    const res = await window.dokladFoto.prepare(raw);
+    const fd = new FormData();
+    fd.append('file', res.file, res.file.name);
+
+    try {
+      const resp = await fetch(input.form.action, { method: 'POST', body: fd });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.error || 'Chyba serveru (' + resp.status + ')');
+      }
+      window.location.reload();
+    } catch (err) {
+      label?.classList.remove('rc-thumb-busy');
+      input.value = '';
+      alert('Doklad se nepodařilo uložit: ' + err.message);
+    }
   };
 
   // Předkontace autocomplete

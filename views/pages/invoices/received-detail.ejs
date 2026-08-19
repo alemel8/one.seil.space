@@ -20,7 +20,7 @@
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
     <% if (invoice.attachment_path) { %>
-    <a href="/media/<%= invoice.attachment_path %>" target="_blank" class="btn btn-outline btn-sm">📄 Otevřít přílohu</a>
+    <a href="/doklady/soubor/<%= invoice.attachment_path %>" target="_blank" class="btn btn-outline btn-sm">📄 Otevřít přílohu</a>
     <% } %>
     <button class="btn btn-outline" data-modal-open="modalEdit">✏️ Upravit</button>
     <button class="btn btn-outline" data-modal-open="modalStatus">🔄 Stav</button>
@@ -131,24 +131,49 @@
       <div class="card-header"><strong>Příloha (PDF / foto faktury)</strong></div>
       <div class="card-body">
         <% if (invoice.attachment_path) { %>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-          <div style="display:flex;align-items:center;gap:10px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+          <a href="/doklady/soubor/<%= invoice.attachment_path %>" target="_blank" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit;">
+            <% if ((invoice.attachment_mime || '').startsWith('image/')) { %>
+            <img src="/doklady/soubor/<%= invoice.attachment_path %>" alt="Náhled faktury" loading="lazy"
+                 style="width:56px;height:56px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border);">
+            <% } else { %>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            <a href="/media/<%= invoice.attachment_path %>" target="_blank" style="color:var(--primary);font-weight:500;text-decoration:none;"><%= invoice.attachment_path %></a>
+            <% } %>
+            <span>
+              <span style="display:block;color:var(--primary);font-weight:500;"><%= invoice.attachment_path %></span>
+              <% if (invoice.attachment_size) { %>
+              <span style="display:block;font-size:12px;color:var(--text-muted);"><%= Math.round(invoice.attachment_size/1024) %> kB</span>
+              <% } %>
+            </span>
+          </a>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <a href="/doklady/soubor/<%= invoice.attachment_path %>" target="_blank" class="btn btn-outline btn-sm">Otevřít</a>
+            <form method="post" action="/ucetnictvi/prijate-faktury/<%= invoice.id %>/priloha" enctype="multipart/form-data" style="display:inline;">
+              <label style="cursor:pointer;">
+                <input type="file" name="file" accept="application/pdf,image/*" style="display:none;" onchange="prilohaSubmit(this)">
+                <span class="btn btn-ghost btn-sm">Nahradit</span>
+              </label>
+            </form>
           </div>
-          <a href="/media/<%= invoice.attachment_path %>" target="_blank" class="btn btn-outline btn-sm">Otevřít</a>
         </div>
         <% } else { %>
         <form method="post" action="/ucetnictvi/prijate-faktury/<%= invoice.id %>/priloha" enctype="multipart/form-data">
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
             <label style="cursor:pointer;">
-              <input type="file" name="file" accept="application/pdf,image/*" style="display:none;" onchange="this.form.submit()">
+              <input type="file" name="file" accept="application/pdf,image/*" style="display:none;" onchange="prilohaSubmit(this)">
               <span class="btn btn-outline btn-sm">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                 Nahrát PDF / foto
               </span>
             </label>
-            <span style="font-size:12px;color:var(--text-muted);">Žádná příloha</span>
+            <label style="cursor:pointer;">
+              <input type="file" name="file" accept="image/*" capture="environment" style="display:none;" onchange="prilohaSubmit(this)">
+              <span class="btn btn-outline btn-sm">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                Vyfotit
+              </span>
+            </label>
+            <span id="prilohaInfo" style="font-size:12px;color:var(--text-muted);">Žádná příloha</span>
           </div>
         </form>
         <% } %>
@@ -364,4 +389,29 @@
 document.querySelectorAll('[data-modal-open]').forEach(b =>
   b.addEventListener('click', () => document.getElementById(b.dataset.modalOpen)?.classList.add('open'))
 );
+
+// Přílohu zmenšíme ještě v prohlížeči, ať se z mobilu nenahrává foto v plné velikosti
+window.prilohaSubmit = async function (input) {
+  const raw = input.files && input.files[0];
+  if (!raw) return;
+  const info = document.getElementById('prilohaInfo');
+  if (info) info.textContent = 'Ukládám…';
+
+  const res = await window.dokladFoto.prepare(raw);
+  const fd = new FormData();
+  fd.append('file', res.file, res.file.name);
+
+  try {
+    const resp = await fetch(input.form.action, { method: 'POST', body: fd });
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      throw new Error(data.error || 'Chyba serveru (' + resp.status + ')');
+    }
+    window.location.reload();
+  } catch (err) {
+    input.value = '';
+    if (info) info.textContent = 'Nepodařilo se uložit: ' + err.message;
+    else alert('Přílohu se nepodařilo uložit: ' + err.message);
+  }
+};
 </script>

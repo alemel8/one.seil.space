@@ -1,5 +1,6 @@
 import { getDb } from '../db.js';
 import { buildPohodaXml } from '../pohoda.js';
+import { saveAttachment, deleteAttachment, isSupportedMime } from '../attachments.js';
 import Anthropic from '@anthropic-ai/sdk';
 
 const STATUSES = ['Nezaúčtována', 'Zaúčtována', 'Storno'];
@@ -7,6 +8,27 @@ const CATEGORIES = ['Kancelář', 'Cestovné', 'Stravné', 'IT & Software', 'Mar
 
 export default async function receiptsRoutes(fastify) {
   const sql = getDb();
+
+  // Formulář účtenky chodí jako multipart — kromě polí veze i foto dokladu.
+  // Prohlížeč ho posílá i bez souboru, proto je příloha vždy nepovinná.
+  async function parseReceiptForm(request) {
+    const fields = {};
+    let attachment = null;
+
+    // Fallback pro klasický urlencoded submit (vypnutý JS, starý prohlížeč)
+    if (!request.isMultipart()) return { fields: request.body || {}, attachment: null };
+
+    for await (const part of request.parts()) {
+      if (!part.file) { fields[part.fieldname] = part.value ?? ''; continue; }
+
+      const mime = part.mimetype || '';
+      const buf  = await part.toBuffer();
+      if (buf.length === 0 || !isSupportedMime(mime)) continue;
+      attachment = await saveAttachment(buf, mime, 'uctenka', { log: fastify.log });
+    }
+
+    return { fields, attachment };
+  }
 
   // ── Seznam účtenek ────────────────────────────────────────────
   fastify.get('/ucetnictvi/uctenky', async (request, reply) => {
@@ -87,15 +109,24 @@ export default async function receiptsRoutes(fastify) {
 
   // ── Vytvořit účtenku ─────────────────────────────────────────
   fastify.post('/ucetnictvi/uctenky/vytvorit', async (request, reply) => {
-    const b = request.body || {};
+    let form;
+    try {
+      form = await parseReceiptForm(request);
+    } catch (err) {
+      return reply.code(400).send({ error: err.message });
+    }
+
+    const b = form.fields;
+    const a = form.attachment;
     const amount      = parseFloat(b.amount      || 0);
     const vatAmount   = parseFloat(b.vat_amount  || 0);
     const totalAmount = b.total_amount ? parseFloat(b.total_amount) : (amount + vatAmount);
 
-    await sql`
+    const [row] = await sql`
       INSERT INTO receipts (number, vendor, vendor_ico, amount, vat_amount, total_amount,
                             currency, receipt_date, category, notes, status,
-                            account_debit, account_credit)
+                            account_debit, account_credit,
+                            attachment_path, attachment_mime, attachment_size)
       VALUES (
         ${(b.number   || '').trim() || null},
         ${(b.vendor   || '').trim()},
@@ -107,21 +138,44 @@ export default async function receiptsRoutes(fastify) {
         ${(b.notes || '').trim() || null},
         ${b.status || 'Nezaúčtována'},
         ${(b.account_debit  || '').trim()},
-        ${(b.account_credit || '').trim()}
+        ${(b.account_credit || '').trim()},
+        ${a?.filename ?? null}, ${a?.mime ?? null}, ${a?.size ?? null}
       )
+      RETURNING id
     `;
-    return reply.redirect('/ucetnictvi/uctenky');
+    return reply.code(201).send({ id: row.id });
   });
 
   // ── Upravit účtenku ──────────────────────────────────────────
   fastify.post('/ucetnictvi/uctenky/:id/upravit', async (request, reply) => {
-    const b = request.body || {};
+    let form;
+    try {
+      form = await parseReceiptForm(request);
+    } catch (err) {
+      return reply.code(400).send({ error: err.message });
+    }
+
+    const b = form.fields;
     const amount      = parseFloat(b.amount      || 0);
     const vatAmount   = parseFloat(b.vat_amount  || 0);
     const totalAmount = b.total_amount ? parseFloat(b.total_amount) : (amount + vatAmount);
 
+    // Přílohu přepisujeme jen když nějaká přišla — jinak zůstává původní.
+    // Starý soubor mažeme až po úspěšném zápisu, ať o doklad nepřijdeme.
+    let replaced = null;
+    let attachmentSet = sql``;
+    if (form.attachment) {
+      const [prev] = await sql`SELECT attachment_path FROM receipts WHERE id = ${request.params.id}`;
+      replaced = prev?.attachment_path || null;
+      attachmentSet = sql`
+        attachment_path = ${form.attachment.filename},
+        attachment_mime = ${form.attachment.mime},
+        attachment_size = ${form.attachment.size},`;
+    }
+
     await sql`
       UPDATE receipts SET
+        ${attachmentSet}
         number         = ${(b.number || '').trim() || null},
         vendor         = ${(b.vendor || '').trim()},
         vendor_ico     = ${(b.vendor_ico || '').trim() || null},
@@ -138,12 +192,46 @@ export default async function receiptsRoutes(fastify) {
         updated_at     = NOW()
       WHERE id = ${request.params.id}
     `;
-    return reply.redirect('/ucetnictvi/uctenky');
+
+    if (replaced) await deleteAttachment(replaced);
+    return reply.code(200).send({ id: Number(request.params.id) });
+  });
+
+  // ── Příloha k existující účtence (dofocení dokladu) ──────────
+  fastify.post('/ucetnictvi/uctenky/:id/priloha', async (request, reply) => {
+    const data = await request.file();
+    if (!data) return reply.code(400).send({ error: 'Žádný soubor nebyl nahrán.' });
+
+    const mime = data.mimetype || '';
+    if (!isSupportedMime(mime)) return reply.code(400).send({ error: 'Podporujeme jen PDF nebo obrázek.' });
+
+    const buf = await data.toBuffer();
+    let saved;
+    try {
+      saved = await saveAttachment(buf, mime, `uctenka${request.params.id}`, { log: fastify.log });
+    } catch (err) {
+      fastify.log.warn({ err }, 'Uložení přílohy účtenky selhalo');
+      return reply.code(400).send({ error: err.message });
+    }
+
+    const [prev] = await sql`SELECT attachment_path FROM receipts WHERE id = ${request.params.id}`;
+    await sql`
+      UPDATE receipts SET
+        attachment_path = ${saved.filename},
+        attachment_mime = ${saved.mime},
+        attachment_size = ${saved.size},
+        updated_at      = NOW()
+      WHERE id = ${request.params.id}
+    `;
+    if (prev?.attachment_path) await deleteAttachment(prev.attachment_path);
+    return reply.send({ id: Number(request.params.id), attachment_path: saved.filename });
   });
 
   // ── Smazat účtenku ───────────────────────────────────────────
   fastify.post('/ucetnictvi/uctenky/:id/smazat', async (request, reply) => {
+    const [prev] = await sql`SELECT attachment_path FROM receipts WHERE id = ${request.params.id}`;
     await sql`DELETE FROM receipts WHERE id = ${request.params.id}`;
+    if (prev?.attachment_path) await deleteAttachment(prev.attachment_path);
     return reply.redirect('/ucetnictvi/uctenky');
   });
 
