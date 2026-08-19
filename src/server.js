@@ -154,6 +154,7 @@ const { default: settingsRoutes }   = await import('./routes/settings.js');
 const { default: monitoringRoutes } = await import('./routes/monitoring.js');
 const { default: pushRoutes }       = await import('./routes/push.js');
 const { default: userSettingsRoutes } = await import('./routes/user-settings.js');
+const { default: tradeRoutes }      = await import('./routes/trade.js');
 
 await fastify.register(apiRoutes);
 await fastify.register(dashboardRoutes);
@@ -169,6 +170,7 @@ await fastify.register(settingsRoutes);
 await fastify.register(monitoringRoutes);
 await fastify.register(pushRoutes);
 await fastify.register(userSettingsRoutes);
+await fastify.register(tradeRoutes);
 
 // ── Error handlers ────────────────────────────────────────────
 
