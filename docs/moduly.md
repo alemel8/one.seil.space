@@ -158,6 +158,25 @@ PDF se nepřepočítává (je to už komprimovaný formát) a projde do stropu u
 proto nepatří: chodí přes `GET /doklady/soubor/:filename`, kam se bez přihlášení
 nedostane. `?download=1` vynutí stažení místo náhledu.
 
+**Náhled.** `public/js/doklad-nahled.js` ukáže doklad v popupu nad stránkou —
+obrázek s přiblížením na 100 % (drobné písmo na paragonu je jinak nečitelné),
+PDF v iframu, plus stažení a otevření v novém panelu. Napojuje se deklarativně,
+obsluha je delegovaná, takže funguje i na dodatečně vykreslených řádcích:
+
+```html
+<a href="/doklady/soubor/x.jpg" data-nahled
+   data-nahled-nazev="x.jpg" data-nahled-typ="image/jpeg" data-nahled-velikost="384000">…</a>
+```
+
+Ctrl/Cmd+klik nechá odkaz projít do nového panelu. Z kódu jde popup otevřít i
+ručně přes `dokladNahled.open({ url, name, mime, size })` — tak se ukazuje
+i doklad, který ještě není nahraný (blob URL právě vybraného souboru).
+
+Popup má vlastní vrstvu nad `.modal-backdrop`, aby šel doklad zvětšit
+i z formuláře účtenky, který sám běží v modalu. Escape zachytává ve fázi
+capture — bez toho by obsluha modalů v `app.js` zavřela i rozepsaný formulář
+pod náhledem.
+
 ---
 
 ## CRM (`src/routes/crm.js`)

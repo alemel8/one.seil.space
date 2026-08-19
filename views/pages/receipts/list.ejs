@@ -55,7 +55,12 @@
           <td style="text-align:right;font-weight:600;"><%= Number(r.total_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= r.currency %></td>
           <td>
             <% if (r.attachment_path) { %>
-              <a href="/doklady/soubor/<%= r.attachment_path %>" target="_blank" class="rc-thumb" title="Otevřít doklad<%= r.attachment_size ? ' ('+Math.round(r.attachment_size/1024)+' kB)' : '' %>">
+              <a href="/doklady/soubor/<%= r.attachment_path %>" class="rc-thumb"
+                 data-nahled
+                 data-nahled-nazev="<%= r.attachment_path %>"
+                 data-nahled-typ="<%= r.attachment_mime || '' %>"
+                 data-nahled-velikost="<%= r.attachment_size || 0 %>"
+                 title="Zobrazit doklad<%= r.attachment_size ? ' ('+Math.round(r.attachment_size/1024)+' kB)' : '' %>">
                 <% if ((r.attachment_mime || '').startsWith('image/')) { %>
                   <img src="/doklady/soubor/<%= r.attachment_path %>" alt="Doklad" loading="lazy">
                 <% } else { %>
@@ -172,6 +177,7 @@
             <span style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">Náhled dokladu</span>
             <span style="display:flex;align-items:center;gap:8px;">
               <span id="rcFileInfo" style="font-size:11px;color:var(--text-muted);"></span>
+              <button type="button" id="rcZoomBtn" class="btn btn-ghost btn-sm" style="display:none;padding:2px 8px;font-size:11px;" onclick="rcZoom()">Zvětšit</button>
               <label for="rcFileInputManual" class="btn btn-ghost btn-sm" style="cursor:pointer;padding:2px 8px;font-size:11px;">Nahradit</label>
               <label for="rcFileInputManualCam" class="btn btn-ghost btn-sm" title="Vyfotit znovu" style="cursor:pointer;padding:2px 8px;">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
@@ -190,7 +196,7 @@
             </label>
           </div>
           <embed id="rcPdfEmbed" src="" type="application/pdf" style="display:none;flex:1;width:100%;border:none;">
-          <img  id="rcImgEmbed" src="" style="display:none;flex:1;width:100%;object-fit:contain;padding:8px;">
+          <img  id="rcImgEmbed" src="" onclick="rcZoom()" title="Zvětšit doklad" style="display:none;flex:1;width:100%;object-fit:contain;padding:8px;cursor:zoom-in;">
         </div>
 
         <!-- Pravá: formulář -->
@@ -338,6 +344,7 @@
   const fileInputManual = document.getElementById('rcFileInputManual');
   const fileInputManCam = document.getElementById('rcFileInputManualCam');
   const fileInfo        = document.getElementById('rcFileInfo');
+  const zoomBtn         = document.getElementById('rcZoomBtn');
   const dropZone        = document.getElementById('rcDropZone');
   const embed           = document.getElementById('rcPdfEmbed');
   const imgEmbed        = document.getElementById('rcImgEmbed');
@@ -346,6 +353,7 @@
   const form            = document.getElementById('rcForm');
   let currentBlobUrl    = null;
   let currentFile       = null;   // připravený (zmenšený) soubor, který se uloží s účtenkou
+  let currentPreview    = null;   // co ukázat v popupu — blob nově vybraného souboru i už uložený doklad
   let editMode          = false;
 
   document.querySelectorAll('[data-modal-open="modalCreate"]').forEach(b =>
@@ -360,6 +368,9 @@
     backdrop.classList.remove('open');
     if (currentBlobUrl) { URL.revokeObjectURL(currentBlobUrl); currentBlobUrl = null; }
     currentFile = null;
+    // Křížek modalu nemá data-modal-close, takže obsluha v app.js scroll
+    // neobnoví — bez tohohle zůstane stránka po zavření zamrzlá.
+    if (!document.querySelector('.dn-backdrop.open')) document.body.style.overflow = '';
   };
 
   function rcReset() {
@@ -369,6 +380,7 @@
     phForm.style.display    = 'none';
     fileInputAi.value = fileInputManual.value = fileInputCamera.value = fileInputManCam.value = '';
     currentFile = null;
+    rcSetPreview(null);
     fileInfo.textContent = '';
     embed.style.display = imgEmbed.style.display = 'none';
     embed.src = ''; imgEmbed.src = '';
@@ -395,6 +407,15 @@
     if (f) handleAiFile(f);
   });
 
+  // Popup náhled — funguje pro blob právě vybraného souboru i pro uložený doklad
+  function rcSetPreview(preview) {
+    currentPreview = preview;
+    zoomBtn.style.display = preview ? '' : 'none';
+  }
+  window.rcZoom = function () {
+    if (currentPreview) window.dokladNahled.open(currentPreview);
+  };
+
   // Zmenší fotku ještě v prohlížeči — na vytěžení i do archivu jde stejný,
   // už odlehčený soubor, takže se velké foto z mobilu nahrává jen jednou.
   async function prepareFile(file) {
@@ -413,6 +434,7 @@
     const file = await prepareFile(rawFile);
     if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
     currentBlobUrl = URL.createObjectURL(file);
+    rcSetPreview({ url: currentBlobUrl, name: file.name, mime: file.type, size: file.size });
 
     try {
       const fd = new FormData();
@@ -442,6 +464,7 @@
     const file = await prepareFile(rawFile);
     if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
     currentBlobUrl = URL.createObjectURL(file);
+    rcSetPreview({ url: currentBlobUrl, name: file.name, mime: file.type, size: file.size });
     leftPlaceholder.style.display = 'none';
     if (file.type.startsWith('image/')) {
       embed.style.display = 'none';
@@ -520,6 +543,7 @@
         embed.style.display = ''; embed.src = url; imgEmbed.style.display = 'none';
       }
       fileInfo.textContent = r.attachment_size ? window.dokladFoto.formatBytes(r.attachment_size) : '';
+      rcSetPreview({ url: url, name: r.attachment_path, mime: r.attachment_mime || '', size: r.attachment_size || 0 });
     } else {
       leftPlaceholder.style.display = 'flex';
       embed.style.display = imgEmbed.style.display = 'none';

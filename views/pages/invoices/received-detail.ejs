@@ -20,7 +20,11 @@
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
     <% if (invoice.attachment_path) { %>
-    <a href="/doklady/soubor/<%= invoice.attachment_path %>" target="_blank" class="btn btn-outline btn-sm">📄 Otevřít přílohu</a>
+    <a href="/doklady/soubor/<%= invoice.attachment_path %>" class="btn btn-outline btn-sm"
+       data-nahled
+       data-nahled-nazev="<%= invoice.attachment_path %>"
+       data-nahled-typ="<%= invoice.attachment_mime || '' %>"
+       data-nahled-velikost="<%= invoice.attachment_size || 0 %>">📄 Zobrazit přílohu</a>
     <% } %>
     <button class="btn btn-outline" data-modal-open="modalEdit">✏️ Upravit</button>
     <button class="btn btn-outline" data-modal-open="modalStatus">🔄 Stav</button>
@@ -132,7 +136,13 @@
       <div class="card-body">
         <% if (invoice.attachment_path) { %>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-          <a href="/doklady/soubor/<%= invoice.attachment_path %>" target="_blank" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit;">
+          <a href="/doklady/soubor/<%= invoice.attachment_path %>"
+             data-nahled
+             data-nahled-nazev="<%= invoice.attachment_path %>"
+             data-nahled-typ="<%= invoice.attachment_mime || '' %>"
+             data-nahled-velikost="<%= invoice.attachment_size || 0 %>"
+             title="Zobrazit doklad"
+             style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit;cursor:zoom-in;">
             <% if ((invoice.attachment_mime || '').startsWith('image/')) { %>
             <img src="/doklady/soubor/<%= invoice.attachment_path %>" alt="Náhled faktury" loading="lazy"
                  style="width:56px;height:56px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border);">
@@ -147,7 +157,11 @@
             </span>
           </a>
           <div style="display:flex;gap:8px;align-items:center;">
-            <a href="/doklady/soubor/<%= invoice.attachment_path %>" target="_blank" class="btn btn-outline btn-sm">Otevřít</a>
+            <a href="/doklady/soubor/<%= invoice.attachment_path %>" class="btn btn-outline btn-sm"
+               data-nahled
+               data-nahled-nazev="<%= invoice.attachment_path %>"
+               data-nahled-typ="<%= invoice.attachment_mime || '' %>"
+               data-nahled-velikost="<%= invoice.attachment_size || 0 %>">Zobrazit</a>
             <form method="post" action="/ucetnictvi/prijate-faktury/<%= invoice.id %>/priloha" enctype="multipart/form-data" style="display:inline;">
               <label style="cursor:pointer;">
                 <input type="file" name="file" accept="application/pdf,image/*" style="display:none;" onchange="prilohaSubmit(this)">

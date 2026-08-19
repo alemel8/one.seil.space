@@ -614,3 +614,117 @@ table.data-table {
   }
 
 }
+
+/* ── Náhled dokladu (popup) ────────────────────────────────── */
+/* Vlastní vrstva nad .modal-backdrop (z-index 300), aby šel doklad
+   zvětšit i z formuláře účtenky, který sám běží v modalu. */
+
+.dn-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(3px);
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  opacity: 0;
+  visibility: hidden;
+  /* Bez pointer-events by zhasínající backdrop polykal kliknutí ještě po dobu
+     přechodu (visibility se přepíná až na jeho konci) — 200 ms mrtvé stránky. */
+  pointer-events: none;
+  transition: opacity var(--transition-base), visibility var(--transition-base);
+}
+
+.dn-backdrop.open { opacity: 1; visibility: visible; pointer-events: auto; }
+
+.dn-modal {
+  background: var(--bg-card);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  width: 100%;
+  max-width: 1000px;
+  height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform: translateY(16px) scale(0.98);
+  transition: transform var(--transition-base);
+}
+
+.dn-backdrop.open .dn-modal { transform: translateY(0) scale(1); }
+
+.dn-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.dn-title { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.dn-name {
+  font-size: 15px; font-weight: 600; color: var(--text-primary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dn-meta { font-size: 12px; color: var(--text-muted); flex-shrink: 0; }
+
+.dn-close {
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; flex-shrink: 0;
+  border: none; background: transparent; border-radius: var(--radius-sm);
+  color: var(--text-muted); cursor: pointer;
+}
+.dn-close:hover { background: var(--gray-100); color: var(--text-primary); }
+
+.dn-body {
+  flex: 1;
+  min-height: 0;
+  background: var(--bg-page);
+  display: flex;
+  overflow: auto;
+}
+
+/* Centrování přes auto margin, ne justify/align — vycentrovaný flex item,
+   který je větší než rám, jinak nejde doscrollovat k hornímu okraji. */
+.dn-img {
+  margin: auto;
+  max-width: 100%;
+  max-height: 100%;
+  cursor: zoom-in;
+  display: block;
+}
+/* Přiblížení na 100 % — u účtenky je drobné písmo jinak nečitelné */
+.dn-img.dn-zoomed {
+  max-width: none;
+  max-height: none;
+  cursor: zoom-out;
+}
+
+.dn-frame { width: 100%; height: 100%; border: none; }
+
+.dn-fallback { margin: auto; padding: 40px; text-align: center; color: var(--text-muted); font-size: 14px; }
+
+.dn-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.dn-hint { font-size: 12px; color: var(--text-muted); }
+.dn-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+@media (max-width: 640px) {
+  .dn-backdrop { padding: 0; }
+  .dn-modal { height: 100vh; border-radius: 0; max-width: none; }
+  .dn-footer { flex-direction: column; align-items: stretch; }
+  .dn-actions { justify-content: stretch; }
+  .dn-actions .btn { flex: 1; justify-content: center; }
+  .dn-hint { display: none; }
+}
