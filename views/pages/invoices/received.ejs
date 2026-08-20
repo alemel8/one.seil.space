@@ -13,6 +13,7 @@
 <!-- Bulk action bar -->
 <div id="bulkBar" style="display:none;position:sticky;top:0;z-index:50;background:var(--primary);color:#fff;padding:10px 16px;border-radius:var(--radius-md);margin-bottom:12px;align-items:center;gap:12px;">
   <span id="bulkCount" style="font-weight:600;font-size:14px;"></span>
+  <span id="bulkSplit" style="font-size:13px;opacity:0.9;"></span>
   <form id="bulkPohodaForm" method="post" action="/ucetnictvi/prijate-faktury/pohoda-xml" style="display:inline;" target="_blank">
     <div id="bulkInputs"></div>
     <button type="submit" class="btn btn-sm" style="background:#fff;color:var(--primary);font-weight:600;">↓ Export POHODA XML</button>
@@ -51,9 +52,16 @@
         %>
         <tr style="cursor:pointer;" onclick="location.href='/ucetnictvi/prijate-faktury/<%= inv.id %>'">
           <td onclick="event.stopPropagation();">
-            <input type="checkbox" class="bulk-cb" value="<%= inv.id %>" onchange="bulkUpdate()">
+            <input type="checkbox" class="bulk-cb" value="<%= inv.id %>" onchange="bulkUpdate()"
+                   data-exported="<%= inv.pohoda_exported_at ? new Date(inv.pohoda_exported_at).toLocaleDateString('cs-CZ') : '' %>">
           </td>
-          <td style="font-weight:600;"><%= inv.number %></td>
+          <td style="font-weight:600;">
+            <%= inv.number %>
+            <% if (inv.vat_deductible === false) { %><br><span class="badge" style="background:#fef3c7;color:#92400e;font-size:10px;font-weight:500;"
+                 title="Bez nároku na odpočet DPH — celá částka jde do nákladů">bez odpočtu</span><% } %>
+            <% if (inv.pohoda_exported_at) { %><br><span style="font-size:10px;color:var(--text-muted);font-weight:400;"
+                 title="Naposledy exportováno do POHODY">↑ <%= new Date(inv.pohoda_exported_at).toLocaleDateString('cs-CZ') %></span><% } %>
+          </td>
           <td><%= inv.supplier || '—' %></td>
           <td style="color:var(--text-muted);font-size:13px;"><%= new Date(inv.issue_date).toLocaleDateString('cs-CZ') %></td>
           <td style="color:var(--text-muted);font-size:13px;<%= isOverdue ? 'color:var(--danger);font-weight:500;' : '' %>">
@@ -108,6 +116,11 @@ function bulkUpdate() {
   const inp = document.getElementById('bulkInputs');
   document.getElementById('bulkCount').textContent = `${cbs.length} vybráno`;
   inp.innerHTML = [...cbs].map(c => `<input type="hidden" name="ids" value="${c.value}">`).join('');
+
+  // Opakovaný import založí doklad v POHODĚ znovu — ať to není překvapení
+  const exported = [...cbs].filter(c => c.dataset.exported).length;
+  document.getElementById('bulkSplit').textContent = exported
+    ? `· ⚠ ${exported} už jednou exportováno` : '';
   bar.style.display = cbs.length > 0 ? 'flex' : 'none';
   const allCbs = document.querySelectorAll('.bulk-cb');
   document.getElementById('bulkSelectAll').checked = cbs.length === allCbs.length && allCbs.length > 0;
@@ -280,6 +293,13 @@ function bulkClearAll() {
                   <option value="Po splatnosti">Po splatnosti</option>
                   <option value="Storno">Storno</option>
                 </select>
+              </div>
+              <div class="form-group">
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                  <input type="checkbox" name="vat_deductible" value="on" checked>
+                  <span>Uplatnit nárok na odpočet DPH</span>
+                </label>
+                <small style="color:var(--text-muted);">Vypněte u reprezentace a pohoštění — § 72 odst. 4 ZDPH.</small>
               </div>
               <div class="form-group">
                 <label class="form-label">Poznámka / předmět plnění</label>

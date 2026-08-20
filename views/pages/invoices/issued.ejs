@@ -12,6 +12,7 @@
 <!-- Bulk action bar -->
 <div id="bulkBar" style="display:none;position:sticky;top:0;z-index:50;background:var(--primary);color:#fff;padding:10px 16px;border-radius:var(--radius-md);margin-bottom:12px;display:none;align-items:center;gap:12px;">
   <span id="bulkCount" style="font-weight:600;font-size:14px;"></span>
+  <span id="bulkSplit" style="font-size:13px;opacity:0.9;"></span>
   <form id="bulkPohodaForm" method="post" action="/ucetnictvi/vydane-faktury/pohoda-xml" style="display:inline;" target="_blank">
     <div id="bulkInputs"></div>
     <button type="submit" class="btn btn-sm" style="background:#fff;color:var(--primary);font-weight:600;">↓ Export POHODA XML</button>
@@ -45,7 +46,8 @@
         <% invoices.forEach(inv => { %>
         <tr class="clickable-row" onclick="window.location='/ucetnictvi/vydane-faktury/<%= inv.id %>'">
           <td onclick="event.stopPropagation();">
-            <input type="checkbox" class="bulk-cb" value="<%= inv.id %>" onchange="bulkUpdate()">
+            <input type="checkbox" class="bulk-cb" value="<%= inv.id %>" onchange="bulkUpdate()"
+                   data-exported="<%= inv.pohoda_exported_at ? new Date(inv.pohoda_exported_at).toLocaleDateString('cs-CZ') : '' %>">
           </td>
           <td style="font-weight:600;color:var(--primary);"><%= inv.number %></td>
           <td><%= inv.client_name || '—' %></td>
@@ -90,6 +92,11 @@ function bulkUpdate() {
   const inp = document.getElementById('bulkInputs');
   document.getElementById('bulkCount').textContent = `${cbs.length} vybráno`;
   inp.innerHTML = [...cbs].map(c => `<input type="hidden" name="ids" value="${c.value}">`).join('');
+
+  // Opakovaný import založí doklad v POHODĚ znovu — ať to není překvapení
+  const exported = [...cbs].filter(c => c.dataset.exported).length;
+  document.getElementById('bulkSplit').textContent = exported
+    ? `· ⚠ ${exported} už jednou exportováno` : '';
   bar.style.display = cbs.length > 0 ? 'flex' : 'none';
   const allCbs = document.querySelectorAll('.bulk-cb');
   document.getElementById('bulkSelectAll').checked = cbs.length === allCbs.length && allCbs.length > 0;

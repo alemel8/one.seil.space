@@ -157,6 +157,8 @@ Vydané i přijaté faktury.
 | `series_id` | INT → invoice_number_series | |
 | `shop_order_id` | TEXT → shop_orders | Propojení s objednávkou |
 | `account_debit`, `account_credit` | TEXT | Předkontace (MD/D) |
+| `vat_deductible` | BOOL | Nárok na odpočet DPH (§ 72 odst. 4 ZDPH u reprezentace `FALSE`) |
+| `pohoda_exported_at` | TIMESTAMPTZ | Poslední export do POHODY (ochrana před duplicitou) |
 | `pdf_path` | TEXT | Cesta k vygenerovanému PDF |
 | `attachment_path` | TEXT | Doklad přijaté faktury v `data/media/` (viz `src/attachments.js`) |
 | `attachment_mime` | TEXT | `image/jpeg`, `application/pdf`, … |
@@ -268,6 +270,9 @@ Bankovní pohyby.
 | `category` | TEXT | Kancelář, IT & Software, … |
 | `description` | TEXT | |
 | `account_debit`, `account_credit` | TEXT | Předkontace |
+| `payment_method` | TEXT | Hotovost / Karta / Převodem — určuje agendu v POHODĚ |
+| `vat_deductible` | BOOL | Nárok na odpočet DPH; u reprezentace vždy `FALSE` |
+| `pohoda_exported_at` | TIMESTAMPTZ | Poslední export do POHODY (ochrana před duplicitou) |
 | `attachment_path` | TEXT | Foto / PDF dokladu v `data/media/` (viz `src/attachments.js`) |
 | `attachment_mime` | TEXT | `image/jpeg`, `application/pdf`, … |
 | `attachment_size` | INT | Velikost v bajtech po zmenšení |
@@ -346,6 +351,11 @@ Jeden řádek — údaje fakturující firmy.
 | `bank_account`, `bank_name`, `iban`, `swift` | TEXT | |
 | `vat_payer` | BOOL | Plátce DPH |
 | `invoice_note` | TEXT | Patička na fakturách |
+| `pohoda_cash_account` | TEXT | Název pokladny v POHODĚ (účtenky placené hotově) |
+| `pohoda_predkontace` | TEXT | Předkontace účtenek v pokladně |
+| `pohoda_predkontace_prijate` | TEXT | Předkontace přijatých faktur a ostatních závazků |
+| `pohoda_predkontace_repre` | TEXT | Předkontace dokladů bez nároku na odpočet DPH |
+| `gdrive_root_folder_id` | TEXT | Kořenová složka pro import přijatých faktur |
 | `logo_path` | TEXT | Logo v `data/media/` |
 | `updated_at` | TIMESTAMPTZ | |
 

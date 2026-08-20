@@ -17,6 +17,13 @@ const PDFS_DIR   = path.join(projectRoot, 'data/pdfs');
 const STATUSES_ISSUED   = ['Nezaplacena', 'Zaplacena', 'Po splatnosti', 'Storno'];
 const STATUSES_RECEIVED = ['Nezaplacena', 'Zaplacena', 'Po splatnosti', 'Storno'];
 
+// Nárok na odpočet DPH: checkbox chodí z prohlížeče jen zaškrtnutý.
+// U reprezentace ho zákon nepřipouští (§ 72 odst. 4 ZDPH), proto ho
+// formulář nabízí vypnout a export pak celou částku hodí do nákladů.
+function vatDeductibleFrom(body) {
+  return ['on', '1', 'true'].includes(String(body.vat_deductible ?? ''));
+}
+
 const FORM_ERRORS = {
   klient:    'Vyplňte klienta.',
   polozky:   'Faktura musí mít alespoň jednu položku s popisem.',
@@ -813,6 +820,7 @@ export default async function invoicesRoutes(fastify) {
         notes            = ${(b.notes||'').trim()},
         account_debit    = ${(b.account_debit||'').trim()},
         account_credit   = ${(b.account_credit||'').trim()},
+        vat_deductible   = ${vatDeductibleFrom(b)},
         modified_at      = NOW()
       WHERE id = ${request.params.id} AND type = 'received'
     `;
@@ -883,7 +891,7 @@ export default async function invoicesRoutes(fastify) {
          supplier_address, supplier_city, supplier_zip, supplier_country,
          amount, vat_amount, total_amount, currency,
          status, issue_date, due_date, notes, account_debit, account_credit,
-         attachment_path, attachment_mime, attachment_size)
+         vat_deductible, attachment_path, attachment_mime, attachment_size)
       VALUES (
         ${newId}, 'received',
         ${b.number || ''}, ${(b.supplier||'').trim()},
@@ -899,6 +907,7 @@ export default async function invoicesRoutes(fastify) {
         ${b.due_date || null}, ${(b.notes||'').trim()},
         ${(b.account_debit  || '').trim()},
         ${(b.account_credit || '').trim()},
+        ${vatDeductibleFrom(b)},
         ${attachmentPath}, ${attachmentMime}, ${attachmentSize}
       )
     `;
@@ -1112,36 +1121,70 @@ export default async function invoicesRoutes(fastify) {
   });
 
   // ── POHODA XML export ─────────────────────────────────────────
-  fastify.post('/ucetnictvi/vydane-faktury/pohoda-xml', async (request, reply) => {
-    const ids = [].concat(request.body?.ids || []).map(Number).filter(Boolean);
+  //
+  // Vydané i přijaté faktury jedou stejnou cestou — liší se jen typem dokladu,
+  // předkontací a jménem souboru. Storno doklady do účetnictví nepatří,
+  // proto se do balíčku nedostanou ani při exportu „všeho“.
+  async function exportPohodaInvoices(request, reply, { type, filename, note }) {
+    const ids = [].concat(request.body?.ids || []).map(String).filter(Boolean);
     const invoices = ids.length > 0
-      ? await sql`SELECT * FROM accounting_invoices WHERE type='issued' AND id = ANY(${ids}) ORDER BY issue_date DESC`
-      : await sql`SELECT * FROM accounting_invoices WHERE type='issued' ORDER BY issue_date DESC`;
+      ? await sql`SELECT * FROM accounting_invoices WHERE type = ${type} AND id = ANY(${ids}) AND status <> 'Storno' ORDER BY issue_date DESC`
+      : await sql`SELECT * FROM accounting_invoices WHERE type = ${type} AND status <> 'Storno' ORDER BY issue_date DESC`;
 
-    const withItems = await Promise.all(invoices.map(async inv => {
-      const items = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${inv.id} ORDER BY id`;
-      return { ...inv, _items: items };
+    const plain = txt => reply.code(400).type('text/plain; charset=utf-8').send(txt);
+
+    if (invoices.length === 0) {
+      return plain('Není co exportovat — vybrané faktury jsou ve stavu Storno nebo žádné neexistují.');
+    }
+
+    const issuer = await getIssuer(sql);
+    if (!issuer.ico) {
+      return plain('Chybí IČO firmy — POHODA bez něj nepozná účetní jednotku. Doplňte jej v Nastavení → Firma.');
+    }
+
+    // Položky jedním dotazem — přijaté faktury je většinou nemají a i tak
+    // se do balíčku vejdou jako jeden souhrnný řádek.
+    const invoiceIds = invoices.map(i => i.id);
+    const items = await sql`
+      SELECT * FROM accounting_invoice_items WHERE invoice_id = ANY(${invoiceIds}) ORDER BY id
+    `;
+    const byInvoice = new Map();
+    for (const it of items) {
+      if (!byInvoice.has(it.invoice_id)) byInvoice.set(it.invoice_id, []);
+      byInvoice.get(it.invoice_id).push(it);
+    }
+
+    const xml = buildPohodaXml(
+      invoices.map(inv => ({ ...inv, _items: byInvoice.get(inv.id) || [] })),
+      {
+        ico:                 issuer.ico,
+        predkontaceReceived: issuer.pohoda_predkontace_prijate || '',
+        predkontaceNoVat:    issuer.pohoda_predkontace_repre   || '',
+        note,
+      },
+    );
+
+    // Datum exportu drží seznam, aby bylo poznat, co už účetní jednou dostala
+    await sql`UPDATE accounting_invoices SET pohoda_exported_at = NOW() WHERE id = ANY(${invoiceIds})`;
+
+    reply.header('Content-Type', 'application/xml; charset=utf-8');
+    reply.header('Content-Disposition', `attachment; filename="${filename}"`);
+    return reply.send(xml);
+  }
+
+  fastify.post('/ucetnictvi/vydane-faktury/pohoda-xml', (request, reply) =>
+    exportPohodaInvoices(request, reply, {
+      type: 'issued',
+      filename: 'pohoda-vydane-faktury.xml',
+      note: 'Vydané faktury z one.seil.space',
     }));
 
-    const issuer = await getIssuer(sql);
-    const xml = buildPohodaXml(withItems, { ico: issuer.ico, note: 'Vydané faktury z one.seil.space' });
-    reply.header('Content-Type', 'application/xml; charset=utf-8');
-    reply.header('Content-Disposition', 'attachment; filename="pohoda-vydane-faktury.xml"');
-    return reply.send(xml);
-  });
-
-  fastify.post('/ucetnictvi/prijate-faktury/pohoda-xml', async (request, reply) => {
-    const ids = [].concat(request.body?.ids || []).map(Number).filter(Boolean);
-    const invoices = ids.length > 0
-      ? await sql`SELECT * FROM accounting_invoices WHERE type='received' AND id = ANY(${ids}) ORDER BY issue_date DESC`
-      : await sql`SELECT * FROM accounting_invoices WHERE type='received' ORDER BY issue_date DESC`;
-
-    const issuer = await getIssuer(sql);
-    const xml = buildPohodaXml(invoices, { ico: issuer.ico, note: 'Přijaté faktury z one.seil.space' });
-    reply.header('Content-Type', 'application/xml; charset=utf-8');
-    reply.header('Content-Disposition', 'attachment; filename="pohoda-prijate-faktury.xml"');
-    return reply.send(xml);
-  });
+  fastify.post('/ucetnictvi/prijate-faktury/pohoda-xml', (request, reply) =>
+    exportPohodaInvoices(request, reply, {
+      type: 'received',
+      filename: 'pohoda-prijate-faktury.xml',
+      note: 'Přijaté faktury z one.seil.space',
+    }));
 
   // ── Opakující se faktury — šablony ───────────────────────────
 

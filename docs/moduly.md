@@ -68,7 +68,8 @@ KPI na domovské stránce: počty faktur, objednávek, CRM kontaktů, členů t�
 | `GET /ucetnictvi/prijate-faktury` | Seznam přijatých faktur |
 | `POST /ucetnictvi/prijate-faktury/vytvorit` | Vytvořit přijatou fakturu |
 | `GET /ucetnictvi/prijate-faktury/:id` | Detail přijaté faktury |
-| `GET /ucetnictvi/export/pohoda.xml` | POHODA XML export |
+| `POST /ucetnictvi/vydane-faktury/pohoda-xml` | POHODA XML — agenda Vydané faktury |
+| `POST /ucetnictvi/prijate-faktury/pohoda-xml` | POHODA XML — agenda Přijaté faktury |
 | `GET /ucetnictvi/opakujici-se-faktury` | Správa šablon opakujících se faktur |
 | `POST /ucetnictvi/opakujici-se-faktury/vytvorit` | Nová šablona |
 | `POST /ucetnictvi/opakujici-se-faktury/:id/toggle` | Aktivovat / deaktivovat |
@@ -121,17 +122,60 @@ upomínka → předžalobní výzva) definuje `sendReminderEmail()` v `src/email
 | `POST /ucetnictvi/uctenky/:id/priloha` | Dofotit / nahradit doklad u existující účtenky |
 | `POST /ucetnictvi/uctenky/:id/stav` | Změnit stav (Nezaúčtována/Zaúčtována/Storno) |
 | `POST /ucetnictvi/uctenky/:id/smazat` | Smazat účtenku i její doklad |
-| `POST /ucetnictvi/uctenky/pohoda-xml` | POHODA XML (agenda Pokladna) |
+| `POST /ucetnictvi/uctenky/pohoda-xml` | POHODA XML (Pokladna + Ostatní závazky) |
 | `GET /ucetnictvi/uctenky/export.csv` | CSV export |
 
 AI analýza extrahuje z obrázku/PDF: prodejce, datum, celkovou částku, DPH, kategorii.
 
-Kategorie: Kancelář, Cestovné, Stravné, IT & Software, Marketing, Provoz, Ostatní.
+Kategorie: Kancelář, Cestovné, PHM, Stravné, Reprezentace, IT & Software, Marketing,
+Provoz, Ostatní.
+
+Každá účtenka nese **formu úhrady** (Hotovost / Karta / Převodem) a příznak
+**nároku na odpočet DPH**. Obojí řídí, kam a jak doklad odejde do POHODY —
+viz „Export do POHODY“ níže.
 
 Modal v seznamu účtenku **jen zakládá** (upload → vytěžení → kontrola polí).
 Úpravy má detail: vlevo doklad ve velkém, vpravo formulář. `/:id/upravit`
 proto rozlišuje klienta — formulář z detailu (`Accept: text/html`) dostane
 přesměrování zpět na detail, `fetch` z modalu JSON.
+
+---
+
+## Export do POHODY (`src/pohoda.js`)
+
+Jeden generátor obsluhuje všechny doklady; balíček `dat:dataPack` nese IČO
+účetní jednotky z Nastavení → Firma, bez něj POHODA import odmítne.
+
+| Doklad | Agenda v POHODĚ | Element |
+|---|---|---|
+| Vydaná faktura | Vydané faktury | `inv:invoice` / `issuedInvoice` |
+| Přijatá faktura | Přijaté faktury | `inv:invoice` / `receivedInvoice` |
+| Účtenka placená hotově | Pokladna (výdaj) | `vou:voucher` / `expense` |
+| Účtenka placená kartou nebo převodem | Ostatní závazky | `inv:invoice` / `commitment` |
+
+**Kartou zaplacená účtenka do pokladny nepatří** — peníze odešly z účtu, ne
+z pokladní hotovosti. Účetní takové doklady z pokladny ručně vyhazovala
+a zakládala mezi ostatní závazky, tak to dělá export rovnou za ni. Rozřazení
+řídí sloupec `receipts.payment_method`, spočítat ho umí i `isCashReceipt()`.
+
+**Evidenční čísla přijatých dokladů přiděluje POHODA** z vlastních číselných
+řad. Kdybychom poslali `numberRequested` s cizím číslem, import padne na
+duplicitě. Číslo od dodavatele proto jde do `originalDocument` (pole *Doklad*)
+a jeho číslice do `symVar`, aby se dala spárovat platba. U vydaných faktur
+je naopak autoritou naše řada, takže číslo posíláme.
+
+**Bez nároku na odpočet DPH** (`vat_deductible = false`, u kategorie
+Reprezentace vynuceně — § 72 odst. 4 ZDPH) jde do balíčku celá částka včetně
+DPH jako `priceNone`, bez `dateTax` a s členěním DPH `nonSubsume`
+(„Nezahrnovat do DPH“). Předkontaci takového dokladu lze přebít nastavením
+*Předkontace bez nároku na odpočet DPH* (typicky 513).
+
+Doklady ve stavu Storno se do balíčku nedostanou. Po exportu se zapíše
+`pohoda_exported_at` — seznam pak u dokladu ukáže datum a hromadná lišta
+varuje, že opakovaný import doklad v POHODĚ založí znovu.
+
+Předkontace se berou v pořadí: předkontace z dokladu → předkontace
+z Nastavení → Firma → nic (POHODA nastaví „Nevím“).
 
 ---
 

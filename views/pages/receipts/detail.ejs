@@ -4,6 +4,9 @@
   const fmt  = n => Number(n||0).toLocaleString('cs-CZ', { minimumFractionDigits: 2 });
   const den  = d => d ? new Date(d).toISOString().split('T')[0] : '';
   const isImage = (receipt.attachment_mime || '').startsWith('image/');
+  const hotove  = !receipt.payment_method || receipt.payment_method === 'Hotovost';
+  const agenda  = hotove ? 'Pokladna' : 'Ostatní závazky';
+  const bezDph  = receipt.vat_deductible === false;
   const chybi   = receipt.attachment_path && receipt.attachment_missing;
   const fileUrl = receipt.attachment_path && !chybi ? '/doklady/soubor/' + receipt.attachment_path : null;
 %>
@@ -14,6 +17,14 @@
       <a href="/ucetnictvi/uctenky" class="btn btn-ghost btn-sm">← Zpět</a>
       <h1><%= receipt.vendor || 'Účtenka' %></h1>
       <span class="badge" style="background:<%= sb %>;color:<%= sc %>;font-size:13px;"><%= receipt.status %></span>
+      <span class="badge" style="background:<%= hotove ? '#e0e7ff' : '#fce7f3' %>;color:<%= hotove ? '#3730a3' : '#9d174d' %>;font-size:12px;"
+            title="Doklad se do POHODY exportuje do agendy <%= agenda %>">
+        <%= receipt.payment_method || 'Hotovost' %> → <%= agenda %>
+      </span>
+      <% if (bezDph) { %>
+      <span class="badge" style="background:#fef3c7;color:#92400e;font-size:12px;"
+            title="Celá částka včetně DPH jde do nákladů — § 72 odst. 4 ZDPH">bez odpočtu DPH</span>
+      <% } %>
     </div>
     <p><%= receipt.number ? 'Doklad ' + receipt.number + ' · ' : '' %><%= new Date(receipt.receipt_date).toLocaleDateString('cs-CZ') %> · <%= fmt(receipt.total_amount) %> <%= receipt.currency %></p>
   </div>
@@ -149,7 +160,7 @@
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
         <div class="form-group">
           <label class="form-label">Kategorie</label>
-          <select name="category" class="form-select">
+          <select name="category" id="rdCategory" class="form-select" onchange="rdUhrada()">
             <% CATEGORIES.forEach(c => { %>
             <option value="<%= c %>" <%= receipt.category===c?'selected':'' %>><%= c %></option>
             <% }) %>
@@ -162,6 +173,27 @@
             <option value="<%= st %>" <%= receipt.status===st?'selected':'' %>><%= st %></option>
             <% }) %>
           </select>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group">
+          <label class="form-label">Forma úhrady</label>
+          <select name="payment_method" id="rdPayment" class="form-select" onchange="rdUhrada()">
+            <% PAYMENT_METHODS.forEach(m => { %>
+            <option value="<%= m %>" <%= (receipt.payment_method || 'Hotovost')===m?'selected':'' %>><%= m %></option>
+            <% }) %>
+          </select>
+          <small id="rdAgendaHint" style="color:var(--text-muted);"></small>
+        </div>
+        <div class="form-group">
+          <label class="form-label">DPH</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;padding-top:9px;">
+            <input type="checkbox" name="vat_deductible" id="rdVatDeductible" value="on"
+                   <%= bezDph ? '' : 'checked' %>>
+            <span>Uplatnit nárok na odpočet</span>
+          </label>
+          <small id="rdVatHint" style="color:var(--text-muted);"></small>
         </div>
       </div>
 
@@ -227,6 +259,33 @@ window.rdPriloha = async function (input) {
     info.textContent = 'Nepodařilo se uložit: ' + err.message;
   }
 };
+
+// Reprezentace nárok na odpočet nemá (§ 72 odst. 4 ZDPH) — checkbox zamkneme,
+// ať ho nikdo omylem nezaškrtne. Server totéž hlídá i při uložení.
+const RD_NO_VAT = <%- JSON.stringify(NO_VAT_CATEGORIES) %>;
+
+window.rdUhrada = function () {
+  const cat  = document.getElementById('rdCategory').value;
+  const pay  = document.getElementById('rdPayment').value;
+  const vat  = document.getElementById('rdVatDeductible');
+  const hint = document.getElementById('rdVatHint');
+  const agenda = document.getElementById('rdAgendaHint');
+
+  agenda.textContent = pay === 'Hotovost'
+    ? 'Do POHODY jde do agendy Pokladna.'
+    : 'Placeno z účtu → v POHODĚ do Ostatních závazků, ne do pokladny.';
+
+  if (RD_NO_VAT.includes(cat)) {
+    vat.checked = false;
+    vat.disabled = true;
+    hint.textContent = 'U reprezentace odpočet uplatnit nelze — celá částka jde do nákladů.';
+  } else {
+    vat.disabled = false;
+    hint.textContent = vat.checked ? '' : 'Celá částka včetně DPH půjde do nákladů.';
+  }
+};
+document.getElementById('rdVatDeductible').addEventListener('change', window.rdUhrada);
+window.rdUhrada();
 
 fetch('/api/accounting-chart').then(r => r.json()).then(list => {
   const dl = document.getElementById('rdAcList');

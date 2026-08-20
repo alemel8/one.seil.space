@@ -130,9 +130,38 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label">Předkontace účtenek</label>
+        <label class="form-label">Předkontace účtenek v pokladně</label>
         <input type="text" name="pohoda_predkontace" value="<%= company.pohoda_predkontace || '' %>" class="form-control" maxlength="20" placeholder="např. 3Vd">
         <small style="color:var(--text-muted);">Volitelné. Prázdné = POHODA nastaví „Nevím“.</small>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Předkontace přijatých faktur a závazků</label>
+        <input type="text" name="pohoda_predkontace_prijate" value="<%= company.pohoda_predkontace_prijate || '' %>" class="form-control" maxlength="20" placeholder="např. 1Pf">
+        <small style="color:var(--text-muted);">
+          Použije se u přijatých faktur a u účtenek placených kartou nebo převodem,
+          které jdou do agendy Ostatní závazky. Předkontace z dokladu má přednost.
+        </small>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Předkontace bez nároku na odpočet DPH</label>
+        <input type="text" name="pohoda_predkontace_repre" value="<%= company.pohoda_predkontace_repre || '' %>" class="form-control" maxlength="20" placeholder="např. 513Repre">
+        <small style="color:var(--text-muted);">
+          Doklady na reprezentaci (§ 72 odst. 4 ZDPH) jdou do exportu s členěním DPH
+          „Nezahrnovat do DPH“ a v plné výši včetně DPH. Tahle předkontace je přebije,
+          typicky na 513.
+        </small>
+      </div>
+
+      <div class="form-group" style="grid-column:1/-1;">
+        <p style="font-size:13px;color:var(--text-muted);margin:0;padding:10px 12px;background:var(--bg-page);border-radius:var(--radius-sm);">
+          <strong>Kam který doklad spadne:</strong> účtenka placená hotově → Pokladna ·
+          účtenka placená kartou nebo převodem → Ostatní závazky ·
+          přijatá faktura → Přijaté faktury · vydaná faktura → Vydané faktury.
+          Evidenční čísla přijatých dokladů přiděluje POHODA z vlastních číselných řad,
+          číslo od dodavatele jde do pole Doklad.
+        </p>
       </div>
 
     </div>

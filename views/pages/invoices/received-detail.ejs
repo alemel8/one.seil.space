@@ -106,6 +106,14 @@
     </div>
 
     <!-- Předkontace / účtování -->
+    <% if (invoice.vat_deductible === false) { %>
+    <div style="background:#fef3c7;color:#92400e;border-radius:var(--radius-md);padding:10px 14px;margin-bottom:16px;font-size:13px;">
+      <strong>Bez nároku na odpočet DPH.</strong>
+      Do POHODY jde celá částka <%= Number(invoice.total_amount||0).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= invoice.currency %>
+      do nákladů, DPH se neodečítá.
+    </div>
+    <% } %>
+
     <% if (invoice.account_debit || invoice.account_credit) { %>
     <div class="card">
       <div class="card-header"><strong>Účtování (předkontace)</strong></div>
@@ -272,7 +280,8 @@
         <% if (!bankTx && invoice.status !== 'Zaplacena') { %>
         <a href="/ucetnictvi/banka?parovat=<%= invoice.id %>" class="btn btn-ghost" style="width:100%;text-align:center;">🔗 Spárovat s bankou</a>
         <% } %>
-        <form method="post" action="/ucetnictvi/prijate-faktury/pohoda-xml" target="_blank">
+        <form method="post" action="/ucetnictvi/prijate-faktury/pohoda-xml" target="_blank"
+              <% if (invoice.pohoda_exported_at) { %>onsubmit="return confirm('Fakturu už jste jednou exportovali (<%= fmtD(invoice.pohoda_exported_at) %>). Opakovaný import ji v POHODĚ založí znovu. Pokračovat?')"<% } %>>
           <input type="hidden" name="ids" value="<%= invoice.id %>">
           <button type="submit" class="btn btn-ghost" style="width:100%;">↓ POHODA XML</button>
         </form>
@@ -284,6 +293,9 @@
       <div><span style="opacity:.7;">ID:</span> <code style="font-size:11px;"><%= invoice.id %></code></div>
       <div><span style="opacity:.7;">Vytvořeno:</span> <%= fmtD(invoice.created_at) %></div>
       <div><span style="opacity:.7;">Upraveno:</span> <%= fmtD(invoice.modified_at) %></div>
+      <% if (invoice.pohoda_exported_at) { %>
+      <div><span style="opacity:.7;">Export do POHODY:</span> <%= fmtD(invoice.pohoda_exported_at) %></div>
+      <% } %>
     </div>
 
   </div>
@@ -373,6 +385,16 @@
           <div class="form-group">
             <label class="form-label">Předkontace D</label>
             <input type="text" name="account_credit" class="form-control" value="<%= invoice.account_credit||'' %>" placeholder="321">
+          </div>
+          <div class="form-group col-span-2">
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+              <input type="checkbox" name="vat_deductible" value="on" <%= invoice.vat_deductible === false ? '' : 'checked' %>>
+              <span>Uplatnit nárok na odpočet DPH</span>
+            </label>
+            <small style="color:var(--text-muted);">
+              Vypněte u reprezentace a pohoštění (§ 72 odst. 4 ZDPH) — do POHODY pak jde
+              celá částka včetně DPH do nákladů a členění DPH „Nezahrnovat do DPH“.
+            </small>
           </div>
 
           <div class="form-group col-span-2" style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px;">

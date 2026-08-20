@@ -1,10 +1,27 @@
 import { getDb } from '../db.js';
-import { buildPohodaXml } from '../pohoda.js';
+import { buildPohodaXml, PAYMENT_METHODS, isCashReceipt } from '../pohoda.js';
 import { saveAttachment, deleteAttachment, isSupportedMime, markMissingAttachments } from '../attachments.js';
 import Anthropic from '@anthropic-ai/sdk';
 
 const STATUSES = ['Nezaúčtována', 'Zaúčtována', 'Storno'];
-const CATEGORIES = ['Kancelář', 'Cestovné', 'Stravné', 'IT & Software', 'Marketing', 'Provoz', 'Ostatní'];
+const CATEGORIES = ['Kancelář', 'Cestovné', 'PHM', 'Stravné', 'Reprezentace',
+                    'IT & Software', 'Marketing', 'Provoz', 'Ostatní'];
+
+// Kategorie, u kterých zákon nárok na odpočet DPH nepřipouští
+// (§ 72 odst. 4 ZDPH — náklady na reprezentaci, pohoštění, dary).
+const NO_VAT_CATEGORIES = ['Reprezentace'];
+
+// Nárok na odpočet: u reprezentace ho nelze uplatnit, jinak rozhoduje uživatel.
+// Checkbox se z prohlížeče posílá jen když je zaškrtnutý, proto 'on'/'1'/'true'.
+function vatDeductibleFrom(body) {
+  if (NO_VAT_CATEGORIES.includes(body.category)) return false;
+  return ['on', '1', 'true'].includes(String(body.vat_deductible ?? ''));
+}
+
+function paymentMethodFrom(body) {
+  const m = (body.payment_method || '').trim();
+  return PAYMENT_METHODS.includes(m) ? m : 'Hotovost';
+}
 
 export default async function receiptsRoutes(fastify) {
   const sql = getDb();
@@ -32,15 +49,17 @@ export default async function receiptsRoutes(fastify) {
 
   // ── Seznam účtenek ────────────────────────────────────────────
   fastify.get('/ucetnictvi/uctenky', async (request, reply) => {
-    const q            = (request.query.q      || '').trim();
-    const statusFilter = (request.query.status || '').trim();
+    const q             = (request.query.q      || '').trim();
+    const statusFilter  = (request.query.status || '').trim();
+    const paymentFilter = (request.query.platba || '').trim();
     const page    = Math.max(1, parseInt(request.query.page || '1', 10));
     const perPage = 25;
     const offset  = (page - 1) * perPage;
 
     const conditions = [sql`TRUE`];
     if (q) conditions.push(sql`(vendor ILIKE ${'%'+q+'%'} OR number ILIKE ${'%'+q+'%'} OR notes ILIKE ${'%'+q+'%'})`);
-    if (statusFilter) conditions.push(sql`status = ${statusFilter}`);
+    if (statusFilter)  conditions.push(sql`status = ${statusFilter}`);
+    if (paymentFilter) conditions.push(sql`payment_method = ${paymentFilter}`);
     const where = sql`WHERE ${conditions.reduce((a, b) => sql`${a} AND ${b}`)}`;
 
     const [{ count }] = await sql`SELECT COUNT(*)::int AS count FROM receipts ${where}`;
@@ -51,7 +70,8 @@ export default async function receiptsRoutes(fastify) {
     return reply.view('pages/receipts/list.ejs', {
       pageTitle: 'Účtenky', currentPath: '/ucetnictvi/uctenky',
       user: request.user, receipts, total: count, page, totalPages,
-      q, statusFilter, STATUSES, CATEGORIES,
+      q, statusFilter, paymentFilter, STATUSES, CATEGORIES, PAYMENT_METHODS,
+      NO_VAT_CATEGORIES,
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -69,7 +89,8 @@ export default async function receiptsRoutes(fastify) {
     return reply.view('pages/receipts/detail.ejs', {
       pageTitle: `Účtenka ${receipt.number || '#' + receipt.id}`,
       currentPath: '/ucetnictvi/uctenky',
-      user: request.user, receipt, STATUSES, CATEGORIES,
+      user: request.user, receipt, STATUSES, CATEGORIES, PAYMENT_METHODS,
+      NO_VAT_CATEGORIES,
       saved: request.query.saved === '1',
       error: request.query.error || null,
     }, { layout: 'layouts/base.ejs' });
@@ -108,7 +129,9 @@ export default async function receiptsRoutes(fastify) {
             {
               type: 'text',
               text: `Z tohoto dokladu (účtenka/paragon) vyextrahuj data. Vrať POUZE platný JSON objekt bez markdown bloků:
-{"number":"číslo dokladu nebo null","vendor":"název prodejce/dodavatele","vendor_ico":"IČO nebo null","amount":základ_bez_DPH_číslo_nebo_0,"vat_amount":DPH_číslo_nebo_0,"total_amount":celková_částka_číslo,"currency":"CZK","receipt_date":"YYYY-MM-DD nebo null","category":"jedna z: Kancelář|Cestovné|Stravné|IT & Software|Marketing|Provoz|Ostatní","notes":"předmět nákupu nebo null"}`,
+{"number":"číslo dokladu nebo null","vendor":"název prodejce/dodavatele","vendor_ico":"IČO nebo null","amount":základ_bez_DPH_číslo_nebo_0,"vat_amount":DPH_číslo_nebo_0,"total_amount":celková_částka_číslo,"currency":"CZK","receipt_date":"YYYY-MM-DD nebo null","category":"jedna z: Kancelář|Cestovné|PHM|Stravné|Reprezentace|IT & Software|Marketing|Provoz|Ostatní","payment_method":"jedna z: Hotovost|Karta|Převodem podle údaje o platbě na dokladu (PLATBA KARTOU/CARD → Karta, HOTOVOST/CASH → Hotovost, jinak null)","notes":"předmět nákupu nebo null"}
+
+Kategorie PHM použij u nákupu pohonných hmot, Reprezentace u pohoštění, občerstvení pro obchodní partnery a darů.`,
             },
           ],
         }],
@@ -146,6 +169,7 @@ export default async function receiptsRoutes(fastify) {
     const [row] = await sql`
       INSERT INTO receipts (number, vendor, vendor_ico, amount, vat_amount, total_amount,
                             currency, receipt_date, category, notes, status,
+                            payment_method, vat_deductible,
                             account_debit, account_credit,
                             attachment_path, attachment_mime, attachment_size)
       VALUES (
@@ -158,6 +182,7 @@ export default async function receiptsRoutes(fastify) {
         ${b.category || 'Ostatní'},
         ${(b.notes || '').trim() || null},
         ${b.status || 'Nezaúčtována'},
+        ${paymentMethodFrom(b)}, ${vatDeductibleFrom(b)},
         ${(b.account_debit  || '').trim()},
         ${(b.account_credit || '').trim()},
         ${a?.filename ?? null}, ${a?.mime ?? null}, ${a?.size ?? null}
@@ -208,6 +233,8 @@ export default async function receiptsRoutes(fastify) {
         category       = ${b.category || 'Ostatní'},
         notes          = ${(b.notes || '').trim() || null},
         status         = ${b.status || 'Nezaúčtována'},
+        payment_method = ${paymentMethodFrom(b)},
+        vat_deductible = ${vatDeductibleFrom(b)},
         account_debit  = ${(b.account_debit  || '').trim()},
         account_credit = ${(b.account_credit || '').trim()},
         updated_at     = NOW()
@@ -269,27 +296,41 @@ export default async function receiptsRoutes(fastify) {
     return reply.redirect('/ucetnictvi/uctenky');
   });
 
-  // ── POHODA XML export (agenda Pokladna) ───────────────────────
+  // ── POHODA XML export (Pokladna + Ostatní závazky) ────────────
+  //
+  // Hotovostní účtenka jde do pokladny, účtenka placená kartou nebo převodem
+  // do ostatních závazků — z pokladny ji účetní stejně vyhazuje, protože
+  // peníze odešly z účtu. Rozřazení řeší buildPohodaXml podle payment_method.
   fastify.post('/ucetnictvi/uctenky/pohoda-xml', async (request, reply) => {
     const ids = [].concat(request.body?.ids || []).map(Number).filter(Boolean);
     const receipts = ids.length > 0
-      ? await sql`SELECT * FROM receipts WHERE id = ANY(${ids}) ORDER BY receipt_date DESC`
-      : await sql`SELECT * FROM receipts ORDER BY receipt_date DESC`;
+      ? await sql`SELECT * FROM receipts WHERE id = ANY(${ids}) AND status <> 'Storno' ORDER BY receipt_date DESC`
+      : await sql`SELECT * FROM receipts WHERE status <> 'Storno' ORDER BY receipt_date DESC`;
+
+    const plain = txt => reply.code(400).type('text/plain; charset=utf-8').send(txt);
+
+    if (receipts.length === 0) {
+      return plain('Není co exportovat — vybrané účtenky jsou ve stavu Storno nebo žádné neexistují.');
+    }
 
     // IČO určuje účetní jednotku, do které POHODA balíček naimportuje
     const [company] = await sql`SELECT * FROM company_settings LIMIT 1`;
     if (!company?.ico) {
-      return reply.code(400).type('text/plain; charset=utf-8').send(
-        'Chybí IČO firmy — POHODA bez něj nepozná účetní jednotku. Doplňte jej v Nastavení → Firma.'
-      );
+      return plain('Chybí IČO firmy — POHODA bez něj nepozná účetní jednotku. Doplňte jej v Nastavení → Firma.');
     }
 
     const xml = buildPohodaXml(receipts.map(r => ({ ...r, _type: 'receipt' })), {
-      ico:         company.ico,
-      cashAccount: company.pohoda_cash_account || 'Pokladna',
-      predkontace: company.pohoda_predkontace  || '',
-      note:        'Účtenky z one.seil.space',
+      ico:                 company.ico,
+      cashAccount:         company.pohoda_cash_account || 'Pokladna',
+      predkontace:         company.pohoda_predkontace  || '',
+      predkontaceReceived: company.pohoda_predkontace_prijate || '',
+      predkontaceNoVat:    company.pohoda_predkontace_repre   || '',
+      note:                'Účtenky z one.seil.space',
     });
+
+    // Datum exportu drží seznam, aby šlo poznat, co už účetní jednou dostala
+    await sql`UPDATE receipts SET pohoda_exported_at = NOW() WHERE id = ANY(${receipts.map(r => r.id)})`;
+
     reply.header('Content-Type', 'application/xml; charset=utf-8');
     reply.header('Content-Disposition', 'attachment; filename="pohoda-uctenky.xml"');
     return reply.send(xml);
@@ -298,11 +339,15 @@ export default async function receiptsRoutes(fastify) {
   // ── Export CSV ───────────────────────────────────────────────
   fastify.get('/ucetnictvi/uctenky/export.csv', async (request, reply) => {
     const rows = await sql`SELECT * FROM receipts ORDER BY receipt_date DESC, id DESC`;
-    const header = 'ID,Číslo,Dodavatel,IČO,Základ,DPH,Celkem,Měna,Datum,Kategorie,Stav,Poznámka\n';
+    const header = 'ID,Číslo,Dodavatel,IČO,Základ,DPH,Celkem,Měna,Datum,Kategorie,Úhrada,Odpočet DPH,Agenda POHODA,Stav,Poznámka\n';
     const lines = rows.map(r => [
       r.id, r.number || '', r.vendor, r.vendor_ico || '',
       r.amount, r.vat_amount, r.total_amount, r.currency,
-      r.receipt_date, r.category, r.status, (r.notes || '').replace(/,/g, ' '),
+      r.receipt_date, r.category,
+      r.payment_method || 'Hotovost',
+      r.vat_deductible === false ? 'ne' : 'ano',
+      isCashReceipt(r) ? 'Pokladna' : 'Ostatní závazky',
+      r.status, (r.notes || '').replace(/,/g, ' '),
     ].join(',')).join('\n');
     reply.header('Content-Type', 'text/csv; charset=utf-8');
     reply.header('Content-Disposition', 'attachment; filename="uctenky.csv"');

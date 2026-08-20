@@ -12,6 +12,7 @@
 <!-- Bulk action bar -->
 <div id="bulkBar" style="display:none;position:sticky;top:0;z-index:50;background:var(--primary);color:#fff;padding:10px 16px;border-radius:var(--radius-md);margin-bottom:12px;align-items:center;gap:12px;">
   <span id="bulkCount" style="font-weight:600;font-size:14px;"></span>
+  <span id="bulkSplit" style="font-size:13px;opacity:0.9;"></span>
   <form id="bulkPohodaForm" method="post" action="/ucetnictvi/uctenky/pohoda-xml" style="display:inline;" target="_blank">
     <div id="bulkInputs"></div>
     <button type="submit" class="btn btn-sm" style="background:#fff;color:var(--primary);font-weight:600;">↓ Export POHODA XML</button>
@@ -25,8 +26,12 @@
     <option value="">Všechny stavy</option>
     <% STATUSES.forEach(s => { %><option value="<%= s %>" <%= statusFilter===s?'selected':'' %>><%= s %></option><% }) %>
   </select>
+  <select name="platba" class="form-select" style="width:auto;">
+    <option value="">Všechny úhrady</option>
+    <% PAYMENT_METHODS.forEach(m => { %><option value="<%= m %>" <%= paymentFilter===m?'selected':'' %>><%= m %></option><% }) %>
+  </select>
   <button type="submit" class="btn btn-outline">Filtrovat</button>
-  <% if (q||statusFilter) { %><a href="/ucetnictvi/uctenky" class="btn btn-ghost">Zrušit</a><% } %>
+  <% if (q||statusFilter||paymentFilter) { %><a href="/ucetnictvi/uctenky" class="btn btn-ghost">Zrušit</a><% } %>
 </form>
 
 <div class="table-wrapper">
@@ -34,7 +39,7 @@
     <thead>
       <tr>
         <th style="width:36px;"><input type="checkbox" id="bulkSelectAll" onchange="bulkToggleAll(this.checked)" title="Vybrat vše"></th>
-        <th>Číslo</th><th>Dodavatel</th><th>Datum</th><th>Kategorie</th>
+        <th>Číslo</th><th>Dodavatel</th><th>Datum</th><th>Kategorie</th><th>Úhrada</th>
         <th style="text-align:right;">Celkem</th><th>Doklad</th><th>Stav</th><th></th>
       </tr>
     </thead>
@@ -45,13 +50,30 @@
           const sc = r.status==='Zaúčtována'   ? '#dcfce7:#166534' :
                      r.status==='Storno'        ? '#f3f4f6:#6b7280' : '#fef9c3:#92400e';
           const [bg,cl] = sc.split(':');
+          const hotove = !r.payment_method || r.payment_method === 'Hotovost';
+          const agenda = hotove ? 'Pokladna' : 'Ostatní závazky';
+          const bezDph = r.vat_deductible === false;
+          const exportovano = r.pohoda_exported_at
+            ? new Date(r.pohoda_exported_at).toLocaleDateString('cs-CZ') : '';
         %>
         <tr class="clickable-row" onclick="location.href='/ucetnictvi/uctenky/<%= r.id %>'">
-          <td onclick="event.stopPropagation();"><input type="checkbox" class="bulk-cb" value="<%= r.id %>" onchange="bulkUpdate()"></td>
+          <td onclick="event.stopPropagation();">
+            <input type="checkbox" class="bulk-cb" value="<%= r.id %>" onchange="bulkUpdate()"
+                   data-cash="<%= hotove ? '1' : '0' %>" data-exported="<%= exportovano %>">
+          </td>
           <td style="font-weight:600;color:var(--primary);"><%= r.number || '—' %></td>
           <td><%= r.vendor || '—' %></td>
           <td style="color:var(--text-muted);font-size:13px;"><%= new Date(r.receipt_date).toLocaleDateString('cs-CZ') %></td>
-          <td><span style="font-size:12px;color:var(--text-muted);"><%= r.category %></span></td>
+          <td>
+            <span style="font-size:12px;color:var(--text-muted);"><%= r.category %></span>
+            <% if (bezDph) { %><br><span class="badge" style="background:#fef3c7;color:#92400e;font-size:10px;"
+                 title="Bez nároku na odpočet DPH — celá částka jde do nákladů">bez odpočtu</span><% } %>
+          </td>
+          <td>
+            <span class="badge" style="background:<%= hotove ? '#e0e7ff' : '#fce7f3' %>;color:<%= hotove ? '#3730a3' : '#9d174d' %>;font-size:11px;"
+                  title="V POHODĚ jde do agendy <%= agenda %>"><%= r.payment_method || 'Hotovost' %></span>
+            <% if (exportovano) { %><br><span style="font-size:10px;color:var(--text-muted);" title="Naposledy exportováno do POHODY">↑ <%= exportovano %></span><% } %>
+          </td>
           <td style="text-align:right;font-weight:600;"><%= Number(r.total_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= r.currency %></td>
           <td onclick="event.stopPropagation();">
             <% if (r.attachment_path && r.attachment_missing) { %>
@@ -101,7 +123,7 @@
         </tr>
         <% }) %>
       <% } else { %>
-        <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-muted);">Žádné účtenky</td></tr>
+        <tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text-muted);">Žádné účtenky</td></tr>
       <% } %>
     </tbody>
   </table>
@@ -110,7 +132,7 @@
 <% if (totalPages > 1) { %>
 <div style="display:flex;gap:8px;justify-content:center;margin-top:20px;">
   <% for (let p = 1; p <= totalPages; p++) { %>
-    <a href="?page=<%= p %><%= q?'&q='+encodeURIComponent(q):'' %><%= statusFilter?'&status='+encodeURIComponent(statusFilter):'' %>"
+    <a href="?page=<%= p %><%= q?'&q='+encodeURIComponent(q):'' %><%= statusFilter?'&status='+encodeURIComponent(statusFilter):'' %><%= paymentFilter?'&platba='+encodeURIComponent(paymentFilter):'' %>"
        class="btn <%= p===page?'btn-primary':'btn-outline' %> btn-sm"><%= p %></a>
   <% } %>
 </div>
@@ -254,16 +276,31 @@
                 </div>
                 <div class="form-group">
                   <label class="form-label">Kategorie</label>
-                  <select name="category" id="rcCategory" class="form-select">
+                  <select name="category" id="rcCategory" class="form-select" onchange="rcUhrada()">
                     <% CATEGORIES.forEach(c => { %><option value="<%= c %>"><%= c %></option><% }) %>
                   </select>
                 </div>
               </div>
-              <div class="form-group">
-                <label class="form-label">Stav</label>
-                <select name="status" id="rcStatus" class="form-select">
-                  <% STATUSES.forEach(s => { %><option value="<%= s %>"><%= s %></option><% }) %>
-                </select>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="form-group">
+                  <label class="form-label">Forma úhrady</label>
+                  <select name="payment_method" id="rcPayment" class="form-select" onchange="rcUhrada()">
+                    <% PAYMENT_METHODS.forEach(m => { %><option value="<%= m %>"><%= m %></option><% }) %>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Stav</label>
+                  <select name="status" id="rcStatus" class="form-select">
+                    <% STATUSES.forEach(s => { %><option value="<%= s %>"><%= s %></option><% }) %>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                  <input type="checkbox" name="vat_deductible" id="rcVatDeductible" value="on" checked>
+                  <span>Uplatnit nárok na odpočet DPH</span>
+                </label>
+                <small id="rcUhradaHint" style="color:var(--text-muted);display:block;margin-top:4px;"></small>
               </div>
               <div class="form-group">
                 <label class="form-label">Poznámka / předmět nákupu</label>
@@ -382,6 +419,7 @@
     document.getElementById('rcSubmitBtn').textContent = 'Přidat účtenku';
     document.getElementById('rcModalTitle').textContent = 'Přidat účtenku';
     document.getElementById('rcDate').value = new Date().toISOString().split('T')[0];
+    window.rcUhrada();
   }
 
   // AI upload (nahraný soubor i foto z fotoaparátu)
@@ -496,6 +534,10 @@
       setVal('rcNotes',     data.notes);
       if (data.currency) document.getElementById('rcCurrency').value = data.currency;
       if (data.category) document.getElementById('rcCategory').value = data.category;
+      if (data.payment_method && RC_PAYMENTS.includes(data.payment_method)) {
+        document.getElementById('rcPayment').value = data.payment_method;
+      }
+      rcUhrada();
       aiBadge.style.cssText = 'display:block;background:var(--primary-light);color:var(--primary-dark);border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;font-weight:600;';
       aiBadge.textContent = '✦ Pole byla předvyplněna z dokladu — zkontrolujte prosím hodnoty';
     } else if (errMsg) {
@@ -572,6 +614,34 @@
     if (dl) dl.innerHTML = list.map(a => `<option value="${a.code}">${a.code} — ${a.name}</option>`).join('');
   }).catch(() => {});
 
+  // Reprezentace nárok na odpočet DPH nemá (§ 72 odst. 4 ZDPH) a doklad placený
+  // kartou nepatří do pokladny — obojí ukážeme rovnou při zakládání účtenky.
+  const RC_NO_VAT   = <%- JSON.stringify(NO_VAT_CATEGORIES) %>;
+  const RC_PAYMENTS = <%- JSON.stringify(PAYMENT_METHODS) %>;
+
+  window.rcUhrada = function () {
+    const cat  = document.getElementById('rcCategory').value;
+    const pay  = document.getElementById('rcPayment').value;
+    const vat  = document.getElementById('rcVatDeductible');
+    const hint = document.getElementById('rcUhradaHint');
+    const rows = [];
+
+    if (RC_NO_VAT.includes(cat)) {
+      vat.checked  = false;
+      vat.disabled = true;
+      rows.push('Reprezentace — odpočet DPH nelze uplatnit, celá částka jde do nákladů.');
+    } else {
+      vat.disabled = false;
+      if (!vat.checked) rows.push('Celá částka včetně DPH půjde do nákladů.');
+    }
+    rows.push(pay === 'Hotovost'
+      ? 'V POHODĚ půjde do agendy Pokladna.'
+      : 'Placeno z účtu → v POHODĚ do Ostatních závazků, ne do pokladny.');
+    hint.textContent = rows.join(' ');
+  };
+  document.getElementById('rcVatDeductible').addEventListener('change', window.rcUhrada);
+  window.rcUhrada();
+
   // Bulk akce
   window.bulkUpdate = function() {
     const cbs = document.querySelectorAll('.bulk-cb:checked');
@@ -579,6 +649,16 @@
     const inp = document.getElementById('bulkInputs');
     document.getElementById('bulkCount').textContent = `${cbs.length} vybráno`;
     inp.innerHTML = [...cbs].map(c => `<input type="hidden" name="ids" value="${c.value}">`).join('');
+
+    // Ať je dopředu vidět, co z výběru půjde do pokladny a co mezi závazky —
+    // účetní nechce v pokladně doklady placené kartou.
+    const cash     = [...cbs].filter(c => c.dataset.cash === '1').length;
+    const exported = [...cbs].filter(c => c.dataset.exported).length;
+    const parts = [];
+    if (cash) parts.push(`${cash} do pokladny`);
+    if (cbs.length - cash) parts.push(`${cbs.length - cash} do ostatních závazků`);
+    if (exported) parts.push(`⚠ ${exported} už jednou exportováno`);
+    document.getElementById('bulkSplit').textContent = parts.length ? '· ' + parts.join(' · ') : '';
     bar.style.display = cbs.length > 0 ? 'flex' : 'none';
     const allCbs = document.querySelectorAll('.bulk-cb');
     document.getElementById('bulkSelectAll').checked = cbs.length === allCbs.length && allCbs.length > 0;
