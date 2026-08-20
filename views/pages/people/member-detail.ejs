@@ -35,7 +35,7 @@
 
       <!-- Tlačítko Změnit fotku (admin) -->
       <% if (user && user.is_admin) { %>
-      <form method="post" action="/lide/tym/<%= member.id %>/foto" enctype="multipart/form-data"
+      <form method="post" action="/lide/tym/<%= member.public_id %>/foto" enctype="multipart/form-data"
             style="position:absolute;bottom:0;right:0;">
         <label style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:var(--primary);color:#fff;cursor:pointer;border:2px solid #fff;font-size:14px;" title="Změnit fotku">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -99,7 +99,7 @@
       <h2 style="font-size:15px;font-weight:600;margin:0;">Osobní údaje</h2>
     </div>
     <div class="card-body">
-      <form method="post" action="/lide/tym/<%= member.id %>">
+      <form method="post" action="/lide/tym/<%= member.public_id %>">
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-bottom:20px;">
 
           <div class="form-group">
@@ -193,7 +193,7 @@
       <h2 style="font-size:15px;font-weight:600;margin:0;">Bankovní účet</h2>
     </div>
     <div class="card-body">
-      <form method="post" action="/lide/tym/<%= member.id %>">
+      <form method="post" action="/lide/tym/<%= member.public_id %>">
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-bottom:20px;">
 
           <div class="form-group">
@@ -264,12 +264,66 @@
 
 <!-- ── Tab: Přístupy ──────────────────────────────────────── -->
 <div id="tab-pristupy" class="tab-section" style="display:none;">
+
+  <!-- Přehled sekcí a záložek, které uživatel vidí -->
+  <div class="card" style="margin-bottom:24px;">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+      <h2 style="font-size:15px;font-weight:600;margin:0;">Co uživatel vidí</h2>
+      <a href="/lide/pristupy" class="btn btn-outline btn-sm">Upravit v matici →</a>
+    </div>
+    <div class="card-body">
+      <%
+        // Stejné vyhodnocení jako v menu a ve strážci rout (src/access.js).
+        const vidi = (section, item) => isAllowed(member, { ...item, section });
+        const celkem = sections.reduce((n, sec) => n + sec.items.length, 0);
+        const povoleno = sections.reduce(
+          (n, sec) => n + sec.items.filter(it => vidi(sec, it)).length, 0);
+      %>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:18px;">
+        Přístup k <strong style="color:var(--text-primary);"><%= povoleno %></strong>
+        z <%= celkem %> sekcí systému.
+        <% if (!member.is_admin) { %>
+          Sekce označené zámkem vyžadují roli Správce.
+        <% } %>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:18px;">
+        <% sections.forEach(section => { %>
+        <div>
+          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);margin-bottom:8px;">
+            <%= section.label %>
+          </div>
+          <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;">
+            <% section.items.forEach(item => {
+                 const ok = vidi(section, item);
+                 const rolí = (item.adminOnly || section.adminOnly) && !member.is_admin;
+            %>
+            <li style="display:flex;align-items:center;gap:8px;font-size:13.5px;color:<%= ok ? 'var(--text-primary)' : 'var(--text-muted)' %>;">
+              <% if (ok) { %>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#15803D" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><polyline points="20 6 9 17 4 12"/></svg>
+              <% } else if (rolí) { %>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.6;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <% } else { %>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.5;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              <% } %>
+              <span style="<%= ok ? '' : 'text-decoration:line-through;text-decoration-color:var(--border-strong);' %>"><%= item.label %></span>
+            </li>
+            <% }); %>
+          </ul>
+        </div>
+        <% }); %>
+      </div>
+    </div>
+  </div>
+
   <div class="card">
     <div class="card-header">
       <h2 style="font-size:15px;font-weight:600;margin:0;">Informace o účtu</h2>
     </div>
     <div class="card-body">
       <dl style="display:grid;grid-template-columns:auto 1fr;gap:10px 24px;font-size:14px;">
+        <dt style="color:var(--text-muted);font-weight:500;">ID uživatele</dt>
+        <dd><code style="font-family:var(--font-mono);font-size:13px;"><%= member.public_id %></code></dd>
         <dt style="color:var(--text-muted);font-weight:500;">E-mail</dt>
         <dd><%= member.email %></dd>
         <dt style="color:var(--text-muted);font-weight:500;">Datum vytvoření</dt>

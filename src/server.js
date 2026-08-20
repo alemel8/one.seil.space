@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { getDb, closeAll } from './db.js';
 import { runMigrations } from './migrate.js';
 import { PgSessionStore } from './session-store.js';
+import { matchAccessItem, isAllowed, visibleItems, ACCESS_SECTIONS } from './access.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -103,13 +104,47 @@ await fastify.register(swaggerUi, {
 fastify.addHook('preHandler', async (request) => {
   request.user = null;
   if (request.session.userId) {
+    // Přístupová matice se veze s uživatelem — sidebar i strážce rout ji
+    // potřebují na každý požadavek, druhý dotaz by byl zbytečný.
     const rows = await sql`
-      SELECT id, email, first_name, last_name, is_admin, is_active, photo
-      FROM users WHERE id = ${request.session.userId} AND is_active = TRUE
+      SELECT u.id, u.public_id, u.email, u.first_name, u.last_name,
+             u.is_admin, u.is_active, u.photo,
+             COALESCE((
+               SELECT jsonb_object_agg(a.access_key, a.allowed)
+                 FROM user_access a WHERE a.user_id = u.id
+             ), '{}'::jsonb) AS access
+        FROM users u
+       WHERE u.id = ${request.session.userId} AND u.is_active = TRUE
     `;
     request.user = rows[0] ?? null;
     if (!request.user) await request.session.destroy();
+
+    if (request.user) {
+      // Zkratky pro šablony (sidebar, dlaždice na homepage)
+      request.user.can = key => isAllowed(request.user, key);
+      request.user.canSection = key => {
+        const section = ACCESS_SECTIONS.find(s => s.key === key);
+        return section ? visibleItems(request.user, section).length > 0 : true;
+      };
+    }
   }
+});
+
+// ── Strážce přístupů ──────────────────────────────────────────
+// Skrytá položka v menu nestačí — bez tohohle by se na ni dalo dostat
+// napsáním URL. Cesty mimo katalog (API, profil, statika) neřeší.
+
+fastify.addHook('preHandler', async (request, reply) => {
+  if (!request.user) return;
+  const item = matchAccessItem(request.url);
+  if (!item || isAllowed(request.user, item)) return;
+
+  fastify.log.info({ url: request.url, userId: request.user.id, item: item.key },
+    'přístup odepřen podle matice');
+  return reply.code(403).view('pages/errors/403.ejs', {
+    pageTitle: 'Přístup odepřen', currentPath: request.url,
+    user: request.user, section: item.section.label, item: item.label,
+  }, { layout: 'layouts/base.ejs' });
 });
 
 // ── Healthcheck ───────────────────────────────────────────────

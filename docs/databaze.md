@@ -14,6 +14,7 @@ Uživatelé systému.
 | Sloupec | Typ | Popis |
 |---|---|---|
 | `id` | SERIAL PK | |
+| `public_id` | TEXT UNIQUE | 12 hex znaků, v URL místo `id`; výchozí hodnota generuje databáze |
 | `email` | TEXT UNIQUE | |
 | `password_hash` | TEXT | bcryptjs, salt 10 |
 | `first_name` | TEXT | |
@@ -22,6 +23,20 @@ Uživatelé systému.
 | `is_active` | BOOL | Deaktivovaný účet se nemůže přihlásit |
 | `photo` | TEXT | Název souboru v `data/media/` |
 | `created_at` | TIMESTAMPTZ | |
+| `title`, `phone`, `position`, `bio` | TEXT | HR údaje (migrace 012) |
+| `address`, `city`, `zip`, `country` | TEXT | Adresa |
+| `bank_account`, `bank_name`, `iban` | TEXT | Bankovní spojení |
+
+### `user_access`
+Přístupová matice — kdo vidí kterou sekci systému. Klíče definuje katalog
+v `src/access.js`; chybějící řádek znamená „vidí“.
+
+| Sloupec | Typ | Popis |
+|---|---|---|
+| `user_id` | INT → users | ON DELETE CASCADE |
+| `access_key` | TEXT | Např. `ucetnictvi.banka` (PK spolu s `user_id`) |
+| `allowed` | BOOL | |
+| `updated_at` | TIMESTAMPTZ | |
 
 ### `session`
 PostgreSQL session store (connect-pg-simple). Spravuje se automaticky.

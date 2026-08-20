@@ -1,0 +1,222 @@
+<%
+  // Jméno do hlavičky sloupce — u lidí bez příjmení padáme na e-mail.
+  const jmeno = m => ((m.first_name || '') + ' ' + (m.last_name || '')).trim() || m.email;
+  const inicialy = m => ((m.first_name || '').charAt(0) + (m.last_name || '').charAt(0)).toUpperCase()
+                        || (m.email || '?').charAt(0).toUpperCase();
+
+  // Stav políčka pro daného člověka. Bez uloženého záznamu platí „vidí“,
+  // aby po nasazení migrace nikdo o nic nepřišel.
+  const stav = (m, section, item) => {
+    const saved   = (matrix[m.id] || {})[item.key];
+    // Editor přístupů si správce nesmí odebrat, jinak by se zamkl.
+    const zamceno = Boolean(item.locked && m.is_admin);
+    return {
+      checked: zamceno || (saved === undefined || saved === null ? true : Boolean(saved)),
+      // Role je tvrdší než matice — zaškrtnutí z uživatele správce neudělá.
+      // Hodnota se přesto ukládá, aby po povýšení na správce sedělo, co bylo
+      // nastaveno.
+      blokovano: Boolean((item.adminOnly || section.adminOnly) && !m.is_admin),
+      zamceno,
+    };
+  };
+%>
+
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Přístupy</h1>
+    <p>Kdo vidí které sekce a záložky systému</p>
+  </div>
+  <a href="/lide/tym" class="btn btn-outline">← Zpět na tým</a>
+</div>
+
+<% if (saved) { %>
+<div style="background:var(--success-bg);color:#15803D;border:1px solid #bbf7d0;border-radius:8px;padding:10px 16px;margin-bottom:20px;font-size:14px;">
+  Přístupy byly uloženy.
+</div>
+<% } %>
+
+<form method="post" action="/lide/pristupy">
+  <%# Které sloupce formulář posílá — bez toho by uživatel s prázdným
+      výběrem vypadl z požadavku a jeho matice by zůstala nedotčená. %>
+  <% members.forEach(m => { %><input type="hidden" name="acc_user" value="<%= m.id %>"><% }); %>
+  <div class="card">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+      <h2 style="font-size:15px;font-weight:600;margin:0;">Přístupová matice</h2>
+      <div style="font-size:12.5px;color:var(--text-muted);">
+        Odškrtnutá sekce zmizí z menu a její adresa vrátí 403.
+      </div>
+    </div>
+
+    <div class="table-wrapper" style="border:none;border-radius:0;">
+      <table class="data-table access-matrix">
+        <thead>
+          <tr>
+            <th style="min-width:260px;">Sekce systému</th>
+            <% members.forEach(m => { %>
+            <th style="text-align:center;min-width:120px;">
+              <a href="/lide/tym/<%= m.public_id %>#pristupy" class="access-user">
+                <span class="access-avatar">
+                  <% if (m.photo) { %>
+                    <img src="/media/<%= m.photo %>" alt=""
+                         onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                    <span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;"><%= inicialy(m) %></span>
+                  <% } else { %>
+                    <%= inicialy(m) %>
+                  <% } %>
+                </span>
+                <span class="access-user-name"><%= jmeno(m) %></span>
+                <span class="access-user-role"><%= m.is_admin ? 'Správce' : 'Uživatel' %><%= m.is_active ? '' : ' · neaktivní' %></span>
+              </a>
+            </th>
+            <% }); %>
+          </tr>
+        </thead>
+
+        <tbody>
+          <% sections.forEach(section => { %>
+          <tr class="access-section-row" data-section="<%= section.key %>">
+            <td>
+              <span class="access-section-label"><%= section.label %></span>
+              <% if (section.adminOnly) { %>
+              <span class="badge" style="background:#fef9c3;color:#854d0e;margin-left:8px;">Jen správce</span>
+              <% } %>
+            </td>
+            <% members.forEach(m => { %>
+            <td style="text-align:center;">
+              <input type="checkbox" class="access-check access-check-all"
+                     data-section="<%= section.key %>" data-user="<%= m.id %>"
+                     title="Přepnout celou sekci">
+            </td>
+            <% }); %>
+          </tr>
+
+          <% section.items.forEach(item => { %>
+          <tr class="access-item-row">
+            <td>
+              <span class="access-item-label"><%= item.label %></span>
+              <span class="access-item-path"><%= item.path %></span>
+            </td>
+            <% members.forEach(m => {
+                 const s = stav(m, section, item);
+                 const disabled = s.blokovano || s.zamceno;
+                 const popis = s.blokovano ? 'Vyžaduje roli Správce — bez ní sekci neuvidí'
+                             : s.zamceno   ? 'Správci nelze odebrat editor přístupů'
+                             : jmeno(m) + ' — ' + section.label + ' → ' + item.label;
+            %>
+            <td style="text-align:center;">
+              <span class="access-cell" title="<%= popis %>">
+                <input type="checkbox" class="access-check"
+                       data-section="<%= section.key %>" data-user="<%= m.id %>"
+                       name="acc__<%= m.id %>__<%= item.key %>"
+                       <%= s.checked ? 'checked' : '' %>
+                       <%= disabled ? 'disabled' : '' %>>
+                <% if (disabled) { %>
+                  <span class="access-lock" aria-hidden="true">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                  </span>
+                  <!-- Zamčené políčko se neodesílá — hodnotu nese skryté pole,
+                       aby se nastavení neztratilo. -->
+                  <% if (s.checked) { %><input type="hidden" name="acc__<%= m.id %>__<%= item.key %>" value="1"><% } %>
+                <% } %>
+              </span>
+            </td>
+            <% }); %>
+          </tr>
+          <% }); %>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card-body" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;border-top:1px solid var(--border);">
+      <div style="font-size:12.5px;color:var(--text-muted);">
+        Šedé políčko znamená, že sekci uzamyká role — uživatel na ni nedosáhne, dokud z něj neuděláte správce.
+      </div>
+      <button type="submit" class="btn btn-primary">Uložit přístupy</button>
+    </div>
+  </div>
+</form>
+
+<style>
+.access-matrix th { vertical-align: bottom; }
+.access-matrix td { vertical-align: middle; }
+
+.access-user {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  text-decoration: none; color: inherit;
+}
+.access-avatar {
+  width: 34px; height: 34px; border-radius: 50%; overflow: hidden;
+  background: var(--primary); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.3px;
+}
+.access-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.access-user-name { font-size: 12.5px; font-weight: 600; color: var(--text-primary); white-space: nowrap; }
+.access-user-role { font-size: 11px; font-weight: 400; color: var(--text-muted); white-space: nowrap; text-transform: none; letter-spacing: 0; }
+
+.access-section-row { background: var(--gray-50); }
+[data-theme="dark"] .access-section-row { background: var(--sidebar-hover); }
+.access-section-row td { border-bottom: 1px solid var(--border); }
+.access-section-label { font-size: 13.5px; font-weight: 700; color: var(--text-primary); }
+
+.access-item-row .access-item-label { font-size: 13.5px; color: var(--text-primary); padding-left: 18px; }
+.access-item-path {
+  display: block; padding-left: 18px; margin-top: 2px;
+  font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted);
+}
+
+.access-check {
+  width: 17px; height: 17px; cursor: pointer;
+  accent-color: var(--primary);
+}
+.access-check:disabled { cursor: not-allowed; opacity: 0.3; }
+.access-check-all { opacity: 0.75; }
+
+.access-cell { position: relative; display: inline-flex; align-items: center; }
+.access-lock {
+  position: absolute; right: -11px; top: -5px;
+  color: var(--text-muted); line-height: 0;
+}
+</style>
+
+<script>
+(function () {
+  // Políčko v hlavičce sekce přepíná všechny své záložky pro daného člověka
+  // a samo ukazuje stav (zaškrtnuto / nic / neurčito).
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('.access-check:not(.access-check-all)'));
+  var masters = Array.prototype.slice.call(document.querySelectorAll('.access-check-all'));
+
+  function childrenOf(master) {
+    return boxes.filter(function (b) {
+      return b.dataset.section === master.dataset.section && b.dataset.user === master.dataset.user;
+    });
+  }
+
+  function refresh(master) {
+    var kids = childrenOf(master).filter(function (b) { return !b.disabled; });
+    if (!kids.length) { master.disabled = true; master.checked = false; return; }
+    var on = kids.filter(function (b) { return b.checked; }).length;
+    master.checked = on === kids.length;
+    master.indeterminate = on > 0 && on < kids.length;
+  }
+
+  masters.forEach(function (master) {
+    refresh(master);
+    master.addEventListener('change', function () {
+      childrenOf(master).forEach(function (b) { if (!b.disabled) b.checked = master.checked; });
+      master.indeterminate = false;
+    });
+  });
+
+  boxes.forEach(function (b) {
+    b.addEventListener('change', function () {
+      masters.forEach(function (m) {
+        if (m.dataset.section === b.dataset.section && m.dataset.user === b.dataset.user) refresh(m);
+      });
+    });
+  });
+})();
+</script>

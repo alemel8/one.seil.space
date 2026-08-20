@@ -321,9 +321,30 @@ Notifikační kanály: Discord (webhook URL), E-mail (Resend). Notifikační pra
 |---|---|
 | `GET /lide/tym` | Seznam uživatelů systému |
 | `POST /lide/tym/vytvorit` | Nový uživatel (admin only) |
-| `GET /lide/tym/:id` | Detail člena týmu |
-| `POST /lide/tym/:id/upravit` | Úprava (jméno, role, heslo) |
-| `POST /lide/tym/:id/deaktivovat` | Deaktivace účtu |
+| `GET /lide/tym/:id` | Detail člena týmu — `:id` je `users.public_id` |
+| `POST /lide/tym/:id` | Úprava (osobní údaje, banka, role) |
+| `POST /lide/tym/:id/foto` | Upload fotky člena |
+| `GET /lide/pristupy` | Přístupová matice — sekce × uživatelé |
+| `POST /lide/pristupy` | Uložení matice |
+
+V URL detailu je `public_id` (12 hex znaků), ne pořadové číslo. Staré číselné
+odkazy se přesměrují na kanonickou adresu, takže záložky v prohlížeči fungují dál.
+
+### Přístupová matice
+
+Katalog sekcí systému žije v `src/access.js` — jeden zdroj pravdy pro matici,
+levé menu i strážce rout v `src/server.js`. **Kdo přidá sekci do sidebaru,
+přidá ji i do katalogu**, jinak ji matice nezná a zůstane přístupná všem.
+
+Pravidla vyhodnocení:
+
+- Bez uloženého záznamu platí „vidí“ — nasazení migrace nikomu nic neodebere.
+- Matice umí jen ubírat: `adminOnly` sekce zůstane nedostupná i zaškrtnutá.
+- Správce nikdy nepřijde o `GET /lide/pristupy`, jinak by se zamkl.
+- Skrytí položky z menu nestačí — `preHandler` v `src/server.js` vrací na
+  zakázané cestě 403 (`views/pages/errors/403.ejs`), a to i pro POST.
+
+Přehled toho, co konkrétní člověk vidí, je na `/lide/tym/:id#pristupy`.
 
 ---
 

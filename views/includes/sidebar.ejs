@@ -1,3 +1,9 @@
+<%
+  // Viditelnost podle přístupové matice (src/access.js). Bez přihlášeného
+  // uživatele (chybové stránky) se menu nechává celé.
+  const can  = k => (user && typeof user.can === 'function') ? user.can(k) : true;
+  const canS = k => (user && typeof user.canSection === 'function') ? user.canSection(k) : true;
+%>
 <aside class="sidebar" id="sidebar">
 
   <!-- Logo → homepage -->
@@ -9,6 +15,7 @@
   <nav class="sidebar-nav">
 
     <!-- DOMOVSKÁ STRÁNKA -->
+    <% if (can('home.prehled')) { %>
     <div class="nav-section">
       <div class="nav-item">
         <a href="/" class="nav-link <%= currentPath === '/' ? 'active' : '' %>" style="text-decoration:none;">
@@ -22,8 +29,10 @@
         </a>
       </div>
     </div>
+    <% } %>
 
     <!-- PROJEKTY -->
+    <% if (can('projekty.seznam')) { %>
     <div class="nav-section">
       <div class="nav-item">
         <a href="/projekty" class="nav-link <%= currentPath && currentPath.startsWith('/projekty') ? 'active' : '' %>" style="text-decoration:none;">
@@ -37,8 +46,10 @@
         </a>
       </div>
     </div>
+    <% } %>
 
     <!-- MONITORING -->
+    <% if (canS('monitoring')) { %>
     <div class="nav-section">
       <div class="nav-section-label">Monitoring</div>
 
@@ -56,12 +67,14 @@
           </svg>
         </button>
         <ul class="nav-sub">
+          <% if (can('monitoring.vps')) { %>
           <li>
             <a href="/monitoring" class="nav-sub-link <%= currentPath === '/monitoring' ? 'active' : '' %>">
               Aktuální stav VPS
             </a>
           </li>
-          <% if (user && user.is_admin) { %>
+          <% } %>
+          <% if (can('monitoring.healthchecky')) { %>
           <li>
             <a href="/nastaveni/healthchecky" class="nav-sub-link <%= currentPath === '/nastaveni/healthchecky' ? 'active' : '' %>">
               Healthchecky &amp; notifikace
@@ -71,8 +84,10 @@
         </ul>
       </div>
     </div>
+    <% } %>
 
     <!-- ÚČETNICTVÍ -->
+    <% if (canS('ucetnictvi')) { %>
     <div class="nav-section">
       <div class="nav-section-label">Účetnictví</div>
 
@@ -89,51 +104,69 @@
           </svg>
         </button>
         <ul class="nav-sub">
+          <% if (can('ucetnictvi.prehled')) { %>
           <li>
             <a href="/ucetnictvi/prehled" class="nav-sub-link <%= currentPath === '/ucetnictvi/prehled' ? 'active' : '' %>">
               Finanční přehled
             </a>
           </li>
+          <% } %>
+          <% if (can('ucetnictvi.objednavky')) { %>
           <li>
             <a href="/ucetnictvi/objednavky" class="nav-sub-link <%= currentPath && currentPath.startsWith('/ucetnictvi/objednavky') ? 'active' : '' %>">
               Objednávky
             </a>
           </li>
+          <% } %>
+          <% if (can('ucetnictvi.prijate-faktury')) { %>
           <li>
             <a href="/ucetnictvi/prijate-faktury" class="nav-sub-link <%= currentPath && currentPath.startsWith('/ucetnictvi/prijate-faktury') ? 'active' : '' %>">
               Přijaté faktury
             </a>
           </li>
+          <% } %>
+          <% if (can('ucetnictvi.vydane-faktury')) { %>
           <li>
             <a href="/ucetnictvi/vydane-faktury" class="nav-sub-link <%= currentPath && currentPath.startsWith('/ucetnictvi/vydane-faktury') ? 'active' : '' %>">
               Vydané faktury
             </a>
           </li>
+          <% } %>
+          <% if (can('ucetnictvi.upominky')) { %>
           <li>
             <a href="/ucetnictvi/upominky" class="nav-sub-link <%= currentPath && currentPath.startsWith('/ucetnictvi/upominky') ? 'active' : '' %>">
               Upomínky
             </a>
           </li>
+          <% } %>
+          <% if (can('ucetnictvi.sablony-faktur')) { %>
           <li>
             <a href="/ucetnictvi/sablony-faktur" class="nav-sub-link <%= currentPath === '/ucetnictvi/sablony-faktur' ? 'active' : '' %>">
               Šablony faktur
             </a>
           </li>
+          <% } %>
+          <% if (can('ucetnictvi.uctenky')) { %>
           <li>
             <a href="/ucetnictvi/uctenky" class="nav-sub-link <%= currentPath && currentPath.startsWith('/ucetnictvi/uctenky') ? 'active' : '' %>">
               Účtenky
             </a>
           </li>
+          <% } %>
+          <% if (can('ucetnictvi.banka')) { %>
           <li>
             <a href="/ucetnictvi/banka" class="nav-sub-link <%= currentPath === '/ucetnictvi/banka' ? 'active' : '' %>">
               Banka
             </a>
           </li>
+          <% } %>
         </ul>
       </div>
     </div>
+    <% } %>
 
     <!-- CRM -->
+    <% if (canS('crm')) { %>
     <div class="nav-section">
       <div class="nav-section-label">CRM</div>
 
@@ -151,22 +184,27 @@
           </svg>
         </button>
         <ul class="nav-sub">
+          <% if (can('crm.firmy')) { %>
           <li>
             <a href="/crm/firmy" class="nav-sub-link <%= currentPath && currentPath.startsWith('/crm/firmy') ? 'active' : '' %>">
               Firmy
             </a>
           </li>
+          <% } %>
+          <% if (can('crm.kontakty')) { %>
           <li>
             <a href="/crm/kontakty" class="nav-sub-link <%= currentPath && currentPath.startsWith('/crm/kontakty') ? 'active' : '' %>">
               Kontakty
             </a>
           </li>
+          <% } %>
         </ul>
       </div>
     </div>
+    <% } %>
 
     <!-- NASTAVENÍ (pouze admin) -->
-    <% if (user && user.is_admin) { %>
+    <% if (user && user.is_admin && canS('nastaveni')) { %>
     <div class="nav-section">
       <div class="nav-section-label">Nastavení</div>
       <div class="nav-item <%= currentPath && currentPath.startsWith('/nastaveni') ? 'open' : '' %>">
@@ -180,10 +218,10 @@
           <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
         <ul class="nav-sub">
-          <li><a href="/nastaveni/firma" class="nav-sub-link <%= currentPath === '/nastaveni/firma' ? 'active' : '' %>">Nastavení firmy</a></li>
-          <li><a href="/nastaveni/ciselne-rady" class="nav-sub-link <%= currentPath === '/nastaveni/ciselne-rady' ? 'active' : '' %>">Číselné řady</a></li>
-          <li><a href="/nastaveni/ucetni-osnova" class="nav-sub-link <%= currentPath === '/nastaveni/ucetni-osnova' ? 'active' : '' %>">Účetní osnova</a></li>
-          <li><a href="/nastaveni/eshopy" class="nav-sub-link <%= currentPath === '/nastaveni/eshopy' ? 'active' : '' %>">Eshopy &amp; API klíče</a></li>
+          <% if (can('nastaveni.firma')) { %><li><a href="/nastaveni/firma" class="nav-sub-link <%= currentPath === '/nastaveni/firma' ? 'active' : '' %>">Nastavení firmy</a></li><% } %>
+          <% if (can('nastaveni.ciselne-rady')) { %><li><a href="/nastaveni/ciselne-rady" class="nav-sub-link <%= currentPath === '/nastaveni/ciselne-rady' ? 'active' : '' %>">Číselné řady</a></li><% } %>
+          <% if (can('nastaveni.ucetni-osnova')) { %><li><a href="/nastaveni/ucetni-osnova" class="nav-sub-link <%= currentPath === '/nastaveni/ucetni-osnova' ? 'active' : '' %>">Účetní osnova</a></li><% } %>
+          <% if (can('nastaveni.eshopy')) { %><li><a href="/nastaveni/eshopy" class="nav-sub-link <%= currentPath === '/nastaveni/eshopy' ? 'active' : '' %>">Eshopy &amp; API klíče</a></li><% } %>
           <li><a href="/api/docs" class="nav-sub-link" target="_blank">API dokumentace ↗</a></li>
         </ul>
       </div>
@@ -191,7 +229,7 @@
     <% } %>
 
     <!-- LIDÉ & KULTURA (pouze admin) -->
-    <% if (user && user.is_admin) { %>
+    <% if (user && user.is_admin && canS('lide')) { %>
     <div class="nav-section">
       <div class="nav-section-label">Lidé &amp; Kultura</div>
 
@@ -208,11 +246,20 @@
           </svg>
         </button>
         <ul class="nav-sub">
+          <% if (can('lide.tym')) { %>
           <li>
             <a href="/lide/tym" class="nav-sub-link <%= currentPath === '/lide/tym' ? 'active' : '' %>">
               Tým
             </a>
           </li>
+          <% } %>
+          <% if (can('lide.pristupy')) { %>
+          <li>
+            <a href="/lide/pristupy" class="nav-sub-link <%= currentPath === '/lide/pristupy' ? 'active' : '' %>">
+              Přístupy
+            </a>
+          </li>
+          <% } %>
         </ul>
       </div>
     </div>

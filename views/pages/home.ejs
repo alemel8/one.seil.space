@@ -1,4 +1,8 @@
 <%
+  // Dlaždice se řídí stejnou maticí jako menu (src/access.js) — jinak by
+  // přehled ukazoval čísla ze sekcí, do kterých uživatel nesmí.
+  const can = k => (user && typeof user.can === 'function') ? user.can(k) : true;
+  const canS = k => (user && typeof user.canSection === 'function') ? user.canSection(k) : true;
   const profit = kpi.issuedMonth - kpi.receivedMonth;
   const monthLabel = monthOptions.find(m => m.value === selectedMonth)?.label || selectedMonth;
 %>
@@ -11,6 +15,7 @@
 </div>
 
 <!-- ══ ÚČETNICTVÍ ══════════════════════════════════════════════ -->
+<% if (canS('ucetnictvi')) { %>
 <div class="dash-section">
   <div class="dash-section-header">
     <div class="dash-section-label">Účetnictví</div>
@@ -109,7 +114,10 @@
   </div>
 </div>
 
+<% } %>
+
 <!-- ══ MONITORING ═════════════════════════════════════════════ -->
+<% if (can('monitoring.vps')) { %>
 <div class="dash-section">
   <div class="dash-section-header">
     <div class="dash-section-label">Monitoring</div>
@@ -167,12 +175,15 @@
   </div>
 </div>
 
+<% } %>
+
 <!-- ══ RYCHLÉ ODKAZY ══════════════════════════════════════════ -->
 <div class="dash-section" style="margin-bottom:0;">
   <div class="dash-section-header">
     <div class="dash-section-label">Rychlé odkazy</div>
   </div>
   <div class="kpi-grid" style="grid-template-columns:1fr 1fr;">
+    <% if (can('ucetnictvi.uctenky')) { %>
     <a href="/ucetnictvi/uctenky" class="kpi-card kpi-link" style="display:flex;align-items:center;gap:14px;">
       <div style="font-size:24px;">🧾</div>
       <div>
@@ -180,6 +191,7 @@
         <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Evidence a export do POHODY</div>
       </div>
     </a>
+    <% } %>
     <a href="https://coolify.seil.space/" target="_blank" class="kpi-card kpi-link" style="display:flex;align-items:center;gap:14px;">
       <div style="font-size:24px;">🚀</div>
       <div>
@@ -187,6 +199,7 @@
         <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Správa nasazení</div>
       </div>
     </a>
+    <% if (can('trade.prehled')) { %>
     <a href="/trade" class="kpi-card kpi-link" style="display:flex;align-items:center;gap:14px;">
       <div style="font-size:24px;">📈</div>
       <div>
@@ -194,6 +207,7 @@
         <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Paper trading — fiktivní kapitál</div>
       </div>
     </a>
+    <% } %>
     <a href="https://platform.claude.com/cost?api_key=apikey_01SYfe4d7CUHQCoeppQewiQa" target="_blank" class="kpi-card kpi-link" style="display:flex;align-items:center;gap:14px;">
       <div style="font-size:24px;">💳</div>
       <div>
