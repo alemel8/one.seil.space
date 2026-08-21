@@ -43,6 +43,109 @@ PostgreSQL session store (connect-pg-simple). Spravuje se automaticky.
 
 ---
 
+## Personální agenda
+
+Přeneseno z Airtable základen, které se ruší. Kolem jednoho člověka se točí
+tři toky a jejich rozdíl je jeho **osobní zůstatek**:
+příjmy (fakturační podklady) − výdaje (mzdy) − platby mimo mzdu.
+
+### `hr_employments`
+Zaměstnanecký poměr. Vlastní tabulka, ne sloupce na `users` — sazba i typ
+úvazku se v čase mění a mzdový list se musí odkázat na to, co platilo tehdy.
+
+| Sloupec | Typ | Popis |
+|---|---|---|
+| `id` | TEXT PK | `generateId()` |
+| `user_id` | INT → users | ON DELETE **RESTRICT** — mzdový list se archivuje 30 let |
+| `kind` | TEXT | `hpp` \| `dpp` \| `dpc` \| `osvc` \| `jednatel` |
+| `monthly_gross`, `hourly_rate` | NUMERIC | sjednaná hrubá / sazba |
+| `started_on`, `ended_on` | DATE | |
+
+### `hr_work_reports`
+Fakturační podklad — jedna služební cesta nebo zakázka, ze které vznikla
+vydaná faktura.
+
+| Sloupec | Typ | Popis |
+|---|---|---|
+| `id` | TEXT PK | |
+| `user_id` | INT → users | RESTRICT |
+| `report_date` | DATE | |
+| `breakdown` | TEXT | volný rozpad hodin a výdajů, **neparsuje se** |
+| `total_amount` | NUMERIC(12,2) | k fakturaci |
+| `status` | TEXT | `rozpracovano` \| `k_fakturaci` \| `odeslano` \| `fakturovano` \| `storno` |
+| `invoice_id` | TEXT → accounting_invoices | vydaná faktura se odkazuje, nekopíruje |
+| `invoice_number` | TEXT | zůstává i bez vazby, aby šlo spárovat později |
+| `airtable_id` | TEXT | partial UNIQUE — idempotence importu |
+
+`hr_work_report_projects` a `hr_work_report_locations` drží vícehodnotová
+čísla zakázek a lokality. Nejsou to projekty SEIL, ale **zakázková čísla
+odběratele**, proto vlastní tabulky a ne vazba na `projects`.
+
+### `hr_payroll_runs`
+Mzdový list za jeden měsíc. HPP i dohody v jedné tabulce — liší se vyplněná
+pole, ne rytmus.
+
+| Sloupec | Typ | Popis |
+|---|---|---|
+| `period` | DATE | vždy 1. den měsíce, ZA který mzda je |
+| `hours`, `hourly_rate`, `earned` | NUMERIC | dohody |
+| `gross`, `net` | NUMERIC | hrubá, čistá |
+| `social`, `health` | NUMERIC | odvody **za zaměstnance i zaměstnavatele dohromady** |
+| `tax`, `insolvency`, `garnishment`, `accident_insurance` | NUMERIC | srážky |
+| `company_cost` | NUMERIC | **náklad zaměstnavatele → jde do hrubého zisku** |
+| `paid_total` | NUMERIC GENERATED | **co odešlo z účtu → jde do osobního zůstatku** |
+
+`company_cost` a `paid_total` **nejsou zaměnitelné** a u části měsíců se liší.
+`company_cost` se ukládá tak, jak přišel z mzdové účtárny, a nedopočítává se.
+
+Bez unikátního klíče na `(user_id, period)` — Airtable vede na některé měsíce
+dva listy a sloučit je při importu by byla interpretace. UI takový měsíc označí.
+
+### `hr_payroll_items`
+Platby mimo mzdu. `kind` rozlišuje `zaloha` (pohledávka za zaměstnancem, účet
+335 — **není náklad**) od `proplaceny_naklad` (náklad je). Špatné zařazení
+posune hrubý zisk.
+
+### `hr_documents`
+Osobní a smluvní dokumenty. `category` je volný text — v Airtable byla
+vyplněná u tří záznamů z deseti a odvozuje se z názvu.
+
+---
+
+## Úkoly a měření času
+
+### `tasks`
+Úkoly. `code` (`GUK-467`), self-link `parent_id`, vazba na `crm_companies`
+a `projects`. Naměřený čas se **neukládá** — dopočítá se z `time_entries`,
+aby se uložená kopie nerozešla první spuštěnou stopkou.
+
+### `time_entries`
+Měření času. `ended_at IS NULL` znamená **běžící stopky**; částečný unikátní
+index `time_entries_running_idx` hlídá, že běží nejvýš jedny na člověka.
+`duration_seconds` je generovaný sloupec.
+
+---
+
+## Přílohy
+
+### `attachments`
+Do migrace 022 uměl systém právě **jednu** přílohu na doklad (sloupce
+`attachment_path`/`_mime`/`_size` přímo na tabulce). Mzdový balíček od účetní
+jich má 4 až 17, proto vlastní tabulka.
+
+Vlastník se drží **výlučným obloukem**: vyplněný je právě jeden z pěti FK
+sloupců (`work_report_id`, `payroll_run_id`, `payroll_item_id`, `document_id`,
+`task_id`), což hlídá CHECK. Proti dvojici (typ, id) to má skutečné cizí klíče
+a kaskádu — smazaný mzdový list po sobě nenechá osiřelé soubory.
+
+Účtenky a faktury se sem **nepřevádějí** — fungují a mají vlastní UI.
+
+Pohled **`attachment_files`** sjednocuje všechny zdroje souborů; z něj čte
+`checkAttachments()` (`src/attachments.js`). Kdyby se seznam tabulek psal v JS,
+na další entitu by se dřív nebo později zapomnělo.
+
+---
+
 ## E-shopy a objednávky
 
 ### `shops`

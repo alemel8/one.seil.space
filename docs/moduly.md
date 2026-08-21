@@ -344,7 +344,101 @@ Pravidla vyhodnocení:
 - Skrytí položky z menu nestačí — `preHandler` v `src/server.js` vrací na
   zakázané cestě 403 (`views/pages/errors/403.ejs`), a to i pro POST.
 
-Přehled toho, co konkrétní člověk vidí, je na `/lide/tym/:id#pristupy`.
+Přehled toho, co konkrétní člověk vidí, je na `/lide/tym/:id?tab=pristupy`.
+
+### Detail člena — serverové záložky
+
+Detail běží na `?tab=` se serverovým renderem (vzor z `views/pages/projects/detail.ejs`),
+ne na klientském přepínání. Každá záložka si nese vlastní dotaz, takže se
+načítá jen ta otevřená, a počty do popisků jdou spočítat jen na serveru.
+
+| Záložka | Obsah |
+|---|---|
+| `detail`, `banka` | osobní údaje, bankovní spojení |
+| `ekonomika` | příjmy − výdaje − platby = zůstatek + poslední pohyby ze všech tří zdrojů |
+| `podklady` | fakturační podklady s vazbou na vydanou fakturu |
+| `mzdy` | mzdové listy; měsíc se dvěma listy je označený |
+| `vydaje` | platby mimo mzdu (zálohy, proplacené nákupy) |
+| `dokumenty` | osobní a smluvní dokumenty |
+
+**Pozor:** `POST /lide/tym/:id` přepisuje všech šestnáct sloupců uživatele
+naráz. Nové formuláře proto **musí mít vlastní routu**
+(`/lide/tym/:id/platby/vytvorit`, `/dokumenty/vytvorit`, …), jinak osobní
+údaje vynulují.
+
+### Osobní účet
+
+Dotazy nad ním jsou v `src/hr.js`. Airtable to nepojmenoval, ale je to běžný
+účet jednoho člověka: co se za jeho práci vyfakturovalo, minus co se mu
+vyplatilo. Pozor na dvě různá čísla se stejným jménem — do zůstatku patří
+`paid_total` (co odešlo z účtu), do nákladů firmy `company_cost`.
+
+---
+
+## Náklady firmy (`src/finance.js`)
+
+Jediné místo, kde se sčítají náklady. Dokud šlo jen o součet přijatých faktur,
+vešel se vzorec do šablony; se čtyřmi zdroji by se kopie rozešly.
+
+| Zdroj | Do nákladů |
+|---|---|
+| přijaté faktury | ano |
+| účtenky | ano — dosud se nepočítaly vůbec, takže zisk byl nadhodnocený |
+| mzdy (`company_cost`) | ano |
+| proplacené nákupy zaměstnancům | ano |
+| **zálohy zaměstnanci** | **ne** — je to pohledávka (335), ne náklad |
+
+Do cashflow se nepřidává nic: mzdy i zálohy z účtu už odešly a banka je vidí,
+takže by se počítaly dvakrát. Mzda se řadí do měsíce, **za který je**, ne podle
+data výplaty.
+
+Konzumuje to `/ucetnictvi/prehled` (`src/routes/accounting.js`) i domovská
+stránka (`src/routes/dashboard.js`). Dlaždice Náklady si nese popisek, z čeho
+se skládá — bez něj by přehled lhal.
+
+---
+
+## Přílohy k záznamům
+
+`src/attachments.js` má dvě vrstvy: práci se soubory (komprese, MIME, mazání)
+a nad ní pár funkcí nad tabulkou `attachments` (`loadAttachments`,
+`addAttachment`, `removeAttachment`). `ATTACHMENT_OWNERS` je jediné místo, kde
+se překládá název entity na FK sloupec.
+
+**Archivní režim** — `saveAttachment(buf, mime, base, { archive: true })`
+přijme XML, DOCX, XLSX i ZIP, neprožene je kompresí a nepustí se do formulářů
+dokladů (tam má být sken). Potřebuje ho import: mzdové balíčky obsahují XML
+pro e-podání na ČSSZ.
+
+**Servírování** — `/doklady/soubor/:filename` pro účtenky a faktury (stačí být
+přihlášen) a `/doklady/priloha/:id` pro personální přílohy, kde se autorizuje
+**podle záznamu, ne podle názvu souboru**: mzdy a osobní dokumenty vidí jen
+správce nebo jejich vlastník.
+
+`data/media` **není veřejná cesta** — `/media` bylo do srpna 2026 v seznamu
+veřejných cest, takže kdo znal název souboru, stáhl si doklad bez přihlášení.
+
+---
+
+## Migrace z Airtable (`scripts/migrate-airtable-hr.js`)
+
+Jednorázový přenos personální agendy. Jádro převodu je v `src/airtable-map.js`
+jako čisté funkce, takže se dá otestovat na skutečných odpovědích z API
+(`test/fixtures/airtable.json`).
+
+```
+npm run import:airtable -- --dry-run --trojek=luke3ova@email.cz
+npm run import:airtable -- --trojek=luke3ova@email.cz
+npm run import:airtable -- --overit
+```
+
+Vyžaduje `AIRTABLE_API_KEY` v `.env`. **Pouštět v kontejneru**, ne lokálně
+přes tunel — soubory musí přistát na persistent volume `/app/data`.
+
+Idempotence stojí na `airtable_id` u řádku i u každého souboru; opakovaný běh
+nic nezdvojí a nestahuje znovu. Odkazy na přílohy v Airtable expirují po dvou
+hodinách, takže se stránka záznamů zpracuje hned a při propadlém odkazu si
+klient vyžádá čerstvý záznam.
 
 ---
 
