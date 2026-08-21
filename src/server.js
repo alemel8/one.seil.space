@@ -164,7 +164,11 @@ await fastify.register(authRoutes);
 // ── Auth guard ────────────────────────────────────────────────
 
 fastify.addHook('onRequest', async (request, reply) => {
-  const publicPaths = ['/prihlasit', '/health', '/static', '/media', '/health/api', '/api/toneracek', '/api/v1', '/api/docs', '/health/cookie-test', '/api/webhook'];
+  // '/media' tu záměrně není: míří do stejného adresáře jako doklady
+  // (data/media), takže veřejná cesta by dávala účtenky, faktury a nově
+  // i výplatní pásky komukoli, kdo uhodne název souboru. Profilové fotky
+  // se z něj berou jen na stránkách za přihlášením.
+  const publicPaths = ['/prihlasit', '/health', '/static', '/health/api', '/api/toneracek', '/api/v1', '/api/docs', '/health/cookie-test', '/api/webhook'];
   const isPublic = publicPaths.some(
     p => request.url === p || request.url.startsWith(p + '/') || request.url.startsWith(p + '?')
   );

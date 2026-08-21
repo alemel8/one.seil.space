@@ -5,10 +5,13 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import sharp from 'sharp';
 import {
-  compressImage, saveAttachment, deleteAttachment,
-  MAX_ATTACHMENT_BYTES, MAX_UPLOAD_BYTES, isSupportedMime, mimeForFile, extForMime,
+  compressImage, saveAttachment, deleteAttachment, MEDIA_DIR,
+  MAX_ATTACHMENT_BYTES, MAX_UPLOAD_BYTES, isSupportedMime, isArchivableMime,
+  mimeForFile, extForMime,
 } from '../src/attachments.js';
 
 // Fotka v rozlišení mobilu, plná šumu — nejhorší možný případ pro JPEG,
@@ -96,6 +99,60 @@ describe('přílohy dokladů', () => {
     assert.equal(mimeForFile('inv_recv_2.pdf'), 'application/pdf');
     assert.equal(extForMime('image/png'), '.png');
     assert.equal(extForMime('application/pdf'), '.pdf');
+  });
+
+  test('archivní typy projdou jen v archivním režimu', async () => {
+    // Formulář dokladu je má odmítnout — účetní tam patří sken, ne tabulka.
+    assert.equal(isSupportedMime('text/xml'), false);
+    assert.equal(isArchivableMime('text/xml'), true);
+    assert.equal(isArchivableMime('application/zip'), true);
+    assert.equal(isArchivableMime('text/html'), false);
+
+    await assert.rejects(
+      () => saveAttachment(Buffer.from('<?xml version="1.0"?><x/>'), 'text/xml', 'epodani'),
+      /Podporujeme jen/,
+    );
+
+    const saved = await saveAttachment(
+      Buffer.from('<?xml version="1.0"?><x/>'), 'text/xml', 'epodani', { archive: true },
+    );
+    try {
+      assert.match(saved.filename, /^epodani_\d+\.xml$/);
+      assert.equal(saved.mime, 'text/xml');
+      assert.equal(mimeForFile(saved.filename), 'text/xml');
+    } finally {
+      await deleteAttachment(saved.filename);
+    }
+  });
+
+  test('archivní soubor se neprožene kompresí', async () => {
+    // Výplatní páska ani e-podání se nesmí přeukládat — je to důkazní materiál.
+    const original = await fotoZMobilu();
+    const saved = await saveAttachment(original, 'image/jpeg', 'pruvodka', { archive: true });
+    try {
+      assert.equal(saved.size, original.length, 'archivní soubor musí zůstat beze změny');
+    } finally {
+      await deleteAttachment(saved.filename);
+    }
+  });
+
+  test('dva soubory ve stejné milisekundě si nepřepíšou obsah', async () => {
+    // Hromadný import zapisuje stovky souborů v těsné smyčce. Dřív rozhodovalo
+    // jen Date.now() a druhý zápis tiše přepsal první — bez jediné chyby.
+    const dohromady = await Promise.all(
+      Array.from({ length: 12 }, (_, i) =>
+        saveAttachment(Buffer.from(`doklad ${i}`), 'application/pdf', 'davka', { archive: true })),
+    );
+    try {
+      const nazvy = new Set(dohromady.map(v => v.filename));
+      assert.equal(nazvy.size, dohromady.length, 'každý soubor musí mít vlastní název');
+      for (const [i, v] of dohromady.entries()) {
+        const obsah = await readFile(path.join(MEDIA_DIR, v.filename), 'utf8');
+        assert.equal(obsah, `doklad ${i}`, 'obsah se nesmí přepsat cizím souborem');
+      }
+    } finally {
+      await Promise.all(dohromady.map(v => deleteAttachment(v.filename)));
+    }
   });
 
   test('název souboru se očistí od cizích znaků', async () => {
