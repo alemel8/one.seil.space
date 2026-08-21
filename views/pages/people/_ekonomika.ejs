@@ -1,0 +1,301 @@
+<%
+  // Datové záložky osobního účtu. Oddělený soubor, aby member-detail.ejs
+  // nenarostl do nečitelna — obsah je řízený stejným ?tab= jako zbytek.
+  const kc  = n => Number(n || 0).toLocaleString('cs-CZ', { maximumFractionDigits: 0 });
+  const kc2 = n => Number(n || 0).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const den = d => d ? new Date(d).toLocaleDateString('cs-CZ') : '—';
+  const mesic = d => d ? new Date(d).toLocaleDateString('cs-CZ', { month: 'long', year: 'numeric' }) : '—';
+%>
+
+<% if (currentTab === 'ekonomika') { %>
+  <div class="kpi-grid" style="margin-bottom:24px;">
+    <div class="kpi-card">
+      <div class="kpi-label">Příjmy</div>
+      <div class="kpi-value positive" style="font-size:20px;"><%= kc2(ucet.prijmy) %></div>
+      <div class="kpi-formula"><%= ucet.prijmyPocet %> fakturačních podkladů</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Výdaje</div>
+      <div class="kpi-value negative" style="font-size:20px;"><%= kc2(ucet.vydaje) %></div>
+      <div class="kpi-formula"><%= ucet.vydajePocet %> mezd · co odešlo z účtu</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Platby mimo mzdu</div>
+      <div class="kpi-value negative" style="font-size:20px;"><%= kc2(ucet.ostatni) %></div>
+      <div class="kpi-formula"><%= ucet.ostatniPocet %> plateb · zálohy a nákupy</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Zůstatek</div>
+      <div class="kpi-value <%= ucet.zustatek >= 0 ? 'positive' : 'negative' %>" style="font-size:20px;"><%= kc2(ucet.zustatek) %></div>
+      <div class="kpi-formula">příjmy − výdaje − platby</div>
+    </div>
+  </div>
+
+  <% if (ucet.nakladFirmy && Math.abs(ucet.nakladFirmy - ucet.vydaje) > 0.5) { %>
+  <div style="background:var(--info-bg);color:var(--info);border-radius:8px;padding:10px 16px;margin-bottom:24px;font-size:13px;">
+    Do nákladů firmy a hrubého zisku vstupuje jiné číslo — <strong><%= kc2(ucet.nakladFirmy) %> Kč</strong>
+    (hrubá mzda plus odvody zaměstnavatele). Zůstatek nahoře počítá s tím, co reálně odešlo z účtu.
+  </div>
+  <% } %>
+
+  <div class="card">
+    <div class="card-header"><h2 style="font-size:15px;font-weight:600;margin:0;">Poslední pohyby</h2></div>
+    <div class="table-wrapper" style="border:none;border-radius:0;">
+      <table class="data-table">
+        <thead><tr><th>Datum</th><th>Typ</th><th>Popis</th><th style="text-align:right;">Částka</th></tr></thead>
+        <tbody>
+          <% if (!pohyby.length) { %>
+            <tr><td colspan="4" style="text-align:center;padding:32px;color:var(--text-muted);">Zatím žádné pohyby</td></tr>
+          <% } %>
+          <% pohyby.forEach(function (p) {
+               const odkaz = p.typ === 'podklad' ? '?tab=podklady'
+                           : p.typ === 'mzda'    ? '?tab=mzdy' : '?tab=vydaje';
+          %>
+          <tr style="cursor:pointer;" onclick="window.location='<%= odkaz %>'">
+            <td style="color:var(--text-muted);font-size:13px;white-space:nowrap;"><%= den(p.datum) %></td>
+            <td>
+              <span class="badge" style="background:<%= p.typ === 'podklad' ? 'var(--success-bg)' : 'var(--gray-100)' %>;color:<%= p.typ === 'podklad' ? '#15803D' : 'var(--text-secondary)' %>;">
+                <%= p.typ === 'podklad' ? 'Podklad' : p.typ === 'mzda' ? 'Mzda' : 'Platba' %>
+              </span>
+            </td>
+            <td><%= p.popis %></td>
+            <td style="text-align:right;font-family:var(--font-mono);font-size:13px;color:<%= p.castka >= 0 ? 'var(--success)' : 'var(--danger)' %>;">
+              <%= p.castka >= 0 ? '+' : '' %><%= kc2(p.castka) %>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<% } %>
+
+<% if (currentTab === 'podklady') { %>
+  <div class="card">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+      <h2 style="font-size:15px;font-weight:600;margin:0;">Fakturační podklady</h2>
+      <span style="font-size:13px;color:var(--text-muted);">celkem <%= kc2(ucet.prijmy) %> Kč</span>
+    </div>
+    <div class="table-wrapper" style="border:none;border-radius:0;">
+      <table class="data-table">
+        <thead><tr><th>Datum</th><th>Zakázka</th><th>Lokalita</th><th>Přílohy</th><th>Faktura</th><th>Stav</th><th style="text-align:right;">Částka</th></tr></thead>
+        <tbody>
+          <% if (!podklady.length) { %>
+            <tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted);">Zatím žádné podklady</td></tr>
+          <% } %>
+          <% podklady.forEach(function (w) { %>
+          <tr>
+            <td style="color:var(--text-muted);font-size:13px;white-space:nowrap;"><%= den(w.report_date) %></td>
+            <td style="font-family:var(--font-mono);font-size:12.5px;"><%= (w.kody || []).join(', ') || '—' %></td>
+            <td style="font-size:13px;"><%= (w.lokality || []).join(', ') || '—' %></td>
+            <td style="font-size:12.5px;color:var(--text-muted);white-space:nowrap;">
+              <% if (w.priloh_rozpis) { %>📄 <%= w.priloh_rozpis %><% } %>
+              <% if (w.priloh_doklady) { %> &nbsp;🧾 <%= w.priloh_doklady %><% } %>
+              <% if (!w.priloh_rozpis && !w.priloh_doklady) { %>—<% } %>
+            </td>
+            <td style="font-size:12.5px;white-space:nowrap;">
+              <% if (w.invoice_id) { %>
+                <a href="/ucetnictvi/vydane-faktury/<%= w.invoice_id %>" style="color:var(--primary);text-decoration:none;"><%= w.faktura_cislo %></a>
+                <span style="color:var(--text-muted);"> · <%= w.faktura_stav %></span>
+              <% } else if (w.invoice_number) { %>
+                <span title="Faktura tohoto čísla není v systému" style="color:var(--warning);"><%= w.invoice_number %> ⚠</span>
+              <% } else { %>—<% } %>
+            </td>
+            <td><span class="badge" style="background:var(--gray-100);color:var(--text-secondary);"><%= (PODKLAD_STAVY.find(s => s[0] === w.status) || [,w.status])[1] %></span></td>
+            <td style="text-align:right;font-family:var(--font-mono);font-size:13px;"><%= kc2(w.total_amount) %></td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<% } %>
+
+<% if (currentTab === 'mzdy') { %>
+  <div class="card">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+      <h2 style="font-size:15px;font-weight:600;margin:0;">Mzdové listy</h2>
+      <span style="font-size:13px;color:var(--text-muted);">
+        uhrazeno <%= kc2(ucet.vydaje) %> Kč · náklad firmy <%= kc2(ucet.nakladFirmy) %> Kč
+      </span>
+    </div>
+    <div class="table-wrapper" style="border:none;border-radius:0;">
+      <table class="data-table">
+        <thead><tr><th>Měsíc</th><th style="text-align:right;">Hodiny</th><th style="text-align:right;">Hrubá</th><th style="text-align:right;">Čistá</th><th style="text-align:right;">Uhrazeno</th><th style="text-align:right;">Náklad firmy</th><th>Přílohy</th><th>Stav</th></tr></thead>
+        <tbody>
+          <% if (!mzdy.length) { %>
+            <tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);">Zatím žádné mzdy</td></tr>
+          <% } %>
+          <% mzdy.forEach(function (r) { %>
+          <tr>
+            <td style="white-space:nowrap;">
+              <%= mesic(r.period) %>
+              <% if (r.mesic_ma_vic_listu) { %>
+                <span class="badge" style="background:var(--warning-bg);color:#92400e;margin-left:6px;" title="Za tento měsíc jsou evidované dva listy — přeneseno z Airtable, zkontrolujte">2×</span>
+              <% } %>
+            </td>
+            <td style="text-align:right;font-size:13px;"><%= r.hours ? Number(r.hours).toLocaleString('cs-CZ') + ' h' : '—' %></td>
+            <td style="text-align:right;font-family:var(--font-mono);font-size:13px;"><%= kc(r.gross) %></td>
+            <td style="text-align:right;font-family:var(--font-mono);font-size:13px;"><%= kc(r.net) %></td>
+            <td style="text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:600;"><%= kc(r.paid_total) %></td>
+            <td style="text-align:right;font-family:var(--font-mono);font-size:13px;color:var(--text-muted);"><%= kc(r.company_cost) %></td>
+            <td style="font-size:12.5px;color:var(--text-muted);"><%= r.priloh ? '📎 ' + r.priloh : '—' %></td>
+            <td>
+              <% if (r.paid) { %><span class="badge" style="background:var(--success-bg);color:#15803D;">Vyplaceno</span>
+              <% } else { %><span class="badge" style="background:var(--warning-bg);color:#92400e;">Nevyplaceno</span><% } %>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<% } %>
+
+<% if (currentTab === 'vydaje') { %>
+  <div class="card">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+      <h2 style="font-size:15px;font-weight:600;margin:0;">Platby mimo mzdu</h2>
+      <button class="btn btn-primary btn-sm" data-modal-open="modalPlatba">+ Přidat platbu</button>
+    </div>
+    <div class="table-wrapper" style="border:none;border-radius:0;">
+      <table class="data-table">
+        <thead><tr><th>Datum</th><th>Druh</th><th>Popis</th><th>Doklad</th><th style="text-align:right;">Částka</th><th style="width:40px;"></th></tr></thead>
+        <tbody>
+          <% if (!platby.length) { %>
+            <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted);">Zatím žádné platby mimo mzdu</td></tr>
+          <% } %>
+          <% platby.forEach(function (pl) { %>
+          <tr>
+            <td style="color:var(--text-muted);font-size:13px;white-space:nowrap;"><%= den(pl.paid_on) %></td>
+            <td>
+              <span class="badge" style="background:<%= pl.kind === 'zaloha' ? 'var(--info-bg)' : 'var(--gray-100)' %>;color:<%= pl.kind === 'zaloha' ? 'var(--info)' : 'var(--text-secondary)' %>;">
+                <%= (PLATBA_DRUHY.find(d => d[0] === pl.kind) || [,pl.kind])[1] %>
+              </span>
+            </td>
+            <td><%= pl.description || '—' %></td>
+            <td style="font-size:12.5px;color:var(--text-muted);"><%= pl.priloh ? '📎 ' + pl.priloh : '—' %></td>
+            <td style="text-align:right;font-family:var(--font-mono);font-size:13px;"><%= kc2(pl.amount) %></td>
+            <td>
+              <form method="post" action="/lide/tym/<%= member.public_id %>/platby/<%= pl.id %>/smazat" onsubmit="return confirm('Opravdu smazat tuto platbu?');">
+                <button type="submit" class="btn btn-ghost btn-sm" title="Smazat">🗑</button>
+              </form>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-body" style="border-top:1px solid var(--border);font-size:12.5px;color:var(--text-muted);">
+      Záloha není náklad firmy — je to pohledávka za zaměstnancem. Do nákladů a hrubého zisku
+      vstupují jen proplacené náklady, proto na druhu záleží.
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="modalPlatba">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h2 class="modal-title">Platba mimo mzdu</h2>
+        <button class="modal-close" data-modal-close="modalPlatba">✕</button>
+      </div>
+      <form method="post" action="/lide/tym/<%= member.public_id %>/platby/vytvorit" enctype="multipart/form-data">
+        <div class="modal-body">
+          <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:14px;">
+            <div class="form-group">
+              <label class="form-label required">Datum</label>
+              <input type="date" name="paid_on" class="form-control" required value="<%= new Date().toISOString().slice(0,10) %>">
+            </div>
+            <div class="form-group">
+              <label class="form-label required">Částka</label>
+              <input type="number" step="0.01" min="0" name="amount" class="form-control" required placeholder="0,00">
+            </div>
+            <div class="form-group col-span-2">
+              <label class="form-label">Druh</label>
+              <select name="kind" class="form-select">
+                <% PLATBA_DRUHY.forEach(function (d) { %><option value="<%= d[0] %>"><%= d[1] %></option><% }) %>
+              </select>
+            </div>
+            <div class="form-group col-span-2">
+              <label class="form-label">Popis</label>
+              <input type="text" name="description" class="form-control" placeholder="Např. záloha, O2 tarif, tablet">
+            </div>
+            <div class="form-group col-span-2">
+              <label class="form-label">Doklad (nepovinné)</label>
+              <input type="file" name="doklad" class="form-control" accept="application/pdf,image/*">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" data-modal-close="modalPlatba">Zrušit</button>
+          <button type="submit" class="btn btn-primary">Uložit platbu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+<% } %>
+
+<% if (currentTab === 'dokumenty') { %>
+  <div class="card">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+      <h2 style="font-size:15px;font-weight:600;margin:0;">Osobní a smluvní dokumenty</h2>
+      <button class="btn btn-primary btn-sm" data-modal-open="modalDokument">+ Přidat dokument</button>
+    </div>
+    <div class="table-wrapper" style="border:none;border-radius:0;">
+      <table class="data-table">
+        <thead><tr><th>Datum</th><th>Název</th><th>Kategorie</th><th>Soubory</th><th>Stav</th></tr></thead>
+        <tbody>
+          <% if (!dokumenty.length) { %>
+            <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-muted);">Zatím žádné dokumenty</td></tr>
+          <% } %>
+          <% dokumenty.forEach(function (d) { %>
+          <tr>
+            <td style="color:var(--text-muted);font-size:13px;white-space:nowrap;"><%= den(d.document_date) %></td>
+            <td><%= d.title %></td>
+            <td style="font-size:13px;color:var(--text-muted);"><%= d.category || '—' %></td>
+            <td style="font-size:12.5px;color:var(--text-muted);"><%= d.priloh ? '📎 ' + d.priloh : '—' %></td>
+            <td>
+              <% if (d.signed) { %><span class="badge" style="background:var(--success-bg);color:#15803D;">Vyřízeno</span>
+              <% } else { %><span class="badge" style="background:var(--gray-100);color:var(--text-secondary);">Nevyřízeno</span><% } %>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="modalDokument">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h2 class="modal-title">Přidat dokument</h2>
+        <button class="modal-close" data-modal-close="modalDokument">✕</button>
+      </div>
+      <form method="post" action="/lide/tym/<%= member.public_id %>/dokumenty/vytvorit" enctype="multipart/form-data">
+        <div class="modal-body">
+          <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:14px;">
+            <div class="form-group col-span-2">
+              <label class="form-label required">Název</label>
+              <input type="text" name="title" class="form-control" required placeholder="Pracovní smlouva">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Kategorie</label>
+              <input type="text" name="category" class="form-control" placeholder="Mzdový výměr">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Datum</label>
+              <input type="date" name="document_date" class="form-control">
+            </div>
+            <div class="form-group col-span-2">
+              <label class="form-label">Soubor</label>
+              <input type="file" name="soubor" class="form-control">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" data-modal-close="modalDokument">Zrušit</button>
+          <button type="submit" class="btn btn-primary">Uložit dokument</button>
+        </div>
+      </form>
+    </div>
+  </div>
+<% } %>

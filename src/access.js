@@ -6,7 +6,8 @@
 //
 // Práva umí jen ubírat, ne přidávat: co je adminOnly, zůstane adminOnly i
 // se zaškrtnutým políčkem. Bez uloženého záznamu platí „vidí“ — jinak by
-// nasazení migrace odřízlo všechny od všeho.
+// nasazení migrace odřízlo všechny od všeho. Výjimkou jsou položky
+// s defaultDeny, které se otevřou až vědomým zaškrtnutím v matici.
 
 export const ACCESS_SECTIONS = [
   {
@@ -80,9 +81,12 @@ export const ACCESS_SECTIONS = [
     label: 'Lidé & Kultura',
     adminOnly: true,
     items: [
-      { key: 'lide.tym',      label: 'Tým',      path: '/lide/tym' },
+      { key: 'lide.tym',       label: 'Tým',                 path: '/lide/tym' },
+      { key: 'lide.ekonomika', label: 'Ekonomika lidí',      path: '/lide/ekonomika', defaultDeny: true },
+      { key: 'lide.mzdy',      label: 'Mzdy',                path: '/lide/mzdy',      defaultDeny: true },
+      { key: 'lide.podklady',  label: 'Fakturační podklady', path: '/lide/podklady' },
       // Editor přístupů si nelze odebrat — viz isAllowed()
-      { key: 'lide.pristupy', label: 'Přístupy', path: '/lide/pristupy', locked: true },
+      { key: 'lide.pristupy',  label: 'Přístupy',            path: '/lide/pristupy', locked: true },
     ],
   },
 ];
@@ -119,7 +123,13 @@ export function isAllowed(user, item) {
   if (it.locked && user.is_admin) return true;
 
   const saved = user.access?.[it.key];
-  return saved === undefined || saved === null ? true : Boolean(saved);
+  if (saved !== undefined && saved !== null) return Boolean(saved);
+
+  // Bez uloženého záznamu platí „vidí" — jinak by přidání nové sekce
+  // odřízlo všechny, dokud by někdo neproklikal matici. U citlivých
+  // položek je to ale obráceně: výplatní pásku má vidět ten, komu ji
+  // někdo vědomě zpřístupní, ne každý, kdo se náhodou stal správcem.
+  return !it.defaultDeny;
 }
 
 /** Sekce je vidět, pokud je vidět aspoň jedna její položka. */

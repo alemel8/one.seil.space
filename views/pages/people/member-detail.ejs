@@ -76,30 +76,38 @@
   </div>
 </div>
 
-<!-- Tabs navigace -->
-<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:24px;overflow-x:auto;">
-  <% const tabs = [
-    { id: 'detail',   label: 'Detail' },
-    { id: 'banka',    label: 'Bankovní účet' },
-    { id: 'odmeny',   label: 'Odměny' },
-    { id: 'naklady',  label: 'Náklady' },
-    { id: 'pristupy', label: 'Přístupy' },
-  ]; %>
-  <% tabs.forEach((tab, i) => { %>
-  <button onclick="switchTab('<%= tab.id %>')" id="tab-btn-<%= tab.id %>"
-          style="padding:10px 18px;font-size:14px;font-weight:500;border:none;background:none;cursor:pointer;color:var(--text-muted);border-bottom:2px solid transparent;margin-bottom:-2px;transition:color 0.15s,border-color 0.15s;white-space:nowrap;"
-          ><%= tab.label %></button>
-  <% }); %>
-</div>
+<%
+  // Serverové záložky (?tab=) místo klientského přepínání. Každá si nese
+  // vlastní dotaz, takže načítat všechny naráz při otevření profilu by bylo
+  // plýtvání — a jen tady jde do popisku doplnit počet.
+  const zalozky = [
+    ['detail',    'Detail',               true],
+    ['banka',     'Bankovní účet',        true],
+    ['ekonomika', 'Ekonomika',            Boolean(maData)],
+    ['podklady',  `Fakturační podklady (${pocty.podklady})`, pocty.podklady > 0],
+    ['mzdy',      `Mzdy (${pocty.mzdy})`, pocty.mzdy > 0],
+    ['vydaje',    `Platby mimo mzdu (${pocty.platby})`, true],
+    ['dokumenty', `Dokumenty (${pocty.dokumenty})`, true],
+    ['pristupy',  'Přístupy',             true],
+  ].filter(z => z[2]);
+%>
+<nav style="display:flex;gap:2px;border-bottom:2px solid var(--border);margin-bottom:24px;overflow-x:auto;">
+  <% zalozky.forEach(function (z) { const key = z[0], label = z[1]; %>
+  <a href="?tab=<%= key %>"
+     style="padding:10px 18px;font-size:13.5px;font-weight:<%= currentTab===key ? '600' : '500' %>;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-2px;text-decoration:none;transition:color .15s,border-color .15s;color:<%= currentTab===key ? 'var(--primary)' : 'var(--text-muted)' %>;border-bottom-color:<%= currentTab===key ? 'var(--primary)' : 'transparent' %>;">
+    <%= label %>
+  </a>
+  <% }) %>
+</nav>
 
-<!-- ── Tab: Detail ─────────────────────────────────────────── -->
-<div id="tab-detail" class="tab-section">
+<% if (currentTab === 'detail') { %>
   <div class="card">
     <div class="card-header">
       <h2 style="font-size:15px;font-weight:600;margin:0;">Osobní údaje</h2>
     </div>
     <div class="card-body">
       <form method="post" action="/lide/tym/<%= member.public_id %>">
+        <input type="hidden" name="tab" value="<%= currentTab %>">
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-bottom:20px;">
 
           <div class="form-group">
@@ -184,16 +192,16 @@
       </form>
     </div>
   </div>
-</div>
+<% } %>
 
-<!-- ── Tab: Bankovní účet ──────────────────────────────────── -->
-<div id="tab-banka" class="tab-section" style="display:none;">
+<% if (currentTab === 'banka') { %>
   <div class="card">
     <div class="card-header">
       <h2 style="font-size:15px;font-weight:600;margin:0;">Bankovní účet</h2>
     </div>
     <div class="card-body">
       <form method="post" action="/lide/tym/<%= member.public_id %>">
+        <input type="hidden" name="tab" value="<%= currentTab %>">
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-bottom:20px;">
 
           <div class="form-group">
@@ -234,36 +242,10 @@
       </form>
     </div>
   </div>
-</div>
+<% } %>
+<%- include('_ekonomika') %>
 
-<!-- ── Tab: Odměny ─────────────────────────────────────────── -->
-<div id="tab-odmeny" class="tab-section" style="display:none;">
-  <div class="card">
-    <div class="card-body" style="text-align:center;padding:48px 24px;color:var(--text-muted);">
-      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:16px;opacity:0.4;">
-        <circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/>
-      </svg>
-      <div style="font-size:15px;font-weight:600;margin-bottom:8px;color:var(--text-primary);">Připravujeme</div>
-      <div style="font-size:14px;">Správa odměn a bonusů bude dostupná brzy.</div>
-    </div>
-  </div>
-</div>
-
-<!-- ── Tab: Náklady ────────────────────────────────────────── -->
-<div id="tab-naklady" class="tab-section" style="display:none;">
-  <div class="card">
-    <div class="card-body" style="text-align:center;padding:48px 24px;color:var(--text-muted);">
-      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:16px;opacity:0.4;">
-        <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-      </svg>
-      <div style="font-size:15px;font-weight:600;margin-bottom:8px;color:var(--text-primary);">Připravujeme</div>
-      <div style="font-size:14px;">Přehled výdajů zaměstnance bude dostupný brzy.</div>
-    </div>
-  </div>
-</div>
-
-<!-- ── Tab: Přístupy ──────────────────────────────────────── -->
-<div id="tab-pristupy" class="tab-section" style="display:none;">
+<% if (currentTab === 'pristupy') { %>
 
   <!-- Přehled sekcí a záložek, které uživatel vidí -->
   <div class="card" style="margin-bottom:24px;">
@@ -351,33 +333,5 @@
       </dl>
     </div>
   </div>
-</div>
+<% } %>
 
-<script>
-(function () {
-  var tabs = ['detail', 'banka', 'odmeny', 'naklady', 'pristupy'];
-  var activeTab = 'detail';
-
-  // Restore from URL hash if present
-  var hash = location.hash.replace('#', '');
-  if (tabs.indexOf(hash) !== -1) activeTab = hash;
-
-  function switchTab(id) {
-    tabs.forEach(function (t) {
-      var section = document.getElementById('tab-' + t);
-      var btn = document.getElementById('tab-btn-' + t);
-      if (!section || !btn) return;
-      var isActive = t === id;
-      section.style.display = isActive ? '' : 'none';
-      btn.style.color = isActive ? 'var(--primary)' : 'var(--text-muted)';
-      btn.style.borderBottomColor = isActive ? 'var(--primary)' : 'transparent';
-      btn.style.fontWeight = isActive ? '600' : '500';
-    });
-    activeTab = id;
-    history.replaceState(null, '', '#' + id);
-  }
-
-  window.switchTab = switchTab;
-  switchTab(activeTab);
-})();
-</script>

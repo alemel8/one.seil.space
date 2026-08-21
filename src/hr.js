@@ -1,0 +1,164 @@
+// Personální agenda — dotazy nad osobním účtem člověka.
+//
+// Airtable to nepojmenoval, ale je to běžný účet jednoho člověka:
+//   příjmy   = co se za jeho práci vyfakturovalo (fakturační podklady)
+//   výdaje   = co se mu vyplatilo na mzdě (reálně odeslané platby)
+//   ostatní  = co dostal mimo mzdu (zálohy, proplacené nákupy)
+//   zůstatek = příjmy − výdaje − ostatní
+//
+// Pozor na dvě různá čísla se stejným jménem. Do osobního zůstatku patří
+// paid_total (co odešlo z účtu), do nákladů firmy a hrubého zisku naopak
+// company_cost (hrubá + odvody zaměstnavatele). Nejsou zaměnitelné a u části
+// měsíců se liší.
+
+/** Zůstatek jednoho člověka; volitelně omezený na rok. */
+export async function osobniUcet(sql, userId, { rok = null } = {}) {
+  const obdobiPodkladu = rok
+    ? sql`AND EXTRACT(YEAR FROM report_date) = ${rok}` : sql``;
+  const obdobiMezd = rok
+    ? sql`AND EXTRACT(YEAR FROM period) = ${rok}` : sql``;
+  const obdobiPlateb = rok
+    ? sql`AND EXTRACT(YEAR FROM paid_on) = ${rok}` : sql``;
+
+  const [[prijmy], [mzdy], [ostatni]] = await Promise.all([
+    sql`SELECT COALESCE(SUM(total_amount),0)::float8 AS castka, COUNT(*)::int AS pocet
+          FROM hr_work_reports
+         WHERE user_id = ${userId} AND status <> 'storno' ${obdobiPodkladu}`,
+    sql`SELECT COALESCE(SUM(paid_total),0)::float8   AS castka,
+               COALESCE(SUM(company_cost),0)::float8 AS naklad_firmy,
+               COUNT(*)::int AS pocet
+          FROM hr_payroll_runs WHERE user_id = ${userId} ${obdobiMezd}`,
+    sql`SELECT COALESCE(SUM(amount),0)::float8 AS castka, COUNT(*)::int AS pocet
+          FROM hr_payroll_items WHERE user_id = ${userId} ${obdobiPlateb}`,
+  ]);
+
+  return {
+    prijmy: prijmy.castka,   prijmyPocet: prijmy.pocet,
+    vydaje: mzdy.castka,     vydajePocet: mzdy.pocet,
+    nakladFirmy: mzdy.naklad_firmy,
+    ostatni: ostatni.castka, ostatniPocet: ostatni.pocet,
+    zustatek: prijmy.castka - mzdy.castka - ostatni.castka,
+  };
+}
+
+/** Osobní účty všech lidí naráz — pro přehled napříč týmem. */
+export async function osobniUctyVsech(sql, { rok = null } = {}) {
+  const lide = await sql`
+    SELECT id, public_id, first_name, last_name, email, photo, is_active
+      FROM users ORDER BY id
+  `;
+  const ucty = await Promise.all(lide.map(u => osobniUcet(sql, u.id, { rok })));
+  return lide
+    .map((u, i) => ({ ...u, ucet: ucty[i] }))
+    // Kdo nemá žádná data, do přehledu ziskovosti nepatří — jen by ho ředil
+    .filter(u => u.ucet.prijmyPocet || u.ucet.vydajePocet || u.ucet.ostatniPocet);
+}
+
+/**
+ * Poslední pohyby na osobním účtu — sloučené ze všech tří zdrojů.
+ * Bez tohohle jsou čísla v dlaždicích magie, na kterou se nedá kliknout.
+ */
+export async function posledniPohyby(sql, userId, limit = 12) {
+  return sql`
+    (SELECT 'podklad' AS typ, id, report_date AS datum,
+            COALESCE(NULLIF(title,''), 'Fakturační podklad') AS popis,
+            total_amount::float8 AS castka, status
+       FROM hr_work_reports WHERE user_id = ${userId} AND status <> 'storno')
+    UNION ALL
+    (SELECT 'mzda', id, period,
+            'Mzda ' || to_char(period, 'MM/YYYY'),
+            -paid_total::float8, CASE WHEN paid THEN 'vyplaceno' ELSE 'nevyplaceno' END
+       FROM hr_payroll_runs WHERE user_id = ${userId})
+    UNION ALL
+    (SELECT 'platba', id, paid_on,
+            COALESCE(NULLIF(description,''), 'Platba mimo mzdu'),
+            -amount::float8, kind
+       FROM hr_payroll_items WHERE user_id = ${userId})
+    ORDER BY datum DESC, typ
+    LIMIT ${limit}
+  `;
+}
+
+/** Fakturační podklady člověka i s počty příloh a stavem navázané faktury. */
+export async function podkladyUzivatele(sql, userId) {
+  return sql`
+    SELECT w.*,
+           i.number AS faktura_cislo, i.status AS faktura_stav, i.total_amount::float8 AS faktura_castka,
+           COALESCE(ARRAY(SELECT DISTINCT project_code FROM hr_work_report_projects
+                           WHERE report_id = w.id ORDER BY project_code), '{}') AS kody,
+           COALESCE(ARRAY(SELECT DISTINCT city FROM hr_work_report_locations
+                           WHERE report_id = w.id ORDER BY city), '{}') AS lokality,
+           (SELECT COUNT(*)::int FROM attachments a
+             WHERE a.work_report_id = w.id AND a.category = 'rozpis_prace')      AS priloh_rozpis,
+           (SELECT COUNT(*)::int FROM attachments a
+             WHERE a.work_report_id = w.id AND a.category = 'vydajovy_doklad')   AS priloh_doklady
+      FROM hr_work_reports w
+      LEFT JOIN accounting_invoices i ON i.id = w.invoice_id
+     WHERE w.user_id = ${userId}
+     ORDER BY w.report_date DESC
+  `;
+}
+
+/** Mzdové listy člověka. Měsíc s víc listy označíme — Airtable jich vedl víc. */
+export async function mzdyUzivatele(sql, userId) {
+  const rows = await sql`
+    SELECT r.*, r.paid_total::float8 AS paid_total, r.company_cost::float8 AS company_cost,
+           (SELECT COUNT(*)::int FROM attachments a WHERE a.payroll_run_id = r.id) AS priloh
+      FROM hr_payroll_runs r
+     WHERE r.user_id = ${userId}
+     ORDER BY r.period DESC, r.id
+  `;
+  const pocty = new Map();
+  for (const r of rows) {
+    const k = String(r.period).slice(0, 7);
+    pocty.set(k, (pocty.get(k) ?? 0) + 1);
+  }
+  for (const r of rows) r.mesic_ma_vic_listu = pocty.get(String(r.period).slice(0, 7)) > 1;
+  return rows;
+}
+
+/** Platby mimo mzdu. */
+export async function platbyUzivatele(sql, userId) {
+  return sql`
+    SELECT p.*, p.amount::float8 AS amount,
+           (SELECT COUNT(*)::int FROM attachments a WHERE a.payroll_item_id = p.id) AS priloh
+      FROM hr_payroll_items p
+     WHERE p.user_id = ${userId}
+     ORDER BY p.paid_on DESC, p.id
+  `;
+}
+
+/** Osobní a smluvní dokumenty. */
+export async function dokumentyUzivatele(sql, userId) {
+  return sql`
+    SELECT d.*,
+           (SELECT COUNT(*)::int FROM attachments a WHERE a.document_id = d.id) AS priloh
+      FROM hr_documents d
+     WHERE d.user_id = ${userId}
+     ORDER BY COALESCE(d.document_date, d.created_at::date) DESC, d.id
+  `;
+}
+
+export const PLATBA_DRUHY = [
+  ['zaloha',            'Záloha'],
+  ['proplaceny_naklad', 'Proplacený náklad'],
+  ['odmena',            'Odměna'],
+  ['srazka',            'Srážka'],
+  ['jine',              'Jiné'],
+];
+
+export const PODKLAD_STAVY = [
+  ['rozpracovano', 'Rozpracováno'],
+  ['k_fakturaci',  'K fakturaci'],
+  ['odeslano',     'Odesláno'],
+  ['fakturovano',  'Vyfakturováno'],
+  ['storno',       'Storno'],
+];
+
+export const UVAZKY = [
+  ['hpp',      'Hlavní pracovní poměr'],
+  ['dpp',      'Dohoda o provedení práce'],
+  ['dpc',      'Dohoda o pracovní činnosti'],
+  ['osvc',     'OSVČ / fakturace'],
+  ['jednatel', 'Jednatel'],
+];

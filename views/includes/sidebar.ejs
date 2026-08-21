@@ -253,6 +253,27 @@
             </a>
           </li>
           <% } %>
+          <% if (can('lide.ekonomika')) { %>
+          <li>
+            <a href="/lide/ekonomika" class="nav-sub-link <%= currentPath === '/lide/ekonomika' ? 'active' : '' %>">
+              Ekonomika lidí
+            </a>
+          </li>
+          <% } %>
+          <% if (can('lide.mzdy')) { %>
+          <li>
+            <a href="/lide/mzdy" class="nav-sub-link <%= currentPath && currentPath.startsWith('/lide/mzdy') ? 'active' : '' %>">
+              Mzdy
+            </a>
+          </li>
+          <% } %>
+          <% if (can('lide.podklady')) { %>
+          <li>
+            <a href="/lide/podklady" class="nav-sub-link <%= currentPath && currentPath.startsWith('/lide/podklady') ? 'active' : '' %>">
+              Fakturační podklady
+            </a>
+          </li>
+          <% } %>
           <% if (can('lide.pristupy')) { %>
           <li>
             <a href="/lide/pristupy" class="nav-sub-link <%= currentPath === '/lide/pristupy' ? 'active' : '' %>">

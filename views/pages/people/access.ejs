@@ -11,7 +11,9 @@
     // Editor přístupů si správce nesmí odebrat, jinak by se zamkl.
     const zamceno = Boolean(item.locked && m.is_admin);
     return {
-      checked: zamceno || (saved === undefined || saved === null ? true : Boolean(saved)),
+      // Bez uloženého záznamu platí „vidí", u citlivých položek (mzdy)
+      // naopak „nevidí" — musí se zaškrtnout vědomě.
+      checked: zamceno || (saved === undefined || saved === null ? !item.defaultDeny : Boolean(saved)),
       // Role je tvrdší než matice — zaškrtnutí z uživatele správce neudělá.
       // Hodnota se přesto ukládá, aby po povýšení na správce sedělo, co bylo
       // nastaveno.
@@ -94,6 +96,9 @@
           <tr class="access-item-row">
             <td>
               <span class="access-item-label"><%= item.label %></span>
+              <% if (item.defaultDeny) { %>
+                <span class="badge access-item-citlive" title="Bez zaškrtnutí nevidí ani správce">citlivé</span>
+              <% } %>
               <span class="access-item-path"><%= item.path %></span>
             </td>
             <% members.forEach(m => {
@@ -163,6 +168,10 @@
 .access-section-label { font-size: 13.5px; font-weight: 700; color: var(--text-primary); }
 
 .access-item-row .access-item-label { font-size: 13.5px; color: var(--text-primary); padding-left: 18px; }
+.access-item-citlive {
+  background: #fef3c7; color: #92400e;
+  margin-left: 8px; font-size: 10.5px; letter-spacing: 0.2px;
+}
 .access-item-path {
   display: block; padding-left: 18px; margin-top: 2px;
   font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted);

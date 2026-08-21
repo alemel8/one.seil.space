@@ -52,6 +52,22 @@ describe('vyhodnocení práv', () => {
     assert.equal(isAllowed(spravce({ 'lide.tym': false }), 'lide.tym'), false);
   });
 
+  test('citlivé položky se musí zaškrtnout vědomě', () => {
+    // Mzdy nesmí být vidět jen proto, že se někdo stal správcem. Bez
+    // uloženého záznamu je defaultDeny drží zavřené.
+    assert.equal(isAllowed(spravce(), 'lide.mzdy'), false);
+    assert.equal(isAllowed(spravce(), 'lide.ekonomika'), false);
+    assert.equal(isAllowed(spravce({ 'lide.mzdy': true }), 'lide.mzdy'), true);
+    assert.equal(isAllowed(spravce({ 'lide.mzdy': false }), 'lide.mzdy'), false);
+
+    // Zbytek katalogu se chová dál po starém — nasazení nikoho neodřízne
+    assert.equal(isAllowed(spravce(), 'lide.tym'), true);
+    assert.equal(isAllowed(spravce(), 'lide.podklady'), true);
+
+    // A role je pořád tvrdší než matice
+    assert.equal(isAllowed(uzivatel({ 'lide.mzdy': true }), 'lide.mzdy'), false);
+  });
+
   test('nepřihlášený nevidí nic, neznámý klíč neomezuje', () => {
     assert.equal(isAllowed(null, 'crm.firmy'), false);
     assert.equal(isAllowed(uzivatel(), 'neexistuje.klic'), true);

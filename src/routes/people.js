@@ -1,5 +1,5 @@
 import bcryptjs from 'bcryptjs';
-import { getDb } from '../db.js';
+import { getDb, generateId } from '../db.js';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -7,6 +7,11 @@ import { fileURLToPath } from 'node:url';
 import {
   ACCESS_SECTIONS, ACCESS_KEYS, isAllowed, loadAccessMatrix, saveUserAccess,
 } from '../access.js';
+import {
+  osobniUcet, posledniPohyby, podkladyUzivatele, mzdyUzivatele,
+  platbyUzivatele, dokumentyUzivatele, PLATBA_DRUHY, PODKLAD_STAVY,
+} from '../hr.js';
+import { addAttachment, isArchivableMime } from '../attachments.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MEDIA_DIR = path.resolve(__dirname, '../../data/media');
@@ -17,6 +22,28 @@ export default async function peopleRoutes(fastify) {
   fastify.addHook('preHandler', async (request, reply) => {
     if (!request.user?.is_admin) return reply.code(403).send('Přístup odepřen');
   });
+
+  /**
+   * Přečte formulář, který může a nemusí nést soubor. Multipart stream se
+   * musí vždy dočíst do konce, jinak se požadavek zasekne — stejný důvod
+   * jako v receipts.js.
+   */
+  async function ctiFormular(request) {
+    if (!request.isMultipart()) return { fields: request.body || {}, soubor: null };
+    const fields = {};
+    let soubor = null;
+    for await (const part of request.parts()) {
+      if (part.type === 'file') {
+        const buf = await part.toBuffer();
+        if (buf.length && isArchivableMime(part.mimetype)) {
+          soubor = { buf, mime: part.mimetype, originalName: part.filename };
+        }
+      } else {
+        fields[part.fieldname] = part.value;
+      }
+    }
+    return { fields, soubor };
+  }
 
   // Hledá primárně podle public_id; číselné id bereme jen jako fallback
   // pro staré odkazy a záložky v prohlížeči.
@@ -111,6 +138,8 @@ export default async function peopleRoutes(fastify) {
     return reply.redirect('/lide/pristupy?saved=1');
   });
 
+  const ZALOZKY = ['detail','banka','ekonomika','podklady','mzdy','vydaje','dokumenty','pristupy'];
+
   // ── Detail člena ─────────────────────────────────────────────
   fastify.get('/lide/tym/:id', async (request, reply) => {
     const { member, legacy } = await findMember(request.params.id);
@@ -118,13 +147,37 @@ export default async function peopleRoutes(fastify) {
     // Staré číselné odkazy pošleme na kanonickou adresu s public_id
     if (legacy) return reply.redirect(`/lide/tym/${member.public_id}`);
 
+    const currentTab = ZALOZKY.includes(request.query.tab) ? request.query.tab : 'detail';
+
     const matrix = await loadAccessMatrix(sql, [member.id]);
     member.access = matrix[member.id] ?? {};
+
+    // Počty do popisků záložek se musí spočítat vždy, obsah jen pro tu
+    // otevřenou — načítat všech pět seznamů při každém otevření profilu
+    // by bylo plýtvání.
+    const [[pocty], ucet] = await Promise.all([
+      sql`SELECT
+            (SELECT COUNT(*)::int FROM hr_work_reports  WHERE user_id = ${member.id}) AS podklady,
+            (SELECT COUNT(*)::int FROM hr_payroll_runs  WHERE user_id = ${member.id}) AS mzdy,
+            (SELECT COUNT(*)::int FROM hr_payroll_items WHERE user_id = ${member.id}) AS platby,
+            (SELECT COUNT(*)::int FROM hr_documents     WHERE user_id = ${member.id}) AS dokumenty`,
+      osobniUcet(sql, member.id),
+    ]);
+
+    const data = { pohyby: [], podklady: [], mzdy: [], platby: [], dokumenty: [] };
+    if (currentTab === 'ekonomika') data.pohyby    = await posledniPohyby(sql, member.id);
+    if (currentTab === 'podklady')  data.podklady  = await podkladyUzivatele(sql, member.id);
+    if (currentTab === 'mzdy')      data.mzdy      = await mzdyUzivatele(sql, member.id);
+    if (currentTab === 'vydaje')    data.platby    = await platbyUzivatele(sql, member.id);
+    if (currentTab === 'dokumenty') data.dokumenty = await dokumentyUzivatele(sql, member.id);
 
     return reply.view('pages/people/member-detail.ejs', {
       pageTitle: (`${member.first_name} ${member.last_name}`.trim() || member.email),
       currentPath: '/lide/tym', user: request.user, member,
       sections: ACCESS_SECTIONS, isAllowed,
+      currentTab, pocty, ucet, ...data,
+      maData: pocty.podklady + pocty.mzdy + pocty.platby > 0,
+      PLATBA_DRUHY, PODKLAD_STAVY,
       saved: request.query.saved === '1',
     }, { layout: 'layouts/base.ejs' });
   });
@@ -155,7 +208,74 @@ export default async function peopleRoutes(fastify) {
         updated_at   = NOW()
       WHERE id = ${member.id}
     `;
-    return reply.redirect(`/lide/tym/${member.public_id}?saved=1`);
+    const tab = ZALOZKY.includes(b.tab) ? b.tab : 'detail';
+    return reply.redirect(`/lide/tym/${member.public_id}?tab=${tab}&saved=1`);
+  });
+
+  // ── Platby mimo mzdu ─────────────────────────────────────────
+  // Vlastní routa, ne sdílený POST /lide/tym/:id — ten přepisuje všech
+  // šestnáct sloupců uživatele naráz a formulář odjinud by je vynuloval.
+  fastify.post('/lide/tym/:id/platby/vytvorit', async (request, reply) => {
+    const { member } = await findMember(request.params.id);
+    if (!member) return reply.code(404).send('Člen nenalezen');
+
+    const { fields, soubor } = await ctiFormular(request);
+    const castka = Number(String(fields.amount || '').replace(',', '.'));
+    if (!Number.isFinite(castka) || castka < 0) {
+      return reply.redirect(`/lide/tym/${member.public_id}?tab=vydaje&error=castka`);
+    }
+
+    const [platba] = await sql`
+      INSERT INTO hr_payroll_items (id, user_id, kind, paid_on, amount, description, created_by)
+      VALUES (${generateId()}, ${member.id},
+              ${PLATBA_DRUHY.some(d => d[0] === fields.kind) ? fields.kind : 'zaloha'},
+              ${fields.paid_on || new Date().toISOString().slice(0, 10)},
+              ${castka}, ${(fields.description || '').trim()}, ${request.user.id})
+      RETURNING id
+    `;
+
+    if (soubor) {
+      await addAttachment(sql, 'payroll_item', platba.id, {
+        ...soubor, category: 'doklad_o_nakupu', baseName: 'platba',
+        uploadedBy: request.user.id, log: request.log,
+      }).catch(err => request.log.error({ err }, 'přílohu platby se nepodařilo uložit'));
+    }
+    return reply.redirect(`/lide/tym/${member.public_id}?tab=vydaje&saved=1`);
+  });
+
+  fastify.post('/lide/tym/:id/platby/:platbaId/smazat', async (request, reply) => {
+    const { member } = await findMember(request.params.id);
+    if (!member) return reply.code(404).send('Člen nenalezen');
+    // user_id v podmínce, aby nešlo smazat cizí platbu podvrženým ID
+    await sql`DELETE FROM hr_payroll_items
+               WHERE id = ${request.params.platbaId} AND user_id = ${member.id}`;
+    return reply.redirect(`/lide/tym/${member.public_id}?tab=vydaje&saved=1`);
+  });
+
+  // ── Osobní a smluvní dokumenty ───────────────────────────────
+  fastify.post('/lide/tym/:id/dokumenty/vytvorit', async (request, reply) => {
+    const { member } = await findMember(request.params.id);
+    if (!member) return reply.code(404).send('Člen nenalezen');
+
+    const { fields, soubor } = await ctiFormular(request);
+    const nazev = (fields.title || '').trim();
+    if (!nazev) return reply.redirect(`/lide/tym/${member.public_id}?tab=dokumenty&error=nazev`);
+
+    const [dok] = await sql`
+      INSERT INTO hr_documents (id, user_id, title, category, document_date, created_by)
+      VALUES (${generateId()}, ${member.id}, ${nazev},
+              ${(fields.category || '').trim()},
+              ${fields.document_date || null}, ${request.user.id})
+      RETURNING id
+    `;
+
+    if (soubor) {
+      await addAttachment(sql, 'document', dok.id, {
+        ...soubor, category: 'smluvni_dokument', baseName: 'dokument',
+        uploadedBy: request.user.id, log: request.log,
+      }).catch(err => request.log.error({ err }, 'přílohu dokumentu se nepodařilo uložit'));
+    }
+    return reply.redirect(`/lide/tym/${member.public_id}?tab=dokumenty&saved=1`);
   });
 
   // ── Upload fotky člena (admin) ───────────────────────────────
