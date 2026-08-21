@@ -66,6 +66,17 @@ export const ACCESS_SECTIONS = [
     ],
   },
   {
+    key: 'prace',
+    label: 'Práce',
+    items: [
+      // Bez adminOnly — kdo si měří čas, musí se ke svým úkolům dostat.
+      // Že vidí jen svoje, řeší routy, ne matice; ta umí jen celou URL.
+      { key: 'prace.muj-cas', label: 'Můj čas', path: '/prace', exact: true },
+      { key: 'prace.ukoly',   label: 'Úkoly',   path: '/prace/ukoly' },
+      { key: 'prace.vykazy',  label: 'Výkazy',  path: '/prace/vykazy' },
+    ],
+  },
+  {
     key: 'nastaveni',
     label: 'Nastavení',
     adminOnly: true,

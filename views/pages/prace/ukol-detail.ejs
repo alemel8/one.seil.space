@@ -1,0 +1,122 @@
+<%
+  const cas = d => new Date(d).toLocaleString('cs-CZ', { day:'numeric', month:'numeric', hour:'2-digit', minute:'2-digit' });
+  const stavLabel = s => (TASK_STAVY.find(x => x[0] === s) || [, s])[1];
+  const jeMoje = bezi && bezi.task_id === ukol.id;
+%>
+
+<div class="page-header">
+  <div class="page-header-left">
+    <h1><%= ukol.summary %></h1>
+    <p>
+      <span style="font-family:var(--font-mono);"><%= ukol.code || '' %></span>
+      <%= ukol.klient ? ' · ' + ukol.klient : '' %>
+      · celkem <strong><%= hodinyMinuty(celkem) %></strong>
+    </p>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <% if (jeMoje) { %>
+      <form method="post" action="/prace/stopky/stop">
+        <input type="hidden" name="back" value="/prace/ukoly/<%= ukol.id %>">
+        <button type="submit" class="btn btn-danger">■ Zastavit</button>
+      </form>
+    <% } else { %>
+      <form method="post" action="/prace/stopky/start">
+        <input type="hidden" name="ukol_id" value="<%= ukol.id %>">
+        <input type="hidden" name="back" value="/prace/ukoly/<%= ukol.id %>">
+        <button type="submit" class="btn btn-primary">▶ <%= bezi ? 'Přepnout sem' : 'Spustit stopky' %></button>
+      </form>
+    <% } %>
+    <a href="/prace/ukoly" class="btn btn-outline">← Na úkoly</a>
+  </div>
+</div>
+
+<% if (bezi && !jeMoje) { %>
+<div style="background:var(--warning-bg);color:#92400e;border-radius:8px;padding:10px 16px;margin-bottom:20px;font-size:13px;">
+  Právě běží měření na <strong><%= bezi.ukol_kod || 'jiném úkolu' %></strong>. Spuštění stopek tady ho zastaví.
+</div>
+<% } %>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;align-items:start;">
+  <div>
+    <% if (ukol.description) { %>
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header"><h2 style="font-size:15px;font-weight:600;margin:0;">Popis</h2></div>
+      <div class="card-body"><div style="font-size:13.5px;white-space:pre-wrap;line-height:1.6;"><%= ukol.description %></div></div>
+    </div>
+    <% } %>
+
+    <% if (podukoly.length) { %>
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header"><h2 style="font-size:15px;font-weight:600;margin:0;">Podúkoly (<%= podukoly.length %>)</h2></div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:6px;">
+        <% podukoly.forEach(function (p) { %>
+        <a href="/prace/ukoly/<%= p.id %>" style="display:flex;gap:10px;align-items:center;text-decoration:none;color:inherit;font-size:13.5px;">
+          <span style="font-family:var(--font-mono);font-size:12.5px;color:var(--primary);"><%= p.code %></span>
+          <span style="flex:1;"><%= p.summary %></span>
+          <span class="badge" style="background:var(--gray-100);color:var(--text-secondary);"><%= stavLabel(p.status) %></span>
+        </a>
+        <% }) %>
+      </div>
+    </div>
+    <% } %>
+
+    <% if (prilohy.length) { %>
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header"><h2 style="font-size:15px;font-weight:600;margin:0;">Přílohy</h2></div>
+      <div class="card-body"><%- include('../../includes/prilohy', { soubory: prilohy, KATEGORIE_PRILOH }) %></div>
+    </div>
+    <% } %>
+
+    <div class="card">
+      <div class="card-header"><h2 style="font-size:15px;font-weight:600;margin:0;">Naměřený čas</h2></div>
+      <div class="table-wrapper" style="border:none;border-radius:0;">
+        <table class="data-table">
+          <thead><tr><th>Kdy</th><th>Kdo</th><th>Poznámka</th><th style="text-align:right;">Délka</th></tr></thead>
+          <tbody>
+            <% if (!mereni.length) { %>
+              <tr><td colspan="4" style="text-align:center;padding:28px;color:var(--text-muted);">Zatím nic naměřeno</td></tr>
+            <% } %>
+            <% mereni.forEach(function (m) { %>
+            <tr>
+              <td style="font-size:12.5px;color:var(--text-muted);white-space:nowrap;"><%= cas(m.started_at) %></td>
+              <td style="font-size:13px;"><%= [m.first_name, m.last_name].filter(Boolean).join(' ') %></td>
+              <td style="font-size:13px;color:var(--text-muted);"><%= m.note || '' %></td>
+              <td style="text-align:right;font-family:var(--font-mono);font-size:13px;">
+                <%= m.ended_at ? hodinyMinuty(m.sekund) : 'běží' %>
+              </td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2 style="font-size:15px;font-weight:600;margin:0;">Stav</h2></div>
+    <div class="card-body">
+      <form method="post" action="/prace/ukoly/<%= ukol.id %>/stav" style="margin-bottom:16px;">
+        <input type="hidden" name="back" value="/prace/ukoly/<%= ukol.id %>">
+        <select name="status" class="form-select" onchange="this.form.submit()">
+          <% TASK_STAVY.forEach(function (s) { %>
+            <option value="<%= s[0] %>" <%= ukol.status === s[0] ? 'selected' : '' %>><%= s[1] %></option>
+          <% }) %>
+        </select>
+      </form>
+      <dl style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13.5px;margin:0;">
+        <dt style="color:var(--text-muted);">Řešitel</dt>
+        <dd><%= [ukol.first_name, ukol.last_name].filter(Boolean).join(' ') || '—' %></dd>
+        <dt style="color:var(--text-muted);">Klient</dt>
+        <dd><%= ukol.klient || '—' %></dd>
+        <dt style="color:var(--text-muted);">Termín</dt>
+        <dd><%= ukol.due_date ? new Date(ukol.due_date).toLocaleDateString('cs-CZ') : '—' %></dd>
+        <% if (ukol.priority_label) { %>
+        <dt style="color:var(--text-muted);">Priorita</dt>
+        <dd><%= ukol.priority_label %></dd>
+        <% } %>
+        <dt style="color:var(--text-muted);">Naměřeno</dt>
+        <dd style="font-family:var(--font-mono);"><%= hodinyMinuty(celkem) %></dd>
+      </dl>
+    </div>
+  </div>
+</div>

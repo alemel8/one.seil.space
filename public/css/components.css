@@ -816,3 +816,83 @@ table.data-table {
   .dn-actions .btn { flex: 1; justify-content: center; }
   .dn-hint { display: none; }
 }
+
+/* ── Stopky ───────────────────────────────────────────────── */
+/* Pilulka v topbaru — na každé stránce je vidět, že něco běží. */
+
+.stopky-pilulka {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  margin-right: 12px;
+  background: var(--primary-light);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-full);
+  padding: 3px 4px 3px 10px;
+}
+[data-theme="dark"] .stopky-pilulka {
+  background: var(--sidebar-active);
+  border-color: var(--primary-dark);
+}
+
+.stopky-pilulka-odkaz {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: var(--text-primary);
+}
+
+.stopky-tecka {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+  flex-shrink: 0;
+  animation: stopky-puls 1.6s ease-in-out infinite;
+}
+@keyframes stopky-puls {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stopky-tecka { animation: none; }
+}
+
+.stopky-cas {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.stopky-ukol {
+  font-size: 12px;
+  color: var(--text-secondary);
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stopky-stop {
+  border: none;
+  background: var(--danger);
+  color: #fff;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.stopky-stop:hover { filter: brightness(0.92); }
+
+/* Na úzkém displeji zbyde jen tečka a čas — název úkolu se nevejde */
+@media (max-width: 720px) {
+  .stopky-ukol { display: none; }
+  .stopky-pilulka { margin-right: 6px; }
+}

@@ -1,0 +1,122 @@
+<%
+  const stavLabel = s => (TASK_STAVY.find(x => x[0] === s) || [, s])[1];
+  const stavBarva = s => s === 'done' ? ['var(--success-bg)', '#15803D']
+    : s === 'in_progress' ? ['var(--info-bg)', 'var(--info)']
+    : s === 'on_hold' ? ['var(--gray-100)', 'var(--text-secondary)']
+    : ['var(--warning-bg)', '#92400e'];
+  const poTerminu = u => u.due_date && u.status !== 'done' && new Date(u.due_date) < new Date();
+%>
+
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Úkoly</h1>
+    <p><%= ukoly.length %> úkolů<%= filtry.jenNehotove ? ' (nehotové)' : '' %></p>
+  </div>
+  <button class="btn btn-primary" data-modal-open="modalUkol">+ Nový úkol</button>
+</div>
+
+<form method="get" style="display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap;">
+  <input type="text" name="q" value="<%= filtry.q %>" placeholder="Hledat úkol nebo GUK-…"
+         class="form-control" style="flex:1;min-width:200px;max-width:320px;">
+  <select name="klient" class="form-select" style="max-width:200px;">
+    <option value="">Všichni klienti</option>
+    <% klienti.forEach(function (k) { %>
+      <option value="<%= k.id %>" <%= filtry.klient === k.id ? 'selected' : '' %>><%= k.name %></option>
+    <% }) %>
+  </select>
+  <select name="stav" class="form-select" style="max-width:170px;">
+    <option value="">Všechny stavy</option>
+    <% TASK_STAVY.forEach(function (s) { %>
+      <option value="<%= s[0] %>" <%= filtry.stav === s[0] ? 'selected' : '' %>><%= s[1] %></option>
+    <% }) %>
+  </select>
+  <label class="toggle-label" style="font-size:13px;">
+    <input type="checkbox" name="vse" value="1" class="toggle-input" <%= filtry.jenNehotove ? '' : 'checked' %>>
+    <span class="toggle-switch"></span>
+    <span class="toggle-text">i hotové</span>
+  </label>
+  <button type="submit" class="btn btn-outline">Filtrovat</button>
+</form>
+
+<div class="card">
+  <div class="table-wrapper" style="border:none;border-radius:0;">
+    <table class="data-table">
+      <thead><tr><th style="width:90px;">ID</th><th>Souhrn</th><th>Klient</th><th>Řešitel</th><th>Termín</th><th style="text-align:right;">Čas</th><th style="width:60px;"></th></tr></thead>
+      <tbody>
+        <% if (!ukoly.length) { %>
+          <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);">Žádné úkoly neodpovídají filtru</td></tr>
+        <% } %>
+        <% ukoly.forEach(function (u) { const b = stavBarva(u.status); %>
+        <tr>
+          <td style="font-family:var(--font-mono);font-size:12.5px;white-space:nowrap;">
+            <% if (u.bezi) { %><span class="stopky-tecka" style="margin-right:5px;"></span><% } %>
+            <a href="/prace/ukoly/<%= u.id %>" style="color:var(--primary);text-decoration:none;"><%= u.code || '—' %></a>
+          </td>
+          <td style="font-size:13.5px;">
+            <a href="/prace/ukoly/<%= u.id %>" style="color:var(--text-primary);text-decoration:none;"><%= u.summary %></a>
+            <span class="badge" style="background:<%= b[0] %>;color:<%= b[1] %>;margin-left:8px;"><%= stavLabel(u.status) %></span>
+          </td>
+          <td style="font-size:13px;color:var(--text-muted);"><%= u.klient || '—' %></td>
+          <td style="font-size:13px;color:var(--text-muted);"><%= [u.resitel_jmeno, u.resitel_prijmeni].filter(Boolean).join(' ') || '—' %></td>
+          <td style="font-size:12.5px;white-space:nowrap;color:<%= poTerminu(u) ? 'var(--danger)' : 'var(--text-muted)' %>;">
+            <%= u.due_date ? new Date(u.due_date).toLocaleDateString('cs-CZ') : '—' %><%= poTerminu(u) ? ' ⚠' : '' %>
+          </td>
+          <td style="text-align:right;font-family:var(--font-mono);font-size:13px;"><%= hodinyMinuty(u.sekund) %></td>
+          <td>
+            <% if (bezi && bezi.task_id === u.id) { %>
+              <form method="post" action="/prace/stopky/stop">
+                <input type="hidden" name="back" value="/prace/ukoly">
+                <button type="submit" class="btn btn-danger btn-sm" title="Zastavit">■</button>
+              </form>
+            <% } else { %>
+              <form method="post" action="/prace/stopky/start">
+                <input type="hidden" name="ukol_id" value="<%= u.id %>">
+                <input type="hidden" name="back" value="/prace/ukoly">
+                <button type="submit" class="btn btn-ghost btn-sm" title="<%= bezi ? 'Zastaví běžící a spustí tenhle' : 'Spustit stopky' %>">▶</button>
+              </form>
+            <% } %>
+          </td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="modalUkol">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 class="modal-title">Nový úkol</h2>
+      <button class="modal-close" data-modal-close="modalUkol">✕</button>
+    </div>
+    <form method="post" action="/prace/ukoly/vytvorit">
+      <div class="modal-body">
+        <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-group col-span-2">
+            <label class="form-label required">Souhrn</label>
+            <input type="text" name="summary" class="form-control" required placeholder="Co je potřeba udělat">
+          </div>
+          <div class="form-group col-span-2">
+            <label class="form-label">Popis</label>
+            <textarea name="description" class="form-control" rows="3"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Klient</label>
+            <select name="company_id" class="form-select">
+              <option value="">—</option>
+              <% klienti.forEach(function (k) { %><option value="<%= k.id %>"><%= k.name %></option><% }) %>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Termín</label>
+            <input type="date" name="due_date" class="form-control">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" data-modal-close="modalUkol">Zrušit</button>
+        <button type="submit" class="btn btn-primary">Vytvořit</button>
+      </div>
+    </form>
+  </div>
+</div>

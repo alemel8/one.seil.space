@@ -1,0 +1,189 @@
+<%
+  const cas = d => new Date(d).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
+  const den = d => new Date(d).toLocaleDateString('cs-CZ');
+  // pozor na jméno: `dnes` je pole záznamů předané z routy
+  const dnesniDatum = new Date().toLocaleDateString('cs-CZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+%>
+
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Můj čas</h1>
+    <p><%= dnesniDatum %> · dnes celkem <strong><%= hodinyMinuty(celkemDnes) %></strong></p>
+  </div>
+  <a href="/prace/vykazy" class="btn btn-outline">Měsíční výkaz →</a>
+</div>
+
+<% if (bezi) { %>
+<div class="card" style="margin-bottom:24px;border:1.5px solid var(--primary);">
+  <div class="card-body" style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
+    <div style="flex:1;min-width:260px;">
+      <div style="display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:700;letter-spacing:0.6px;color:var(--primary);text-transform:uppercase;margin-bottom:6px;">
+        <span class="stopky-tecka"></span> Běží
+      </div>
+      <div class="stopky-cas" data-start="<%= new Date(bezi.started_at).toISOString() %>"
+           style="font-family:var(--font-mono);font-size:34px;font-weight:600;line-height:1;color:var(--text-primary);">
+        <%= String(Math.floor(bezi.bezi_sekund/3600)).padStart(2,'0') %>:<%= String(Math.floor(bezi.bezi_sekund%3600/60)).padStart(2,'0') %>:<%= String(bezi.bezi_sekund%60).padStart(2,'0') %>
+      </div>
+      <div style="margin-top:8px;font-size:14px;color:var(--text-primary);">
+        <% if (bezi.task_id) { %>
+          <a href="/prace/ukoly/<%= bezi.task_id %>" style="color:var(--primary);text-decoration:none;font-family:var(--font-mono);font-size:13px;"><%= bezi.ukol_kod %></a>
+          · <%= bezi.ukol_nazev %>
+        <% } else { %>
+          <span style="color:var(--text-muted);">Bez úkolu<%= bezi.note ? ' · ' + bezi.note : '' %></span>
+        <% } %>
+      </div>
+      <div style="font-size:12.5px;color:var(--text-muted);margin-top:2px;">
+        <%= bezi.klient ? bezi.klient + ' · ' : '' %>spuštěno v <%= cas(bezi.started_at) %>
+      </div>
+    </div>
+    <form method="post" action="/prace/stopky/stop">
+      <input type="hidden" name="back" value="/prace">
+      <button type="submit" class="btn btn-danger btn-lg">■ Zastavit</button>
+    </form>
+  </div>
+</div>
+<% } else { %>
+<div class="card" style="margin-bottom:24px;">
+  <div class="card-body" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+    <div style="flex:1;min-width:240px;color:var(--text-muted);font-size:14px;">Stopky neběží.</div>
+    <form method="post" action="/prace/stopky/start" style="display:flex;gap:8px;flex-wrap:wrap;">
+      <input type="hidden" name="back" value="/prace">
+      <input type="text" name="poznamka" class="form-control" placeholder="Na čem děláte? (nepovinné)" style="min-width:240px;">
+      <button type="submit" class="btn btn-primary">▶ Spustit</button>
+    </form>
+  </div>
+</div>
+<% } %>
+
+<% if (zapomenute.length) { %>
+<div class="card" style="margin-bottom:24px;border:1.5px solid var(--warning);">
+  <div class="card-header" style="background:var(--warning-bg);">
+    <h2 style="font-size:15px;font-weight:600;margin:0;color:#92400e;">Zapomenuté stopky</h2>
+  </div>
+  <div class="card-body">
+    <% zapomenute.forEach(function (z) { %>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 0;">
+      <div style="flex:1;min-width:220px;font-size:13.5px;">
+        <strong><%= z.ukol_kod || 'Bez úkolu' %></strong> <%= z.ukol_nazev || '' %>
+        <div style="font-size:12.5px;color:var(--text-muted);">
+          běží <%= Math.floor(z.hodin) %> h od <%= den(z.started_at) %> <%= cas(z.started_at) %>
+        </div>
+      </div>
+      <form method="post" action="/prace/stopky/<%= z.id %>/dokoncit" style="display:flex;gap:6px;">
+        <input type="hidden" name="back" value="/prace">
+        <button type="submit" name="konec" value="vecer" class="btn btn-outline btn-sm">Ukončit v 18:00</button>
+        <button type="submit" name="konec" value="ted" class="btn btn-outline btn-sm">Ukončit teď</button>
+      </form>
+      <form method="post" action="/prace/zaznamy/<%= z.id %>/smazat" onsubmit="return confirm('Smazat toto měření?');">
+        <input type="hidden" name="back" value="/prace">
+        <button type="submit" class="btn btn-ghost btn-sm">🗑</button>
+      </form>
+    </div>
+    <% }) %>
+    <div style="font-size:12.5px;color:var(--text-muted);margin-top:6px;">
+      Měření delší než <%= PODEZRELE_HODIN %> hodin se samo neukončuje — vymyšlený čas ve výkazu
+      je horší než chybějící.
+    </div>
+  </div>
+</div>
+<% } %>
+
+<% if (posledni.length) { %>
+<div style="margin-bottom:24px;">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);margin-bottom:8px;">Rychlý start</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <% posledni.forEach(function (u) { %>
+    <form method="post" action="/prace/stopky/start">
+      <input type="hidden" name="ukol_id" value="<%= u.id %>">
+      <input type="hidden" name="back" value="/prace">
+      <button type="submit" class="btn btn-outline btn-sm" title="<%= u.summary %>">
+        ▶ <%= u.code %> <span style="color:var(--text-muted);"><%= (u.summary || '').slice(0, 26) %></span>
+      </button>
+    </form>
+    <% }) %>
+  </div>
+</div>
+<% } %>
+
+<div class="card">
+  <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+    <h2 style="font-size:15px;font-weight:600;margin:0;">Dnešní záznamy</h2>
+    <button class="btn btn-outline btn-sm" data-modal-open="modalRucne">+ Zapsat ručně</button>
+  </div>
+  <div class="table-wrapper" style="border:none;border-radius:0;">
+    <table class="data-table">
+      <thead><tr><th style="width:130px;">Čas</th><th>Úkol</th><th>Poznámka</th><th style="text-align:right;">Délka</th><th style="width:40px;"></th></tr></thead>
+      <tbody>
+        <% if (!dnes.length) { %>
+          <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-muted);">Dnes zatím nic naměřeno</td></tr>
+        <% } %>
+        <% dnes.forEach(function (z) { %>
+        <tr>
+          <td style="font-family:var(--font-mono);font-size:12.5px;color:var(--text-muted);white-space:nowrap;">
+            <%= cas(z.started_at) %>–<%= z.ended_at ? cas(z.ended_at) : '…' %>
+          </td>
+          <td style="font-size:13.5px;">
+            <% if (z.task_id) { %>
+              <a href="/prace/ukoly/<%= z.task_id %>" style="color:var(--primary);text-decoration:none;font-family:var(--font-mono);font-size:12.5px;"><%= z.ukol_kod %></a>
+              <%= z.ukol_nazev %>
+            <% } else { %><span style="color:var(--text-muted);">—</span><% } %>
+          </td>
+          <td style="font-size:13px;color:var(--text-muted);"><%= z.note || '' %></td>
+          <td style="text-align:right;font-family:var(--font-mono);font-size:13px;">
+            <%= z.ended_at ? hodinyMinuty(z.sekund) : 'běží' %>
+          </td>
+          <td>
+            <form method="post" action="/prace/zaznamy/<%= z.id %>/smazat" onsubmit="return confirm('Smazat záznam?');">
+              <input type="hidden" name="back" value="/prace">
+              <button type="submit" class="btn btn-ghost btn-sm">🗑</button>
+            </form>
+          </td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="modalRucne">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 class="modal-title">Zapsat čas ručně</h2>
+      <button class="modal-close" data-modal-close="modalRucne">✕</button>
+    </div>
+    <form method="post" action="/prace/zaznamy/vytvorit">
+      <input type="hidden" name="back" value="/prace">
+      <div class="modal-body">
+        <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-group col-span-2">
+            <label class="form-label">Datum</label>
+            <input type="date" name="den" class="form-control" value="<%= new Date().toISOString().slice(0,10) %>">
+          </div>
+          <div class="form-group">
+            <label class="form-label required">Od</label>
+            <input type="time" name="od" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label required">Do</label>
+            <input type="time" name="do" class="form-control" required>
+          </div>
+          <div class="form-group col-span-2">
+            <label class="form-label">Úkol</label>
+            <select name="ukol_id" class="form-select">
+              <option value="">Bez úkolu</option>
+              <% posledni.forEach(function (u) { %><option value="<%= u.id %>"><%= u.code %> · <%= u.summary %></option><% }) %>
+            </select>
+          </div>
+          <div class="form-group col-span-2">
+            <label class="form-label">Poznámka</label>
+            <input type="text" name="poznamka" class="form-control">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" data-modal-close="modalRucne">Zrušit</button>
+        <button type="submit" class="btn btn-primary">Uložit</button>
+      </div>
+    </form>
+  </div>
+</div>

@@ -10,6 +10,20 @@
 
   <div class="topbar-title"><%= pageTitle || 'Přehled' %></div>
 
+  <%# Běžící stopky visí na request.user (src/server.js), takže je topbar
+      vidí na každé stránce, aniž by je musela předávat každá routa. %>
+  <% if (user && user.bezici_mereni) { %>
+  <form method="post" action="/prace/stopky/stop" class="stopky-pilulka">
+    <input type="hidden" name="back" value="<%= currentPath || '/prace' %>">
+    <a href="/prace" class="stopky-pilulka-odkaz" title="<%= user.bezici_mereni.ukol_nazev || 'Běžící měření' %>">
+      <span class="stopky-tecka"></span>
+      <span class="stopky-cas" data-start="<%= new Date(user.bezici_mereni.started_at).toISOString() %>">0:00:00</span>
+      <span class="stopky-ukol"><%= user.bezici_mereni.ukol_kod || 'bez úkolu' %></span>
+    </a>
+    <button type="submit" class="stopky-stop" title="Zastavit stopky">■</button>
+  </form>
+  <% } %>
+
   <div class="topbar-controls">
 
     <!-- Přepínač tématu -->

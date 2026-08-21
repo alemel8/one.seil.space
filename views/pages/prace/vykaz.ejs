@@ -1,0 +1,98 @@
+<%
+  const MESICE = ['leden','únor','březen','duben','květen','červen','červenec','srpen','září','říjen','listopad','prosinec'];
+  const kc = n => Number(n || 0).toLocaleString('cs-CZ', { maximumFractionDigits: 0 });
+  const hodin = s => (Number(s || 0) / 3600);
+  const maxDen = Math.max(1, ...poDnech.map(d => d.sekund));
+  const sazba = Number(souhrn.sazba || 0);
+  const jmeno = ((osoba.first_name || '') + ' ' + (osoba.last_name || '')).trim();
+%>
+
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Výkaz hodin — <%= MESICE[mesic-1] %> <%= rok %></h1>
+    <p>
+      <%= jmeno %> · <strong><%= hodinyMinuty(souhrn.sekund) %></strong> ve <%= souhrn.pocet %> záznamech
+      <% if (sazba) { %> · <%= kc(hodin(souhrn.sekund) * sazba) %> Kč při <%= kc(sazba) %> Kč/h<% } %>
+    </p>
+  </div>
+  <form method="get" style="display:flex;gap:8px;margin:0;">
+    <% if (lide.length) { %>
+    <select name="osoba" class="form-select" style="font-size:13px;padding:6px 10px;" onchange="this.form.submit()">
+      <% lide.forEach(function (l) { %>
+        <option value="<%= l.public_id %>" <%= osoba.public_id === l.public_id ? 'selected' : '' %>>
+          <%= ((l.first_name||'') + ' ' + (l.last_name||'')).trim() %>
+        </option>
+      <% }) %>
+    </select>
+    <% } %>
+    <select name="mesic" class="form-select" style="font-size:13px;padding:6px 10px;" onchange="this.form.submit()">
+      <% MESICE.forEach(function (m, i) { %><option value="<%= i+1 %>" <%= mesic === i+1 ? 'selected' : '' %>><%= m %></option><% }) %>
+    </select>
+    <select name="rok" class="form-select" style="font-size:13px;padding:6px 10px;" onchange="this.form.submit()">
+      <% [rok+1, rok, rok-1, rok-2].forEach(function (r) { %><option value="<%= r %>" <%= rok === r ? 'selected' : '' %>><%= r %></option><% }) %>
+    </select>
+  </form>
+</div>
+
+<% const problem = problemy.bezi || problemy.nulove || problemy.bez_ukolu; %>
+<% if (problem) { %>
+<div class="card" style="margin-bottom:24px;border:1.5px solid var(--warning);">
+  <div class="card-header" style="background:var(--warning-bg);">
+    <h2 style="font-size:15px;font-weight:600;margin:0;color:#92400e;">Než měsíc uzavřete</h2>
+  </div>
+  <div class="card-body" style="font-size:13.5px;display:flex;flex-direction:column;gap:6px;">
+    <% if (problemy.bezi) { %><div>• <strong><%= problemy.bezi %></strong> měření stále běží — <a href="/prace" style="color:var(--primary);">vyřešit</a></div><% } %>
+    <% if (problemy.nulove) { %><div>• <strong><%= problemy.nulove %></strong> měření má nulovou délku (omylem spuštěné stopky)</div><% } %>
+    <% if (problemy.bez_ukolu) { %><div>• <strong><%= problemy.bez_ukolu %></strong> měření není navázané na úkol — nepůjde vyfakturovat</div><% } %>
+  </div>
+</div>
+<% } %>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;">
+  <div class="card">
+    <div class="card-header"><h2 style="font-size:15px;font-weight:600;margin:0;">Po dnech</h2></div>
+    <div class="card-body">
+      <% if (!poDnech.length) { %>
+        <div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13.5px;">V tomto měsíci nic naměřeno</div>
+      <% } %>
+      <% poDnech.forEach(function (d) { %>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:5px;">
+        <span style="width:76px;font-size:12.5px;color:var(--text-muted);white-space:nowrap;">
+          <%= new Date(d.den).toLocaleDateString('cs-CZ', { weekday:'short', day:'numeric', month:'numeric' }) %>
+        </span>
+        <span style="flex:1;height:14px;background:var(--gray-100);border-radius:4px;overflow:hidden;">
+          <span style="display:block;height:100%;width:<%= Math.round(d.sekund / maxDen * 100) %>%;background:var(--primary);"></span>
+        </span>
+        <span style="width:52px;text-align:right;font-family:var(--font-mono);font-size:12.5px;"><%= hodinyMinuty(d.sekund) %></span>
+      </div>
+      <% }) %>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2 style="font-size:15px;font-weight:600;margin:0;">Po úkolech</h2></div>
+    <div class="table-wrapper" style="border:none;border-radius:0;">
+      <table class="data-table">
+        <thead><tr><th>Úkol</th><th>Klient</th><th style="text-align:right;">Čas</th><% if (sazba) { %><th style="text-align:right;">Částka</th><% } %></tr></thead>
+        <tbody>
+          <% if (!poUkolech.length) { %>
+            <tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text-muted);">Nic naměřeno</td></tr>
+          <% } %>
+          <% poUkolech.forEach(function (u) { %>
+          <tr>
+            <td style="font-size:13px;">
+              <% if (u.task_id) { %>
+                <a href="/prace/ukoly/<%= u.task_id %>" style="color:var(--primary);text-decoration:none;font-family:var(--font-mono);font-size:12.5px;"><%= u.code %></a>
+                <%= (u.summary || '').slice(0, 34) %>
+              <% } else { %><span style="color:var(--warning);">⚠ bez úkolu</span><% } %>
+            </td>
+            <td style="font-size:12.5px;color:var(--text-muted);"><%= u.klient || '—' %></td>
+            <td style="text-align:right;font-family:var(--font-mono);font-size:13px;"><%= hodinyMinuty(u.sekund) %></td>
+            <% if (sazba) { %><td style="text-align:right;font-family:var(--font-mono);font-size:13px;"><%= kc(hodin(u.sekund) * sazba) %></td><% } %>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

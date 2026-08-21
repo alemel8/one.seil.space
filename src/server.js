@@ -126,6 +126,18 @@ fastify.addHook('preHandler', async (request) => {
         const section = ACCESS_SECTIONS.find(s => s.key === key);
         return section ? visibleItems(request.user, section).length > 0 : true;
       };
+
+      // Běžící stopky se vezou s uživatelem, aby je topbar viděl na každé
+      // stránce — jinak by je musela předávat každá routa zvlášť. Je to
+      // jeden dotaz nad částečným indexem, kde jsou vždy jednotky řádků.
+      if (request.user.can('prace.muj-cas')) {
+        const [bezi] = await sql`
+          SELECT t.id, t.started_at, t.task_id, u.code AS ukol_kod, u.summary AS ukol_nazev
+            FROM time_entries t LEFT JOIN tasks u ON u.id = t.task_id
+           WHERE t.user_id = ${request.user.id} AND t.ended_at IS NULL
+        `;
+        request.user.bezici_mereni = bezi ?? null;
+      }
     }
   }
 });
@@ -185,6 +197,7 @@ const { default: crmRoutes }        = await import('./routes/crm.js');
 const { default: projectsRoutes }   = await import('./routes/projects.js');
 const { default: peopleRoutes }     = await import('./routes/people.js');
 const { default: hrRoutes }         = await import('./routes/hr.js');
+const { default: workRoutes }       = await import('./routes/work.js');
 const { default: accountingRoutes } = await import('./routes/accounting.js');
 const { default: invoicesRoutes }   = await import('./routes/invoices.js');
 const { default: receiptsRoutes }   = await import('./routes/receipts.js');
@@ -202,6 +215,7 @@ await fastify.register(crmRoutes);
 await fastify.register(projectsRoutes);
 await fastify.register(peopleRoutes);
 await fastify.register(hrRoutes);
+await fastify.register(workRoutes);
 await fastify.register(accountingRoutes);
 await fastify.register(invoicesRoutes);
 await fastify.register(receiptsRoutes);
