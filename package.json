@@ -13,6 +13,7 @@
     "migrate:orders": "node --env-file=.env scripts/migrate-airtable-orders.js",
     "import:faktury": "node scripts/import-faktury-xlsx.js",
     "import:vypisy": "node scripts/import-vypisy-csv.js",
+    "import:airtable": "node scripts/migrate-airtable-hr.js",
     "test": "node --env-file=.env --test test/"
   },
   "engines": {

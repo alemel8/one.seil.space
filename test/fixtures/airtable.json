@@ -1,0 +1,757 @@
+{
+ "podklady": [
+  {
+   "id": "rec7geJwe2XLYGKLf",
+   "createdTime": "2024-07-15T07:45:59.000Z",
+   "cellValuesByFieldId": {
+    "fldHuTEdPbGJKs6QR": "2024-07-15",
+    "fldL0ZgmgXvq2fzn6": {
+     "id": "selt09niQ6LNWnOY2",
+     "name": "Odesláno",
+     "color": "greenLight2"
+    },
+    "fldOsfb4NsbqbvqoK": [
+     {
+      "id": "attr4luJcw4NQycOs",
+      "url": "https://airtable.invalid/attr4luJcw4NQycOs",
+      "filename": "Faktura_25240002.pdf",
+      "size": 133894,
+      "type": "application/pdf"
+     }
+    ],
+    "fldWCeLISQa2cm13A": [
+     {
+      "id": "attFBzZN6eEQvjnjz",
+      "url": "https://airtable.invalid/attFBzZN6eEQvjnjz",
+      "filename": "1-ticket U2SU-YIRN-JXIE.pdf",
+      "size": 259591,
+      "type": "application/pdf"
+     },
+     {
+      "id": "attvvEcdicLtDruR7",
+      "width": 945,
+      "height": 2048,
+      "url": "https://airtable.invalid/attvvEcdicLtDruR7",
+      "filename": "3b81526b-a552-40f8-9563-27da773da0ae.JPG",
+      "size": 157249,
+      "type": "image/jpeg"
+     },
+     {
+      "id": "attGleOUYpG5dzydb",
+      "width": 2430,
+      "height": 1831,
+      "url": "https://airtable.invalid/attGleOUYpG5dzydb",
+      "filename": "IMG_4537.heic",
+      "size": 808638,
+      "type": "image/heic"
+     },
+     {
+      "id": "attNPKMNDgGaAnt9D",
+      "width": 1170,
+      "height": 772,
+      "url": "https://airtable.invalid/attNPKMNDgGaAnt9D",
+      "filename": "IMG_4539 2.jpg",
+      "size": 162716,
+      "type": "image/jpeg"
+     }
+    ],
+    "flddqC7b7reh4eiK7": "LET            19,5 hod x 320,- = 6.240,- \nPRÁCE.       106  hod x 320,- = 33.920,- \nPROSTOJE      8  hod x 320,- = 2.560,- \nDAY OFF       16  hod x 120,- = 1.920,- \n**SOUČET      149,5 hod      = 44.640,- **\n\nVýdaje : \nVlak Ostrava - Praha =  504,-\nBus Pha hl.n.- letiště =  100,-\nTaxi práce na hotel  =  366,- ( contract no.22SG009 )\nTaxi práce na hotel  =  286,- ( contract no.22SG009 )\n**Součet            = 1.256,-  ** \n",
+    "fldjrK1Xnotnk2lIf": [
+     {
+      "id": "selqUlJfKdmhw2BjJ",
+      "name": "Singapore, Singapore",
+      "color": "pinkLight2"
+     }
+    ],
+    "fldpCbHTtztlEbaF3": [
+     {
+      "id": "selUcryXdukXxxfde",
+      "name": "23SG001",
+      "color": "yellowLight2"
+     },
+     {
+      "id": "selSZxQa3RfZdDlm7",
+      "name": "23SG009",
+      "color": "grayLight2"
+     },
+     {
+      "id": "selfY8RsuG9WB7mWi",
+      "name": "23SG072",
+      "color": "greenLight2"
+     }
+    ],
+    "fldsurfhjtQOdwJnc": "23SG001, 23SG009, 23SG072 | Singapore, Singapore",
+    "fldsy5PHZkNgKBiPP": [
+     {
+      "id": "attBkYnZy2tNUL8Uc",
+      "url": "https://airtable.invalid/attBkYnZy2tNUL8Uc",
+      "filename": "SING 1.pdf",
+      "size": 705930,
+      "type": "application/pdf"
+     },
+     {
+      "id": "att1GpcUNIz14Ybmz",
+      "url": "https://airtable.invalid/att1GpcUNIz14Ybmz",
+      "filename": "SING 2.pdf",
+      "size": 322539,
+      "type": "application/pdf"
+     }
+    ],
+    "fldtRLvvg2t0iH1EH": [
+     {
+      "id": "recNiItqNvIu42LVy",
+      "name": "Lukáš Trojek"
+     }
+    ],
+    "fldwkXqoaDEhcNGRN": 45903
+   }
+  },
+  {
+   "id": "rec08oiKU47U9vxp2",
+   "createdTime": "2025-10-29T06:34:08.000Z",
+   "cellValuesByFieldId": {
+    "fldHuTEdPbGJKs6QR": "2025-10-29",
+    "fldL0ZgmgXvq2fzn6": {
+     "id": "selt09niQ6LNWnOY2",
+     "name": "Odesláno",
+     "color": "greenLight2"
+    },
+    "fldOsfb4NsbqbvqoK": [
+     {
+      "id": "attU1QPSBq0BvbJkU",
+      "url": "https://airtable.invalid/attU1QPSBq0BvbJkU",
+      "filename": "Faktura_25250010.pdf",
+      "size": 150979,
+      "type": "application/pdf"
+     }
+    ],
+    "flddqC7b7reh4eiK7": "> Práce 75,5h x 360 = 27.180kč\n> Volno 960kč \n> Celkem = 28.140kč \n",
+    "fldjrK1Xnotnk2lIf": [
+     {
+      "id": "selhzR7kCNGBAclJ3",
+      "name": "Brémy, Německo",
+      "color": "yellowDark1"
+     }
+    ],
+    "fldpCbHTtztlEbaF3": [
+     {
+      "id": "selIMy8uO5HA9bOTc",
+      "name": "21UK043",
+      "color": "yellowLight1"
+     }
+    ],
+    "fldsurfhjtQOdwJnc": "21UK043 | Brémy, Německo",
+    "fldsy5PHZkNgKBiPP": [
+     {
+      "id": "attLcGOGkfjREeizt",
+      "url": "https://airtable.invalid/attLcGOGkfjREeizt",
+      "filename": "AS Lukáš Trojek,Deep Blue 3.pdf",
+      "size": 281641,
+      "type": "application/pdf"
+     }
+    ],
+    "fldtRLvvg2t0iH1EH": [
+     {
+      "id": "recNiItqNvIu42LVy",
+      "name": "Lukáš Trojek"
+     }
+    ],
+    "fldwkXqoaDEhcNGRN": 28140
+   }
+  },
+  {
+   "id": "recP2BZDsYWBtD0k3",
+   "createdTime": "2026-03-09T12:57:17.000Z",
+   "cellValuesByFieldId": {
+    "fldHuTEdPbGJKs6QR": "2026-03-09",
+    "fldL0ZgmgXvq2fzn6": {
+     "id": "selt09niQ6LNWnOY2",
+     "name": "Odesláno",
+     "color": "greenLight2"
+    },
+    "fldOsfb4NsbqbvqoK": [
+     {
+      "id": "atty9TZ8UhDLXnOJL",
+      "url": "https://airtable.invalid/atty9TZ8UhDLXnOJL",
+      "filename": "Faktura_25260003.pdf",
+      "size": 151053,
+      "type": "application/pdf"
+     }
+    ],
+    "flddqC7b7reh4eiK7": "Bolt cesta nádraží 105,- \nVlak Ov - Pha 569,- \nBolt Pha hl. nádraží - HOLPORT pro pasy 115,- \nBolt Holport - letiště 485,- \nCelkem 1274,- \n\nSochi cesta 18h x 320 = 5.760,- \nPráce 12h x 360 = 4.320,- \nCelkem 10.080,- \n\nVIK ( VAD ) \nCesta 12h x 320 = 3.840,- \nPráce 60h x 360 = 21.600,- \nCelkem 25.440,- \n\nSoučet celkem faktura 36.794,- \n",
+    "fldjrK1Xnotnk2lIf": [
+     {
+      "id": "selAZ4TYbtxpP87z0",
+      "name": "Moskva, Rusko",
+      "color": "grayLight2"
+     },
+     {
+      "id": "selRNaOpB9cO09Gpp",
+      "name": "Sochi, Rusko",
+      "color": "purpleDark1"
+     }
+    ],
+    "fldpCbHTtztlEbaF3": [
+     {
+      "id": "selzrvru6oNhZN3q4",
+      "name": "19RU039",
+      "color": "yellowBright"
+     },
+     {
+      "id": "selbAX1oQJIGZILBI",
+      "name": "25RU001",
+      "color": "pinkDark1"
+     }
+    ],
+    "fldsurfhjtQOdwJnc": "19RU039, 25RU001 | Moskva, Rusko, Sochi, Rusko",
+    "fldsy5PHZkNgKBiPP": [
+     {
+      "id": "attKVHnwpIbETXn3o",
+      "url": "https://airtable.invalid/attKVHnwpIbETXn3o",
+      "filename": "AS VIK 1.pdf",
+      "size": 296096,
+      "type": "application/pdf"
+     },
+     {
+      "id": "attzY0GqxYwekxHjy",
+      "url": "https://airtable.invalid/attzY0GqxYwekxHjy",
+      "filename": "AS Soči oprava.pdf",
+      "size": 256196,
+      "type": "application/pdf"
+     }
+    ],
+    "fldtRLvvg2t0iH1EH": [
+     {
+      "id": "recNiItqNvIu42LVy",
+      "name": "Lukáš Trojek"
+     }
+    ],
+    "fldwkXqoaDEhcNGRN": 36794
+   }
+  }
+ ],
+ "mzdy": [
+  {
+   "id": "rec0hO48wEZ1E0uuA",
+   "createdTime": "2026-08-17T06:55:20.000Z",
+   "cellValuesByFieldId": {
+    "fld0aNTM8i5WK2FYU": 11165,
+    "fld0j33q7oymWKHnt": 46830,
+    "fld6SkA4OO8PK7WC0": "2026-08-17",
+    "fld7UjWNKcDwuBl3c": true,
+    "fld8AZfCkofu9i6U1": [
+     {
+      "id": "recNiItqNvIu42LVy",
+      "name": "Lukáš Trojek"
+     }
+    ],
+    "fldHPfgoAEyg7tUnx": 2680,
+    "fldHfFNNyhodUKzHu": [
+     {
+      "id": "attnCLnvmqegArXVw",
+      "url": "https://airtable.invalid/attnCLnvmqegArXVw",
+      "filename": "PPPZ-04245610-2026-7_VZP_04.08.2026.pdf",
+      "size": 221696,
+      "type": "application/pdf"
+     },
+     {
+      "id": "atttdr2h8MO2uCCOE",
+      "url": "https://airtable.invalid/atttdr2h8MO2uCCOE",
+      "filename": "Přehled_mezd 07.pdf",
+      "size": 48326,
+      "type": "application/pdf"
+     },
+     {
+      "id": "attt62dYF5UyIoQm6",
+      "url": "https://airtable.invalid/attt62dYF5UyIoQm6",
+      "filename": "Výplatnice_mezd 07.pdf",
+      "size": 41070,
+      "type": "application/pdf"
+     },
+     {
+      "id": "attp4hsXJzBsEY0Uu",
+      "url": "https://airtable.invalid/attp4hsXJzBsEY0Uu",
+      "filename": "Rekapitulace_mezd 07.pdf",
+      "size": 53134,
+      "type": "application/pdf"
+     },
+     {
+      "id": "attNdkUiBzfn367XG",
+      "url": "https://airtable.invalid/attNdkUiBzfn367XG",
+      "filename": "Měsíční_hlášení 07.pdf",
+      "size": 57675,
+      "type": "application/pdf"
+     },
+     {
+      "id": "atthZom0eaIFDX9US",
+      "url": "https://airtable.invalid/atthZom0eaIFDX9US",
+      "filename": "Příkaz_k_úhradě_(s_kódem_QR_Platba) 07.pdf",
+      "size": 80648,
+      "type": "application/pdf"
+     },
+     {
+      "id": "attG2jEjKhfJW6D4d",
+      "url": "https://airtable.invalid/attG2jEjKhfJW6D4d",
+      "filename": "MH-04245610-2026-cervenec_radne_04.08.2026_Veta.xml",
+      "size": 7511,
+      "type": "text/xml"
+     }
+    ],
+    "fldIqeQmZaGzDJIM4": 18822,
+    "fldM6wkPJrX3XzFm2": 9438,
+    "fldOeVt58SxjTEgky": [
+     {
+      "id": "attibPW3n0FTYMgnC",
+      "url": "https://airtable.invalid/attibPW3n0FTYMgnC",
+      "filename": "Výplatní_páska_červenec_2026_Trojek_Lukáš_Z0001.pdf",
+      "size": 43502,
+      "type": "application/pdf"
+     }
+    ],
+    "fldXl8F5pyddnO2kc": 35000,
+    "fldmS27qxpQV7yWnu": "Červenec 2026",
+    "fldn4EzhwYLVLIZe9": {
+     "id": "selc0TemefY7GhTdE",
+     "name": "Červenec",
+     "color": "redDark1"
+    },
+    "fldqvesYDwN3ynYv2": {
+     "id": "sel1mT2womaww4S0s",
+     "name": "2026",
+     "color": "redLight1"
+    },
+    "fldtN3ELHIW04YSXx": 46830,
+    "fldw3XK3322IyV6qW": 4725
+   }
+  },
+  {
+   "id": "recdG2tU1bZZFc37d",
+   "createdTime": "2024-06-09T04:20:30.000Z",
+   "cellValuesByFieldId": {
+    "fld0aNTM8i5WK2FYU": 5022,
+    "fld0j33q7oymWKHnt": 20766,
+    "fld6SkA4OO8PK7WC0": "2024-06-09",
+    "fld7UjWNKcDwuBl3c": true,
+    "fld8AZfCkofu9i6U1": [
+     {
+      "id": "recNiItqNvIu42LVy",
+      "name": "Lukáš Trojek"
+     }
+    ],
+    "fldHfFNNyhodUKzHu": [
+     {
+      "id": "attItZFHMDx99cUh8",
+      "url": "https://airtable.invalid/attItZFHMDx99cUh8",
+      "filename": "PPPZ_04245610_2024_05.pdf",
+      "size": 137459,
+      "type": "application/pdf"
+     },
+     {
+      "id": "attYxevkk2sTrUsCh",
+      "url": "https://airtable.invalid/attYxevkk2sTrUsCh",
+      "filename": "Přehled_mezd 052024.pdf",
+      "size": 45990,
+      "type": "application/pdf"
+     },
+     {
+      "id": "attfvowNFRb9aAe43",
+      "url": "https://airtable.invalid/attfvowNFRb9aAe43",
+      "filename": "Přehled_o_výši_pojistného 052024.pdf",
+      "size": 86337,
+      "type": "application/pdf"
+     },
+     {
+      "id": "attacuDyFfFJHwemn",
+      "url": "https://airtable.invalid/attacuDyFfFJHwemn",
+      "filename": "Příkaz_k_úhradě 052024.pdf",
+      "size": 38777,
+      "type": "application/pdf"
+     },
+     {
+      "id": "attSdpfOT4QzdQMUL",
+      "url": "https://airtable.invalid/attSdpfOT4QzdQMUL",
+      "filename": "Rekapitulace_mezd 052024.pdf",
+      "size": 52521,
+      "type": "application/pdf"
+     },
+     {
+      "id": "attl4M8K5CG9fJ1Hx",
+      "url": "https://airtable.invalid/attl4M8K5CG9fJ1Hx",
+      "filename": "Soupis_o_dani_z_příjmu 052024.pdf",
+      "size": 43338,
+      "type": "application/pdf"
+     },
+     {
+      "id": "attcmtw9xDg2B90jI",
+      "url": "https://airtable.invalid/attcmtw9xDg2B90jI",
+      "filename": "Výplatní_páska_Trojek_Lukáš_Z0001_květen_2024.pdf",
+      "size": 43404,
+      "type": "application/pdf"
+     }
+    ],
+    "fldIqeQmZaGzDJIM4": 13491,
+    "fldOeVt58SxjTEgky": [
+     {
+      "id": "attFO5KIvWjv4Dqb0",
+      "url": "https://airtable.invalid/attFO5KIvWjv4Dqb0",
+      "filename": "Výplatní_páska_Trojek_Lukáš_Z0001_květen_2024.pdf",
+      "size": 43404,
+      "type": "application/pdf"
+     }
+    ],
+    "fldXl8F5pyddnO2kc": 15744,
+    "fldmS27qxpQV7yWnu": "Květen 2024",
+    "fldn4EzhwYLVLIZe9": {
+     "id": "selg3HiP9FcgeGwzd",
+     "name": "Květen",
+     "color": "greenLight2"
+    },
+    "fldqvesYDwN3ynYv2": {
+     "id": "seliWEjiCgjEMAdry",
+     "name": "2024",
+     "color": "blueLight2"
+    },
+    "fldtN3ELHIW04YSXx": 21066,
+    "fldw3XK3322IyV6qW": 2253
+   }
+  }
+ ],
+ "soucty": {
+  "podkladyCelkem": 1488721.7,
+  "podkladuPocet": 31,
+  "mzdyUhrazeno": 1036044,
+  "mzdyPocet": 27
+ },
+ "mzdyVse": [
+  {
+   "fld0aNTM8i5WK2FYU": 11165,
+   "fld0j33q7oymWKHnt": 46830,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldHPfgoAEyg7tUnx": 2680,
+   "fldIqeQmZaGzDJIM4": 18822,
+   "fldM6wkPJrX3XzFm2": 9438,
+   "fldXl8F5pyddnO2kc": 35000,
+   "fldtN3ELHIW04YSXx": 46830,
+   "fldw3XK3322IyV6qW": 4725,
+   "_id": "rec02zKTZdZvfkknD"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 11165,
+   "fld0j33q7oymWKHnt": 46830,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldHPfgoAEyg7tUnx": 2680,
+   "fldIqeQmZaGzDJIM4": 18822,
+   "fldM6wkPJrX3XzFm2": 9438,
+   "fldXl8F5pyddnO2kc": 35000,
+   "fldtN3ELHIW04YSXx": 46830,
+   "fldw3XK3322IyV6qW": 4725,
+   "_id": "rec0hO48wEZ1E0uuA"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 7337,
+   "fld0j33q7oymWKHnt": 31057,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldGNcaeCeeMOlLtn": 283,
+   "fldHPfgoAEyg7tUnx": 880,
+   "fldIqeQmZaGzDJIM4": 14954,
+   "fldXl8F5pyddnO2kc": 23000,
+   "fldfVc3MzY5wGxxJr": 4498,
+   "fldtN3ELHIW04YSXx": 30774,
+   "fldw3XK3322IyV6qW": 3105,
+   "_id": "rec2jJ4Fg3yUH2JGz"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 7337,
+   "fld0j33q7oymWKHnt": 30774,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldHPfgoAEyg7tUnx": 880,
+   "fldIqeQmZaGzDJIM4": 14954,
+   "fldXl8F5pyddnO2kc": 23000,
+   "fldfVc3MzY5wGxxJr": 4498,
+   "fldtN3ELHIW04YSXx": 30774,
+   "fldw3XK3322IyV6qW": 3105,
+   "_id": "rec3ePZ6bJyNlhC0o"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 11165,
+   "fld0j33q7oymWKHnt": 47271,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldGNcaeCeeMOlLtn": 441,
+   "fldHPfgoAEyg7tUnx": 2680,
+   "fldIqeQmZaGzDJIM4": 18822,
+   "fldM6wkPJrX3XzFm2": 9438,
+   "fldXl8F5pyddnO2kc": 35000,
+   "fldtN3ELHIW04YSXx": 47271,
+   "fldw3XK3322IyV6qW": 4725,
+   "_id": "rec4Pw8qY77aTayN1"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 11321,
+   "fld0j33q7oymWKHnt": 47924,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldGNcaeCeeMOlLtn": 445,
+   "fldHPfgoAEyg7tUnx": 2755,
+   "fldIqeQmZaGzDJIM4": 18940,
+   "fldM6wkPJrX3XzFm2": 9672,
+   "fldXl8F5pyddnO2kc": 35484,
+   "fldtN3ELHIW04YSXx": 47924,
+   "fldw3XK3322IyV6qW": 4791,
+   "_id": "rec5YyYeNB2X6aNgs"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 9570,
+   "fld0j33q7oymWKHnt": 34877,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldGNcaeCeeMOlLtn": 267,
+   "fldHPfgoAEyg7tUnx": 1930,
+   "fldIqeQmZaGzDJIM4": 16882,
+   "fldM6wkPJrX3XzFm2": 2178,
+   "fldXl8F5pyddnO2kc": 30000,
+   "fldtN3ELHIW04YSXx": 40140,
+   "fldw3XK3322IyV6qW": 4050,
+   "_id": "rec6sRtfBtkr5Ssht"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 11165,
+   "fld0j33q7oymWKHnt": 38854,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldHPfgoAEyg7tUnx": 2680,
+   "fldIqeQmZaGzDJIM4": 18106,
+   "fldM6wkPJrX3XzFm2": 2178,
+   "fldXl8F5pyddnO2kc": 35000,
+   "fldtN3ELHIW04YSXx": 46830,
+   "fldw3XK3322IyV6qW": 4725,
+   "_id": "recCubYU9nQDRL06f"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 11167,
+   "fld0j33q7oymWKHnt": 39299,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldGNcaeCeeMOlLtn": 442,
+   "fldHPfgoAEyg7tUnx": 2695,
+   "fldIqeQmZaGzDJIM4": 18091,
+   "fldM6wkPJrX3XzFm2": 2178,
+   "fldXl8F5pyddnO2kc": 35002,
+   "fldtN3ELHIW04YSXx": 39299,
+   "fldw3XK3322IyV6qW": 4726,
+   "_id": "recDFFeCLiz47G9Px"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 11165,
+   "fld0j33q7oymWKHnt": 46830,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldHPfgoAEyg7tUnx": 2680,
+   "fldIqeQmZaGzDJIM4": 18822,
+   "fldM6wkPJrX3XzFm2": 9438,
+   "fldXl8F5pyddnO2kc": 35000,
+   "fldtN3ELHIW04YSXx": 46830,
+   "fldw3XK3322IyV6qW": 4725,
+   "_id": "recIPUhOJioZQSuvW"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 7337,
+   "fld0j33q7oymWKHnt": 30774,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldHPfgoAEyg7tUnx": 880,
+   "fldIqeQmZaGzDJIM4": 14954,
+   "fldXl8F5pyddnO2kc": 23000,
+   "fldfVc3MzY5wGxxJr": 4498,
+   "fldtN3ELHIW04YSXx": 30774,
+   "fldw3XK3322IyV6qW": 3105,
+   "_id": "recJvyjyhkF2nnwIF"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 11165,
+   "fld0j33q7oymWKHnt": 46830,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldHPfgoAEyg7tUnx": 2680,
+   "fldIqeQmZaGzDJIM4": 18106,
+   "fldM6wkPJrX3XzFm2": 10154,
+   "fldXl8F5pyddnO2kc": 35000,
+   "fldtN3ELHIW04YSXx": 46830,
+   "fldw3XK3322IyV6qW": 4725,
+   "_id": "recKa2vLhy8hWJcg7"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 11165,
+   "fld0j33q7oymWKHnt": 46830,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldHPfgoAEyg7tUnx": 2680,
+   "fldIqeQmZaGzDJIM4": 18822,
+   "fldM6wkPJrX3XzFm2": 9438,
+   "fldXl8F5pyddnO2kc": 35000,
+   "fldtN3ELHIW04YSXx": 46830,
+   "fldw3XK3322IyV6qW": 4725,
+   "_id": "recNmlx8vjlRN4HKq"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 6796,
+   "fld0j33q7oymWKHnt": 28656,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldGNcaeCeeMOlLtn": 156,
+   "fldHPfgoAEyg7tUnx": 625,
+   "fldIqeQmZaGzDJIM4": 14535,
+   "fldXl8F5pyddnO2kc": 21300,
+   "fldfVc3MzY5wGxxJr": 3668,
+   "fldtN3ELHIW04YSXx": 28500,
+   "fldw3XK3322IyV6qW": 2876,
+   "_id": "recRQN1zXgLLkHVzp"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 11165,
+   "fld0j33q7oymWKHnt": 46830,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldHPfgoAEyg7tUnx": 2680,
+   "fldIqeQmZaGzDJIM4": 18106,
+   "fldM6wkPJrX3XzFm2": 10154,
+   "fldXl8F5pyddnO2kc": 35000,
+   "fldtN3ELHIW04YSXx": 46830,
+   "fldw3XK3322IyV6qW": 4725,
+   "_id": "recb3O2X2eN06UsR0"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 7337,
+   "fld0j33q7oymWKHnt": 31057,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldGNcaeCeeMOlLtn": 283,
+   "fldHPfgoAEyg7tUnx": 880,
+   "fldIqeQmZaGzDJIM4": 14954,
+   "fldXl8F5pyddnO2kc": 23000,
+   "fldfVc3MzY5wGxxJr": 4498,
+   "fldtN3ELHIW04YSXx": 30774,
+   "fldw3XK3322IyV6qW": 3105,
+   "_id": "reccLgfJcvhLIPSZq"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 5022,
+   "fld0j33q7oymWKHnt": 20766,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldIqeQmZaGzDJIM4": 13491,
+   "fldXl8F5pyddnO2kc": 15744,
+   "fldtN3ELHIW04YSXx": 21066,
+   "fldw3XK3322IyV6qW": 2253,
+   "_id": "recdG2tU1bZZFc37d"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 6796,
+   "fld0j33q7oymWKHnt": 28500,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldHPfgoAEyg7tUnx": 625,
+   "fldIqeQmZaGzDJIM4": 14535,
+   "fldXl8F5pyddnO2kc": 21300,
+   "fldfVc3MzY5wGxxJr": 3668,
+   "fldtN3ELHIW04YSXx": 28500,
+   "fldw3XK3322IyV6qW": 2876,
+   "_id": "receiEozbI4QfzVNy"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 7337,
+   "fld0j33q7oymWKHnt": 30774,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldHPfgoAEyg7tUnx": 880,
+   "fldIqeQmZaGzDJIM4": 14954,
+   "fldXl8F5pyddnO2kc": 23000,
+   "fldfVc3MzY5wGxxJr": 4498,
+   "fldtN3ELHIW04YSXx": 30774,
+   "fldw3XK3322IyV6qW": 3105,
+   "_id": "recf5XqCOFE66knrG"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 7337,
+   "fld0j33q7oymWKHnt": 28670,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldHPfgoAEyg7tUnx": 880,
+   "fldIqeQmZaGzDJIM4": 15170,
+   "fldM6wkPJrX3XzFm2": 2178,
+   "fldXl8F5pyddnO2kc": 23000,
+   "fldtN3ELHIW04YSXx": 30774,
+   "fldw3XK3322IyV6qW": 3105,
+   "_id": "reciuuPuGwSuTNK96"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 11165,
+   "fld0j33q7oymWKHnt": 38854,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldHPfgoAEyg7tUnx": 2680,
+   "fldIqeQmZaGzDJIM4": 18106,
+   "fldM6wkPJrX3XzFm2": 2178,
+   "fldXl8F5pyddnO2kc": 35000,
+   "fldtN3ELHIW04YSXx": 46830,
+   "fldw3XK3322IyV6qW": 4725,
+   "_id": "recjBqk2jpqn1TfLk"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 11165,
+   "fld0j33q7oymWKHnt": 47271,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldGNcaeCeeMOlLtn": 441,
+   "fldHPfgoAEyg7tUnx": 2680,
+   "fldIqeQmZaGzDJIM4": 18106,
+   "fldM6wkPJrX3XzFm2": 10154,
+   "fldXl8F5pyddnO2kc": 35000,
+   "fldtN3ELHIW04YSXx": 47271,
+   "fldw3XK3322IyV6qW": 4725,
+   "_id": "recmY3l1lUE2aQeCP"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 11165,
+   "fld0j33q7oymWKHnt": 38854,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldHPfgoAEyg7tUnx": 2680,
+   "fldIqeQmZaGzDJIM4": 18106,
+   "fldM6wkPJrX3XzFm2": 2178,
+   "fldXl8F5pyddnO2kc": 35000,
+   "fldtN3ELHIW04YSXx": 46830,
+   "fldw3XK3322IyV6qW": 4725,
+   "_id": "recoDCHannoR0mDs3"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 3302,
+   "fld0j33q7oymWKHnt": 19529,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldIqeQmZaGzDJIM4": 12651,
+   "fldM6wkPJrX3XzFm2": 2178,
+   "fldXl8F5pyddnO2kc": 9310,
+   "fldtN3ELHIW04YSXx": 19529,
+   "fldw3XK3322IyV6qW": 1398,
+   "_id": "recujMVWLhdxthDEJ"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 11165,
+   "fld0j33q7oymWKHnt": 46830,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldHPfgoAEyg7tUnx": 2680,
+   "fldIqeQmZaGzDJIM4": 18822,
+   "fldM6wkPJrX3XzFm2": 9438,
+   "fldXl8F5pyddnO2kc": 35000,
+   "fldtN3ELHIW04YSXx": 46830,
+   "fldw3XK3322IyV6qW": 4725,
+   "_id": "recwjTJwBoH7oijC4"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 11165,
+   "fld0j33q7oymWKHnt": 47271,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldGNcaeCeeMOlLtn": 441,
+   "fldHPfgoAEyg7tUnx": 2680,
+   "fldIqeQmZaGzDJIM4": 18822,
+   "fldM6wkPJrX3XzFm2": 9438,
+   "fldXl8F5pyddnO2kc": 35000,
+   "fldtN3ELHIW04YSXx": 47271,
+   "fldw3XK3322IyV6qW": 4725,
+   "_id": "recxFXqzvNk5q3qq9"
+  },
+  {
+   "fld0aNTM8i5WK2FYU": 11254,
+   "fld0j33q7oymWKHnt": 47202,
+   "fld7UjWNKcDwuBl3c": true,
+   "fldHPfgoAEyg7tUnx": 2725,
+   "fldIqeQmZaGzDJIM4": 18306,
+   "fldM6wkPJrX3XzFm2": 10154,
+   "fldXl8F5pyddnO2kc": 35278,
+   "fldtN3ELHIW04YSXx": 47202,
+   "fldw3XK3322IyV6qW": 4763,
+   "_id": "recyEtZ7rEfyWCU8Z"
+  }
+ ]
+}
