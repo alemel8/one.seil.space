@@ -151,7 +151,8 @@ export default async function peopleRoutes(fastify) {
         bank_name    = ${(b.bank_name||'').trim()},
         iban         = ${(b.iban||'').trim()},
         is_admin     = ${b.is_admin === 'on' || b.is_admin === '1'},
-        is_active    = ${b.is_active === '1' || b.is_active === 'on'}
+        is_active    = ${b.is_active === '1' || b.is_active === 'on'},
+        updated_at   = NOW()
       WHERE id = ${member.id}
     `;
     return reply.redirect(`/lide/tym/${member.public_id}?saved=1`);
@@ -174,7 +175,7 @@ export default async function peopleRoutes(fastify) {
     const buf = await data.toBuffer();
     await writeFile(path.join(MEDIA_DIR, filename), buf);
 
-    await sql`UPDATE users SET photo = ${filename} WHERE id = ${member.id}`;
+    await sql`UPDATE users SET photo = ${filename}, updated_at = NOW() WHERE id = ${member.id}`;
     return reply.redirect(`/lide/tym/${member.public_id}?saved=1`);
   });
 }

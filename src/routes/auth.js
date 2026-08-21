@@ -36,13 +36,13 @@ export default async function authRoutes(fastify) {
     const buf = await data.toBuffer();
     await writeFile(path.join(MEDIA_DIR, filename), buf);
 
-    await sql`UPDATE users SET photo = ${filename} WHERE id = ${request.user.id}`;
+    await sql`UPDATE users SET photo = ${filename}, updated_at = NOW() WHERE id = ${request.user.id}`;
     return reply.redirect('/profil?saved=1');
   });
 
   // ── Smazat profilovou fotku ───────────────────────────────────
   fastify.post('/profil/foto/smazat', async (request, reply) => {
-    await sql`UPDATE users SET photo = NULL WHERE id = ${request.user.id}`;
+    await sql`UPDATE users SET photo = NULL, updated_at = NOW() WHERE id = ${request.user.id}`;
     return reply.redirect('/profil?saved=1');
   });
 
@@ -65,6 +65,7 @@ export default async function authRoutes(fastify) {
     }
 
     if (updates.length) {
+      updates.push(sql`updated_at = NOW()`);
       await sql`UPDATE users SET ${updates.reduce((a, b) => sql`${a}, ${b}`)} WHERE id = ${request.user.id}`;
     }
     return reply.redirect('/profil?saved=1');
