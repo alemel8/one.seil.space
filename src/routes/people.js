@@ -9,7 +9,7 @@ import {
 } from '../access.js';
 import {
   osobniUcet, posledniPohyby, podkladyUzivatele, mzdyUzivatele,
-  platbyUzivatele, dokumentyUzivatele, PLATBA_DRUHY, PODKLAD_STAVY,
+  platbyUzivatele, dokumentyUzivatele, PLATBA_DRUHY, PODKLAD_STAVY, hodinyPoMesicich,
 } from '../hr.js';
 import { addAttachment, isArchivableMime } from '../attachments.js';
 
@@ -138,7 +138,7 @@ export default async function peopleRoutes(fastify) {
     return reply.redirect('/lide/pristupy?saved=1');
   });
 
-  const ZALOZKY = ['detail','banka','ekonomika','podklady','mzdy','vydaje','dokumenty','pristupy'];
+  const ZALOZKY = ['detail','banka','ekonomika','podklady','mzdy','hodiny','vydaje','dokumenty','pristupy'];
 
   // ── Detail člena ─────────────────────────────────────────────
   fastify.get('/lide/tym/:id', async (request, reply) => {
@@ -160,16 +160,18 @@ export default async function peopleRoutes(fastify) {
             (SELECT COUNT(*)::int FROM hr_work_reports  WHERE user_id = ${member.id}) AS podklady,
             (SELECT COUNT(*)::int FROM hr_payroll_runs  WHERE user_id = ${member.id}) AS mzdy,
             (SELECT COUNT(*)::int FROM hr_payroll_items WHERE user_id = ${member.id}) AS platby,
-            (SELECT COUNT(*)::int FROM hr_documents     WHERE user_id = ${member.id}) AS dokumenty`,
+            (SELECT COUNT(*)::int FROM hr_documents     WHERE user_id = ${member.id}) AS dokumenty,
+            (SELECT COUNT(*)::int FROM time_entries      WHERE user_id = ${member.id}) AS mereni`,
       osobniUcet(sql, member.id),
     ]);
 
-    const data = { pohyby: [], podklady: [], mzdy: [], platby: [], dokumenty: [] };
+    const data = { pohyby: [], podklady: [], mzdy: [], platby: [], dokumenty: [], mesice: [] };
     if (currentTab === 'ekonomika') data.pohyby    = await posledniPohyby(sql, member.id);
     if (currentTab === 'podklady')  data.podklady  = await podkladyUzivatele(sql, member.id);
     if (currentTab === 'mzdy')      data.mzdy      = await mzdyUzivatele(sql, member.id);
     if (currentTab === 'vydaje')    data.platby    = await platbyUzivatele(sql, member.id);
     if (currentTab === 'dokumenty') data.dokumenty = await dokumentyUzivatele(sql, member.id);
+    if (currentTab === 'hodiny')    data.mesice    = await hodinyPoMesicich(sql, member.id);
 
     return reply.view('pages/people/member-detail.ejs', {
       pageTitle: (`${member.first_name} ${member.last_name}`.trim() || member.email),

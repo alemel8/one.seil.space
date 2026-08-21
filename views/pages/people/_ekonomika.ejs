@@ -8,12 +8,27 @@
 %>
 
 <% if (currentTab === 'ekonomika') { %>
+  <%
+    // Zůstatek má smysl jen tam, kde je proti výplatám i příjmová strana.
+    // U dohodáře žádné fakturační podklady nejsou a rozdíl by byl jen
+    // záporným součtem výplat — číslo, které nic neříká. Místo něj se
+    // ukazuje odpracovaný čas a odměna, ze které mzda vznikla.
+    const maPodklady = ucet.prijmyPocet > 0;
+  %>
   <div class="kpi-grid" style="margin-bottom:24px;">
+    <% if (maPodklady) { %>
     <div class="kpi-card">
       <div class="kpi-label">Příjmy</div>
       <div class="kpi-value positive" style="font-size:20px;"><%= kc2(ucet.prijmy) %></div>
       <div class="kpi-formula"><%= ucet.prijmyPocet %> fakturačních podkladů</div>
     </div>
+    <% } else { %>
+    <div class="kpi-card">
+      <div class="kpi-label">Odpracováno</div>
+      <div class="kpi-value" style="font-size:20px;"><%= kc2(ucet.hodiny) %> h</div>
+      <div class="kpi-formula">odměna <%= kc(ucet.odmena) %> Kč</div>
+    </div>
+    <% } %>
     <div class="kpi-card">
       <div class="kpi-label">Výdaje</div>
       <div class="kpi-value negative" style="font-size:20px;"><%= kc2(ucet.vydaje) %></div>
@@ -24,11 +39,19 @@
       <div class="kpi-value negative" style="font-size:20px;"><%= kc2(ucet.ostatni) %></div>
       <div class="kpi-formula"><%= ucet.ostatniPocet %> plateb · zálohy a nákupy</div>
     </div>
+    <% if (maPodklady) { %>
     <div class="kpi-card">
       <div class="kpi-label">Zůstatek</div>
       <div class="kpi-value <%= ucet.zustatek >= 0 ? 'positive' : 'negative' %>" style="font-size:20px;"><%= kc2(ucet.zustatek) %></div>
       <div class="kpi-formula">příjmy − výdaje − platby</div>
     </div>
+    <% } else { %>
+    <div class="kpi-card">
+      <div class="kpi-label">Náklad firmy</div>
+      <div class="kpi-value negative" style="font-size:20px;"><%= kc2(ucet.nakladFirmy + ucet.ostatni) %></div>
+      <div class="kpi-formula">mzdy + platby mimo mzdu</div>
+    </div>
+    <% } %>
   </div>
 
   <% if (ucet.nakladFirmy && Math.abs(ucet.nakladFirmy - ucet.vydaje) > 0.5) { %>
@@ -302,6 +325,71 @@
           <button type="submit" class="btn btn-primary">Uložit dokument</button>
         </div>
       </form>
+    </div>
+  </div>
+<% } %>
+
+<% if (currentTab === 'hodiny') { %>
+  <%
+    const celkem  = mesice.reduce((a, m) => a + Number(m.namereno || 0), 0);
+    const veMzde  = mesice.reduce((a, m) => a + Number(m.ve_mzde  || 0), 0);
+    const bezi    = mesice.reduce((a, m) => a + Number(m.bezi     || 0), 0);
+    const hod = n => Number(n || 0).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  %>
+  <div class="kpi-grid" style="margin-bottom:24px;">
+    <div class="kpi-card">
+      <div class="kpi-label">Naměřeno</div>
+      <div class="kpi-value" style="font-size:20px;"><%= hod(celkem) %> h</div>
+      <div class="kpi-formula"><%= mesice.reduce((a,m)=>a+Number(m.zaznamu||0),0) %> záznamů</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Ve mzdách</div>
+      <div class="kpi-value" style="font-size:20px;"><%= hod(veMzde) %> h</div>
+      <div class="kpi-formula">z mzdových listů</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Rozdíl</div>
+      <div class="kpi-value <%= Math.abs(celkem - veMzde) < 0.01 ? '' : 'negative' %>" style="font-size:20px;"><%= hod(celkem - veMzde) %> h</div>
+      <div class="kpi-formula">naměřeno − vykázáno</div>
+    </div>
+    <% if (bezi) { %>
+    <div class="kpi-card">
+      <div class="kpi-label">Běžící měření</div>
+      <div class="kpi-value negative" style="font-size:20px;"><%= bezi %></div>
+      <div class="kpi-formula">je potřeba dokončit</div>
+    </div>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2 style="font-size:15px;font-weight:600;margin:0;">Po měsících</h2></div>
+    <div class="table-wrapper" style="border:none;border-radius:0;">
+      <table class="data-table">
+        <thead><tr>
+          <th>Měsíc</th><th style="text-align:right;">Záznamů</th>
+          <th style="text-align:right;">Naměřeno</th><th style="text-align:right;">Ve mzdě</th>
+          <th style="text-align:right;">Rozdíl</th>
+        </tr></thead>
+        <tbody>
+          <% if (!mesice.length) { %>
+            <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-muted);">Zatím žádná měření</td></tr>
+          <% } %>
+          <% mesice.forEach(function (m) {
+               const má = m.ve_mzde != null;
+               const r  = má ? Number(m.namereno) - Number(m.ve_mzde) : null;
+          %>
+          <tr>
+            <td><%= mesic(m.obdobi) %><% if (m.bezi) { %> <span class="badge" style="background:var(--danger-bg);color:var(--danger);">běží <%= m.bezi %></span><% } %></td>
+            <td style="text-align:right;color:var(--text-muted);"><%= m.zaznamu %></td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;"><%= hod(m.namereno) %></td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text-muted);"><%= má ? hod(m.ve_mzde) : '—' %></td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;color:<%= r == null ? 'var(--text-muted)' : Math.abs(r) < 0.01 ? 'var(--success)' : 'var(--danger)' %>;">
+              <%= r == null ? '—' : (r > 0 ? '+' : '') + hod(r) %>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
     </div>
   </div>
 <% } %>

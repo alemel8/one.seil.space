@@ -24,8 +24,13 @@ export async function osobniUcet(sql, userId, { rok = null } = {}) {
     sql`SELECT COALESCE(SUM(total_amount),0)::float8 AS castka, COUNT(*)::int AS pocet
           FROM hr_work_reports
          WHERE user_id = ${userId} AND status <> 'storno' ${obdobiPodkladu}`,
-    sql`SELECT COALESCE(SUM(paid_total),0)::float8   AS castka,
+    // Hotovost se přičítá k UHRAZENO: u dohody šla část odměny mimo mzdový
+    // list a bez ní by osobní účet tvrdil, že člověk nedostal nic.
+    // U HPP je cash_paid nula, takže se kontrolní součty nehnou.
+    sql`SELECT COALESCE(SUM(paid_total + cash_paid),0)::float8 AS castka,
                COALESCE(SUM(company_cost),0)::float8 AS naklad_firmy,
+               COALESCE(SUM(hours),0)::float8        AS hodiny,
+               COALESCE(SUM(earned),0)::float8       AS odmena,
                COUNT(*)::int AS pocet
           FROM hr_payroll_runs WHERE user_id = ${userId} ${obdobiMezd}`,
     sql`SELECT COALESCE(SUM(amount),0)::float8 AS castka, COUNT(*)::int AS pocet
@@ -36,6 +41,7 @@ export async function osobniUcet(sql, userId, { rok = null } = {}) {
     prijmy: prijmy.castka,   prijmyPocet: prijmy.pocet,
     vydaje: mzdy.castka,     vydajePocet: mzdy.pocet,
     nakladFirmy: mzdy.naklad_firmy,
+    hodiny: mzdy.hodiny,     odmena: mzdy.odmena,
     ostatni: ostatni.castka, ostatniPocet: ostatni.pocet,
     zustatek: prijmy.castka - mzdy.castka - ostatni.castka,
   };
@@ -279,3 +285,33 @@ export const UVAZKY = [
   ['osvc',     'OSVČ / fakturace'],
   ['jednatel', 'Jednatel'],
 ];
+
+/**
+ * Naměřený čas po měsících, vedle hodin ve mzdě za tentýž měsíc.
+ * Rozdíl se ZÁMĚRNĚ nedopočítává na nulu — v datech z Airtable jsou měsíce,
+ * kde se hodiny vykázaly bez měření i naopak, a schovat to by znamenalo
+ * tvářit se, že evidence sedí, když nesedí.
+ */
+export async function hodinyPoMesicich(sql, userId) {
+  return sql`
+    WITH mereni AS (
+      SELECT date_trunc('month', started_at)::date AS obdobi,
+             COUNT(*)::int                          AS zaznamu,
+             COALESCE(SUM(duration_seconds), 0)::bigint AS sekund,
+             COUNT(*) FILTER (WHERE ended_at IS NULL)::int AS bezi
+        FROM time_entries WHERE user_id = ${userId}
+       GROUP BY 1
+    ), mzdy AS (
+      SELECT period AS obdobi, SUM(hours)::float8 AS hodiny
+        FROM hr_payroll_runs WHERE user_id = ${userId} AND hours IS NOT NULL
+       GROUP BY 1
+    )
+    SELECT COALESCE(m.obdobi, z.obdobi)         AS obdobi,
+           COALESCE(m.zaznamu, 0)               AS zaznamu,
+           COALESCE(m.sekund, 0)::float8 / 3600 AS namereno,
+           COALESCE(m.bezi, 0)                  AS bezi,
+           z.hodiny                             AS ve_mzde
+      FROM mereni m FULL OUTER JOIN mzdy z ON z.obdobi = m.obdobi
+     ORDER BY 1 DESC
+  `;
+}

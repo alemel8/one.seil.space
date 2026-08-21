@@ -71,8 +71,16 @@ export const ARCHIVE_MIMES = new Set([
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 ]);
 
+/**
+ * Archivní režim bere cokoli. Přílohy úkolů jsou libovolné soubory —
+ * v datech z Airtable je vedle PDF a XML i skript v Pythonu — a allowlist
+ * by je tiše zahodil. Bezpečné je to proto, že se ukládají bez otevírání
+ * a servírují se `Content-Disposition: attachment` + `nosniff`; inline se
+ * pouští jen úzký seznam typů v routě dokladů. U formulářů účtenek a faktur
+ * dál platí přísné `isSupportedMime()` — tam je sken povinný.
+ */
 export function isArchivableMime(mime) {
-  return isSupportedMime(mime) || ARCHIVE_MIMES.has(mime);
+  return Boolean(String(mime ?? '').trim());
 }
 
 const EXT_BY_MIME = new Map([

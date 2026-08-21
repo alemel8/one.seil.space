@@ -106,7 +106,10 @@ describe('přílohy dokladů', () => {
     assert.equal(isSupportedMime('text/xml'), false);
     assert.equal(isArchivableMime('text/xml'), true);
     assert.equal(isArchivableMime('application/zip'), true);
-    assert.equal(isArchivableMime('text/html'), false);
+    // I HTML a SVG: příloha úkolu může být cokoli a zahodit ji potichu by
+    // bylo horší. Že se nespustí, drží routa dokladů — inline pouští jen
+    // PDF a rastrové obrázky, zbytek jde ke stažení s nosniff.
+    assert.equal(isArchivableMime('text/html'), true);
 
     await assert.rejects(
       () => saveAttachment(Buffer.from('<?xml version="1.0"?><x/>'), 'text/xml', 'epodani'),
@@ -166,5 +169,30 @@ describe('přílohy dokladů', () => {
     } finally {
       await deleteAttachment(saved.filename);
     }
+  });
+});
+
+describe('archivní režim', () => {
+  test('vezme i typ, který formuláře nepustí', async () => {
+    // Přílohy úkolů jsou libovolné soubory — v datech z Airtable je vedle
+    // PDF a XML i skript v Pythonu. Allowlist by je tiše zahodil.
+    for (const mime of ['text/x-python-script', 'application/zip',
+                        'application/vnd.oasis.opendocument.text']) {
+      assert.equal(isArchivableMime(mime), true, mime);
+      assert.equal(isSupportedMime(mime), false, `${mime} nesmí projít do účtenek`);
+    }
+  });
+
+  test('HTML a SVG se nikdy neotevřou v prohlížeči', async () => {
+    const zdroj = await readFile(new URL('../src/routes/documents.js', import.meta.url), 'utf8');
+    const seznam = zdroj.slice(zdroj.indexOf('const NAHLED_MIME'), zdroj.indexOf('*/', zdroj.indexOf('const NAHLED_MIME')));
+    for (const mime of ['text/html', 'image/svg+xml', 'text/xml', 'application/zip']) {
+      assert.ok(!seznam.includes(mime), `${mime} nesmí být mezi typy pro inline náhled`);
+    }
+  });
+
+  test('prázdný typ neprojde ani archivně', () => {
+    assert.equal(isArchivableMime(''), false);
+    assert.equal(isArchivableMime(null), false);
   });
 });

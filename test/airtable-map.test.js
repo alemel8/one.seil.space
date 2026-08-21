@@ -10,8 +10,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   mapujPodklad, mapujMzdu, mapujExtraVydaj, mapujDokument, mapujPayroll,
+  mapujUkol, mapujMereni,
   cisloMesice, rozdelLokalitu, cisloFakturyZNazvu, kategoriePrilohyMzdy,
-  kategorieDokumentu, kontrolaUhrazeno,
+  kategorieDokumentu, kontrolaUhrazeno, POLE,
 } from '../src/airtable-map.js';
 
 const fix = JSON.parse(readFileSync(new URL('./fixtures/airtable.json', import.meta.url), 'utf8'));
@@ -171,5 +172,58 @@ describe('platby mimo mzdu', () => {
 
     // Prázdný řádek se nemá tvářit ani jako mzda, ani jako nákup
     assert.equal(mapujPayroll({ id: 'recP', cellValuesByFieldId: {} }).druh, 'prazdny');
+  });
+});
+
+describe('úkoly a měření času', () => {
+  const F = POLE;
+
+  test('priorita „6 | Needed" se rozdělí na číslo a popis', () => {
+    // Číslo řadí, text popisuje. Kdyby se ukládal jen text, nešlo by
+    // podle priority seřadit; kdyby jen číslo, ztratil by se význam.
+    const u = mapujUkol({ id: 'recU', cellValuesByFieldId: {
+      [F.task.priorita]: { id: 'sel1', name: '6 | Needed' },
+      [F.task.souhrn]: 'Oprava exportu',
+    }});
+    assert.equal(u.priority, 6);
+    assert.equal(u.priorityLabel, '6 | Needed');
+    assert.equal(u.summary, 'Oprava exportu');
+  });
+
+  test('priorita mimo rozsah 1–10 se zahodí, popis zůstane', () => {
+    const u = mapujUkol({ id: 'recU', cellValuesByFieldId: {
+      [F.task.priorita]: { id: 'sel1', name: '42 | Nesmysl' },
+    }});
+    assert.equal(u.priority, null);
+    assert.equal(u.priorityLabel, '42 | Nesmysl');
+  });
+
+  test('neznámý stav spadne na todo, ne na chybu', () => {
+    assert.equal(mapujUkol({ id: 'r', cellValuesByFieldId: {
+      [F.task.status]: { id: 's', name: 'Něco Nového' } }}).status, 'todo');
+    assert.equal(mapujUkol({ id: 'r', cellValuesByFieldId: {
+      [F.task.status]: { id: 's', name: 'In progress' } }}).status, 'in_progress');
+  });
+
+  test('nadřazený úkol se přenese jako Airtable ID k dořešení druhým průchodem', () => {
+    const u = mapujUkol({ id: 'recDite', cellValuesByFieldId: {
+      [F.task.nadrazeny]: [{ id: 'recRodic', name: 'GUK-1' }],
+    }});
+    assert.equal(u.nadrazenyAirtableId, 'recRodic');
+  });
+
+  test('měření bez konce znamená běžící stopky', () => {
+    const m = mapujMereni({ id: 'recM', cellValuesByFieldId: {
+      [F.cas.start]: '2026-03-02T08:00:00.000Z',
+    }});
+    assert.equal(m.startedAt, '2026-03-02T08:00:00.000Z');
+    assert.equal(m.endedAt, null);
+  });
+
+  test('Meeting se odliší od práce na úkolu', () => {
+    const typ = v => mapujMereni({ id: 'r', cellValuesByFieldId: { [F.cas.typ]: v } }).kind;
+    assert.equal(typ({ id: 's', name: 'Meeting' }), 'meeting');
+    assert.equal(typ({ id: 's', name: 'Task' }), 'task');
+    assert.equal(typ(undefined), 'task');
   });
 });
