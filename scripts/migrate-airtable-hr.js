@@ -8,6 +8,10 @@
  *
  * Přepínače:
  *   --dry-run           nic neuloží ani nestáhne, jen vypíše, co by vzniklo
+ *   --z-souboru=DIR     čte záznamy z DIR/<tabulka>.json místo z API. Slouží
+ *                       k běhu bez tokenu — data se vyexportují jinudy.
+ *                       Odkazy na přílohy v exportu platí jen dvě hodiny,
+ *                       takže se musí migrovat hned po něm.
  *   --jen=a,b           jen vybrané fáze (podklady, mzdy, extra, dokumenty,
  *                       ukoly, cas, payroll)
  *   --bez-priloh        naimportuje řádky, soubory vynechá (rychlé ladění)
@@ -24,6 +28,8 @@
  */
 
 import './lib/load-env.js';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import postgres from 'postgres';
 import { jeNastaveno, zaznamy, stahniPrilohu } from './lib/airtable.js';
 import {
@@ -40,6 +46,7 @@ const JEN = (process.argv.find(a => a.startsWith('--jen=')) || '').slice(6)
   .split(',').filter(Boolean);
 const TROJEK_EMAIL = (process.argv.find(a => a.startsWith('--trojek=')) || '').slice(9)
   || process.env.AIRTABLE_TROJEK_EMAIL || '';
+const ZE_SOUBORU = (process.argv.find(a => a.startsWith('--z-souboru=')) || '').slice(12);
 
 const BASE_TROJEK = process.env.AIRTABLE_BASE_TROJEK || 'appnJF71iCU3ymc5N';
 const BASE_SEIL   = process.env.AIRTABLE_BASE_SEIL   || 'appBpZ7LP2SvW7tHe';
@@ -50,6 +57,24 @@ const sql = postgres(process.env.DATABASE_URL, {
 });
 
 const stat = { radky: 0, preskoceno: 0, soubory: 0, souboryPreskoceno: 0, chyby: 0 };
+
+/**
+ * Záznamy tabulky — buď z API, nebo z předem vyexportovaného souboru.
+ * Soubor má tvar odpovědi Airtable: { records: [...] }.
+ */
+async function* ctiZaznamy(tableId, nazev) {
+  if (!ZE_SOUBORU) { yield* zaznamy(BASE_TROJEK, tableId); return; }
+  const soubor = path.join(ZE_SOUBORU, `${nazev}.json`);
+  let data;
+  try {
+    data = JSON.parse(readFileSync(soubor, 'utf8'));
+  } catch (err) {
+    throw new Error(`Export ${soubor} nejde přečíst: ${err.message}`);
+  }
+  const zaznamu = data.records ?? data;
+  console.log(`  Ze souboru ${nazev}.json: ${zaznamu.length} záznamů`);
+  yield* zaznamu;
+}
 const varovani = [];
 const delam = f => !JEN.length || JEN.includes(f);
 const genId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -63,7 +88,7 @@ async function ulozPrilohy(vlastnik, id, seznam, zdroj) {
     const [uz] = await sql`SELECT 1 FROM attachments WHERE airtable_id = ${p.airtableId}`;
     if (uz) { stat.souboryPreskoceno++; continue; }
     try {
-      const buf = await stahniPrilohu(p, zdroj);
+      const buf = await stahniPrilohu(p, { ...zdroj, bezObnovy: Boolean(ZE_SOUBORU) });
       // Nejdřív na disk, pak do databáze. Osiřelý soubor nikoho nebolí,
       // řádek bez souboru je doklad, který nejde otevřít.
       const saved = await saveAttachment(buf, p.mime, 'airtable', { archive: true });
@@ -98,7 +123,7 @@ async function fazePodklady(userId) {
     SELECT id, number FROM accounting_invoices WHERE type = 'issued' AND number <> ''
   `).map(r => [r.number, r.id]));
 
-  for await (const rec of zaznamy(BASE_TROJEK, TABULKY.podklady)) {
+  for await (const rec of ctiZaznamy(TABULKY.podklady, 'podklady')) {
     const p = mapujPodklad(rec);
     if (!DRY && !(await jeNovy('hr_work_reports', p.airtableId))) continue;
 
@@ -148,7 +173,7 @@ async function fazePodklady(userId) {
 
 async function fazeMzdy(userId, employmentId) {
   console.log('\n━━━ Mzdový rozpis ━━━');
-  for await (const rec of zaznamy(BASE_TROJEK, TABULKY.mzdy)) {
+  for await (const rec of ctiZaznamy(TABULKY.mzdy, 'mzdy')) {
     const m = mapujMzdu(rec);
     if (!m.period) { varovani.push(`mzda ${m.airtableId}: nečitelný měsíc, přeskočeno`); continue; }
 
@@ -183,7 +208,7 @@ async function fazeMzdy(userId, employmentId) {
 
 async function fazeExtra(userId) {
   console.log('\n━━━ Platby mimo mzdu ━━━');
-  for await (const rec of zaznamy(BASE_TROJEK, TABULKY.extra)) {
+  for await (const rec of ctiZaznamy(TABULKY.extra, 'extra')) {
     const v = mapujExtraVydaj(rec);
     if (!DRY && !(await jeNovy('hr_payroll_items', v.airtableId))) continue;
     if (DRY) {
@@ -201,7 +226,7 @@ async function fazeExtra(userId) {
 
 async function fazeDokumenty(userId, employmentId) {
   console.log('\n━━━ Osobní dokumenty ━━━');
-  for await (const rec of zaznamy(BASE_TROJEK, TABULKY.dokumenty)) {
+  for await (const rec of ctiZaznamy(TABULKY.dokumenty, 'dokumenty')) {
     const d = mapujDokument(rec);
     if (!DRY && !(await jeNovy('hr_documents', d.airtableId))) continue;
     if (DRY) {
@@ -258,7 +283,7 @@ try {
 
   if (OVERIT) { await overit(); }
   else {
-    if (!jeNastaveno()) {
+    if (!ZE_SOUBORU && !jeNastaveno()) {
       throw new Error(
         'Chybí AIRTABLE_API_KEY v .env. Vytvoř Personal Access Token na\n' +
         '   https://airtable.com/create/tokens\n' +

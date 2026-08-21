@@ -90,7 +90,7 @@ export async function zaznam(baseId, tableId, recordId) {
  * záznamu a zkusí to ještě jednou — jinak by delší běh skončil sérií
  * chyb jen proto, že mezitím uplynuly dvě hodiny.
  */
-export async function stahniPrilohu(priloha, { baseId, tableId, recordId, fieldId }) {
+export async function stahniPrilohu(priloha, { baseId, tableId, recordId, fieldId, bezObnovy = false }) {
   const zkus = async url => {
     const res = await fetch(url, { signal: AbortSignal.timeout(120_000) });
     if (!res.ok) return { ok: false, status: res.status };
@@ -102,6 +102,15 @@ export async function stahniPrilohu(priloha, { baseId, tableId, recordId, fieldI
 
   let r = await zkus(priloha.url);
   if (r.ok) return r.buf;
+
+  // Bez tokenu si čerstvý odkaz vyžádat nejde — v režimu ze souborů se dá
+  // jen říct, že export je starý a musí se udělat znovu.
+  if (bezObnovy) {
+    throw new Error(
+      `Odkaz na ${priloha.filename} propadl (${r.status}). ` +
+      'Export z Airtable je starší než dvě hodiny — udělej ho znovu.'
+    );
+  }
 
   const cerstvy = await zaznam(baseId, tableId, recordId);
   const pole = cerstvy.fields?.[fieldId] ?? [];
