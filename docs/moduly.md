@@ -204,9 +204,26 @@ JPEGu by u drobného písma jen přidal artefakty.
 PDF se nepřepočítává (je to už komprimovaný formát) a projde do stropu uploadu
 20 MB — vícestránkový sken od účetní přes 5 MB radši uložíme, než odmítneme.
 
-**Servírování.** `/media/` je veřejné (profilové fotky), účtenky a faktury tam
-proto nepatří: chodí přes `GET /doklady/soubor/:filename`, kam se bez přihlášení
-nedostane. `?download=1` vynutí stažení místo náhledu.
+**Servírování.** `/media/` je za přihlášením — dřív veřejné nebylo záměrem, ale
+skutečností: mířilo do stejného adresáře jako doklady, takže kdo znal název
+souboru, stáhl cizí paragon bez přihlášení. Profilové fotky, kvůli kterým to
+veřejné bylo, se zobrazují jen na stránkách za přihlášením, takže uzavření nic
+nerozbilo.
+
+Soubory chodí dvěma cestami:
+
+| Cesta | Kdo se dostane | K čemu |
+|---|---|---|
+| `GET /doklady/soubor/:filename` | kdokoli přihlášený | účtenky a faktury |
+| `GET /doklady/priloha/:id` | rozhoduje se podle záznamu v DB | mzdy, dokumenty, přílohy úkolů |
+
+Druhá cesta je nutná proto, že u výplatní pásky nestačí „je přihlášen" — jeden
+zaměstnanec by dosáhl na pásku druhého. Mzdové a osobní přílohy dostane jen
+správce nebo vlastník.
+
+`?download=1` vynutí stažení místo náhledu. Inline se otevírá jen PDF a rastrové
+obrázky; XML, ZIP, HTML i SVG jdou vždy ke stažení s `X-Content-Type-Options:
+nosniff`, takže archivní režim může brát libovolný typ souboru.
 
 **Chybějící soubor.** `markMissingAttachments()` označí řádky, jejichž
 `attachment_path` na disku není, a šablony místo rozbité miniatury ukážou
@@ -371,7 +388,48 @@ naráz. Nové formuláře proto **musí mít vlastní routu**
 Dotazy nad ním jsou v `src/hr.js`. Airtable to nepojmenoval, ale je to běžný
 účet jednoho člověka: co se za jeho práci vyfakturovalo, minus co se mu
 vyplatilo. Pozor na dvě různá čísla se stejným jménem — do zůstatku patří
-`paid_total` (co odešlo z účtu), do nákladů firmy `company_cost`.
+`paid_total + cash_paid` (co odešlo z účtu), do nákladů firmy `company_cost`.
+
+Zůstatek se ukazuje jen tomu, kdo má fakturační podklady. U dohodáře žádná
+příjmová strana není a rozdíl by byl jen záporným součtem výplat; místo něj
+je odpracovaný čas a odměna.
+
+Záložka **Hodiny** staví naměřený čas vedle hodin ve mzdě za tentýž měsíc.
+Rozdíl se **nedopočítává na nulu** — u Heříka chybí měření za 5–7/2025
+a naopak 4–6/2026 není vyúčtované, a schovat to by znamenalo tvářit se, že
+evidence sedí, když nesedí.
+
+---
+
+## Práce — úkoly a stopky (`src/prace.js`, `src/routes/work.js`)
+
+Jediná nesprávcovská sekce v menu: kdo si měří čas, musí se ke svým úkolům
+dostat. Že vidí jen svoje, řeší routy, ne přístupová matice — ta umí jen
+„vidí / nevidí URL". Parametr osoby se běžnému uživateli ignoruje, místo aby
+padalo 403.
+
+**Zdrojem pravdy o běžících stopkách je řádek v databázi s prázdným koncem.**
+Žádný stav v prohlížeči: zavření okna ani restart telefonu měření neztratí
+a napříč zařízeními vidí člověk totéž. Start i stop jsou obyčejné formuláře
+s přesměrováním, prohlížeč jen dopočítává vteřiny z času spuštění
+(`public/js/stopky.js`, ~40 řádků).
+
+Že běží nejvýš jedny stopky, hlídá částečný unikátní index
+`time_entries_running_idx`. Spuštění jiného úkolu to předchozí samo zastaví —
+jinak by INSERT spadl na indexu a uživatel by viděl jen chybu.
+
+Běžící měření se veze na `request.user`, takže pilulka v topbaru je vidět na
+každé stránce, aniž by ji musela předávat každá routa.
+
+**Zapomenuté stopky se samy neukončují.** Vymyšlený čas ve výkazu je horší než
+chybějící. Měření delší než deset hodin se nabídne k dořešení s konkrétním
+časem. Není to teorie: v datech z Airtable je pět měsíců, kde běželo jediné
+měření dvacet i třicet hodin.
+
+Výkaz ukazuje čas po dnech i po úkolech a před uzávěrkou upozorní na to, co je
+potřeba dořešit: běžící měření, nulové délky a záznamy bez úkolu, které nepůjde
+vyfakturovat. Nulová délka je legitimní hodnota, ne chyba — 56 z 366
+importovaných měření má shodný začátek i konec.
 
 ---
 
@@ -426,14 +484,35 @@ Jednorázový přenos personální agendy. Jádro převodu je v `src/airtable-ma
 jako čisté funkce, takže se dá otestovat na skutečných odpovědích z API
 (`test/fixtures/airtable.json`).
 
+Přenáší dvě základny. Fáze první (`podklady`, `mzdy`, `extra`, `dokumenty`)
+patří Trojkovi a potřebují `--trojek=<e-mail>`; fáze druhé (`ukoly`, `cas`,
+`payroll`) si uživatele najdou samy podle e-mailu v tabulce Users.
+
 ```
 npm run import:airtable -- --dry-run --trojek=luke3ova@email.cz
 npm run import:airtable -- --trojek=luke3ova@email.cz
+npm run import:airtable -- --jen=ukoly,cas,payroll     # jen druhá základna
 npm run import:airtable -- --overit
 ```
 
 Vyžaduje `AIRTABLE_API_KEY` v `.env`. **Pouštět v kontejneru**, ne lokálně
-přes tunel — soubory musí přistát na persistent volume `/app/data`.
+přes tunel — soubory musí přistát na persistent volume `/app/data`. Když token
+k základně nemá práva, jde ji vyexportovat jinudy a skript pustit nad soubory:
+`--z-souboru=<adresář>` čte `<tabulka>.json` místo API (odkazy na přílohy
+v exportu ale platí jen dvě hodiny).
+
+`--overit` kontroluje součty vázané na člověka, ne na tabulku — jakmile
+v tabulkách sedí víc zaměstnanců, globální součet by hlásil chybu i u bezvadné
+migrace. Trojek: příjmy 1 488 721,70 / výdaje 1 036 044 / platby 433 045,47 /
+zůstatek 19 632,23. Heřík: 434,95 h / odměna 217 475 / hrubá 136 800 /
+hotovost 83 500 / nákupy 29 310,78 / 366 měření / 467 úkolů.
+
+Mzdová tabulka druhé základny mísila mzdu za odpracované hodiny s proplaceným
+nákupem (tablet, sluchátka, tarif). Rozhoduje se podle dat, ne podle seznamu
+názvů, a rozpadá se to do `hr_payroll_runs` a `hr_payroll_items`. U pěti měsíců
+jsou dva mzdové řádky — jeden s hodinami, druhý jen s hrubou mzdou. **Nesluč
+je:** součty jsou tak, jak jsou, správné a slučování by rozbilo idempotenci
+(dvě `airtable_id` na jeden řádek).
 
 Idempotence stojí na `airtable_id` u řádku i u každého souboru; opakovaný běh
 nic nezdvojí a nestahuje znovu. Odkazy na přílohy v Airtable expirují po dvou
