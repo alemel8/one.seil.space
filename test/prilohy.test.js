@@ -126,8 +126,14 @@ describe('přístup k přílohám', () => {
     const res = await get(`/doklady/priloha/${ctx.paskaId}`, ctx.vlastnik.cookie);
     assert.equal(res.status, 200);
     assert.equal(res.headers.get('content-type'), 'application/pdf');
-    // stahuje se pod původním názvem, ne pod tím na disku
-    assert.match(res.headers.get('content-disposition'), /Výplatnice_mezd 01\.pdf/);
+    // stahuje se pod původním názvem, ne pod tím na disku; diakritika je
+    // podle RFC 6266 v filename*, protože do hlavičky nesmí projít
+    const cd = res.headers.get('content-disposition');
+    assert.match(cd, /filename\*=UTF-8''/);
+    assert.equal(
+      decodeURIComponent(cd.split("filename*=UTF-8''")[1]),
+      'Výplatnice_mezd 01.pdf',
+    );
   });
 
   test('správce vidí i cizí výplatní pásku', async () => {
@@ -147,6 +153,26 @@ describe('přístup k přílohám', () => {
     // XML se nabídne ke stažení, ne k zobrazení v prohlížeči
     assert.match(res.headers.get('content-disposition'), /^attachment/);
     assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
+  });
+
+  test('diakritika v názvu souboru neshodí odpověď', async () => {
+    // HTTP hlavička nesnese nic mimo ASCII. „Výplatní_páska_Trojek_Lukáš.pdf"
+    // dřív vracela 500 (ERR_INVALID_CHAR) a soubor nešel otevřít vůbec.
+    const nazev = `test_diakritika_${crypto.randomBytes(3).toString('hex')}.pdf`;
+    await writeFile(path.join(MEDIA_DIR, nazev), '%PDF-1.4 test');
+    uklid.soubory.push(nazev);
+    const [a] = await sql`
+      INSERT INTO attachments (path, original_name, mime, size, category, payroll_run_id)
+      VALUES (${nazev}, 'Výplatní_páska_červenec_Trojek_Lukáš_Ž.pdf', 'application/pdf', 13,
+              'vyplatni_paska', (SELECT id FROM hr_payroll_runs LIMIT 1))
+      RETURNING id
+    `;
+    const res = await get(`/doklady/priloha/${a.id}`, ctx.spravce.cookie);
+    assert.equal(res.status, 200);
+    const cd = res.headers.get('content-disposition');
+    assert.match(cd, /filename\*=UTF-8''/, 'původní název musí projít v filename*');
+    assert.ok(!/[^\x20-\x7E]/.test(cd), 'v hlavičce nesmí zůstat znak mimo ASCII');
+    assert.match(await res.text(), /^%PDF/);
   });
 
   test('neexistující nebo nesmyslné id nespadne', async () => {

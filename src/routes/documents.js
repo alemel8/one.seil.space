@@ -19,11 +19,23 @@ const NAHLED_MIME = new Set([
   'application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/gif',
 ]);
 
+/**
+ * Content-Disposition podle RFC 6266. Do hlavičky nesmí projít nic mimo
+ * ASCII — „Výplatní_páska_Trojek_Lukáš.pdf" jinak shodí odpověď na
+ * ERR_INVALID_CHAR. Proto ASCII náhrada pro staré klienty a filename*
+ * s původním názvem pro ty ostatní.
+ */
+function disposition(typ, name) {
+  const cely = String(name).replace(/[\r\n"\\]/g, '');
+  const ascii = cely.replace(/[^\x20-\x7E]/g, '_') || 'soubor';
+  return `${typ}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(cely)}`;
+}
+
 function posliSoubor(reply, { full, name, mime, download }) {
   const inline = !download && NAHLED_MIME.has(mime);
   reply.header('Content-Type', mime);
   reply.header('Content-Length', statSync(full).size);
-  reply.header('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename="${name}"`);
+  reply.header('Content-Disposition', disposition(inline ? 'inline' : 'attachment', name));
   reply.header('X-Content-Type-Options', 'nosniff');
   reply.header('Cache-Control', 'private, max-age=3600');
   return reply.send(createReadStream(full));
@@ -81,7 +93,7 @@ export default async function documentsRoutes(fastify) {
       full,
       // Ke stažení pod původním názvem — „Výplatnice_mezd 06.pdf" řekne víc
       // než „paska_1755640000000.pdf".
-      name: (row.original_name || name).replace(/["\\\r\n]/g, ''),
+      name: row.original_name || name,
       mime: row.mime || mimeForFile(name),
       download: request.query.download === '1',
     });

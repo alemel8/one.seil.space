@@ -6,7 +6,8 @@
 
 import { getDb } from '../db.js';
 import {
-  osobniUctyVsech, mzdyPrehled, mzdoveRoky, podkladyPrehled, PODKLAD_STAVY,
+  osobniUctyVsech, mzdyPrehled, mzdoveRoky, podkladyPrehled,
+  mzdaDetail, podkladDetail, PODKLAD_STAVY, KATEGORIE_PRILOH,
 } from '../hr.js';
 
 export default async function hrRoutes(fastify) {
@@ -51,6 +52,29 @@ export default async function hrRoutes(fastify) {
     return reply.view('pages/people/mzdy.ejs', {
       pageTitle: 'Mzdy', currentPath: '/lide/mzdy',
       user: request.user, lide, mesice, bunky, souhrn, rok, roky,
+    }, { layout: 'layouts/base.ejs' });
+  });
+
+  // ── Detail mzdového listu ────────────────────────────────────
+  // Sem vede cesta k dokumentům, které přišly od mzdové účetní: výplatní
+  // páska, rekapitulace, příkaz k úhradě a XML pro ČSSZ. V přehledu je
+  // vidět jen jejich počet, otevřít je jde odsud.
+  fastify.get('/lide/mzdy/:id', async (request, reply) => {
+    const data = await mzdaDetail(sql, request.params.id);
+    if (!data) return reply.code(404).send('Mzdový list nenalezen');
+    return reply.view('pages/people/mzda-detail.ejs', {
+      pageTitle: 'Mzdový list', currentPath: '/lide/mzdy',
+      user: request.user, ...data, KATEGORIE_PRILOH,
+    }, { layout: 'layouts/base.ejs' });
+  });
+
+  // ── Detail fakturačního podkladu ─────────────────────────────
+  fastify.get('/lide/podklady/:id', async (request, reply) => {
+    const data = await podkladDetail(sql, request.params.id);
+    if (!data) return reply.code(404).send('Podklad nenalezen');
+    return reply.view('pages/people/podklad-detail.ejs', {
+      pageTitle: 'Fakturační podklad', currentPath: '/lide/podklady',
+      user: request.user, ...data, KATEGORIE_PRILOH,
     }, { layout: 'layouts/base.ejs' });
   });
 

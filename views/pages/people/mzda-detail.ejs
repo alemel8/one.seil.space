@@ -1,0 +1,101 @@
+<%
+  const kc = n => Number(n || 0).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const den = d => d ? new Date(d).toLocaleDateString('cs-CZ') : '—';
+  const mesic = new Date(mzda.period).toLocaleDateString('cs-CZ', { month: 'long', year: 'numeric' });
+  const jmeno = ((mzda.first_name || '') + ' ' + (mzda.last_name || '')).trim();
+
+  // Kontrola, že zadaná čísla drží pohromadě. Nepřepisuje se nic —
+  // jen se řekne, že něco nesedí, ať se to dá dohledat.
+  const srazky = Number(mzda.social) + Number(mzda.health) + Number(mzda.insolvency)
+               + Number(mzda.garnishment) + Number(mzda.tax) + Number(mzda.accident_insurance);
+  const dopocet = Number(mzda.net) + srazky;
+  const rozdil = dopocet - Number(mzda.paid_total);
+%>
+
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Mzda <%= mesic %></h1>
+    <p><a href="/lide/tym/<%= mzda.public_id %>?tab=mzdy" style="color:var(--primary);text-decoration:none;"><%= jmeno %></a>
+       <% if (mzda.uvazek) { %> · <%= mzda.uvazek.toUpperCase() %><% } %></p>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <% if (sousedi.predchozi) { %><a href="/lide/mzdy/<%= sousedi.predchozi %>" class="btn btn-outline btn-sm">◂ starší</a><% } %>
+    <% if (sousedi.dalsi) { %><a href="/lide/mzdy/<%= sousedi.dalsi %>" class="btn btn-outline btn-sm">novější ▸</a><% } %>
+    <a href="/lide/mzdy" class="btn btn-outline">← Na mzdy</a>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;align-items:start;">
+
+  <div class="card">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <h2 style="font-size:15px;font-weight:600;margin:0;">Dokumenty k této mzdě</h2>
+      <span style="font-size:13px;color:var(--text-muted);"><%= soubory.length %> souborů</span>
+    </div>
+    <div class="card-body">
+      <%- include('../../includes/prilohy', { soubory, KATEGORIE_PRILOH }) %>
+    </div>
+  </div>
+
+  <div>
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header"><h2 style="font-size:15px;font-weight:600;margin:0;">Rozpad mzdy</h2></div>
+      <div class="card-body">
+        <dl style="display:grid;grid-template-columns:1fr auto;gap:8px 16px;font-size:13.5px;margin:0;">
+          <dt style="font-weight:600;color:var(--text-primary);">Náklad firmy</dt>
+          <dd style="font-family:var(--font-mono);font-weight:600;text-align:right;"><%= kc(mzda.company_cost) %></dd>
+          <dt style="color:var(--text-muted);">Hrubá mzda</dt>
+          <dd style="font-family:var(--font-mono);text-align:right;"><%= kc(mzda.gross) %></dd>
+
+          <% if (mzda.hours) { %>
+          <dt style="color:var(--text-muted);">Odpracováno</dt>
+          <dd style="font-family:var(--font-mono);text-align:right;"><%= Number(mzda.hours).toLocaleString('cs-CZ') %> h</dd>
+          <% } %>
+
+          <dt style="grid-column:1/-1;border-top:1px solid var(--border);padding-top:8px;color:var(--text-muted);font-size:12px;text-transform:uppercase;letter-spacing:0.4px;">Srážky a odvody</dt>
+          <% [['Sociální', mzda.social], ['Zdravotní', mzda.health], ['Záloha na daň', mzda.tax],
+              ['Exekuce', mzda.garnishment], ['Insolvence', mzda.insolvency],
+              ['Kooperativa', mzda.accident_insurance]].forEach(function (r) {
+               if (!Number(r[1])) return; %>
+            <dt style="color:var(--text-muted);"><%= r[0] %></dt>
+            <dd style="font-family:var(--font-mono);text-align:right;"><%= kc(r[1]) %></dd>
+          <% }) %>
+
+          <dt style="grid-column:1/-1;border-top:1px solid var(--border);padding-top:8px;"></dt>
+          <dt style="color:var(--text-muted);">Čistá mzda</dt>
+          <dd style="font-family:var(--font-mono);text-align:right;"><%= kc(mzda.net) %></dd>
+          <dt style="font-weight:600;color:var(--text-primary);">Uhrazeno celkem</dt>
+          <dd style="font-family:var(--font-mono);font-weight:600;text-align:right;"><%= kc(mzda.paid_total) %></dd>
+        </dl>
+
+        <% if (Math.abs(rozdil) > 0.01) { %>
+        <div style="margin-top:14px;background:var(--warning-bg);color:#92400e;border-radius:8px;padding:10px 12px;font-size:12.5px;">
+          Čistá mzda plus srážky dávají <%= kc(dopocet) %> Kč, uhrazeno je <%= kc(mzda.paid_total) %> Kč —
+          rozdíl <%= kc(Math.abs(rozdil)) %> Kč. Nic se nepřepisuje, jen upozorňujeme.
+        </div>
+        <% } %>
+
+        <div style="margin-top:14px;font-size:12px;color:var(--text-muted);line-height:1.5;">
+          Do hrubého zisku firmy jde <strong>náklad firmy</strong>.
+          Do osobního zůstatku naopak <strong>uhrazeno</strong> — to, co reálně odešlo z účtu.
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h2 style="font-size:15px;font-weight:600;margin:0;">Stav</h2></div>
+      <div class="card-body">
+        <dl style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13.5px;margin:0;">
+          <dt style="color:var(--text-muted);">Vyplaceno</dt>
+          <dd><% if (mzda.paid) { %><span class="badge" style="background:var(--success-bg);color:#15803D;">Ano</span>
+              <% } else { %><span class="badge" style="background:var(--warning-bg);color:#92400e;">Ne</span><% } %></dd>
+          <dt style="color:var(--text-muted);">Datum</dt>
+          <dd><%= den(mzda.paid_on) %></dd>
+        </dl>
+        <% if (mzda.notes) { %>
+          <div style="margin-top:12px;font-size:13px;white-space:pre-wrap;"><%= mzda.notes %></div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</div>

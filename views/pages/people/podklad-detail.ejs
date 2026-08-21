@@ -1,0 +1,98 @@
+<%
+  const kc = n => Number(n || 0).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const den = d => d ? new Date(d).toLocaleDateString('cs-CZ') : '—';
+  const jmeno = ((podklad.first_name || '') + ' ' + (podklad.last_name || '')).trim();
+  const mista = lokality.map(l => [l.city, l.country].filter(Boolean).join(', '));
+%>
+
+<div class="page-header">
+  <div class="page-header-left">
+    <h1><%= (podklad.kody || []).join(', ') || 'Fakturační podklad' %></h1>
+    <p>
+      <%= mista.join(' · ') %><% if (mista.length) { %> · <% } %>
+      <a href="/lide/tym/<%= podklad.public_id %>?tab=podklady" style="color:var(--primary);text-decoration:none;"><%= jmeno %></a>
+      · <%= den(podklad.report_date) %>
+    </p>
+  </div>
+  <a href="/lide/podklady" class="btn btn-outline">← Na podklady</a>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;align-items:start;">
+
+  <div>
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <h2 style="font-size:15px;font-weight:600;margin:0;">Doklady k podkladu</h2>
+        <span style="font-size:13px;color:var(--text-muted);"><%= soubory.length %> souborů</span>
+      </div>
+      <div class="card-body">
+        <%- include('../../includes/prilohy', { soubory, KATEGORIE_PRILOH }) %>
+      </div>
+    </div>
+
+    <% if (podklad.breakdown) { %>
+    <div class="card">
+      <div class="card-header"><h2 style="font-size:15px;font-weight:600;margin:0;">Rozpis práce a výdajů</h2></div>
+      <div class="card-body">
+        <pre style="white-space:pre-wrap;font-family:var(--font-mono);font-size:12.5px;line-height:1.6;margin:0;color:var(--text-primary);"><%= podklad.breakdown %></pre>
+        <div style="margin-top:12px;font-size:12px;color:var(--text-muted);">
+          Text tak, jak byl v Airtable — záměrně se nepřepisoval do řádků,
+          aby se u starých podkladů nezkomolila čísla.
+        </div>
+      </div>
+    </div>
+    <% } %>
+  </div>
+
+  <div>
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header"><h2 style="font-size:15px;font-weight:600;margin:0;">Zakázka</h2></div>
+      <div class="card-body">
+        <dl style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13.5px;margin:0;">
+          <dt style="color:var(--text-muted);">Čísla projektů</dt>
+          <dd style="font-family:var(--font-mono);font-size:12.5px;"><%= (podklad.kody || []).join(', ') || '—' %></dd>
+          <dt style="color:var(--text-muted);">Lokalita</dt>
+          <dd><%= mista.join(' · ') || '—' %></dd>
+          <dt style="color:var(--text-muted);">Datum</dt>
+          <dd><%= den(podklad.report_date) %></dd>
+          <dt style="color:var(--text-muted);">Stav</dt>
+          <dd><span class="badge" style="background:var(--gray-100);color:var(--text-secondary);"><%= podklad.status %></span></dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header"><h2 style="font-size:15px;font-weight:600;margin:0;">K fakturaci</h2></div>
+      <div class="card-body">
+        <div style="font-family:var(--font-mono);font-size:22px;font-weight:600;color:var(--success);margin-bottom:12px;">
+          <%= kc(podklad.total_amount) %> Kč
+        </div>
+        <% if (podklad.invoice_id) { %>
+          <dl style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13.5px;margin:0;">
+            <dt style="color:var(--text-muted);">Faktura</dt>
+            <dd><a href="/ucetnictvi/vydane-faktury/<%= podklad.invoice_id %>" style="color:var(--primary);text-decoration:none;"><%= podklad.faktura_cislo %></a></dd>
+            <dt style="color:var(--text-muted);">Stav</dt>
+            <dd><%= podklad.faktura_stav %></dd>
+            <dt style="color:var(--text-muted);">Vystavena</dt>
+            <dd><%= den(podklad.faktura_datum) %></dd>
+            <dt style="color:var(--text-muted);">Částka</dt>
+            <dd style="font-family:var(--font-mono);"><%= kc(podklad.faktura_castka) %></dd>
+          </dl>
+          <% if (Math.abs(Number(podklad.faktura_castka) - Number(podklad.total_amount)) > 1) { %>
+          <div style="margin-top:12px;background:var(--info-bg);color:var(--info);border-radius:8px;padding:10px 12px;font-size:12.5px;">
+            Faktura klientovi je na jinou částku než podklad — to je běžné,
+            klientovi se účtuje jiná sazba než technikovi.
+          </div>
+          <% } %>
+        <% } else if (podklad.invoice_number) { %>
+          <div style="background:var(--warning-bg);color:#92400e;border-radius:8px;padding:10px 12px;font-size:12.5px;">
+            Faktura <strong><%= podklad.invoice_number %></strong> není v systému.
+            PDF z Airtable je uložené mezi doklady vlevo.
+          </div>
+        <% } else { %>
+          <div style="color:var(--text-muted);font-size:13px;">Faktura zatím není vystavena.</div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</div>

@@ -195,6 +195,67 @@ export async function podkladyPrehled(sql, { q = '', stav = '', osoba = '' } = {
   `;
 }
 
+/** Jeden mzdový list i s dokumenty rozdělenými podle typu. */
+export async function mzdaDetail(sql, id) {
+  const [mzda] = await sql`
+    SELECT r.*, r.paid_total::float8 AS paid_total, r.company_cost::float8 AS company_cost,
+           u.public_id, u.first_name, u.last_name, e.kind AS uvazek
+      FROM hr_payroll_runs r
+      JOIN users u ON u.id = r.user_id
+      LEFT JOIN hr_employments e ON e.id = r.employment_id
+     WHERE r.id = ${id}
+  `;
+  if (!mzda) return null;
+  const soubory = await sql`
+    SELECT id, original_name, mime, size, category, created_at
+      FROM attachments WHERE payroll_run_id = ${id} ORDER BY category, sort_order, id
+  `;
+  const [sousedi] = await sql`
+    SELECT (SELECT id FROM hr_payroll_runs WHERE user_id = ${mzda.user_id}
+             AND period < ${mzda.period} ORDER BY period DESC LIMIT 1) AS predchozi,
+           (SELECT id FROM hr_payroll_runs WHERE user_id = ${mzda.user_id}
+             AND period > ${mzda.period} ORDER BY period LIMIT 1) AS dalsi
+  `;
+  return { mzda, soubory, sousedi };
+}
+
+/** Jeden fakturační podklad i s přílohami v obou rolích. */
+export async function podkladDetail(sql, id) {
+  const [podklad] = await sql`
+    SELECT w.*, w.total_amount::float8 AS total_amount,
+           u.public_id, u.first_name, u.last_name,
+           i.number AS faktura_cislo, i.status AS faktura_stav,
+           i.total_amount::float8 AS faktura_castka, i.issue_date AS faktura_datum,
+           COALESCE(ARRAY(SELECT DISTINCT project_code FROM hr_work_report_projects
+                           WHERE report_id = w.id ORDER BY project_code), '{}') AS kody
+      FROM hr_work_reports w
+      JOIN users u ON u.id = w.user_id
+      LEFT JOIN accounting_invoices i ON i.id = w.invoice_id
+     WHERE w.id = ${id}
+  `;
+  if (!podklad) return null;
+  const [lokality, soubory] = await Promise.all([
+    sql`SELECT city, country FROM hr_work_report_locations WHERE report_id = ${id} ORDER BY city`,
+    sql`SELECT id, original_name, mime, size, category, sort_order
+          FROM attachments WHERE work_report_id = ${id} ORDER BY category, sort_order, id`,
+  ]);
+  return { podklad, lokality, soubory };
+}
+
+/** Popisky kategorií příloh — jedno místo pro celé UI. */
+export const KATEGORIE_PRILOH = {
+  vyplatni_paska:   'Výplatní páska',
+  mzdovy_rozpis:    'Podklady od mzdové účetní',
+  prikaz_k_uhrade:  'Příkaz k úhradě',
+  epodani_cssz:     'E-podání na ČSSZ',
+  rozpis_prace:     'Rozpis práce',
+  vydajovy_doklad:  'Výdajové doklady',
+  vystavena_faktura:'Vystavená faktura',
+  smluvni_dokument: 'Dokument',
+  doklad_o_nakupu:  'Doklad o nákupu',
+  priloha_ukolu:    'Příloha úkolu',
+};
+
 export const PLATBA_DRUHY = [
   ['zaloha',            'Záloha'],
   ['proplaceny_naklad', 'Proplacený náklad'],

@@ -48,7 +48,7 @@
             <% if (!b) { %>
               <span style="color:var(--text-muted);font-size:13px;">—</span>
             <% } else { %>
-              <a href="/lide/tym/<%= u.public_id %>?tab=mzdy" style="text-decoration:none;color:inherit;display:block;">
+              <a href="/lide/mzdy/<%= b.id %>" style="text-decoration:none;color:inherit;display:block;">
                 <span style="font-family:var(--font-mono);font-size:13px;color:var(--text-primary);"><%= kc(b.company_cost) %></span>
                 <% if (b.paid) { %>
                   <span class="badge" style="background:var(--success-bg);color:#15803D;margin-left:6px;">vyplaceno</span>

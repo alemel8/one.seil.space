@@ -50,7 +50,7 @@
           </td></tr>
         <% } %>
         <% podklady.forEach(function (w) { %>
-        <tr style="cursor:pointer;" onclick="window.location='/lide/tym/<%= w.public_id %>?tab=podklady'">
+        <tr style="cursor:pointer;" onclick="window.location='/lide/podklady/<%= w.id %>'">
           <td style="color:var(--text-muted);font-size:13px;white-space:nowrap;"><%= den(w.report_date) %></td>
           <td style="font-family:var(--font-mono);font-size:12.5px;"><%= (w.kody || []).join(', ') || '—' %></td>
           <td style="font-size:13px;"><%= (w.lokality || []).join(', ') || '—' %></td>

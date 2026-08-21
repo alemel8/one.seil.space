@@ -88,10 +88,12 @@
             <td style="color:var(--text-muted);font-size:13px;white-space:nowrap;"><%= den(w.report_date) %></td>
             <td style="font-family:var(--font-mono);font-size:12.5px;"><%= (w.kody || []).join(', ') || '—' %></td>
             <td style="font-size:13px;"><%= (w.lokality || []).join(', ') || '—' %></td>
-            <td style="font-size:12.5px;color:var(--text-muted);white-space:nowrap;">
-              <% if (w.priloh_rozpis) { %>📄 <%= w.priloh_rozpis %><% } %>
-              <% if (w.priloh_doklady) { %> &nbsp;🧾 <%= w.priloh_doklady %><% } %>
-              <% if (!w.priloh_rozpis && !w.priloh_doklady) { %>—<% } %>
+            <td style="font-size:12.5px;white-space:nowrap;">
+              <a href="/lide/podklady/<%= w.id %>" style="color:var(--primary);text-decoration:none;">
+                <% if (w.priloh_rozpis) { %>📄 <%= w.priloh_rozpis %><% } %>
+                <% if (w.priloh_doklady) { %> &nbsp;🧾 <%= w.priloh_doklady %><% } %>
+                <% if (!w.priloh_rozpis && !w.priloh_doklady) { %>otevřít<% } %>
+              </a>
             </td>
             <td style="font-size:12.5px;white-space:nowrap;">
               <% if (w.invoice_id) { %>
@@ -139,7 +141,11 @@
             <td style="text-align:right;font-family:var(--font-mono);font-size:13px;"><%= kc(r.net) %></td>
             <td style="text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:600;"><%= kc(r.paid_total) %></td>
             <td style="text-align:right;font-family:var(--font-mono);font-size:13px;color:var(--text-muted);"><%= kc(r.company_cost) %></td>
-            <td style="font-size:12.5px;color:var(--text-muted);"><%= r.priloh ? '📎 ' + r.priloh : '—' %></td>
+            <td style="font-size:12.5px;">
+              <a href="/lide/mzdy/<%= r.id %>" style="color:var(--primary);text-decoration:none;">
+                <%= r.priloh ? '📎 ' + r.priloh + ' dokumentů' : 'otevřít' %>
+              </a>
+            </td>
             <td>
               <% if (r.paid) { %><span class="badge" style="background:var(--success-bg);color:#15803D;">Vyplaceno</span>
               <% } else { %><span class="badge" style="background:var(--warning-bg);color:#92400e;">Nevyplaceno</span><% } %>

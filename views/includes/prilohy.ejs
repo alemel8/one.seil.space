@@ -1,0 +1,56 @@
+<%#
+  Seznam příloh jednoho záznamu, seskupený podle typu dokumentu.
+  Očekává `soubory` (řádky z attachments) a `KATEGORIE_PRILOH`.
+  Odkazy vedou na /doklady/priloha/:id, která autorizuje podle vlastníka.
+%>
+<%
+  const velikost = b => {
+    const n = Number(b) || 0;
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return Math.round(n / 1024) + ' kB';
+    return (n / 1048576).toFixed(1).replace('.', ',') + ' MB';
+  };
+  const ikona = m => m === 'application/pdf' ? '📄'
+    : (m || '').startsWith('image/') ? '🖼'
+    : (m || '').includes('xml') ? '📑'
+    : (m || '').includes('word') ? '📝'
+    : (m || '').includes('sheet') || (m || '').includes('excel') ? '📊' : '📎';
+  const skupiny = new Map();
+  (soubory || []).forEach(function (f) {
+    if (!skupiny.has(f.category)) skupiny.set(f.category, []);
+    skupiny.get(f.category).push(f);
+  });
+%>
+
+<% if (!soubory || !soubory.length) { %>
+  <div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13.5px;">
+    K tomuto záznamu nejsou žádné dokumenty
+  </div>
+<% } %>
+
+<% skupiny.forEach(function (radky, kat) { %>
+<div style="margin-bottom:18px;">
+  <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);margin-bottom:8px;">
+    <%= KATEGORIE_PRILOH[kat] || kat || 'Ostatní' %>
+    <span style="font-weight:400;text-transform:none;letter-spacing:0;">· <%= radky.length %></span>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:2px;">
+    <% radky.forEach(function (f) { %>
+    <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px;background:var(--gray-50);">
+      <span style="font-size:15px;flex-shrink:0;"><%= ikona(f.mime) %></span>
+      <span style="flex:1;min-width:0;font-size:13px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+            title="<%= f.original_name %>"><%= f.original_name %></span>
+      <% if (f.missing) { %>
+        <span class="badge" style="background:var(--danger-bg);color:#991b1b;">chybí soubor</span>
+      <% } else { %>
+        <span style="font-size:11.5px;color:var(--text-muted);white-space:nowrap;"><%= velikost(f.size) %></span>
+        <a href="/doklady/priloha/<%= f.id %>" target="_blank" rel="noopener"
+           class="btn btn-ghost btn-sm" title="Zobrazit">Zobrazit</a>
+        <a href="/doklady/priloha/<%= f.id %>?download=1"
+           class="btn btn-ghost btn-sm" title="Stáhnout">↓</a>
+      <% } %>
+    </div>
+    <% }) %>
+  </div>
+</div>
+<% }) %>
