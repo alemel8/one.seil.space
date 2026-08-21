@@ -47,6 +47,10 @@ const JEN = (process.argv.find(a => a.startsWith('--jen=')) || '').slice(6)
 const TROJEK_EMAIL = (process.argv.find(a => a.startsWith('--trojek=')) || '').slice(9)
   || process.env.AIRTABLE_TROJEK_EMAIL || '';
 const ZE_SOUBORU = (process.argv.find(a => a.startsWith('--z-souboru=')) || '').slice(12);
+// Přílohy z místního adresáře, soubor pojmenovaný Airtable ID přílohy.
+// Odkazy z exportu platí jen dvě hodiny; když se migrace pouští jinde a jindy,
+// než vznikl export, je stažení předem jediná cesta, jak o soubory nepřijít.
+const PRILOHY_Z = (process.argv.find(a => a.startsWith('--prilohy-z=')) || '').slice(12);
 
 const BASE_TROJEK = process.env.AIRTABLE_BASE_TROJEK || 'appnJF71iCU3ymc5N';
 const BASE_SEIL   = process.env.AIRTABLE_BASE_SEIL   || 'appBpZ7LP2SvW7tHe';
@@ -88,7 +92,9 @@ async function ulozPrilohy(vlastnik, id, seznam, zdroj) {
     const [uz] = await sql`SELECT 1 FROM attachments WHERE airtable_id = ${p.airtableId}`;
     if (uz) { stat.souboryPreskoceno++; continue; }
     try {
-      const buf = await stahniPrilohu(p, { ...zdroj, bezObnovy: Boolean(ZE_SOUBORU) });
+      const buf = PRILOHY_Z
+        ? readFileSync(path.join(PRILOHY_Z, p.airtableId))
+        : await stahniPrilohu(p, { ...zdroj, bezObnovy: Boolean(ZE_SOUBORU) });
       // Nejdřív na disk, pak do databáze. Osiřelý soubor nikoho nebolí,
       // řádek bez souboru je doklad, který nejde otevřít.
       const saved = await saveAttachment(buf, p.mime, 'airtable', { archive: true });
