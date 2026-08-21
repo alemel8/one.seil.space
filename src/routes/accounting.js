@@ -1,4 +1,5 @@
 import { getDb, generateId } from '../db.js';
+import { naklady, mzdyPoMesicich, popisNakladu } from '../finance.js';
 
 // Pozn: vydané a přijaté faktury jsou v src/routes/invoices.js
 // Tento soubor spravuje bankovní záznamy, manuální položky a Fio CSV import
@@ -328,13 +329,14 @@ export default async function accountingRoutes(fastify) {
 
     // Měsíc
     const [mIssued]   = await sql`SELECT COALESCE(SUM(total_amount),0)::numeric AS v FROM accounting_invoices WHERE type='issued'   AND issue_date BETWEEN ${mStart} AND ${mEnd}`;
-    const [mReceived] = await sql`SELECT COALESCE(SUM(total_amount),0)::numeric AS v FROM accounting_invoices WHERE type='received' AND issue_date BETWEEN ${mStart} AND ${mEnd}`;
+    // Náklady už nejsou jen přijaté faktury — viz src/finance.js
+    const mNaklady = await naklady(sql, mStart, mEnd);
     const [mVatOut]   = await sql`SELECT COALESCE(SUM(vat_amount),0)::numeric   AS v FROM accounting_invoices WHERE type='issued'   AND issue_date BETWEEN ${mStart} AND ${mEnd}`;
     const [mVatIn]    = await sql`SELECT COALESCE(SUM(vat_amount),0)::numeric   AS v FROM accounting_invoices WHERE type='received' AND issue_date BETWEEN ${mStart} AND ${mEnd}`;
 
     // Rok
     const [yIssued]   = await sql`SELECT COALESCE(SUM(total_amount),0)::numeric AS v FROM accounting_invoices WHERE type='issued'   AND issue_date BETWEEN ${yStart} AND ${yEnd}`;
-    const [yReceived] = await sql`SELECT COALESCE(SUM(total_amount),0)::numeric AS v FROM accounting_invoices WHERE type='received' AND issue_date BETWEEN ${yStart} AND ${yEnd}`;
+    const yNaklady = await naklady(sql, yStart, yEnd);
     const [yVatOut]   = await sql`SELECT COALESCE(SUM(vat_amount),0)::numeric   AS v FROM accounting_invoices WHERE type='issued'   AND issue_date BETWEEN ${yStart} AND ${yEnd}`;
     const [yVatIn]    = await sql`SELECT COALESCE(SUM(vat_amount),0)::numeric   AS v FROM accounting_invoices WHERE type='received' AND issue_date BETWEEN ${yStart} AND ${yEnd}`;
 
@@ -363,9 +365,18 @@ export default async function accountingRoutes(fastify) {
       pageTitle: 'Finanční přehled', currentPath: '/ucetnictvi/prehled',
       user: request.user, year, month,
       kpi: {
-        month: { issued: Number(mIssued.v), received: Number(mReceived.v), vatOut: Number(mVatOut.v), vatIn: Number(mVatIn.v) },
-        year:  { issued: Number(yIssued.v), received: Number(yReceived.v), vatOut: Number(yVatOut.v), vatIn: Number(yVatIn.v) },
+        month: {
+          issued: Number(mIssued.v), received: mNaklady.celkem,
+          naklady: mNaklady, nakladyPopis: popisNakladu(mNaklady),
+          vatOut: Number(mVatOut.v), vatIn: Number(mVatIn.v),
+        },
+        year: {
+          issued: Number(yIssued.v), received: yNaklady.celkem,
+          naklady: yNaklady, nakladyPopis: popisNakladu(yNaklady),
+          vatOut: Number(yVatOut.v), vatIn: Number(yVatIn.v),
+        },
       },
+      chartMzdy: await mzdyPoMesicich(sql, year),
       overdue: { issued: overdueIssued, received: overdueReceived },
       pending: { issued: pendingIssued[0], received: pendingReceived[0] },
       monthlyChart,

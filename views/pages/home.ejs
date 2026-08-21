@@ -3,7 +3,8 @@
   // přehled ukazoval čísla ze sekcí, do kterých uživatel nesmí.
   const can = k => (user && typeof user.can === 'function') ? user.can(k) : true;
   const canS = k => (user && typeof user.canSection === 'function') ? user.canSection(k) : true;
-  const profit = kpi.issuedMonth - kpi.receivedMonth;
+  // Zisk počítá routa (src/finance.js), ať se vzorec nedrží na třech místech
+  const profit = kpi.profit;
   const monthLabel = monthOptions.find(m => m.value === selectedMonth)?.label || selectedMonth;
 %>
 
@@ -39,7 +40,7 @@
     <a href="/ucetnictvi/prijate-faktury" class="kpi-card kpi-link">
       <div class="kpi-label">Náklady</div>
       <div class="kpi-value negative kpi-anim" data-value="<%= kpi.receivedMonth %>" data-fmt="czk" style="font-size:20px;">—</div>
-      <div class="kpi-formula kpi-anim" data-value="<%= kpi.receivedCount || 0 %>" data-fmt="count" data-suffix=" přijatých faktur">—</div>
+      <div class="kpi-formula"><%= kpi.nakladyPopis %></div>
     </a>
 
     <a href="/ucetnictvi/uctenky" class="kpi-card kpi-link">
@@ -51,7 +52,7 @@
     <a href="/ucetnictvi/prehled" class="kpi-card kpi-link">
       <div class="kpi-label">Hrubý zisk</div>
       <div class="kpi-value <%= profit >= 0 ? 'positive' : 'negative' %> kpi-anim" data-value="<%= profit %>" data-fmt="czk" style="font-size:20px;">—</div>
-      <div class="kpi-formula">Tržby − náklady</div>
+      <div class="kpi-formula">Tržby − faktury − účtenky − mzdy</div>
     </a>
 
     <a href="/ucetnictvi/prehled" class="kpi-card kpi-link">

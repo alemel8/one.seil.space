@@ -2,6 +2,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getHistoryDb } from '../db.js';
+import { naklady, popisNakladu } from '../finance.js';
 import { CITY_COORDS, normalizeCityName, projectToMap } from '../cz-cities.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -101,13 +102,19 @@ export default async function dashboardRoutes(fastify) {
     const mapPoints = [...cityCounts.values()].map(c => ({ ...c, ...projectToMap(c.lat, c.lon) }));
     const otherCities = [...unmapped.values()].sort((a, b) => b.n - a.n);
 
+    const mNaklady = await naklady(sql, mStart, mEnd);
+
     return reply.view('pages/home.ejs', {
       pageTitle: 'Přehled', currentPath: '/',
       user: request.user,
       selectedMonth, monthOptions,
       kpi: {
         issuedMonth: Number(issued.v), issuedCount: issued.n,
-        receivedMonth: Number(received.v), receivedCount: received.n,
+        // „Náklady" nejsou jen přijaté faktury — mzdy a účtenky patří do
+        // zisku taky, jinak je nadhodnocený. Rozpad viz src/finance.js.
+        receivedMonth: mNaklady.celkem, receivedCount: received.n,
+        naklady: mNaklady, nakladyPopis: popisNakladu(mNaklady),
+        profit: Number(issued.v) - mNaklady.celkem,
         overdue: overdueCount.n,
         remindersWaiting: remindersWaiting.n,
         ordersWaiting: ordersWaiting.n,

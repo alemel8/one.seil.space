@@ -10,6 +10,9 @@
     if (r.type === 'issued')   chartIssued[r.m - 1]   = Number(r.v);
     if (r.type === 'received') chartReceived[r.m - 1] = Number(r.v);
   });
+  // Mzdy jdou do grafu jako vlastní řada, ne pod vymyšlený type — v
+  // accounting_invoices.type by to zamíchalo význam sloupce.
+  const chartMzdyData = (typeof chartMzdy !== 'undefined' && chartMzdy) || Array(12).fill(0);
 %>
 
 <div class="page-header">
@@ -45,7 +48,7 @@
   <div class="kpi-card">
     <div class="kpi-label">Náklady</div>
     <div class="kpi-value negative"><%= fmt(kpi.month.received) %></div>
-    <div class="kpi-formula">Přijaté faktury</div>
+    <div class="kpi-formula"><%= kpi.month.nakladyPopis %></div>
   </div>
   <div class="kpi-card">
     <div class="kpi-label">Hrubý zisk</div>
@@ -61,6 +64,36 @@
   </div>
 </div>
 
+<%
+  // Rozpad nákladů. Bez něj by číslo přestalo sedět se seznamem přijatých
+  // faktur a nikdo by nepoznal proč — dřív totiž „Náklady" znamenaly
+  // doslova jen ty faktury.
+  const zdroje = [
+    ['Přijaté faktury', kpi.month.naklady.faktury, kpi.month.naklady.pocty.faktury, '/ucetnictvi/prijate-faktury'],
+    ['Účtenky',         kpi.month.naklady.uctenky, kpi.month.naklady.pocty.uctenky, '/ucetnictvi/uctenky'],
+    ['Mzdové náklady',  kpi.month.naklady.mzdy,    kpi.month.naklady.pocty.mzdy,    '/lide/mzdy'],
+    ['Platby mimo mzdu',kpi.month.naklady.platby,  kpi.month.naklady.pocty.platby,  '/lide/ekonomika'],
+  ].filter(z => z[2] > 0);
+%>
+<% if (zdroje.length > 1) { %>
+<div class="card" style="margin-bottom:28px;">
+  <div class="card-body" style="padding:14px 18px;">
+    <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);margin-bottom:10px;">
+      Z čeho se skládají náklady
+    </div>
+    <div style="display:flex;gap:28px;flex-wrap:wrap;">
+      <% zdroje.forEach(function (z) { %>
+      <a href="<%= z[3] %>" style="text-decoration:none;color:inherit;">
+        <div style="font-size:13px;color:var(--text-muted);"><%= z[0] %></div>
+        <div style="font-family:var(--font-mono);font-size:15px;color:var(--text-primary);"><%= fmt(z[1]) %></div>
+        <div style="font-size:11.5px;color:var(--text-muted);"><%= z[2] %>×</div>
+      </a>
+      <% }) %>
+    </div>
+  </div>
+</div>
+<% } %>
+
 <!-- ── KPI: rok ── -->
 <div style="margin-bottom:6px;font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">
   Celý rok <%= year %>
@@ -74,7 +107,7 @@
   <div class="kpi-card">
     <div class="kpi-label">Náklady</div>
     <div class="kpi-value negative"><%= fmt(kpi.year.received) %></div>
-    <div class="kpi-formula">Přijaté faktury</div>
+    <div class="kpi-formula"><%= kpi.year.nakladyPopis %></div>
   </div>
   <div class="kpi-card">
     <div class="kpi-label">Hrubý zisk</div>
@@ -198,12 +231,22 @@ new Chart(document.getElementById('chartMonthly'), {
         borderRadius: 4,
       },
       {
-        label: 'Náklady',
+        label: 'Přijaté faktury',
         data: <%- JSON.stringify(chartReceived) %>,
         backgroundColor: 'rgba(239,68,68,0.5)',
         borderColor: 'rgba(239,68,68,1)',
         borderWidth: 1,
         borderRadius: 4,
+        stack: 'naklady',
+      },
+      {
+        label: 'Mzdy',
+        data: <%- JSON.stringify(chartMzdyData) %>,
+        backgroundColor: 'rgba(245,158,11,0.55)',
+        borderColor: 'rgba(245,158,11,1)',
+        borderWidth: 1,
+        borderRadius: 4,
+        stack: 'naklady',
       },
     ],
   },
