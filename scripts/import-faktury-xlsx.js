@@ -152,31 +152,77 @@ function fileKey(name) {
 }
 
 /**
- * Najde v import/ soubor, jehož název začíná daným prefixem ("favyd"/"fapri").
- * Při více shodách radši spadne — u účetních dat je horší naimportovat
- * omylem starší export než import nespustit.
+ * Najde v import/ exporty daného druhu. POHODA umí vyvézt buď všechno
+ * najednou, nebo po letech, takže se počítá s obojím pojmenováním:
+ *
+ *   FAvyd.xlsx / FApri.xlsx   — jeden export; víc shod = radši spadnout,
+ *                               ať se nenaimportuje omylem starší soubor
+ *   FA24v.xlsx / FA24p.xlsx   — export po letech; těch je klidně víc,
+ *                               jsou to různá data, ne konkurenční verze
+ *
+ * Roční exporty se vrací od nejnovějšího. Stejná faktura se totiž objeví
+ * ve víc letech (nezaplacené se táhnou dál) a chceme její poslední stav.
  */
-function findImportFile(prefix, label) {
+function findImportFiles(kind, label) {
   const dir = path.join(ROOT, 'import');
-  const hits = fs.readdirSync(dir)
-    .filter(f => /\.xlsx$/i.test(f) && !f.startsWith('~$') && fileKey(f).startsWith(prefix));
+  const suffix = kind === 'issued' ? 'v' : 'p';
+  const legacyPrefix = kind === 'issued' ? 'favyd' : 'fapri';
+  const yearRe = new RegExp(`^fa(\\d{2})${suffix}$`);
 
-  if (!hits.length) {
-    throw new Error(`v import/ chybí export ${label} (hledá se soubor ${prefix}*.xlsx)`);
-  }
-  if (hits.length > 1) {
+  const files = fs.readdirSync(dir).filter(f => /\.xlsx$/i.test(f) && !f.startsWith('~$'));
+  const legacy = files.filter(f => fileKey(f).startsWith(legacyPrefix));
+  const yearly = files
+    .filter(f => yearRe.test(fileKey(f)))
+    .sort((a, b) => fileKey(b).localeCompare(fileKey(a)));   // od nejnovějšího
+
+  if (legacy.length && yearly.length) {
     throw new Error(
-      `v import/ je více exportů ${label}: ${hits.join(', ')} — ` +
+      `v import/ jsou obě pojmenování ${label}: ${[...legacy, ...yearly].join(', ')} — ` +
+      'nech jen jedno, ať se stejná faktura neimportuje ze dvou zdrojů'
+    );
+  }
+  if (legacy.length > 1) {
+    throw new Error(
+      `v import/ je více exportů ${label}: ${legacy.join(', ')} — ` +
       'nech jen ten aktuální, ať se nenaimportuje starší'
     );
   }
-  return path.join(dir, hits[0]);
+  const hits = legacy.length ? legacy : yearly;
+  if (!hits.length) {
+    throw new Error(
+      `v import/ chybí export ${label} ` +
+      `(hledá se ${legacyPrefix}*.xlsx nebo FA<rok>${suffix}.xlsx)`
+    );
+  }
+  return hits.map(f => path.join(dir, f));
 }
 
-function readImport(prefix, label) {
-  const file = findImportFile(prefix, label);
-  console.log(`  Soubor: import/${path.basename(file)}`);
-  return readSheet(file).filter(r => str(r['Číslo']));
+/**
+ * Načte řádky ze všech exportů daného druhu. Doklad, který je ve víc
+ * ročních souborech, se vezme jen jednou — z toho nejnovějšího, protože
+ * ten má aktuální stav úhrady.
+ */
+function readImport(kind, label) {
+  const rows = [];
+  const videno = new Set();
+  let prekryv = 0;
+
+  for (const file of findImportFiles(kind, label)) {
+    const part = readSheet(file).filter(r => str(r['Číslo']));
+    let nove = 0;
+    for (const row of part) {
+      const cislo = str(row['Číslo']);
+      if (videno.has(cislo)) { prekryv++; continue; }
+      videno.add(cislo);
+      rows.push(row);
+      nove++;
+    }
+    console.log(`  Soubor: import/${path.basename(file)} — ${part.length} řádků, ${nove} nových`);
+  }
+  if (prekryv) {
+    console.log(`  (${prekryv}× stejný doklad ve více letech — brán z nejnovějšího exportu)`);
+  }
+  return rows;
 }
 
 const stats = {
@@ -230,7 +276,7 @@ async function syncStatus(existing, f) {
 
 async function importIssued(icoToCompany, today) {
   console.log('\n━━━ Vydané faktury ━━━');
-  const rows = readImport('favyd', 'vydaných faktur');
+  const rows = readImport('issued', 'vydaných faktur');
   console.log(`  Řádků v souboru: ${rows.length}`);
 
   const existing = new Map(
@@ -280,7 +326,7 @@ async function importIssued(icoToCompany, today) {
 
 async function importReceived(icoToCompany, today) {
   console.log('\n━━━ Přijaté faktury ━━━');
-  const rows = readImport('fapri', 'přijatých faktur');
+  const rows = readImport('received', 'přijatých faktur');
   console.log(`  Řádků v souboru: ${rows.length}`);
 
   const dbRows = await sql`
