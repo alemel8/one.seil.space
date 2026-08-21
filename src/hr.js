@@ -139,6 +139,62 @@ export async function dokumentyUzivatele(sql, userId) {
   `;
 }
 
+/** Mzdy napříč lidmi za rok — mřížka měsíc × člověk. */
+export async function mzdyPrehled(sql, rok) {
+  const rows = await sql`
+    SELECT r.id, r.user_id, r.period, r.paid, r.hours,
+           r.gross::float8 AS gross, r.paid_total::float8 AS paid_total,
+           r.company_cost::float8 AS company_cost,
+           (SELECT COUNT(*)::int FROM attachments a WHERE a.payroll_run_id = r.id) AS priloh
+      FROM hr_payroll_runs r
+     WHERE EXTRACT(YEAR FROM r.period) = ${rok}
+     ORDER BY r.period DESC, r.user_id
+  `;
+  const lide = await sql`
+    SELECT DISTINCT u.id, u.public_id, u.first_name, u.last_name
+      FROM users u JOIN hr_payroll_runs r ON r.user_id = u.id
+     ORDER BY u.id
+  `;
+  // Mřížka ukáže i díru v měsíci — u souvislé řady je to to hlavní,
+  // co chcete hlídat, a plochý seznam by ji schoval.
+  const mesice = [...new Set(rows.map(r => String(r.period).slice(0, 7)))].sort().reverse();
+  const bunky = new Map(rows.map(r => [`${String(r.period).slice(0, 7)}|${r.user_id}`, r]));
+  return { lide, mesice, bunky, rows };
+}
+
+/** Roky, ve kterých vůbec nějaká mzda je — do přepínače období. */
+export async function mzdoveRoky(sql) {
+  const r = await sql`SELECT DISTINCT EXTRACT(YEAR FROM period)::int AS rok
+                        FROM hr_payroll_runs ORDER BY rok DESC`;
+  return r.map(x => x.rok);
+}
+
+/** Fakturační podklady napříč lidmi, s volitelnými filtry. */
+export async function podkladyPrehled(sql, { q = '', stav = '', osoba = '' } = {}) {
+  const kde = [];
+  if (q)     kde.push(sql`(w.title ILIKE ${'%' + q + '%'} OR w.invoice_number ILIKE ${'%' + q + '%'})`);
+  if (stav)  kde.push(sql`w.status = ${stav}`);
+  if (osoba) kde.push(sql`u.public_id = ${osoba}`);
+  const where = kde.length
+    ? kde.reduce((a, b) => sql`${a} AND ${b}`, sql`WHERE TRUE`) : sql``;
+
+  return sql`
+    SELECT w.*, w.total_amount::float8 AS total_amount,
+           u.public_id, u.first_name, u.last_name,
+           i.number AS faktura_cislo, i.status AS faktura_stav,
+           COALESCE(ARRAY(SELECT DISTINCT project_code FROM hr_work_report_projects
+                           WHERE report_id = w.id ORDER BY project_code), '{}') AS kody,
+           COALESCE(ARRAY(SELECT DISTINCT city FROM hr_work_report_locations
+                           WHERE report_id = w.id ORDER BY city), '{}') AS lokality,
+           (SELECT COUNT(*)::int FROM attachments a WHERE a.work_report_id = w.id) AS priloh
+      FROM hr_work_reports w
+      JOIN users u ON u.id = w.user_id
+      LEFT JOIN accounting_invoices i ON i.id = w.invoice_id
+      ${where}
+     ORDER BY w.report_date DESC
+  `;
+}
+
 export const PLATBA_DRUHY = [
   ['zaloha',            'Záloha'],
   ['proplaceny_naklad', 'Proplacený náklad'],

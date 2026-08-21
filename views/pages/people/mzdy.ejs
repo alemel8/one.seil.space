@@ -1,0 +1,76 @@
+<%
+  const kc = n => Number(n || 0).toLocaleString('cs-CZ', { maximumFractionDigits: 0 });
+  const jmeno = u => ((u.first_name || '') + ' ' + (u.last_name || '')).trim();
+  const mesicNazev = m => new Date(m + '-01').toLocaleDateString('cs-CZ', { month: 'long', year: 'numeric' });
+%>
+
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Mzdy</h1>
+    <p>
+      Náklady firmy <%= kc(souhrn.naklad) %> Kč · uhrazeno <%= kc(souhrn.uhrazeno) %> Kč
+      <% if (souhrn.nevyplaceno) { %> · <strong style="color:var(--warning);"><%= souhrn.nevyplaceno %> nevyplaceno</strong><% } %>
+    </p>
+  </div>
+  <form method="get" style="margin:0;">
+    <select name="rok" class="form-select" style="font-size:13px;padding:6px 10px;" onchange="this.form.submit()">
+      <% roky.forEach(function (r) { %>
+        <option value="<%= r %>" <%= rok === r ? 'selected' : '' %>><%= r %></option>
+      <% }) %>
+    </select>
+  </form>
+</div>
+
+<% if (!mesice.length) { %>
+  <div class="card"><div class="card-body" style="text-align:center;padding:48px;color:var(--text-muted);">
+    Za rok <%= rok %> nejsou žádné mzdy
+  </div></div>
+<% } else { %>
+<div class="card">
+  <div class="table-wrapper" style="border:none;border-radius:0;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="min-width:130px;">Měsíc</th>
+          <% lide.forEach(function (u) { %>
+            <th style="min-width:190px;"><%= jmeno(u) %></th>
+          <% }) %>
+        </tr>
+      </thead>
+      <tbody>
+        <% mesice.forEach(function (m) { %>
+        <tr>
+          <td style="white-space:nowrap;font-weight:500;"><%= mesicNazev(m) %></td>
+          <% lide.forEach(function (u) {
+               const b = bunky.get(m + '|' + u.id);
+          %>
+          <td>
+            <% if (!b) { %>
+              <span style="color:var(--text-muted);font-size:13px;">—</span>
+            <% } else { %>
+              <a href="/lide/tym/<%= u.public_id %>?tab=mzdy" style="text-decoration:none;color:inherit;display:block;">
+                <span style="font-family:var(--font-mono);font-size:13px;color:var(--text-primary);"><%= kc(b.company_cost) %></span>
+                <% if (b.paid) { %>
+                  <span class="badge" style="background:var(--success-bg);color:#15803D;margin-left:6px;">vyplaceno</span>
+                <% } else { %>
+                  <span class="badge" style="background:var(--warning-bg);color:#92400e;margin-left:6px;">nevyplaceno</span>
+                <% } %>
+                <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;">
+                  <% if (b.hours) { %><%= Number(b.hours).toLocaleString('cs-CZ') %> h · <% } %>
+                  uhrazeno <%= kc(b.paid_total) %><% if (b.priloh) { %> · 📎 <%= b.priloh %><% } %>
+                </div>
+              </a>
+            <% } %>
+          </td>
+          <% }) %>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <div class="card-body" style="border-top:1px solid var(--border);font-size:12.5px;color:var(--text-muted);">
+    Hlavní číslo v buňce je <strong>náklad firmy</strong> — to, co jde do hrubého zisku.
+    Pomlčka znamená, že za daný měsíc mzdový list chybí.
+  </div>
+</div>
+<% } %>

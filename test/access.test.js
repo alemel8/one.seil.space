@@ -5,6 +5,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { readdirSync, readFileSync } from 'node:fs';
 import {
   ACCESS_SECTIONS, ACCESS_ITEMS, ACCESS_KEYS,
   accessItem, isAllowed, visibleItems, visibleSections, matchAccessItem,
@@ -85,6 +86,30 @@ describe('vyhodnocení práv', () => {
     const monitoring = ACCESS_SECTIONS.find(s => s.key === 'monitoring');
     assert.deepEqual(visibleItems(uzivatel(), monitoring).map(i => i.key), ['monitoring.vps']);
     assert.equal(visibleItems(spravce(), monitoring).length, 2);
+  });
+});
+
+describe('katalog odpovídá skutečným routám', () => {
+  // Položka v matici a v menu, ke které neexistuje routa, se projeví až
+  // tím, že na ni někdo klikne a dostane 404. Přesně to se stalo
+  // u /lide/mzdy, /lide/ekonomika a /lide/podklady.
+  const zdroj = readdirSync(new URL('../src/routes/', import.meta.url))
+    .filter(f => f.endsWith('.js'))
+    .map(f => readFileSync(new URL(`../src/routes/${f}`, import.meta.url), 'utf8'))
+    .join('\n');
+
+  // Hledá se registrace routy, ne výskyt řetězce kdekoli — cesta se
+  // objevuje i v currentPath předávaném do šablony, což by kontrolu
+  // odbylo a test by nechytil nic.
+  const registrovane = new Set(
+    [...zdroj.matchAll(/fastify\.(?:get|post)\(\s*['"]([^'"]+)['"]/g)].map(m => m[1])
+  );
+
+  test('každá položka katalogu má registrovanou routu', () => {
+    const chybi = ACCESS_ITEMS
+      .filter(i => !registrovane.has(i.path))
+      .map(i => `${i.key} → ${i.path}`);
+    assert.deepEqual(chybi, [], 'katalog slibuje cesty, které nikam nevedou');
   });
 });
 

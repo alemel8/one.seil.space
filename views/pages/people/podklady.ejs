@@ -1,0 +1,75 @@
+<%
+  const kc = n => Number(n || 0).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const den = d => d ? new Date(d).toLocaleDateString('cs-CZ') : '—';
+  const stavLabel = s => (PODKLAD_STAVY.find(x => x[0] === s) || [, s])[1];
+%>
+
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Fakturační podklady</h1>
+    <p><%= podklady.length %> podkladů · celkem <%= kc(celkem) %> Kč</p>
+  </div>
+</div>
+
+<form method="get" style="display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap;">
+  <input type="text" name="q" value="<%= filtry.q %>" placeholder="Hledat zakázku nebo číslo faktury…"
+         class="form-control" style="flex:1;min-width:220px;max-width:340px;">
+  <select name="osoba" class="form-select" style="max-width:200px;">
+    <option value="">Všichni lidé</option>
+    <% lide.forEach(function (u) { %>
+      <option value="<%= u.public_id %>" <%= filtry.osoba === u.public_id ? 'selected' : '' %>>
+        <%= ((u.first_name || '') + ' ' + (u.last_name || '')).trim() %>
+      </option>
+    <% }) %>
+  </select>
+  <select name="stav" class="form-select" style="max-width:180px;">
+    <option value="">Všechny stavy</option>
+    <% PODKLAD_STAVY.forEach(function (s) { %>
+      <option value="<%= s[0] %>" <%= filtry.stav === s[0] ? 'selected' : '' %>><%= s[1] %></option>
+    <% }) %>
+  </select>
+  <button type="submit" class="btn btn-outline">Filtrovat</button>
+  <% if (filtry.q || filtry.stav || filtry.osoba) { %>
+    <a href="/lide/podklady" class="btn btn-ghost">Zrušit</a>
+  <% } %>
+</form>
+
+<div class="card">
+  <div class="table-wrapper" style="border:none;border-radius:0;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Datum</th><th>Zakázka</th><th>Lokalita</th><th>Člověk</th>
+          <th>Přílohy</th><th>Faktura</th><th>Stav</th><th style="text-align:right;">Částka</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!podklady.length) { %>
+          <tr><td colspan="8" style="text-align:center;padding:48px;color:var(--text-muted);">
+            Žádné podklady neodpovídají filtru
+          </td></tr>
+        <% } %>
+        <% podklady.forEach(function (w) { %>
+        <tr style="cursor:pointer;" onclick="window.location='/lide/tym/<%= w.public_id %>?tab=podklady'">
+          <td style="color:var(--text-muted);font-size:13px;white-space:nowrap;"><%= den(w.report_date) %></td>
+          <td style="font-family:var(--font-mono);font-size:12.5px;"><%= (w.kody || []).join(', ') || '—' %></td>
+          <td style="font-size:13px;"><%= (w.lokality || []).join(', ') || '—' %></td>
+          <td style="font-size:13px;"><%= ((w.first_name || '') + ' ' + (w.last_name || '')).trim() %></td>
+          <td style="font-size:12.5px;color:var(--text-muted);"><%= w.priloh ? '📎 ' + w.priloh : '—' %></td>
+          <td style="font-size:12.5px;white-space:nowrap;">
+            <% if (w.invoice_id) { %>
+              <a href="/ucetnictvi/vydane-faktury/<%= w.invoice_id %>" onclick="event.stopPropagation();"
+                 style="color:var(--primary);text-decoration:none;"><%= w.faktura_cislo %></a>
+              <span style="color:var(--text-muted);"> · <%= w.faktura_stav %></span>
+            <% } else if (w.invoice_number) { %>
+              <span title="Faktura tohoto čísla není v systému" style="color:var(--warning);"><%= w.invoice_number %> ⚠</span>
+            <% } else { %>—<% } %>
+          </td>
+          <td><span class="badge" style="background:var(--gray-100);color:var(--text-secondary);"><%= stavLabel(w.status) %></span></td>
+          <td style="text-align:right;font-family:var(--font-mono);font-size:13px;"><%= kc(w.total_amount) %></td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>

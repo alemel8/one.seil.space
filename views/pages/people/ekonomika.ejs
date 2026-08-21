@@ -1,0 +1,72 @@
+<%
+  const kc = n => Number(n || 0).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const jmeno = u => ((u.first_name || '') + ' ' + (u.last_name || '')).trim() || u.email;
+%>
+
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Ekonomika lidí</h1>
+    <p>Co se za čí práci vyfakturovalo a co se mu vyplatilo</p>
+  </div>
+  <form method="get" style="margin:0;">
+    <select name="rok" class="form-select" style="font-size:13px;padding:6px 10px;" onchange="this.form.submit()">
+      <option value="">Celé období</option>
+      <% roky.forEach(function (r) { %>
+        <option value="<%= r %>" <%= rok === r ? 'selected' : '' %>><%= r %></option>
+      <% }) %>
+    </select>
+  </form>
+</div>
+
+<div class="card">
+  <div class="table-wrapper" style="border:none;border-radius:0;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Člověk</th>
+          <th style="text-align:right;">Příjmy</th>
+          <th style="text-align:right;">Výdaje</th>
+          <th style="text-align:right;">Platby mimo mzdu</th>
+          <th style="text-align:right;">Zůstatek</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!lide.length) { %>
+          <tr><td colspan="5" style="text-align:center;padding:48px;color:var(--text-muted);">
+            Zatím nikdo nemá fakturační podklady ani mzdy
+          </td></tr>
+        <% } %>
+        <% lide.forEach(function (u) { %>
+        <tr style="cursor:pointer;" onclick="window.location='/lide/tym/<%= u.public_id %>?tab=ekonomika'">
+          <td>
+            <strong style="color:var(--text-primary);"><%= jmeno(u) %></strong>
+            <% if (!u.is_active) { %><span class="badge" style="background:var(--danger-bg);color:#991b1b;margin-left:8px;">Neaktivní</span><% } %>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">
+              <%= u.ucet.prijmyPocet %> podkladů · <%= u.ucet.vydajePocet %> mezd · <%= u.ucet.ostatniPocet %> plateb
+            </div>
+          </td>
+          <td style="text-align:right;font-family:var(--font-mono);font-size:13px;color:var(--success);"><%= kc(u.ucet.prijmy) %></td>
+          <td style="text-align:right;font-family:var(--font-mono);font-size:13px;color:var(--danger);"><%= kc(u.ucet.vydaje) %></td>
+          <td style="text-align:right;font-family:var(--font-mono);font-size:13px;color:var(--danger);"><%= kc(u.ucet.ostatni) %></td>
+          <td style="text-align:right;font-family:var(--font-mono);font-size:14px;font-weight:600;color:<%= u.ucet.zustatek >= 0 ? 'var(--success)' : 'var(--danger)' %>;"><%= kc(u.ucet.zustatek) %></td>
+        </tr>
+        <% }) %>
+      </tbody>
+      <% if (lide.length > 1) { %>
+      <tfoot>
+        <tr style="background:var(--gray-50);font-weight:600;">
+          <td>Celkem</td>
+          <td style="text-align:right;font-family:var(--font-mono);font-size:13px;"><%= kc(celkem.prijmy) %></td>
+          <td style="text-align:right;font-family:var(--font-mono);font-size:13px;"><%= kc(celkem.vydaje) %></td>
+          <td style="text-align:right;font-family:var(--font-mono);font-size:13px;"><%= kc(celkem.ostatni) %></td>
+          <td style="text-align:right;font-family:var(--font-mono);font-size:14px;color:<%= celkem.zustatek >= 0 ? 'var(--success)' : 'var(--danger)' %>;"><%= kc(celkem.zustatek) %></td>
+        </tr>
+      </tfoot>
+      <% } %>
+    </table>
+  </div>
+  <div class="card-body" style="border-top:1px solid var(--border);font-size:12.5px;color:var(--text-muted);">
+    Výdaje jsou to, co reálně odešlo z účtu. Do nákladů firmy a hrubého zisku vstupuje jiné číslo —
+    hrubá mzda plus odvody zaměstnavatele.
+  </div>
+</div>
