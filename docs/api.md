@@ -164,6 +164,40 @@ fakturu stejně jako objednávka, která s převodem přišla rovnou z pokladny
 
 ---
 
+### GET /api/toneracek/orders/:id/payment-details
+Platební údaje k objednávce placené převodem. Jediný zdroj pravdy o tom, jak má
+zákazník zaplatit — e-shop je vykresluje do potvrzení objednávky, na děkovnou
+stránku i do QR kódu.
+
+`?pdf=1` přidá zálohovou fakturu v base64. Bez něj se PDF nerenderuje (děkovná
+stránka ho nepotřebuje a puppeteer render při každém načtení by byl drahý).
+
+**Response 200:**
+```json
+{
+  "variableSymbol": "2026010042",
+  "amount": 684,
+  "currency": "CZK",
+  "dueDate": "2026-09-01",
+  "bankAccount": "2800828200/2010",
+  "iban": "CZ65...",
+  "swift": "FIOBCZPP",
+  "bankName": "Fio banka",
+  "proformaNumber": "ZF-2026-10042",
+  "pdf": null
+}
+```
+
+`409 {"error":"not-transfer"}` u objednávky placené kartou nebo dobírkou —
+zálohová faktura se u nich nevystavuje. Když proforma ještě neexistuje,
+endpoint ji vystaví.
+
+> Variabilní symbol je `invoiceVs()` z čísla zálohové faktury, tedy přesně to,
+> co tiskne PDF a podle čeho páruje `POST /api/banka` příchozí platbu. Dokud si
+> ho e-shop vymýšlel sám (číslo objednávky), platba se nespárovala.
+
+---
+
 ### PATCH /api/toneracek/orders/:id/tracking
 Aktualizace čísla zásilky.
 

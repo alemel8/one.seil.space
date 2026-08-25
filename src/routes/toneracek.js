@@ -1,5 +1,6 @@
 import { getDb, generateId } from '../db.js';
-import { sendOrderStatusEmail } from '../email.js';
+import { sendOrderCancelledEmail } from '../email.js';
+import { brandForShopId } from '../brand.js';
 import { sendPushToAll } from '../push.js';
 import { renderSeriesNumber } from '../series-format.js';
 import { fetchPacketLabelPdf } from '../packeta.js';
@@ -233,49 +234,84 @@ export default async function toneracekRoutes(fastify) {
 
   // ── Zálohová faktura k objednávce placené převodem ─────────
   //
-  // Vystaví se a odešle při přijetí objednávky, a taky když zákazník přepne
-  // na převod dodatečně (po neúspěšné platbě kartou). Druhou zálohovku
-  // k téže objednávce nevystavuje.
+  // Rozdělené na „vystav" a „odešli" schválně: platební údaje si od migrace
+  // na jeden variabilní symbol tahá e-shop přes /payment-details a posílá je
+  // zákazníkovi v jednom e-mailu spolu s potvrzením objednávky. Vystavení
+  // proformy ale musí proběhnout tak jako tak — účetnictví na ni čeká.
+
+  /** Vystaví zálohovou fakturu, pokud k objednávce ještě není. Nic neposílá. */
+  async function ensureProformaForOrder(order) {
+    const [existing] = await sql`
+      SELECT * FROM accounting_invoices WHERE order_id = ${order.id} AND type = 'proforma' LIMIT 1
+    `;
+    if (existing) return existing;
+
+    const { generateProformaForOrder } = await import('./invoices.js');
+    return generateProformaForOrder(sql, order);
+  }
+
+  /** Vyrenderuje PDF zálohové faktury i s rozpisem DPH. */
+  async function renderProformaPdf(proforma) {
+    const { renderInvoicePdf } = await import('../pdf.js');
+    const items = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${proforma.id}`;
+    const [issuer] = await sql`SELECT * FROM company_settings LIMIT 1`;
+
+    const vatMap = {};
+    for (const it of items) {
+      const r = it.vat_rate;
+      if (!vatMap[r]) vatMap[r] = { rate: r, base: 0, vat: 0 };
+      vatMap[r].base += Number(it.amount);
+      vatMap[r].vat  += Number(it.vat_amount);
+    }
+    return renderInvoicePdf({
+      invoice: proforma, items, issuer: issuer || {}, vatSummary: Object.values(vatMap),
+    });
+  }
+
+  /**
+   * Vystaví zálohovou fakturu a — dokud SHOP_SENDS_PAYMENT_EMAIL není zapnuté —
+   * ji i odešle.
+   *
+   * Přepínač existuje kvůli pořadí nasazení. Kdyby Seil přestal posílat dřív,
+   * než e-shop umí platební údaje vykreslit, dostal by zákazník u převodu jen
+   * starý e-mail s variabilním symbolem = číslem objednávky a bez faktury —
+   * tedy platbu, kterou banka nespáruje. Opačné pořadí znamená jen jednu
+   * duplicitu navíc, což je výrazně levnější. Po nasazení obou stran se
+   * přepínač i tahle větev smažou.
+   */
   async function issueProformaForOrder(orderId) {
     try {
       const [order] = await sql`SELECT * FROM shop_orders WHERE id = ${orderId}`;
       if (!order) return;
 
-      const [existing] = await sql`
-        SELECT id FROM accounting_invoices WHERE order_id = ${orderId} AND type = 'proforma' LIMIT 1
+      const alreadyIssued = await sql`
+        SELECT id FROM accounting_invoices WHERE order_id = ${order.id} AND type = 'proforma' LIMIT 1
       `;
-      if (existing) return;
+      const proforma = await ensureProformaForOrder(order);
+      if (alreadyIssued.length) return;
 
-      const { generateProformaForOrder } = await import('./invoices.js');
-      const { renderInvoicePdf } = await import('../pdf.js');
+      if (process.env.SHOP_SENDS_PAYMENT_EMAIL === '1') return;
+      if (!order.email) return;
+
       const { sendInvoiceEmail } = await import('../email.js');
-
-      const proforma = await generateProformaForOrder(sql, order);
-
-      const proformaItems = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${proforma.id}`;
+      const { invoiceVs } = await import('../series-format.js');
       const [issuer] = await sql`SELECT * FROM company_settings LIMIT 1`;
-      const vatMap = {};
-      for (const it of proformaItems) {
-        const r = it.vat_rate;
-        if (!vatMap[r]) vatMap[r] = { rate: r, base: 0, vat: 0 };
-        vatMap[r].base += Number(it.amount);
-        vatMap[r].vat  += Number(it.vat_amount);
-      }
-      const pdfBuffer = await renderInvoicePdf({ invoice: proforma, items: proformaItems, issuer: issuer || {}, vatSummary: Object.values(vatMap) });
+      const brand = await brandForShopId(order.shop_id);
+      const pdfBuffer = await renderProformaPdf(proforma);
 
-      if (order.email) {
-        await sendInvoiceEmail({
-          invoice: proforma, issuer: issuer || {}, email: order.email, pdfBuffer,
-          from: 'Toneráček.cz <ahoj@toneracek.cz>',
-          subject: `Zálohová faktura ${proforma.number} k objednávce #${order.order_number}`,
-          intro: `děkujeme za objednávku č. <strong>${order.order_number}</strong>. V příloze naleznete zálohovou fakturu — po jejím uhrazení vám vystavíme a zašleme běžnou fakturu.`,
-          paymentDetails: {
-            accountNumber: issuer?.bank_account || '',
-            iban: issuer?.iban || '',
-            variableSymbol: proforma.number.replace(/[^0-9]/g, ''),
-          },
-        });
-      }
+      await sendInvoiceEmail({
+        invoice: proforma, issuer: issuer || {}, brand, email: order.email, pdfBuffer,
+        subject: `Zálohová faktura ${proforma.number} k objednávce #${order.order_number}`,
+        intro: `děkujeme za objednávku č. <strong>${order.order_number}</strong>. V příloze naleznete zálohovou fakturu — po jejím uhrazení vám vystavíme a zašleme běžnou fakturu.`,
+        paymentDetails: {
+          bankAccount: issuer?.bank_account || '',
+          iban: issuer?.iban || '',
+          // invoiceVs, ne všechny číslice čísla faktury: podle téhle hodnoty
+          // tiskne variabilní symbol i PDF v příloze a podle ní páruje banka.
+          variableSymbol: invoiceVs(proforma.number),
+          dueDate: proforma.due_date ? new Date(proforma.due_date).toLocaleDateString('cs-CZ') : '',
+        },
+      });
     } catch (err) {
       fastify.log.error({ err }, 'Chyba při vystavení/odeslání zálohové faktury');
     }
@@ -440,6 +476,59 @@ export default async function toneracekRoutes(fastify) {
     return reply.send({ ok: true });
   });
 
+  // ── API: Platební údaje k objednávce ───────────────────────
+  //
+  // Jediný zdroj pravdy o tom, jak má zákazník zaplatit. Dřív si e-shop
+  // variabilní symbol i číslo účtu držel sám (číslo objednávky + env
+  // proměnná), zatímco Seil posílal zálohovou fakturu s jiným VS a účtem
+  // z company_settings — takže k jedné platbě chodily dva různé symboly
+  // a platba se nespárovala. Teď oboje odsud.
+
+  fastify.get('/api/toneracek/orders/:id/payment-details', async (request, reply) => {
+    if (!verifyApiKey(request)) return reply.code(401).send({ error: 'Unauthorized' });
+
+    const [order] = await sql`SELECT * FROM shop_orders WHERE id = ${request.params.id} LIMIT 1`;
+    if (!order) return reply.code(404).send({ error: 'Objednávka nenalezena' });
+    if (order.payment_method !== 'Bankovní převod') {
+      return reply.code(409).send({ error: 'not-transfer' });
+    }
+
+    try {
+      const { invoiceVs } = await import('../series-format.js');
+      // ensure, ne fetch: když eager vystavení při přijetí objednávky spolkl
+      // catch, endpoint se zhojí sám místo aby vrátil prázdno.
+      const proforma = await ensureProformaForOrder(order);
+      const [issuer] = await sql`SELECT * FROM company_settings LIMIT 1`;
+
+      // PDF jen na vyžádání — děkovná stránka ho nepotřebuje a puppeteer
+      // render při každém načtení stránky by byl zbytečně drahý.
+      let pdf = null;
+      if (request.query.pdf === '1') {
+        const buffer = await renderProformaPdf(proforma);
+        pdf = {
+          filename: `zalohova-faktura-${proforma.number}.pdf`,
+          contentBase64: Buffer.from(buffer).toString('base64'),
+        };
+      }
+
+      return reply.send({
+        variableSymbol: invoiceVs(proforma.number),
+        amount: Number(proforma.total_amount),
+        currency: proforma.currency || 'CZK',
+        dueDate: proforma.due_date,
+        bankAccount: issuer?.bank_account || '',
+        iban: issuer?.iban || '',
+        swift: issuer?.swift || '',
+        bankName: issuer?.bank_name || '',
+        proformaNumber: proforma.number,
+        pdf,
+      });
+    } catch (err) {
+      fastify.log.error({ err }, 'Platební údaje k objednávce se nepodařilo sestavit');
+      return reply.code(503).send({ error: 'Platební údaje nejsou k dispozici' });
+    }
+  });
+
   // ── Admin: Seznam objednávek ───────────────────────────────
 
   fastify.get('/ucetnictvi/objednavky', async (request, reply) => {
@@ -575,8 +664,12 @@ export default async function toneracekRoutes(fastify) {
             // u Packety a hned zavolá PATCH /orders/:id/tracking), takže tady
             // je k dispozici a jde ven jedním e-mailem spolu s fakturou.
             const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary });
+            // Bez brandu by tenhle e-mail — nejdůležitější zpráva celé
+            // objednávky — odešel jako SEIL s.r.o. <noreply@seil.cz>, tedy
+            // od firmy, o které zákazník e-shopu nikdy neslyšel.
+            const brand = await brandForShopId(order.shop_id);
             await sendInvoiceEmail({
-              invoice, issuer, email: order.email, pdfBuffer,
+              invoice, issuer, brand, email: order.email, pdfBuffer,
               trackingNumber: order.tracking_number || undefined,
               subject: order.tracking_number
                 ? `Objednávka #${order.order_number} vyřízena a předána dopravci`
@@ -595,19 +688,23 @@ export default async function toneracekRoutes(fastify) {
 
     await sql`UPDATE shop_orders SET status = ${status}, modified_at = NOW() WHERE id = ${order.id}`;
 
-    // Ruční email o stavu. U "Vyřízena" se neposílá – tam už výše odešel
-    // jeden e-mail s fakturou i sledovacím číslem, druhý by byl duplicita.
-    if ((send_email === 'on' || send_email === '1') && status !== 'Vyřízena') {
+    // Zákazníka o stavu vyrozumí e-mail jen u storna.
+    //
+    // "Vyřízena" hlásí e-mail s fakturou a sledovacím číslem výš. "Přijata"
+    // by duplikovala děkovný e-mail z e-shopu — a přišla by z druhé identity
+    // o pár minut později, což byla ta nejviditelnější stopa "dva systémy".
+    if ((send_email === 'on' || send_email === '1') && status === 'Stornována' && order.email) {
       try {
-        await sendOrderStatusEmail({
+        const [company] = await sql`SELECT * FROM company_settings LIMIT 1`;
+        await sendOrderCancelledEmail({
+          brand: await brandForShopId(order.shop_id),
+          issuer: company || {},
           orderNumber: order.order_number,
           email: order.email,
-          customerName: `${order.first_name} ${order.last_name}`.trim() || 'zákazníku',
-          status,
-          trackingNumber: order.tracking_number || undefined,
+          customerName: `${order.first_name} ${order.last_name}`.trim(),
         });
       } catch (err) {
-        fastify.log.error({ err }, 'Chyba při odesílání emailu o stavu objednávky');
+        fastify.log.error({ err }, 'Chyba při odesílání e-mailu o stornu objednávky');
       }
     }
 

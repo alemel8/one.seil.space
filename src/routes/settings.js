@@ -1,5 +1,6 @@
 import { getDb, generateId } from '../db.js';
 import { renderSeriesNumber } from '../series-format.js';
+import { invalidateBrandCache, shopBrand } from '../brand.js';
 
 export default async function settingsRoutes(fastify) {
   const sql = getDb();
@@ -205,7 +206,80 @@ export default async function settingsRoutes(fastify) {
       pageTitle: shop.name, currentPath: '/nastaveni/eshopy',
       user: request.user, shop, checks, keys, channels, rules,
       saved: request.query.saved === '1', newKey: request.query.newKey || null,
+      error: request.query.error || null,
     }, { layout: 'layouts/base.ejs' });
+  });
+
+  // ── Identita e-mailů e-shopu ─────────────────────────────────
+  //
+  // Odesílatel, barvy a kontakty pro zákaznické e-maily. Do migrace 030 to
+  // byly konstanty v kódu, takže druhý e-shop by posílal svá storna jako
+  // Toneráček.
+
+  fastify.post('/nastaveni/eshopy/:id/identita', async (request, reply) => {
+    const b = request.body || {};
+    const shopId = parseInt(request.params.id, 10);
+    if (!shopId) return reply.code(400).send('Neplatný eshop');
+
+    const from = (b.email_from_address || '').trim().toLowerCase();
+    // Stejná podmínka hlídá i CHECK constraint v migraci 030 — tohle jen
+    // vrátí srozumitelnou chybu místo pádu na databázi.
+    if (from.endsWith('@seil.cz')) {
+      return reply.redirect(`/nastaveni/eshopy/${shopId}?error=firemni-adresa`);
+    }
+
+    await sql`
+      UPDATE shops SET
+        email_from_name       = ${(b.email_from_name       ||'').trim()},
+        email_from_address    = ${from},
+        email_reply_to        = ${(b.email_reply_to        ||'').trim()},
+        support_email         = ${(b.support_email         ||'').trim()},
+        support_phone         = ${(b.support_phone         ||'').trim()},
+        support_phone_link    = ${(b.support_phone_link    ||'').trim()},
+        tagline               = ${(b.tagline               ||'').trim()},
+        claim                 = ${(b.claim                 ||'').trim()},
+        logo_mark_url         = ${(b.logo_mark_url         ||'').trim()},
+        logo_wordmark_url     = ${(b.logo_wordmark_url     ||'').trim()},
+        color_primary         = ${(b.color_primary         ||'').trim()},
+        color_primary_dark    = ${(b.color_primary_dark    ||'').trim()},
+        color_primary_light   = ${(b.color_primary_light   ||'').trim()},
+        color_on_primary_soft = ${(b.color_on_primary_soft ||'').trim()}
+      WHERE id = ${shopId}
+    `;
+    invalidateBrandCache(shopId);
+    return reply.redirect(`/nastaveni/eshopy/${shopId}?saved=1`);
+  });
+
+  // Náhled bez odesílání — ať se barvy a loga dají zkontrolovat v prohlížeči
+  // dřív, než odejdou zákazníkovi.
+  fastify.get('/nastaveni/eshopy/:id/nahled-emailu', async (request, reply) => {
+    const { emailShell, banner, infoBlock, infoRow } = await import('../email-templates.js');
+    const [issuer] = await sql`SELECT * FROM company_settings LIMIT 1`;
+
+    let brand;
+    try {
+      brand = await shopBrand(parseInt(request.params.id, 10));
+    } catch (err) {
+      return reply.code(400).type('text/plain; charset=utf-8').send(err.message);
+    }
+
+    const html = emailShell({
+      brand, issuer: issuer || {},
+      title: 'Náhled e-mailu',
+      bannerHtml: banner({
+        tone: 'green', icon: '✅',
+        title: 'Objednávka #10001 vyřízena', subtitle: 'Zásilka je na cestě',
+      }),
+      body: `
+        <p style="font-size:15px;color:#334155;margin:0 0 16px">Dobrý den,</p>
+        <p style="font-size:14px;color:#475569;line-height:1.6;margin:0 0 20px">
+          takhle vypadá e-mail, který zákazníkovi odešle One SEIL jménem e-shopu
+          <strong>${brand.name}</strong>.
+        </p>
+        ${infoBlock('Faktura', infoRow('Číslo faktury', 'FV-2026-10001') + infoRow('Celkem k úhradě', '<strong>1 085,00 Kč</strong>'))}`,
+    });
+
+    return reply.type('text/html; charset=utf-8').send(html);
   });
 
   // ── Účetní osnova (číselník účtů MD/D) ───────────────────────

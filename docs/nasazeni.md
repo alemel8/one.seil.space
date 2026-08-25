@@ -18,8 +18,9 @@ Viz `.env.example` pro kompletní přehled. Klíčové proměnné:
 | `SESSION_SECRET` | Min. 32 znaků, náhodný řetězec |
 | `COOKIE_SECURE` | `true` v produkci za HTTPS |
 | `RESEND_API_KEY` | API klíč pro odesílání e-mailů |
-| `MAIL_FROM` | Odesílatel faktur a upomínek (`SEIL s.r.o. <noreply@seil.cz>`) |
+| `MAIL_FROM` | Odesílatel **firemní** pošty (`SEIL s.r.o. <noreply@seil.cz>`). Zákaznické e-maily e-shopů se odsud neberou — identitu mají v tabulce `shops`. |
 | `MAIL_REPLY_TO` | Kam chodí odpovědi klientů (`obchod@seil.cz`) |
+| `SHOP_SENDS_PAYMENT_EMAIL` | Přechodový přepínač: `1` = zálohovou fakturu už neposílá Seil, ale e-shop v potvrzení objednávky. Zapnout až po nasazení e-shopu. |
 | `ANTHROPIC_API_KEY` | Claude API pro AI analýzu účtenek |
 | `VAPID_PUBLIC_KEY` | Web Push public key |
 | `VAPID_PRIVATE_KEY` | Web Push private key |
@@ -35,7 +36,9 @@ node -e "import('web-push').then(wp => { const k = wp.default.generateVAPIDKeys(
 ### Ověření odesílání e-mailů
 
 Doména v `MAIL_FROM` musí být ověřená v Resendu (SPF + DKIM), jinak API zprávy
-odmítne. Kontrola nastavení bez odeslání:
+odmítne. **Totéž platí pro doménu každého e-shopu** (`noreply@toneracek.cz`, …),
+která se ověřuje ve stejném Resend účtu — bez ověření dostane zákazník místo
+potvrzení objednávky chybu. Kontrola nastavení bez odeslání:
 
 ```bash
 node scripts/test-email.js                    # v produkčním kontejneru

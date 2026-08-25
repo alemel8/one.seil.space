@@ -1,6 +1,7 @@
 import { getDb, generateId } from '../db.js';
 import { renderInvoicePdf } from '../pdf.js';
 import { sendInvoiceEmail, sendReminderEmail } from '../email.js';
+import { brandForShopId } from '../brand.js';
 import { buildPohodaXml } from '../pohoda.js';
 import Anthropic from '@anthropic-ai/sdk';
 import path from 'node:path';
@@ -215,9 +216,10 @@ async function deliverReminder(sql, { invoice, email, level, reminderId = null, 
     const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary: calcVatSummary(items) });
 
     ({ subject } = await sendReminderEmail({
-      invoice, issuer, email, pdfBuffer, level, daysOverdue: overdue,
+      invoice, issuer, brand: await brandForShopId(invoice.shop_id),
+      email, pdfBuffer, level, daysOverdue: overdue,
       paymentDetails: {
-        accountNumber:  issuer.bank_account || '',
+        bankAccount:    issuer.bank_account || '',
         iban:           issuer.iban || '',
         variableSymbol: invoiceVs(invoice.number),
       },
@@ -646,14 +648,15 @@ export default async function invoicesRoutes(fastify) {
     const items = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${invoice.id} ORDER BY id`;
     const issuer = await getIssuer(sql);
     const vatSummary = calcVatSummary(items);
-    const subject = `Faktura ${invoice.number} — ${issuer.name}`;
+    const brand = await brandForShopId(invoice.shop_id);
+    const subject = `Faktura ${invoice.number} — ${brand ? brand.name : issuer.name}`;
 
     try {
       const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary });
       await sendInvoiceEmail({
-        invoice, issuer, email, pdfBuffer, subject,
+        invoice, issuer, brand, email, pdfBuffer, subject,
         paymentDetails: {
-          accountNumber:  issuer.bank_account || '',
+          bankAccount:    issuer.bank_account || '',
           iban:           issuer.iban || '',
           variableSymbol: invoiceVs(invoice.number),
         },

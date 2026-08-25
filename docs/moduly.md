@@ -285,6 +285,7 @@ Typy firem: Zákazník, Dodavatel, Partner, Jiný. Každý kontakt může mít m
 | `GET /api/toneracek/orders/by-number/:n` | Detail objednávky (autorizace přes `?email=`) |
 | `PATCH /api/toneracek/orders/:id/payment-status` | Stav platby ze Stripe webhooků |
 | `PATCH /api/toneracek/orders/:id/payment-method` | Změna způsobu platby po neúspěšné kartě |
+| `GET /api/toneracek/orders/:id/payment-details` | Variabilní symbol, účet a zálohová faktura pro e-shop |
 | `PATCH /api/toneracek/orders/:id/tracking` | Aktualizace tracking čísla |
 | `GET /ucetnictvi/objednavky` | Seznam objednávek Toneráček |
 | `GET /ucetnictvi/objednavky/:id` | Detail objednávky |
@@ -533,9 +534,36 @@ Vše admin-only.
 | `GET/POST /nastaveni/firma` | Údaje firmy (ICO, DIČ, adresa, banka, fakturační poznámka) |
 | `GET/POST /nastaveni/ciselne-rady` | Číselné řady pro faktury (prefix, rok, padding) |
 | `GET/POST /nastaveni/eshopy` | E-shopy + správa API klíčů |
+| `POST /nastaveni/eshopy/:id/identita` | Identita e-shopu v e-mailech |
+| `GET /nastaveni/eshopy/:id/nahled-emailu` | Náhled šablony bez odeslání |
 | `GET/POST /nastaveni/ucetni-osnova` | Číselník účtů (MD/D pro předkontaci) |
 | `GET /api/accounting-chart` | API: účty pro autocomplete |
 | `POST /api/invoice-series/:id/next` | API: generování čísla faktury |
+
+### Identita e-shopu v e-mailech
+
+Odesílatel, barvy, loga a kontakty pro zákaznické e-maily jsou sloupce tabulky
+`shops` (migrace 030), čte je `shopBrand()` v `src/brand.js`. Přidat další
+e-shop tak znamená vyplnit formulář, ne sáhnout do šablon.
+
+Dvě pravidla, na kterých to stojí:
+
+- **`company_settings` je vystavovatel dokladu, ne identita e-mailu.** SEIL
+  s.r.o. se zákazníkovi ukáže v hlavičce PDF faktury a jako drobná řádka
+  o prodávajícím pod patičkou. Odesílatelem zákaznického e-mailu není nikdy.
+- **Chybějící identita znamená neodeslat.** `shopBrand()` vyhodí
+  `BrandIncompleteError` a e-mail neodejde. Neodeslaný jde poslat ručně
+  z administrace; prozrazenou cizí identitu vzít zpět nejde. Hlídá to jednak
+  hrdlo `deliver()` v `src/email.js`, jednak CHECK constraint v migraci 030.
+
+Zákazníkovi e-shopu chodí ze Seilu tři e-maily: faktura po vyřízení objednávky
+(s sledovacím číslem), storno a upomínka. Všechny v identitě e-shopu a přes
+společnou šablonu v `src/email-templates.js`, která kopíruje tvar e-mailů
+z e-shopu — zákazník nemá poznat, který systém zprávu odeslal.
+
+Upomínka má u zákazníka e-shopu mírnější dvoustupňový text. Předžalobní výzva
+spotřebiteli kvůli neuhrazené záloze za toner je právně neobratná; nezaplacená
+záloha se u B2C řeší stornem objednávky.
 
 ---
 

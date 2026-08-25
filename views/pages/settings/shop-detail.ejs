@@ -10,6 +10,12 @@
 <div class="alert alert-success" style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:12px 16px;border-radius:8px;margin-bottom:20px;">✓ Uloženo</div>
 <% } %>
 
+<% if (typeof error !== 'undefined' && error === 'firemni-adresa') { %>
+<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+  Odesílatel e-shopu nesmí být na doméně <code>seil.cz</code> — zákazník by dostal e-mail od firmy, kterou nezná.
+</div>
+<% } %>
+
 <% if (newKey) { %>
 <div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:16px;margin-bottom:20px;">
   <strong>Nový API klíč (zobrazí se pouze jednou!):</strong><br>
@@ -20,6 +26,91 @@
 <div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;">
 
   <div style="display:flex;flex-direction:column;gap:20px;">
+
+    <!-- Identita e-mailů -->
+    <div class="card">
+      <div class="card-header">Identita e-mailů</div>
+      <div class="card-body">
+        <p style="font-size:13px;color:var(--text-muted);margin:0 0 16px;">
+          Odsud se berou odesílatel, barvy a kontakty ve všech e-mailech, které
+          tomuhle e-shopu chodí zákazníkům — potvrzení objednávky, faktura
+          i storno. Zákazník nemá poznat, že část z nich odesílá One SEIL.
+        </p>
+
+        <% if (!shop.email_from_address || !shop.email_from_name) { %>
+        <div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:13px;">
+          <strong>Identita není vyplněná.</strong> Dokud tu nebude odesílatel,
+          zákaznické e-maily tohohle e-shopu se neodešlou — raději nic než
+          zpráva od cizí firmy.
+        </div>
+        <% } %>
+
+        <form method="post" action="/nastaveni/eshopy/<%= shop.id %>/identita">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+            <div class="form-group">
+              <label class="form-label required">Odesílatel — jméno</label>
+              <input type="text" name="email_from_name" class="form-control" value="<%= shop.email_from_name %>" placeholder="Toneráček.cz" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label required">Odesílatel — adresa</label>
+              <input type="email" name="email_from_address" class="form-control" value="<%= shop.email_from_address %>" placeholder="noreply@toneracek.cz" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Odpovědi na</label>
+              <input type="email" name="email_reply_to" class="form-control" value="<%= shop.email_reply_to %>" placeholder="ahoj@toneracek.cz">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Kontaktní e-mail</label>
+              <input type="email" name="support_email" class="form-control" value="<%= shop.support_email %>" placeholder="ahoj@toneracek.cz">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Telefon (zobrazený)</label>
+              <input type="text" name="support_phone" class="form-control" value="<%= shop.support_phone %>" placeholder="728 749 931">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Telefon (odkaz tel:)</label>
+              <input type="text" name="support_phone_link" class="form-control" value="<%= shop.support_phone_link %>" placeholder="+420728749931">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Podtitul v hlavičce</label>
+              <input type="text" name="tagline" class="form-control" value="<%= shop.tagline %>" placeholder="Správná náplň pro vaši tiskárnu">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Claim v patičce</label>
+              <input type="text" name="claim" class="form-control" value="<%= shop.claim %>" placeholder="Nenechte tiskárnu žíznit">
+            </div>
+            <div class="form-group" style="grid-column:1 / -1;">
+              <label class="form-label">Logo v hlavičce (URL)</label>
+              <input type="url" name="logo_mark_url" class="form-control" value="<%= shop.logo_mark_url %>">
+            </div>
+            <div class="form-group" style="grid-column:1 / -1;">
+              <label class="form-label">Logo v patičce (URL)</label>
+              <input type="url" name="logo_wordmark_url" class="form-control" value="<%= shop.logo_wordmark_url %>">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Hlavní barva</label>
+              <input type="text" name="color_primary" class="form-control" value="<%= shop.color_primary %>" placeholder="#0891b2">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Přechod — tmavší</label>
+              <input type="text" name="color_primary_dark" class="form-control" value="<%= shop.color_primary_dark %>" placeholder="#0e7490">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Přechod — světlejší</label>
+              <input type="text" name="color_primary_light" class="form-control" value="<%= shop.color_primary_light %>" placeholder="#06b6d4">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Podtitul na barvě</label>
+              <input type="text" name="color_on_primary_soft" class="form-control" value="<%= shop.color_on_primary_soft %>" placeholder="#cffafe">
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;margin-top:14px;">
+            <button type="submit" class="btn btn-primary">Uložit identitu</button>
+            <a href="/nastaveni/eshopy/<%= shop.id %>/nahled-emailu" target="_blank" class="btn">Náhled e-mailu</a>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <!-- Healthchecky -->
     <div class="card">
