@@ -282,6 +282,9 @@ Typy firem: Zákazník, Dodavatel, Partner, Jiný. Každý kontakt může mít m
 | Route | Popis |
 |---|---|
 | `POST /api/toneracek/orders` | Příjem objednávky (Bearer token auth) |
+| `GET /api/toneracek/orders/by-number/:n` | Detail objednávky (autorizace přes `?email=`) |
+| `PATCH /api/toneracek/orders/:id/payment-status` | Stav platby ze Stripe webhooků |
+| `PATCH /api/toneracek/orders/:id/payment-method` | Změna způsobu platby po neúspěšné kartě |
 | `PATCH /api/toneracek/orders/:id/tracking` | Aktualizace tracking čísla |
 | `GET /ucetnictvi/objednavky` | Seznam objednávek Toneráček |
 | `GET /ucetnictvi/objednavky/:id` | Detail objednávky |

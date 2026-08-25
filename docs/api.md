@@ -117,6 +117,10 @@ Zákazníci e-shopu registrovaní přes CRM.
 ### POST /api/toneracek/orders
 Struktura shodná s `/api/v1/orders` s drobnými odchylkami v názvech polí.
 
+Volitelné `status` nastaví výchozí stav objednávky (bez něj „Přijata“).
+E-shop ho posílá jako `"Čeká na platbu"` u plateb kartou — objednávka je do
+potvrzení platby jen rezervací.
+
 **Response 200:**
 ```json
 {
@@ -125,6 +129,38 @@ Struktura shodná s `/api/v1/orders` s drobnými odchylkami v názvech polí.
   "invoiceNumber": "FV-2026-10001"
 }
 ```
+
+---
+
+### PATCH /api/toneracek/orders/:id/payment-status
+Změna stavu platby. E-shop sem zapisuje „Zaplaceno“ / „Platba se nezdařila“
+podle Stripe webhooků.
+
+**Body:** `{ "status": "Zaplaceno" }`
+
+---
+
+### PATCH /api/toneracek/orders/:id/payment-method
+Změna způsobu platby u už založené objednávky. Volá e-shop, když zákazník po
+neúspěšné platbě kartou přepne na QR / převod / dobírku.
+
+**Body:**
+```json
+{
+  "paymentMethod": "transfer",
+  "totalPrice": 1085,
+  "status": "Přijata"
+}
+```
+
+`paymentMethod` je `card` | `transfer` | `cod`. `totalPrice` a `status` jsou
+volitelné — bez nich se nemění. Přepnutí na převod vystaví a odešle zálohovou
+fakturu stejně jako objednávka, která s převodem přišla rovnou z pokladny
+(druhou zálohovku k téže objednávce nevystaví).
+
+> Mění se stávající objednávka, ne nová: každá objednávka spotřebuje číslo
+> v účetní řadě a DELETE endpoint neexistuje, takže „objednej znovu jinou
+> platbou“ by po každé odmítnuté kartě nechalo v účetnictví mrtvou duplicitu.
 
 ---
 

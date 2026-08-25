@@ -231,6 +231,56 @@ export default async function toneracekRoutes(fastify) {
     return reply.send({ ok: true });
   });
 
+  // ── Zálohová faktura k objednávce placené převodem ─────────
+  //
+  // Vystaví se a odešle při přijetí objednávky, a taky když zákazník přepne
+  // na převod dodatečně (po neúspěšné platbě kartou). Druhou zálohovku
+  // k téže objednávce nevystavuje.
+  async function issueProformaForOrder(orderId) {
+    try {
+      const [order] = await sql`SELECT * FROM shop_orders WHERE id = ${orderId}`;
+      if (!order) return;
+
+      const [existing] = await sql`
+        SELECT id FROM accounting_invoices WHERE order_id = ${orderId} AND type = 'proforma' LIMIT 1
+      `;
+      if (existing) return;
+
+      const { generateProformaForOrder } = await import('./invoices.js');
+      const { renderInvoicePdf } = await import('../pdf.js');
+      const { sendInvoiceEmail } = await import('../email.js');
+
+      const proforma = await generateProformaForOrder(sql, order);
+
+      const proformaItems = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${proforma.id}`;
+      const [issuer] = await sql`SELECT * FROM company_settings LIMIT 1`;
+      const vatMap = {};
+      for (const it of proformaItems) {
+        const r = it.vat_rate;
+        if (!vatMap[r]) vatMap[r] = { rate: r, base: 0, vat: 0 };
+        vatMap[r].base += Number(it.amount);
+        vatMap[r].vat  += Number(it.vat_amount);
+      }
+      const pdfBuffer = await renderInvoicePdf({ invoice: proforma, items: proformaItems, issuer: issuer || {}, vatSummary: Object.values(vatMap) });
+
+      if (order.email) {
+        await sendInvoiceEmail({
+          invoice: proforma, issuer: issuer || {}, email: order.email, pdfBuffer,
+          from: 'Toneráček.cz <ahoj@toneracek.cz>',
+          subject: `Zálohová faktura ${proforma.number} k objednávce #${order.order_number}`,
+          intro: `děkujeme za objednávku č. <strong>${order.order_number}</strong>. V příloze naleznete zálohovou fakturu — po jejím uhrazení vám vystavíme a zašleme běžnou fakturu.`,
+          paymentDetails: {
+            accountNumber: issuer?.bank_account || '',
+            iban: issuer?.iban || '',
+            variableSymbol: proforma.number.replace(/[^0-9]/g, ''),
+          },
+        });
+      }
+    } catch (err) {
+      fastify.log.error({ err }, 'Chyba při vystavení/odeslání zálohové faktury');
+    }
+  }
+
   // ── API: Příjem nové objednávky z e-shopu ──────────────────
 
   fastify.post('/api/toneracek/orders', async (request, reply) => {
@@ -244,7 +294,7 @@ export default async function toneracekRoutes(fastify) {
     const shopId = await getToneracekShopId(sql);
     if (!shopId) return reply.code(500).send({ error: 'Toneráček shop není nakonfigurován' });
 
-    const { customer, shipping, paymentMethod, items, totalPrice, ipAddress } = b;
+    const { customer, shipping, paymentMethod, items, totalPrice, ipAddress, status } = b;
 
     // Číslo objednávky — výchozí číselná řada eshopu (pokud nastavena), jinak per-shop sekvence
     const [orderSeries] = await sql`
@@ -278,7 +328,7 @@ export default async function toneracekRoutes(fastify) {
         pickup_point_id, pickup_point_name,
         total_price, invoice_number, ip_address
       ) VALUES (
-        ${orderId}, ${shopId}, ${orderNumber}, 'Přijata',
+        ${orderId}, ${shopId}, ${orderNumber}, ${status || 'Přijata'},
         ${PAYMENT_LABELS[paymentMethod] ?? paymentMethod ?? ''},
         ${shipping?.method ?? 'Zásilkovna'},
         ${customer.firstName??''}, ${customer.lastName??''},
@@ -324,41 +374,7 @@ export default async function toneracekRoutes(fastify) {
 
     // Platba převodem: rovnou vystavit a odeslat zálohovou fakturu s platebními údaji
     if (PAYMENT_LABELS[paymentMethod] === 'Bankovní převod') {
-      try {
-        const { generateProformaForOrder } = await import('./invoices.js');
-        const { renderInvoicePdf } = await import('../pdf.js');
-        const { sendInvoiceEmail } = await import('../email.js');
-
-        const [freshOrder] = await sql`SELECT * FROM shop_orders WHERE id = ${orderId}`;
-        const proforma = await generateProformaForOrder(sql, freshOrder);
-
-        const proformaItems = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${proforma.id}`;
-        const [issuer] = await sql`SELECT * FROM company_settings LIMIT 1`;
-        const vatMap = {};
-        for (const it of proformaItems) {
-          const r = it.vat_rate;
-          if (!vatMap[r]) vatMap[r] = { rate: r, base: 0, vat: 0 };
-          vatMap[r].base += Number(it.amount);
-          vatMap[r].vat  += Number(it.vat_amount);
-        }
-        const pdfBuffer = await renderInvoicePdf({ invoice: proforma, items: proformaItems, issuer: issuer || {}, vatSummary: Object.values(vatMap) });
-
-        if (customer.email) {
-          await sendInvoiceEmail({
-            invoice: proforma, issuer: issuer || {}, email: customer.email, pdfBuffer,
-            from: 'Toneráček.cz <ahoj@toneracek.cz>',
-            subject: `Zálohová faktura ${proforma.number} k objednávce #${orderNumber}`,
-            intro: `děkujeme za objednávku č. <strong>${orderNumber}</strong>. V příloze naleznete zálohovou fakturu — po jejím uhrazení vám vystavíme a zašleme běžnou fakturu.`,
-            paymentDetails: {
-              accountNumber: issuer?.bank_account || '',
-              iban: issuer?.iban || '',
-              variableSymbol: proforma.number.replace(/[^0-9]/g, ''),
-            },
-          });
-        }
-      } catch (err) {
-        fastify.log.error({ err }, 'Chyba při vystavení/odeslání zálohové faktury');
-      }
+      await issueProformaForOrder(orderId);
     }
 
     sendPushToAll({
@@ -368,6 +384,44 @@ export default async function toneracekRoutes(fastify) {
     }).catch(() => {});
 
     return reply.send({ orderId, orderNumber, invoiceNumber });
+  });
+
+  // ── API: Změna způsobu platby ──────────────────────────────
+  //
+  // Volá e-shop, když zákazník po neúspěšné platbě kartou přepne na QR /
+  // převod / dobírku. Mění stávající objednávku schválně: každá nová
+  // objednávka spotřebuje číslo v účetní řadě a DELETE endpoint neexistuje,
+  // takže „objednej znovu jinou platbou“ by po každé odmítnuté kartě nechalo
+  // v účetnictví mrtvou duplicitu.
+  fastify.patch('/api/toneracek/orders/:id/payment-method', async (request, reply) => {
+    if (!verifyApiKey(request)) return reply.code(401).send({ error: 'Unauthorized' });
+
+    const { paymentMethod, totalPrice, status } = request.body || {};
+    const label = PAYMENT_LABELS[paymentMethod];
+    if (!label) return reply.code(400).send({ error: 'paymentMethod musí být card, transfer nebo cod' });
+
+    const shopId = await getToneracekShopId(sql);
+    const [order] = await sql`
+      SELECT * FROM shop_orders WHERE id = ${request.params.id} AND shop_id = ${shopId}
+    `;
+    if (!order) return reply.code(404).send({ error: 'Not found' });
+
+    await sql`
+      UPDATE shop_orders SET
+        payment_method = ${label},
+        total_price    = ${totalPrice ?? order.total_price},
+        status         = ${status || order.status},
+        modified_at    = NOW()
+      WHERE id = ${order.id} AND shop_id = ${shopId}
+    `;
+
+    // Převod má nárok na zálohovou fakturu stejně jako objednávka, která
+    // s převodem přišla rovnou z pokladny.
+    if (label === 'Bankovní převod' && order.payment_method !== label) {
+      await issueProformaForOrder(order.id);
+    }
+
+    return reply.send({ ok: true });
   });
 
   // ── API: Aktualizace trackingu ─────────────────────────────
