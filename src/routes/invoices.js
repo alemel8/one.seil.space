@@ -213,7 +213,8 @@ async function deliverReminder(sql, { invoice, email, level, reminderId = null, 
 
   try {
     const items = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${invoice.id} ORDER BY id`;
-    const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary: calcVatSummary(items) });
+    const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary: calcVatSummary(items),
+      brand: await brandForShopId(invoice.shop_id) });
 
     ({ subject } = await sendReminderEmail({
       invoice, issuer, brand: await brandForShopId(invoice.shop_id),
@@ -628,7 +629,8 @@ export default async function invoicesRoutes(fastify) {
     const issuer = await getIssuer(sql);
     const vatSummary = calcVatSummary(items);
 
-    const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary });
+    const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary,
+      brand: await brandForShopId(invoice.shop_id) });
 
     // ?download=1 posílá tlačítko Stáhnout v náhledu dokladu
     const disposition = request.query.download === '1' ? 'attachment' : 'inline';
@@ -649,10 +651,10 @@ export default async function invoicesRoutes(fastify) {
     const issuer = await getIssuer(sql);
     const vatSummary = calcVatSummary(items);
     const brand = await brandForShopId(invoice.shop_id);
-    const subject = `Faktura ${invoice.number} — ${brand ? brand.name : issuer.name}`;
+    const subject = `Faktura ${invoice.number} od ${brand ? brand.name : issuer.name}`;
 
     try {
-      const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary });
+      const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary, brand });
       await sendInvoiceEmail({
         invoice, issuer, brand, email, pdfBuffer, subject,
         paymentDetails: {

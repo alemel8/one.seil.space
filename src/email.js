@@ -95,6 +95,27 @@ export function packetaTrackingUrl(trackingNumber) {
   return `https://tracking.packeta.com/cs/${/^[A-Za-z]/.test(id) ? id : 'Z' + id}`;
 }
 
+/**
+ * Adresa obrázku s QR platbou (SPAYD).
+ *
+ * Generuje ji e-shop na `/api/qr`, ne Seil: QR musí být veřejně dostupný
+ * obrázek, protože Gmail zahazuje `data:` v `<img>`, a e-shop takový endpoint
+ * už má a drží doménu, ze které e-mail odchází. Pro e-shop bez `/api/qr` se
+ * prostě nevykreslí — proto jen doplněk pod platebními údaji, nikdy jediná
+ * cesta k zaplacení.
+ */
+export function qrPaymentImageUrl(brand, { iban, amount, variableSymbol, message }) {
+  if (!brand?.url || !iban || !amount || !variableSymbol) return undefined;
+  const params = new URLSearchParams({
+    amount: Number(amount).toFixed(2),
+    vs: String(variableSymbol),
+    acc: String(iban),
+    format: 'png',
+  });
+  if (message) params.set('message', message);
+  return `${brand.url}/api/qr?${params.toString()}`;
+}
+
 // ── Storno objednávky ────────────────────────────────────────
 //
 // Jediný stavový e-mail, který zbyl. „Objednávka se zpracovává" duplikovala
@@ -153,7 +174,7 @@ const REMINDER_LEVELS_B2B = {
     color: '#d97706',
   },
   2: {
-    subject: (n) => `Upomínka — neuhrazená faktura ${n}`,
+    subject: (n) => `Upomínka k neuhrazené faktuře ${n}`,
     heading: 'Upomínka k úhradě',
     body: 'evidujeme, že níže uvedená faktura zůstává i přes naše upozornění neuhrazena. Prosíme o její úhradu v nejbližším možném termínu.',
     color: '#ea580c',
@@ -176,7 +197,7 @@ const REMINDER_LEVELS_B2C = {
   2: {
     subject: (n) => `Poslední připomenutí platby`,
     heading: 'Poslední připomenutí',
-    body: 'platba k vaší objednávce nám stále nedorazila. Pokud o zboží už nemáte zájem, nemusíte nic dělat — objednávku po čase stornujeme.',
+    body: 'platba k vaší objednávce nám stále nedorazila. Pokud o zboží už nemáte zájem, nemusíte nic dělat, objednávku po čase stornujeme.',
     color: '#ea580c',
   },
 };
@@ -193,6 +214,20 @@ export async function sendReminderEmail({
   const subject = cfg.subject(invoice.number);
   const attachments = pdfAttachment(invoice, pdfBuffer);
 
+  // Zákazník e-shopu platí z mobilu, takže pod údaji dostane i QR kód.
+  // Firemní klient dostává upomínku do účtárny, kde se platí z výpisu.
+  const payment = paymentDetails && brand
+    ? {
+        ...paymentDetails,
+        qrImageUrl: qrPaymentImageUrl(brand, {
+          iban: paymentDetails.iban,
+          amount: invoice.total_amount,
+          variableSymbol: paymentDetails.variableSymbol,
+          message: `Faktura ${invoice.number}`,
+        }),
+      }
+    : paymentDetails;
+
   const rows = [
     infoRow('Číslo faktury', esc(invoice.number)),
     infoRow('Splatnost', czDate(invoice.due_date)),
@@ -204,7 +239,7 @@ export async function sendReminderEmail({
         <p style="font-size:15px;color:#334155;margin:0 0 16px">Dobrý den,</p>
         <p style="font-size:14px;color:#475569;line-height:1.6;margin:0 0 20px">${esc(cfg.body)}</p>
         ${infoBlock('Faktura', rows)}
-        ${paymentDetails ? paymentBlock(paymentDetails) : ''}
+        ${payment ? paymentBlock(payment) : ''}
         ${pdfBuffer ? note('Fakturu přikládáme znovu v příloze.') : ''}`;
 
   // Zákazník e-shopu vidí značku e-shopu, firemní klient SEIL.
@@ -254,7 +289,7 @@ ${body}
 export async function sendInvoiceEmail({
   invoice, issuer, brand, email, pdfBuffer, subject, intro, paymentDetails, trackingNumber,
 }) {
-  const emailSubject = subject || `Faktura ${invoice.number} — ${brand ? brand.name : issuer.name}`;
+  const emailSubject = subject || `Faktura ${invoice.number} od ${brand ? brand.name : issuer.name}`;
   const emailIntro = intro || `v příloze zasíláme fakturu č. <strong>${esc(invoice.number)}</strong>.`;
   const attachments = pdfAttachment(invoice, pdfBuffer);
 

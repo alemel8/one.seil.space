@@ -263,8 +263,11 @@ export default async function toneracekRoutes(fastify) {
       vatMap[r].base += Number(it.amount);
       vatMap[r].vat  += Number(it.vat_amount);
     }
+    // Zálohovka je pořád k úhradě, takže platební instrukce zůstávají —
+    // mění se jen značka v záhlaví, aby doklad zákazník poznal.
     return renderInvoicePdf({
       invoice: proforma, items, issuer: issuer || {}, vatSummary: Object.values(vatMap),
+      brand: await brandForShopId(proforma.shop_id),
     });
   }
 
@@ -302,7 +305,7 @@ export default async function toneracekRoutes(fastify) {
       await sendInvoiceEmail({
         invoice: proforma, issuer: issuer || {}, brand, email: order.email, pdfBuffer,
         subject: `Zálohová faktura ${proforma.number} k objednávce #${order.order_number}`,
-        intro: `děkujeme za objednávku č. <strong>${order.order_number}</strong>. V příloze naleznete zálohovou fakturu — po jejím uhrazení vám vystavíme a zašleme běžnou fakturu.`,
+        intro: `děkujeme za objednávku č. <strong>${order.order_number}</strong>. V příloze naleznete zálohovou fakturu. Po jejím uhrazení vám vystavíme a zašleme běžnou fakturu.`,
         paymentDetails: {
           bankAccount: issuer?.bank_account || '',
           iban: issuer?.iban || '',
@@ -341,7 +344,21 @@ export default async function toneracekRoutes(fastify) {
     let orderNumber;
     if (orderSeries) {
       const [updated] = await sql`UPDATE invoice_number_series SET current_number = current_number + 1 WHERE id = ${orderSeries.id} RETURNING *`;
-      orderNumber = renderSeriesNumber(updated);
+      // Formát s náhodnými číslicemi (token X, např. YYMMXXXX) nenese pořadí,
+      // takže si dvě objednávky ve stejném měsíci mohou vylosovat totéž číslo.
+      // UNIQUE (shop_id, order_number) by to zachytil až výjimkou v INSERTu,
+      // tedy chybou u zákazníka v pokladně — levnější je přelosovat.
+      const random = /X/.test(updated.format || '');
+      for (let attempt = 0; attempt < (random ? 10 : 1); attempt++) {
+        const candidate = renderSeriesNumber(updated);
+        const [clash] = await sql`
+          SELECT 1 FROM shop_orders WHERE shop_id = ${shopId} AND order_number = ${candidate} LIMIT 1
+        `;
+        if (!clash) { orderNumber = candidate; break; }
+      }
+      if (!orderNumber) {
+        throw new Error(`Nepodařilo se vylosovat volné číslo objednávky v řadě "${updated.name}" (formát ${updated.format}); rozsah je nejspíš vyčerpaný`);
+      }
     } else {
       const [last] = await sql`
         SELECT order_number FROM shop_orders WHERE shop_id = ${shopId}
@@ -663,20 +680,23 @@ export default async function toneracekRoutes(fastify) {
             // Tracking je v DB už od založení objednávky (e-shop podá zásilku
             // u Packety a hned zavolá PATCH /orders/:id/tracking), takže tady
             // je k dispozici a jde ven jedním e-mailem spolu s fakturou.
-            const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary });
             // Bez brandu by tenhle e-mail — nejdůležitější zpráva celé
             // objednávky — odešel jako SEIL s.r.o. <noreply@seil.cz>, tedy
             // od firmy, o které zákazník e-shopu nikdy neslyšel.
             const brand = await brandForShopId(order.shop_id);
+            // Vyřízená objednávka je zaplacená: u převodu proti zálohové
+            // faktuře, u karty a dobírky taky. Doklad proto nese značku
+            // e-shopu a nevyzývá k další platbě.
+            const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary, brand, paid: true });
+            // Vyřízená objednávka je vždycky zároveň předaná dopravci, takže
+            // je to jedna zpráva, ne dvě varianty. Sledovací číslo tu bývá
+            // (e-shop ho pošle hned po podání zásilky), ale když chybí,
+            // zbytek e-mailu dává smysl i bez něj.
             await sendInvoiceEmail({
               invoice, issuer, brand, email: order.email, pdfBuffer,
               trackingNumber: order.tracking_number || undefined,
-              subject: order.tracking_number
-                ? `Objednávka #${order.order_number} vyřízena a předána dopravci`
-                : `Objednávka #${order.order_number} vyřízena — faktura v příloze`,
-              intro: order.tracking_number
-                ? `Vaše objednávka č. <strong>${order.order_number}</strong> byla vyřízena a předána dopravci.<br>V příloze naleznete fakturu, níže sledovací číslo zásilky.`
-                : `Vaše objednávka č. <strong>${order.order_number}</strong> byla úspěšně vyřízena.<br>V příloze naleznete fakturu.`,
+              subject: `Objednávka #${order.order_number} vyřízena a předána dopravci`,
+              intro: `Vaše objednávka č. <strong>${order.order_number}</strong> byla vyřízena a předána dopravci.<br>V příloze naleznete fakturu${order.tracking_number ? ', níže sledovací číslo zásilky' : ''}.`,
             });
             fastify.log.info({ email: order.email, tracking: order.tracking_number || null }, 'Email s fakturou odeslán');
           }

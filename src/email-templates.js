@@ -120,6 +120,13 @@ export const trackingBlock = (brand, trackingNumber, trackingUrl) => `
           ${trackingUrl ? `<div style="margin-top:8px"><a href="${esc(trackingUrl)}" style="color:${brand.color_primary};text-decoration:none;font-size:13px;font-weight:600">Sledovat zásilku →</a></div>` : ''}
         </div>`;
 
+/**
+ * Platební údaje, volitelně s QR kódem pod nimi.
+ *
+ * `qrImageUrl` musí být veřejná adresa obrázku, ne data: URI — Gmail data:
+ * v `<img>` zahazuje, takže vložený QR kód by se u většiny příjemců
+ * nezobrazil. Adresu skládá volající, viz qrPaymentImageUrl() v email.js.
+ */
 export const paymentBlock = (details) => {
   const rows = [
     details.bankAccount ? infoRow('Číslo účtu', esc(details.bankAccount)) : '',
@@ -128,7 +135,18 @@ export const paymentBlock = (details) => {
     details.amount ? infoRow('Částka', esc(details.amount)) : '',
     details.dueDate ? infoRow('Splatnost', esc(details.dueDate)) : '',
   ].filter(Boolean).join('');
-  return infoBlock('Platební údaje', rows);
+
+  const qr = details.qrImageUrl ? `
+          <div style="text-align:center;margin-top:16px;padding-top:16px;border-top:1px solid #e4e4e7">
+            <div style="font-size:12px;color:#64748b;margin-bottom:10px">Platba QR kódem</div>
+            <img src="${esc(details.qrImageUrl)}" alt="QR platba" width="200" height="200" style="border:1px solid #e2e8f0;border-radius:10px;padding:8px;background:#fff" />
+          </div>` : '';
+
+  return `
+        <div style="background:#f4f4f5;border-radius:10px;padding:16px 20px;margin-bottom:20px">
+          ${sectionLabel('Platební údaje')}
+          <table cellpadding="0" cellspacing="0" width="100%">${rows}</table>${qr}
+        </div>`;
 };
 
 /**

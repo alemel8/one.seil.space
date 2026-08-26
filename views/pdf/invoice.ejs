@@ -10,6 +10,9 @@
   /* Hlavička */
   .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:32px; }
   .company-logo { font-size:22pt; font-weight:700; color:#0F7E89; letter-spacing:-0.5px; }
+  .brand-logo { display:flex; align-items:center; gap:10px; }
+  .brand-logo img { height:34px; width:auto; }
+  .brand-logo .brand-name { font-size:20pt; font-weight:700; letter-spacing:-0.5px; }
   .invoice-title { text-align:right; }
   .invoice-title h1 { font-size:18pt; font-weight:700; color:#1a1a1a; margin-bottom:4px; }
   .invoice-title .number { font-size:14pt; color:#0F7E89; font-weight:600; }
@@ -71,14 +74,28 @@
   <!-- Hlavička -->
   <div class="header">
     <div>
-      <div class="company-logo"><%= issuer.name || 'one.seil.space' %></div>
-      <p style="color:#6b7280;font-size:9pt;margin-top:4px;"><%= issuer.address %>, <%= issuer.zip %> <%= issuer.city %></p>
+      <%# Doklad k objednávce nese v záhlaví značku e-shopu, u kterého zákazník
+          nakoupil. Vystavitele (SEIL s.r.o.) uvádí blok Dodavatel níž a patička
+          — je to jeho faktura, ale zákazník ji má poznat podle e-shopu. %>
+      <% if (brand) { %>
+        <div class="brand-logo">
+          <% if (brand.logo_mark_url) { %><img src="<%= brand.logo_mark_url %>" alt=""><% } %>
+          <span class="brand-name" style="color:<%= brand.color_primary || '#0F7E89' %>"><%= brand.name %></span>
+        </div>
+        <p style="color:#6b7280;font-size:9pt;margin-top:4px;"><%= brand.url.replace(/^https?:\/\//, '') %></p>
+      <% } else { %>
+        <div class="company-logo"><%= issuer.name || 'one.seil.space' %></div>
+        <p style="color:#6b7280;font-size:9pt;margin-top:4px;"><%= issuer.address %>, <%= issuer.zip %> <%= issuer.city %></p>
+      <% } %>
     </div>
     <div class="invoice-title">
       <h1><%= invoice.type === 'proforma' ? 'ZÁLOHOVÁ FAKTURA' : 'FAKTURA' %></h1>
       <div class="number"><%= invoice.number %></div>
       <div style="margin-top:8px;">
-        <% if (invoice.status === 'Zaplacena') { %>
+        <%# `paid` posílá volající u faktury k vyřízené objednávce: ta je z
+            definice zaplacená, ať už převodem předem nebo kartou, takže nesmí
+            vyzývat k úhradě. %>
+        <% if (paid || invoice.status === 'Zaplacena') { %>
           <span class="badge-paid">ZAPLACENO</span>
         <% } else if (invoice.status === 'Po splatnosti') { %>
           <span class="badge-overdue">PO SPLATNOSTI</span>
@@ -220,13 +237,16 @@
         <span><%= Number(invoice.vat_amount).toLocaleString('cs-CZ', {minimumFractionDigits:2}) %> <%= invoice.currency || 'Kč' %></span>
       </div>
       <div class="summary-row total">
-        <span>K ÚHRADĚ</span>
+        <span><%= paid || invoice.status === 'Zaplacena' ? 'CELKEM' : 'K ÚHRADĚ' %></span>
         <span><%= Number(invoice.total_amount).toLocaleString('cs-CZ', {minimumFractionDigits:2}) %> <%= invoice.currency || 'Kč' %></span>
       </div>
     </div>
   </div>
 
   <!-- Platební info -->
+  <%# Zaplacený doklad platební instrukce neuvádí. Číslo účtu a variabilní
+      symbol na faktuře, která je vyřízená a uhrazená, svádí k druhé platbě. %>
+  <% if (!(paid || invoice.status === 'Zaplacena')) { %>
   <div class="payment-info">
     <h4>Platební instrukce</h4>
     <div class="payment-info-grid">
@@ -252,6 +272,7 @@
       </div>
     </div>
   </div>
+  <% } %>
 
   <% if (issuer.invoice_note) { %>
   <p style="font-size:9pt;color:#6b7280;margin-bottom:16px;"><%= issuer.invoice_note %></p>

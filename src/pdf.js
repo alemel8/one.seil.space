@@ -34,10 +34,19 @@ async function getBrowser() {
   return _browser;
 }
 
+/**
+ * PDF faktury.
+ *
+ * `data.brand` vykreslí v záhlaví značku e-shopu místo vystavitele, `data.paid`
+ * schová štítek „k úhradě" i platební instrukce. Obojí je volitelné — faktury
+ * mimo e-shop je nemají a vypadají jako dřív.
+ */
 export async function renderInvoicePdf(data) {
   const templatePath = path.join(projectRoot, 'views/pdf/invoice.ejs');
   // VS se počítá tady, aby ho měly stejný všechny cesty k PDF i e-mailu
   const html = await ejs.renderFile(templatePath, {
+    brand: null,
+    paid: false,
     ...data,
     vs: invoiceVs(data.invoice?.number),
   });
