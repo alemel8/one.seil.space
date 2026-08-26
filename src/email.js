@@ -30,6 +30,21 @@ export function companyReplyToFor(issuer) {
 }
 
 /**
+ * Adresy v doménách vyhrazených RFC 2606 nemohou existovat. Odeslat na ně jde
+ * — Resend zprávu přijme a teprve pak nahlásí hard bounce, který jde na účet
+ * reputace naší domény. Osm takových bounces z `noreply@seil.cz` nadělal test
+ * `test/invoices.test.js`, který posílá na `test@example.invalid` proti
+ * běžícímu serveru s ostrým klíčem v prostředí. Levnější je odmítnout je tady
+ * než ve všech volajících.
+ */
+function isUndeliverable(to) {
+  const address = (String(to).match(/<([^>]*)>/)?.[1] ?? String(to)).trim().toLowerCase();
+  const domain = address.split('@')[1] ?? '';
+  return /(^|\.)(test|example|invalid|localhost)$/.test(domain)
+      || /(^|\.)example\.(com|net|org)$/.test(domain);
+}
+
+/**
  * Jediné hrdlo, kterým prochází veškeré odesílání.
  *
  * `audience: 'customer'` znamená zákazníka e-shopu — takový e-mail nesmí
@@ -41,6 +56,10 @@ export function companyReplyToFor(issuer) {
 async function deliver({ audience, from, replyTo, to, subject, html, attachments }) {
   if (audience === 'customer' && /@seil\.cz>?\s*$/i.test(from)) {
     throw new Error(`Zákaznický e-mail se pokusil odejít z firemní adresy: ${from}`);
+  }
+
+  if (isUndeliverable(to)) {
+    throw new Error(`Adresa nemůže existovat, neodesílám: ${to}`);
   }
 
   if (!process.env.RESEND_API_KEY) {
