@@ -253,8 +253,10 @@ export default async function toneracekRoutes(fastify) {
   /** Vyrenderuje PDF zálohové faktury i s rozpisem DPH. */
   async function renderProformaPdf(proforma) {
     const { renderInvoicePdf } = await import('../pdf.js');
+    const { paymentVs } = await import('../series-format.js');
     const items = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${proforma.id}`;
     const [issuer] = await sql`SELECT * FROM company_settings LIMIT 1`;
+    const [ord] = await sql`SELECT order_number FROM shop_orders WHERE id = ${proforma.order_id} LIMIT 1`;
 
     const vatMap = {};
     for (const it of items) {
@@ -268,6 +270,7 @@ export default async function toneracekRoutes(fastify) {
     return renderInvoicePdf({
       invoice: proforma, items, issuer: issuer || {}, vatSummary: Object.values(vatMap),
       brand: await brandForShopId(proforma.shop_id),
+      vs: paymentVs(proforma, ord?.order_number),
     });
   }
 
@@ -297,7 +300,7 @@ export default async function toneracekRoutes(fastify) {
       if (!order.email) return;
 
       const { sendInvoiceEmail } = await import('../email.js');
-      const { invoiceVs } = await import('../series-format.js');
+      const { paymentVs } = await import('../series-format.js');
       const [issuer] = await sql`SELECT * FROM company_settings LIMIT 1`;
       const brand = await brandForShopId(order.shop_id);
       const pdfBuffer = await renderProformaPdf(proforma);
@@ -309,9 +312,11 @@ export default async function toneracekRoutes(fastify) {
         paymentDetails: {
           bankAccount: issuer?.bank_account || '',
           iban: issuer?.iban || '',
-          // invoiceVs, ne všechny číslice čísla faktury: podle téhle hodnoty
-          // tiskne variabilní symbol i PDF v příloze a podle ní páruje banka.
-          variableSymbol: invoiceVs(proforma.number),
+          // Číslo objednávky, ne číslo faktury: zákazník ho zná z děkovné
+          // stránky i z potvrzení. Tentýž symbol tiskne PDF v příloze a nese
+          // QR kód, a podle něj se platba páruje s výpisem.
+          amount: Number(proforma.total_amount),
+          variableSymbol: paymentVs(proforma, order.order_number),
           dueDate: proforma.due_date ? new Date(proforma.due_date).toLocaleDateString('cs-CZ') : '',
         },
       });
@@ -511,7 +516,7 @@ export default async function toneracekRoutes(fastify) {
     }
 
     try {
-      const { invoiceVs } = await import('../series-format.js');
+      const { paymentVs } = await import('../series-format.js');
       // ensure, ne fetch: když eager vystavení při přijetí objednávky spolkl
       // catch, endpoint se zhojí sám místo aby vrátil prázdno.
       const proforma = await ensureProformaForOrder(order);
@@ -529,7 +534,7 @@ export default async function toneracekRoutes(fastify) {
       }
 
       return reply.send({
-        variableSymbol: invoiceVs(proforma.number),
+        variableSymbol: paymentVs(proforma, order.order_number),
         amount: Number(proforma.total_amount),
         currency: proforma.currency || 'CZK',
         dueDate: proforma.due_date,

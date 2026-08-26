@@ -46,3 +46,20 @@ export function invoiceVs(number) {
   const digits = String(number ?? '').replace(/\D/g, '');
   return digits.slice(-10);
 }
+
+/**
+ * Variabilní symbol k úhradě dokladu.
+ *
+ * Zálohová faktura k objednávce e-shopu se platí pod číslem objednávky — to
+ * je jediné číslo, které zákazník zná ještě než mu doklad dorazí, a vidí ho
+ * na děkovné stránce i v potvrzení. Běžná faktura se platí pod svým číslem.
+ *
+ * Pozor: auto-párování v accounting.js hledalo VS jako podřetězec čísla
+ * faktury. Číslo objednávky v čísle zálohovky není, takže tam kvůli téhle
+ * výjimce přibyla druhá větev — přes order_id. Kdo mění tohle, musí projít
+ * i ji, jinak platby přestanou párovat.
+ */
+export function paymentVs(invoice, orderNumber) {
+  if (invoice?.type === 'proforma' && orderNumber) return invoiceVs(orderNumber);
+  return invoiceVs(invoice?.number);
+}

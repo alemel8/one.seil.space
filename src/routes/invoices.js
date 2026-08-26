@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { renderSeriesNumber, invoiceVs } from '../series-format.js';
+import { renderSeriesNumber, paymentVs } from '../series-format.js';
 import { saveAttachment, deleteAttachment, isSupportedMime, markMissingAttachments } from '../attachments.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -210,11 +210,14 @@ async function deliverReminder(sql, { invoice, email, level, reminderId = null, 
   const issuer = await getIssuer(sql);
   const overdue = days ?? daysOverdue(invoice.due_date);
   let subject = `Upomínka k faktuře ${invoice.number}`;
+  // Zálohovku k objednávce zákazník platí pod číslem objednávky, takže i
+  // upomínka musí uvádět tentýž symbol jako původní e-mail a PDF.
+  const [ord] = await sql`SELECT order_number FROM shop_orders WHERE id = ${invoice.order_id} LIMIT 1`;
 
   try {
     const items = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${invoice.id} ORDER BY id`;
     const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary: calcVatSummary(items),
-      brand: await brandForShopId(invoice.shop_id) });
+      brand: await brandForShopId(invoice.shop_id), vs: paymentVs(invoice, ord?.order_number) });
 
     ({ subject } = await sendReminderEmail({
       invoice, issuer, brand: await brandForShopId(invoice.shop_id),
@@ -222,7 +225,7 @@ async function deliverReminder(sql, { invoice, email, level, reminderId = null, 
       paymentDetails: {
         bankAccount:    issuer.bank_account || '',
         iban:           issuer.iban || '',
-        variableSymbol: invoiceVs(invoice.number),
+        variableSymbol: paymentVs(invoice, ord?.order_number),
       },
     }));
 
@@ -652,15 +655,17 @@ export default async function invoicesRoutes(fastify) {
     const vatSummary = calcVatSummary(items);
     const brand = await brandForShopId(invoice.shop_id);
     const subject = `Faktura ${invoice.number} od ${brand ? brand.name : issuer.name}`;
+    const [ord] = await sql`SELECT order_number FROM shop_orders WHERE id = ${invoice.order_id} LIMIT 1`;
 
     try {
-      const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary, brand });
+      const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary, brand,
+        vs: paymentVs(invoice, ord?.order_number) });
       await sendInvoiceEmail({
         invoice, issuer, brand, email, pdfBuffer, subject,
         paymentDetails: {
           bankAccount:    issuer.bank_account || '',
           iban:           issuer.iban || '',
-          variableSymbol: invoiceVs(invoice.number),
+          variableSymbol: paymentVs(invoice, ord?.order_number),
         },
       });
 

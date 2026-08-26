@@ -180,18 +180,38 @@ export default async function accountingRoutes(fastify) {
       const cpAccount  = rec.counterparty_account || rec.counterpartyAccountNumber || '';
       const cpName     = rec.counterparty_name    || rec.counterpartyName    || '';
 
-      // Auto-párování: variabilní symbol = číslo faktury
+      // Auto-párování podle variabilního symbolu.
+      //
+      // Dvě větve, protože doklady nemají jednotný symbol: běžná faktura se
+      // platí pod svým číslem, ale zálohová faktura k objednávce e-shopu pod
+      // číslem objednávky — to je jediné číslo, které zákazník zná dřív, než
+      // mu doklad dorazí. Číslo objednávky v čísle zálohovky není, takže samo
+      // hledání v `number` by tyhle platby nechalo nespárované. Viz
+      // paymentVs() v src/series-format.js.
       let matchedInvoiceId = null;
       if (vs) {
         const vsClean = vs.replace(/\s/g, '');
-        const [inv] = await sql`
+        const [byNumber] = await sql`
           SELECT id FROM accounting_invoices
           WHERE type IN ('issued', 'proforma') AND status != 'Zaplacena'
             AND REPLACE(REPLACE(number, '-', ''), '/', '') LIKE ${'%' + vsClean + '%'}
           LIMIT 1
         `;
-        if (inv) {
-          matchedInvoiceId = inv.id;
+
+        let byOrder;
+        if (!byNumber) {
+          [byOrder] = await sql`
+            SELECT i.id FROM accounting_invoices i
+            JOIN shop_orders o ON o.id = i.order_id
+            WHERE i.type = 'proforma' AND i.status != 'Zaplacena'
+              AND REPLACE(REPLACE(o.order_number, '-', ''), '/', '') = ${vsClean}
+            LIMIT 1
+          `;
+        }
+
+        const hit = byNumber || byOrder;
+        if (hit) {
+          matchedInvoiceId = hit.id;
           matched++;
         }
       }

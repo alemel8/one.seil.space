@@ -293,6 +293,21 @@ export async function sendInvoiceEmail({
   const emailIntro = intro || `v příloze zasíláme fakturu č. <strong>${esc(invoice.number)}</strong>.`;
   const attachments = pdfAttachment(invoice, pdfBuffer);
 
+  // Doklad k úhradě od e-shopu nese QR kód: zákazník platí z mobilu a
+  // přepisovat IBAN a variabilní symbol ručně je nejčastější cesta k platbě,
+  // kterou pak nejde spárovat.
+  const payment = paymentDetails && brand
+    ? {
+        ...paymentDetails,
+        qrImageUrl: qrPaymentImageUrl(brand, {
+          iban: paymentDetails.iban,
+          amount: paymentDetails.amount ?? invoice.total_amount,
+          variableSymbol: paymentDetails.variableSymbol,
+          message: `${invoice.type === 'proforma' ? 'Zálohová faktura' : 'Faktura'} ${invoice.number}`,
+        }),
+      }
+    : paymentDetails;
+
   const summary = [
     infoRow('Číslo faktury', esc(invoice.number)),
     infoRow('Celkem k úhradě', `<strong>${money(invoice.total_amount, invoice.currency)}</strong>`),
@@ -303,7 +318,7 @@ export async function sendInvoiceEmail({
         <p style="font-size:15px;color:#334155;margin:0 0 16px">Dobrý den,</p>
         <p style="font-size:14px;color:#475569;line-height:1.6;margin:0 0 20px">${emailIntro}</p>
         ${infoBlock('Faktura', summary)}
-        ${paymentDetails ? paymentBlock(paymentDetails) : ''}
+        ${payment ? paymentBlock(payment) : ''}
         ${trackingNumber ? trackingBlock(brand ?? { color_primary: '#0891b2' }, trackingNumber, packetaTrackingUrl(trackingNumber)) : ''}
         ${note('Fakturu naleznete v příloze tohoto e-mailu.')}`;
 
