@@ -3,9 +3,15 @@
  *
  * Bez `--smazat` jen vypíše, co by zmizelo — spouštěj vždycky nejdřív takhle.
  *
+ * V produkčním kontejneru bez --env-file: Dockerfile .env maže a proměnné
+ * vkládá Coolify rovnou do prostředí procesu.
+ *
+ *   node scripts/smazat-testovaci-data.js --eshop toneracek
+ *   node scripts/smazat-testovaci-data.js --eshop toneracek --do 2026-08-27 --smazat
+ *
+ * Lokálně, kde .env existuje:
+ *
  *   node --env-file=.env scripts/smazat-testovaci-data.js --eshop toneracek
- *   node --env-file=.env scripts/smazat-testovaci-data.js --eshop toneracek --do 2026-08-27
- *   node --env-file=.env scripts/smazat-testovaci-data.js --eshop toneracek --do 2026-08-27 --smazat
  *
  * Volby:
  *   --eshop <slug>   povinné, aby nešlo omylem sáhnout na cizí e-shop
@@ -36,6 +42,11 @@ const resetSeries = flag('--rady');
 
 if (!shopSlug) {
   console.error('Chybí --eshop <slug>. Například: --eshop toneracek');
+  process.exit(1);
+}
+if (!process.env.DATABASE_URL) {
+  console.error('DATABASE_URL není v prostředí. V kontejneru ji vkládá Coolify,');
+  console.error('lokálně přidej --env-file=.env před jméno skriptu.');
   process.exit(1);
 }
 if (before && Number.isNaN(Date.parse(before))) {
@@ -150,7 +161,7 @@ try {
   if (kOdregistrovani.length) console.log(`  Odregistrováno (kontakt zůstal): ${kOdregistrovani.length}`);
   if (resetSeries) console.log('  Čítače číselných řad e-shopu vynulovány.');
   console.log('\nNa straně e-shopu ještě smaž hesla a tokeny:');
-  console.log('  node scripts/smazat-testovaci-uzivatele.mjs ' + kSmazani.map((c) => c.email).join(' '));
+  console.log('  (v kontejneru e-shopu) node scripts/smazat-testovaci-uzivatele.mjs ' + kSmazani.map((c) => c.email).join(' '));
 } finally {
   await sql.end();
 }
