@@ -209,7 +209,7 @@ export function daysOverdue(dueDate, today = new Date()) {
 async function deliverReminder(sql, { invoice, email, level, reminderId = null, daysOverdue: days, userId, log }) {
   const issuer = await getIssuer(sql);
   const overdue = days ?? daysOverdue(invoice.due_date);
-  let subject = `Upomínka — faktura ${invoice.number}`;
+  let subject = `Upomínka k faktuře ${invoice.number}`;
 
   try {
     const items = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${invoice.id} ORDER BY id`;

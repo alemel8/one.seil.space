@@ -87,7 +87,7 @@ function pdfAttachment(invoice, pdfBuffer) {
 const money = (amount, currency) =>
   `${Number(amount).toLocaleString('cs-CZ', { minimumFractionDigits: 2 })} ${currency || 'Kč'}`;
 
-const czDate = (value) => (value ? new Date(value).toLocaleDateString('cs-CZ') : '—');
+const czDate = (value) => (value ? new Date(value).toLocaleDateString('cs-CZ') : 'neuvedeno');
 
 /** Odkaz na sledování zásilky Packety; čísla bez písmene na začátku mají prefix Z. */
 export function packetaTrackingUrl(trackingNumber) {
@@ -128,7 +128,7 @@ export async function sendOrderCancelledEmail({ brand, issuer, orderNumber, emai
   // Bez značky raději neposlat než poslat od cizí firmy — viz deliver().
   if (!brand) throw new Error(`Objednávka #${orderNumber} nemá značku e-shopu, storno e-mail se neodesílá`);
 
-  const subject = `Objednávka #${orderNumber} – stornována`;
+  const subject = `Objednávka #${orderNumber} byla stornována`;
 
   const contact = brand.support_email
     ? `Máte dotazy? Napište nám na <a href="mailto:${esc(brand.support_email)}" style="color:${brand.color_primary};text-decoration:none">${esc(brand.support_email)}</a>`
