@@ -5,7 +5,7 @@
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size:10pt; color:#1a1a1a; }
-  .page { padding:0; }
+
 
   /* Hlavička */
   .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:32px; }
@@ -54,14 +54,25 @@
   .vat-table td:first-child { text-align:left; }
 
   /* Platební info */
-  .payment-info { background:#E3FBFB; border:1px solid #14E6E6; border-radius:6px; padding:12px 16px; margin-bottom:20px; }
+  .payment-info { background:#E3FBFB; border:1px solid #14E6E6; border-radius:6px; padding:12px 16px; margin-bottom:20px;
+                  display:flex; justify-content:space-between; align-items:flex-start; gap:20px; }
+  .payment-info > .payment-info-body { flex:1; }
+  .payment-qr { text-align:center; flex:0 0 auto; }
+  .payment-qr img { width:90px; height:90px; display:block; }
+  .payment-qr-label { font-size:8pt; color:#6b7280; margin-top:3px; }
   .payment-info h4 { color:#0F7E89; font-size:9pt; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; }
   .payment-info-grid { display:grid; grid-template-columns:1fr 1fr; gap:4px 20px; }
   .payment-info-grid div { font-size:9.5pt; }
   .payment-info-grid .label { color:#6b7280; font-size:8.5pt; }
 
-  /* Patička */
-  .footer { margin-top:32px; padding-top:12px; border-top:1px solid #e5e7eb; font-size:8.5pt; color:#9ca3af; text-align:center; }
+  /* Patička
+     position:fixed ji Chrome při tisku zopakuje na spodku každé stránky.
+     Obsah nad ní si drží odstup přes padding-bottom na .page, jinak by na
+     plné stránce poslední řádek tabulky zmizel pod ní. */
+  .footer { position:fixed; bottom:0; left:0; right:0;
+            padding-top:10px; border-top:1px solid #e5e7eb;
+            font-size:8.5pt; color:#9ca3af; text-align:center; background:#fff; }
+  .page { padding-bottom:26mm; }
 
   .badge-paid { display:inline-block; background:#dcfce7; color:#166534; padding:2px 8px; border-radius:4px; font-size:9pt; font-weight:600; }
   .badge-unpaid { display:inline-block; background:#fef3c7; color:#92400e; padding:2px 8px; border-radius:4px; font-size:9pt; font-weight:600; }
@@ -82,7 +93,6 @@
           <% if (brand.logo_mark_url) { %><img src="<%= brand.logo_mark_url %>" alt=""><% } %>
           <span class="brand-name" style="color:<%= brand.color_primary || '#0F7E89' %>"><%= brand.name %></span>
         </div>
-        <p style="color:#6b7280;font-size:9pt;margin-top:4px;"><%= brand.url.replace(/^https?:\/\//, '') %></p>
       <% } else { %>
         <div class="company-logo"><%= issuer.name || 'one.seil.space' %></div>
         <p style="color:#6b7280;font-size:9pt;margin-top:4px;"><%= issuer.address %>, <%= issuer.zip %> <%= issuer.city %></p>
@@ -248,6 +258,7 @@
       symbol na faktuře, která je vyřízená a uhrazená, svádí k druhé platbě. %>
   <% if (!(paid || invoice.status === 'Zaplacena')) { %>
   <div class="payment-info">
+    <div class="payment-info-body">
     <h4>Platební instrukce</h4>
     <div class="payment-info-grid">
       <div>
@@ -271,6 +282,13 @@
         <div><strong><%= vs || invoice.number %></strong></div>
       </div>
     </div>
+    </div>
+    <% if (qrDataUri) { %>
+    <div class="payment-qr">
+      <img src="<%= qrDataUri %>" alt="QR platba">
+      <div class="payment-qr-label">QR platba</div>
+    </div>
+    <% } %>
   </div>
   <% } %>
 
@@ -278,11 +296,21 @@
   <p style="font-size:9pt;color:#6b7280;margin-bottom:16px;"><%= issuer.invoice_note %></p>
   <% } %>
 
-  <!-- Patička -->
+  <!-- Patička
+       Doklad e-shopu se podepisuje e-shopem — zákazník nakoupil u něj.
+       Vystavitele nese blok Dodavatel výš, včetně IČO a DIČ, takže se
+       o identifikaci prodávajícího nepřichází. Doklady mimo e-shop
+       (ruční, opakované, import z POHODY) se podepisují vystavitelem. -->
   <div class="footer">
-    <%= issuer.name %> &nbsp;|&nbsp; IČO: <%= issuer.ico %>
-    <% if (issuer.dic) { %>&nbsp;|&nbsp; DIČ: <%= issuer.dic %><% } %>
-    <% if (issuer.email) { %>&nbsp;|&nbsp; <%= issuer.email %><% } %>
+    <% if (brand) { %>
+      <%= brand.name %>
+      <% if (brand.claim) { %>&nbsp;|&nbsp; <%= brand.claim %><% } %>
+      <% if (brand.support_email) { %>&nbsp;|&nbsp; <%= brand.support_email %><% } %>
+    <% } else { %>
+      <%= issuer.name %> &nbsp;|&nbsp; IČO: <%= issuer.ico %>
+      <% if (issuer.dic) { %>&nbsp;|&nbsp; DIČ: <%= issuer.dic %><% } %>
+      <% if (issuer.email) { %>&nbsp;|&nbsp; <%= issuer.email %><% } %>
+    <% } %>
   </div>
 
 </div>

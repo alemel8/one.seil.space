@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
 import { invoiceVs } from './series-format.js';
+import { qrPlatbaDataUri } from './qr-platba.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -49,11 +50,25 @@ async function getBrowser() {
 export async function renderInvoicePdf(data) {
   const templatePath = path.join(projectRoot, 'views/pdf/invoice.ejs');
   // VS se počítá tady, aby ho měly stejný všechny cesty k PDF i e-mailu
+  const vs = data.vs || invoiceVs(data.invoice?.number);
+
+  // QR jen na dokladu, který se ještě platí. Na zaplacené faktuře nemá co
+  // dělat — mizí i platební instrukce, do kterých patří.
+  const paid = data.paid || data.invoice?.status === 'Zaplacena';
+  const qrDataUri = paid ? null : await qrPlatbaDataUri({
+    iban: data.issuer?.iban,
+    amount: data.invoice?.total_amount,
+    currency: data.invoice?.currency || 'CZK',
+    variableSymbol: vs,
+    message: `${data.invoice?.type === 'proforma' ? 'Zálohová faktura' : 'Faktura'} ${data.invoice?.number ?? ''}`.trim(),
+  });
+
   const html = await ejs.renderFile(templatePath, {
     brand: null,
     paid: false,
     ...data,
-    vs: data.vs || invoiceVs(data.invoice?.number),
+    vs,
+    qrDataUri,
   });
 
   const browser = await getBrowser();
