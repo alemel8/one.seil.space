@@ -336,7 +336,15 @@ export default async function toneracekRoutes(fastify) {
     const shopId = await getToneracekShopId(sql);
     if (!shopId) return reply.code(500).send({ error: 'Toneráček shop není nakonfigurován' });
 
-    const { customer, shipping, paymentMethod, items, totalPrice, ipAddress, status } = b;
+    const { customer, shipping, paymentMethod, ipAddress, status } = b;
+
+    // Ceny se drží v celých korunách po celé soustavě: co e-shop ukáže
+    // zákazníkovi, to strhne Stripe a to je i na dokladu. E-shop od té doby
+    // zaokrouhluje sám hned při čtení katalogu; tohle je pojistka, aby se
+    // haléře nedostaly dovnitř jinou cestou a doklad pak neukazoval jiné
+    // číslo než web.
+    const totalPrice = Math.round(Number(b.totalPrice));
+    const items = (b.items || []).map((i) => ({ ...i, price: Math.round(Number(i.price)) }));
 
     // Číslo objednávky — výchozí číselná řada eshopu (pokud nastavena), jinak per-shop sekvence
     const [orderSeries] = await sql`
@@ -452,7 +460,11 @@ export default async function toneracekRoutes(fastify) {
   fastify.patch('/api/toneracek/orders/:id/payment-method', async (request, reply) => {
     if (!verifyApiKey(request)) return reply.code(401).send({ error: 'Unauthorized' });
 
-    const { paymentMethod, totalPrice, status } = request.body || {};
+    const { paymentMethod, status } = request.body || {};
+    // Přepočet po změně způsobu platby (dobírka +40 Kč) musí zůstat v celých
+    // korunách stejně jako původní objednávka.
+    const totalPrice =
+      request.body?.totalPrice == null ? null : Math.round(Number(request.body.totalPrice));
     const label = PAYMENT_LABELS[paymentMethod];
     if (!label) return reply.code(400).send({ error: 'paymentMethod musí být card, transfer nebo cod' });
 
