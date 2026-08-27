@@ -84,8 +84,19 @@ export default async function toneracekRoutes(fastify) {
 
   // ── Helpers ────────────────────────────────────────────────
 
-  function mapContact(row) {
-    return {
+  /**
+   * Poznámka zákazníka se **nevydává**, dokud si o ni volající neřekne.
+   *
+   * E-shop si do ní ukládá záložní kopii bcrypt hashe hesla (`PWDHASH:…`,
+   * zapisuje ji registrace a reset hesla). Dokud ji mapContact() vracel
+   * plošně, chodila v každé odpovědi o uživateli, e-shop celý objekt posílal
+   * klientovi a hash hesla každého zákazníka pak trvale ležel v localStorage
+   * jeho prohlížeče.
+   *
+   * Potřebuje ji jedině přihlášení, a to si ji vyžádá přes `?withNote=1`.
+   */
+  function mapContact(row, { includeNote = false } = {}) {
+    const contact = {
       id:               row.id,
       email:            row.email,
       jmeno:            row.first_name,
@@ -99,8 +110,9 @@ export default async function toneracekRoutes(fastify) {
       souhlasMarketing: !!row.marketing_consent,
       souhlasNotifikace:!!row.notifications_consent,
       aktivni:          row.active !== false,
-      poznamka:         row.notes || null,
     };
+    if (includeNote) contact.poznamka = row.notes || null;
+    return contact;
   }
 
   // ── API: Uživatelé (zákazníci Toneráček) ───────────────────
@@ -116,7 +128,10 @@ export default async function toneracekRoutes(fastify) {
       LIMIT 1
     `;
     if (!rows[0]) return reply.code(404).send({ error: 'Not found' });
-    return reply.send(mapContact(rows[0]));
+    // Poznámku se záložním hashem hesla dostane jen ten, kdo si o ni řekne —
+    // v praxi přihlášení v e-shopu, které si jinak hash nemá kde vzít.
+    const includeNote = request.query.withNote === '1';
+    return reply.send(mapContact(rows[0], { includeNote }));
   });
 
   fastify.get('/api/toneracek/users/:id', async (request, reply) => {
