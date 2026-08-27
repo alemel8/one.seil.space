@@ -228,7 +228,8 @@
             <td><%= vs.rate %> %</td>
             <td><%= Number(vs.base).toLocaleString('cs-CZ', {minimumFractionDigits:2}) %> Kč</td>
             <td><%= Number(vs.vat).toLocaleString('cs-CZ', {minimumFractionDigits:2}) %> Kč</td>
-            <td><%= Number(vs.total).toLocaleString('cs-CZ', {minimumFractionDigits:2}) %> Kč</td>
+            <%# Dopočet je pojistka, ne oprava: zdrojem pravdy je calcVatSummary(). %>
+            <td><%= Number(vs.total ?? (Number(vs.base) + Number(vs.vat))).toLocaleString('cs-CZ', {minimumFractionDigits:2}) %> Kč</td>
           </tr>
           <% }) %>
         </tbody>

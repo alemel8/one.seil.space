@@ -254,21 +254,19 @@ export default async function toneracekRoutes(fastify) {
   async function renderProformaPdf(proforma) {
     const { renderInvoicePdf } = await import('../pdf.js');
     const { paymentVs } = await import('../series-format.js');
+    const { calcVatSummary } = await import('./invoices.js');
     const items = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${proforma.id}`;
     const [issuer] = await sql`SELECT * FROM company_settings LIMIT 1`;
     const [ord] = await sql`SELECT order_number FROM shop_orders WHERE id = ${proforma.order_id} LIMIT 1`;
 
-    const vatMap = {};
-    for (const it of items) {
-      const r = it.vat_rate;
-      if (!vatMap[r]) vatMap[r] = { rate: r, base: 0, vat: 0 };
-      vatMap[r].base += Number(it.amount);
-      vatMap[r].vat  += Number(it.vat_amount);
-    }
+    // Dřív se tu rekapitulace DPH skládala ručně a chyběl jí klíč `total`,
+    // takže šablona tiskla "NaN Kč" — na každém dokladu, který odešel
+    // zákazníkovi. Kopie otevřená adminem šla jinudy a byla v pořádku, proto
+    // si toho nikdo nevšiml. calcVatSummary() ten klíč má.
     // Zálohovka je pořád k úhradě, takže platební instrukce zůstávají —
     // mění se jen značka v záhlaví, aby doklad zákazník poznal.
     return renderInvoicePdf({
-      invoice: proforma, items, issuer: issuer || {}, vatSummary: Object.values(vatMap),
+      invoice: proforma, items, issuer: issuer || {}, vatSummary: calcVatSummary(items),
       brand: await brandForShopId(proforma.shop_id),
       vs: paymentVs(proforma, ord?.order_number),
     });
@@ -661,7 +659,7 @@ export default async function toneracekRoutes(fastify) {
         }
 
         try {
-          const { generateInvoiceForOrder } = await import('./invoices.js');
+          const { generateInvoiceForOrder, calcVatSummary } = await import('./invoices.js');
           const { renderInvoicePdf } = await import('../pdf.js');
           const { sendInvoiceEmail } = await import('../email.js');
 
@@ -673,14 +671,9 @@ export default async function toneracekRoutes(fastify) {
             const [company] = await sql`SELECT * FROM company_settings LIMIT 1`;
             const issuer = company || {};
 
-            const vatMap = {};
-            for (const it of items) {
-              const r = it.vat_rate;
-              if (!vatMap[r]) vatMap[r] = { rate: r, base: 0, vat: 0 };
-              vatMap[r].base += Number(it.amount);
-              vatMap[r].vat  += Number(it.vat_amount);
-            }
-            const vatSummary = Object.values(vatMap);
+            // Táž chyba jako u zálohovky: bez klíče `total` tiskla šablona
+            // v rekapitulaci DPH "NaN Kč".
+            const vatSummary = calcVatSummary(items);
 
             // Tracking je v DB už od založení objednávky (e-shop podá zásilku
             // u Packety a hned zavolá PATCH /orders/:id/tracking), takže tady

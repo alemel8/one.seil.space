@@ -74,7 +74,7 @@ async function extractInvoiceData(buf, mimeType, log) {
 
 // ── Výpočet DPH souhrnu ───────────────────────────────────────
 
-function calcVatSummary(items) {
+export function calcVatSummary(items) {
   const byRate = {};
   for (const item of items) {
     const rate = Number(item.vat_rate);
@@ -272,11 +272,18 @@ function defaultDueDate(days) {
   return new Date(Date.now() + days * 86400000).toISOString().split('T')[0];
 }
 
-async function insertOrderInvoiceItems(sql, orderItems, invoiceId, vatRate) {
+async function insertOrderInvoiceItems(sql, orderItems, invoiceId, vatRate, totalAmount) {
+  let itemsTotal = 0;
+  let itemsBase  = 0;
+  let itemsVat   = 0;
+
   for (const item of orderItems) {
     const itemBase   = +(Number(item.price) / (1 + vatRate / 100) * item.quantity).toFixed(2);
     const itemVat    = +(Number(item.price) * item.quantity - itemBase).toFixed(2);
     const itemTotal  = +(Number(item.price) * item.quantity).toFixed(2);
+    itemsTotal = round2(itemsTotal + itemTotal);
+    itemsBase  = round2(itemsBase + itemBase);
+    itemsVat   = round2(itemsVat + itemVat);
     await sql`
       INSERT INTO accounting_invoice_items
         (invoice_id, name, quantity, unit, price_per_unit, vat_rate, amount, vat_amount, total)
@@ -286,6 +293,40 @@ async function insertOrderInvoiceItems(sql, orderItems, invoiceId, vatRate) {
         ${itemBase}, ${itemVat}, ${itemTotal}
       )
     `;
+  }
+
+  // Hlavička dokladu se počítá z `order.total_price`, tedy včetně dopravy,
+  // dobírky a slevy pro přihlášené — jenže položky přicházejí ze
+  // `shop_order_items`, kam pokladna nic z toho nedává. Doklad si pak
+  // protiřečil na téže stránce: rekapitulace DPH se počítá z položek, blok
+  // "Základ daně celkem" z hlavičky, a zákazník měl formální důvod poslat jen
+  // součet položek.
+  //
+  // Dorovnávací řádek to drží v souladu z definice, ať se pokladna změní
+  // jakkoli. Až bude dopravu a dobírku posílat jako regulérní položky, vyjde
+  // rozdíl nula a řádek se prostě nevloží.
+  if (totalAmount != null) {
+    const diff = round2(Number(totalAmount) - itemsTotal);
+    if (Math.abs(diff) >= 0.01) {
+      // Základ a DPH dorovnávacího řádku se počítají jako **zbytek do
+      // hlavičky**, ne samostatně z `diff`. Kdyby se počítaly zvlášť, sečetly
+      // by se položky na haléř jinak než hlavička a doklad by si pořád
+      // protiřečil — jen o setinu místo o osmdesát pět korun. Takhle vyjde
+      // rekapitulace DPH přesně na blok "Základ daně celkem".
+      const headerBase = +(Number(totalAmount) / (1 + vatRate / 100)).toFixed(2);
+      const headerVat  = +(Number(totalAmount) - headerBase).toFixed(2);
+      const diffBase = round2(headerBase - itemsBase);
+      const diffVat  = round2(headerVat - itemsVat);
+      await sql`
+        INSERT INTO accounting_invoice_items
+          (invoice_id, name, quantity, unit, price_per_unit, vat_rate, amount, vat_amount, total)
+        VALUES (
+          ${invoiceId}, ${diff > 0 ? 'Doprava a poplatky' : 'Sleva'}, 1, 'ks',
+          ${diff}, ${vatRate},
+          ${diffBase}, ${diffVat}, ${round2(diffBase + diffVat)}
+        )
+      `;
+    }
   }
 }
 
@@ -331,7 +372,7 @@ export async function generateProformaForOrder(sql, order) {
     )
   `;
 
-  await insertOrderInvoiceItems(sql, orderItems, invoiceId, vatRate);
+  await insertOrderInvoiceItems(sql, orderItems, invoiceId, vatRate, totalWithVat);
 
   const [invoice] = await sql`SELECT * FROM accounting_invoices WHERE id = ${invoiceId}`;
   return invoice;
@@ -384,7 +425,7 @@ export async function generateInvoiceForOrder(sql, order, { fromProforma } = {})
     )
   `;
 
-  await insertOrderInvoiceItems(sql, orderItems, invoiceId, vatRate);
+  await insertOrderInvoiceItems(sql, orderItems, invoiceId, vatRate, totalWithVat);
 
   const [invoice] = await sql`SELECT * FROM accounting_invoices WHERE id = ${invoiceId}`;
   return invoice;

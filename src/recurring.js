@@ -80,7 +80,8 @@ async function runRecurring(log) {
           const { sendInvoiceEmail } = await import('./email.js');
           const [issuerRow] = await sql`SELECT * FROM company_settings LIMIT 1`;
           const invoice = { id: invoiceId, number, type: 'issued', client_name: tmpl.client_name, issue_date: issueDate, due_date: dueDate, amount, vat_amount: vatAmount, total_amount: total, currency: 'CZK' };
-          const vatSummary = [{ rate: 21, base: amount, vat: vatAmount }];
+          // Bez `total` tiskne šablona v rekapitulaci DPH "NaN Kč".
+          const vatSummary = [{ rate: 21, base: amount, vat: vatAmount, total }];
           const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer: issuerRow || {}, vatSummary });
           await sendInvoiceEmail({ invoice, issuer: issuerRow || {}, email: tmpl.client_email, pdfBuffer });
         } catch (e) {
