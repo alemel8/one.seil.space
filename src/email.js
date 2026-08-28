@@ -53,6 +53,26 @@ function isUndeliverable(to) {
  * Toneráčku dostal fakturu od SEIL s.r.o. Druhá pojistka je CHECK constraint
  * v migraci 030.
  */
+/**
+ * Skrytá kopie zákaznických e-mailů pro dobu ladění.
+ *
+ * **Dočasné.** Zapíná se proměnnou `EMAIL_BCC`; prázdná nebo chybějící
+ * hodnota znamená vypnuto, takže se to dá zhasnout bez zásahu do kódu.
+ * Po odladění tuhle proměnnou smaž — chodí do ní kopie veškeré zákaznické
+ * pošty včetně faktur, tedy osobní údaje.
+ *
+ * Firemních e-mailů (`audience: 'company'`) se to netýká, ty zákazníkovi
+ * nechodí.
+ */
+function bccFor(audience, to) {
+  const bcc = (process.env.EMAIL_BCC || '').trim();
+  if (!bcc || audience !== 'customer') return undefined;
+  // Ať nechodí dvakrát, když zákazníkem je zrovna ta samá adresa.
+  const address = (String(to).match(/<([^>]*)>/)?.[1] ?? String(to)).trim().toLowerCase();
+  if (address === bcc.toLowerCase()) return undefined;
+  return [bcc];
+}
+
 async function deliver({ audience, from, replyTo, to, subject, html, attachments }) {
   if (audience === 'customer' && /@seil\.cz>?\s*$/i.test(from)) {
     throw new Error(`Zákaznický e-mail se pokusil odejít z firemní adresy: ${from}`);
@@ -67,9 +87,12 @@ async function deliver({ audience, from, replyTo, to, subject, html, attachments
     return;
   }
 
+  const bcc = bccFor(audience, to);
+
   const { error } = await getResend().emails.send({
     from, to: [to], subject, html,
     ...(replyTo ? { replyTo } : {}),
+    ...(bcc ? { bcc } : {}),
     ...(attachments ? { attachments } : {}),
   });
 
