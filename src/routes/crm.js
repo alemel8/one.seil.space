@@ -159,15 +159,46 @@ export default async function crmRoutes(fastify) {
     `;
     if (!contact) return reply.code(404).send('Kontakt nenalezen');
 
-    const orders = await sql`
-      SELECT id, order_number, status, total_price, created_at, company
-      FROM shop_orders WHERE crm_contact_id = ${contact.id}
-      ORDER BY created_at DESC
-    `;
+    /*
+     * Zákazník e-shopu má v Seilu i doklady, jen se sem dosud netahaly.
+     * Objednávka a faktura na sebe navazují, takže je užitečné vidět obojí
+     * na jednom místě — kolik toho u nás nakoupil a co za to bylo vystaveno.
+     *
+     * Doklady se hledají i přes objednávky: `accounting_invoices` sice má
+     * `crm_contact_id`, ale u dokladů vystavených ke starším objednávkám
+     * bývá prázdné.
+     */
+    const [orders, invoices] = await Promise.all([
+      sql`
+        SELECT id, order_number, status, total_price, created_at, company
+        FROM shop_orders WHERE crm_contact_id = ${contact.id}
+        ORDER BY created_at DESC
+      `,
+      sql`
+        SELECT i.id, i.type, i.number, i.status, i.issue_date, i.due_date,
+               i.total_amount, i.currency
+        FROM accounting_invoices i
+        WHERE i.crm_contact_id = ${contact.id}
+           OR i.order_id IN (SELECT id FROM shop_orders WHERE crm_contact_id = ${contact.id})
+        ORDER BY i.issue_date DESC NULLS LAST
+      `,
+    ]);
+
+    // „Zaplaceno" se počítá z dokladů, ne z objednávek — objednávka může být
+    // přijatá a nezaplacená a sečíst ji jako tržbu by bylo zavádějící.
+    const souhrn = {
+      objednavek: orders.length,
+      utraceno: orders.reduce((a, o) => a + Number(o.total_price || 0), 0),
+      zaplaceno: invoices
+        .filter((i) => i.status === 'Zaplacena')
+        .reduce((a, i) => a + Number(i.total_amount || 0), 0),
+      posledni: orders[0]?.created_at ?? null,
+    };
+
     return reply.view('pages/crm/contact-detail.ejs', {
       pageTitle: `${contact.first_name} ${contact.last_name}`.trim(),
       currentPath: '/crm/kontakty', user: request.user,
-      contact, orders,
+      contact, orders, invoices, souhrn,
     }, { layout: 'layouts/base.ejs' });
   });
 

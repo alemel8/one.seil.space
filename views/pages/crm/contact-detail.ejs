@@ -59,7 +59,48 @@
             <span class="badge" style="background:#f1f5f9;color:#475569;">Host (bez registrace)</span>
           <% } %>
         </dd>
+        <dt style="color:var(--text-muted);">Zdroj</dt>
+        <dd style="margin:0;">
+          <% if (contact.source) { %><%= contact.source %><% } else { %><span style="color:var(--text-muted);">ruční zadání</span><% } %>
+        </dd>
+        <% if (contact.is_registered && contact.last_login) { %>
+        <dt style="color:var(--text-muted);">Naposledy přihlášen</dt>
+        <dd style="margin:0;"><%= new Date(contact.last_login).toLocaleString('cs-CZ') %></dd>
+        <% } %>
       </dl>
+
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Souhlasy</div>
+        <dl style="display:grid;grid-template-columns:120px 1fr;gap:8px 16px;font-size:13px;margin:0;">
+          <dt style="color:var(--text-muted);">Zpracování údajů</dt>
+          <dd style="margin:0;">
+            <% if (contact.gdpr_consent_at) { %>
+              <span class="badge" style="background:#dcfce7;color:#166534;">Souhlasil</span>
+              <span style="color:var(--text-muted);font-size:12px;margin-left:6px;"><%= new Date(contact.gdpr_consent_at).toLocaleDateString('cs-CZ') %></span>
+            <% } else { %>
+              <%# Prázdno není „nesouhlasil" — u kontaktů z doby, kdy se souhlas %>
+              <%# nikam neukládal, ho prostě neumíme doložit. %>
+              <span style="color:var(--text-muted);">bez záznamu</span>
+            <% } %>
+          </dd>
+          <dt style="color:var(--text-muted);">Newsletter</dt>
+          <dd style="margin:0;">
+            <% if (contact.marketing_consent) { %>
+              <span class="badge" style="background:#dcfce7;color:#166534;">Odebírá</span>
+            <% } else { %>
+              <span class="badge" style="background:#f1f5f9;color:#475569;">Neodebírá</span>
+            <% } %>
+          </dd>
+          <dt style="color:var(--text-muted);">Notifikace</dt>
+          <dd style="margin:0;">
+            <% if (contact.notifications_consent) { %>
+              <span class="badge" style="background:#dcfce7;color:#166534;">Ano</span>
+            <% } else { %>
+              <span class="badge" style="background:#f1f5f9;color:#475569;">Ne</span>
+            <% } %>
+          </dd>
+        </dl>
+      </div>
       <% if (contact.notes) { %>
       <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
         <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">Poznámky</div>
@@ -72,7 +113,29 @@
   <!-- Objednávky -->
   <div class="card">
     <div class="card-body">
-      <h2 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 16px;">Objednávky (<%= orders.length %>)</h2>
+      <h2 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 16px;">Objednávky (<%= souhrn.objednavek %>)</h2>
+      <% if (souhrn.objednavek > 0) { %>
+      <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border);">
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);">Objednávek</div>
+          <div style="font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;"><%= souhrn.objednavek %></div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);">Objednáno za</div>
+          <div style="font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;"><%= Math.round(souhrn.utraceno).toLocaleString('cs-CZ') %> Kč</div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);">Zaplaceno na dokladech</div>
+          <div style="font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;"><%= Math.round(souhrn.zaplaceno).toLocaleString('cs-CZ') %> Kč</div>
+        </div>
+        <% if (souhrn.posledni) { %>
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);">Poslední objednávka</div>
+          <div style="font-size:20px;font-weight:600;"><%= new Date(souhrn.posledni).toLocaleDateString('cs-CZ') %></div>
+        </div>
+        <% } %>
+      </div>
+      <% } %>
       <% if (orders.length > 0) { %>
         <% orders.forEach(o => { %>
         <a href="/ucetnictvi/objednavky/<%= o.id %>" style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);text-decoration:none;color:inherit;">
@@ -88,6 +151,37 @@
         <% }); %>
       <% } else { %>
         <p style="color:var(--text-muted);font-size:13px;">Žádné objednávky</p>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- Doklady -->
+  <div class="card">
+    <div class="card-body">
+      <h2 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 16px;">Fakturace (<%= invoices.length %>)</h2>
+      <% if (invoices.length > 0) { %>
+        <% invoices.forEach(i => { %>
+        <%
+          // Doklad zákazníka je vždycky vydaný nebo zálohový; přijaté faktury
+          // sem nepatří, ale kdyby se sem vazbou dostaly, otevřou se správně.
+          const cesta = i.type === 'received' ? '/ucetnictvi/prijate-faktury/' : '/ucetnictvi/vydane-faktury/';
+          const typLabel = { issued: 'Faktura', proforma: 'Zálohová faktura', received: 'Přijatá faktura' }[i.type] || i.type;
+        %>
+        <a href="<%= cesta %><%= i.id %>" style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);text-decoration:none;color:inherit;">
+          <div>
+            <div style="font-size:13px;font-weight:500;"><%= i.number %></div>
+            <div style="font-size:11px;color:var(--text-muted);">
+              <%= typLabel %><% if (i.issue_date) { %> · <%= new Date(i.issue_date).toLocaleDateString('cs-CZ') %><% } %>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:13px;font-variant-numeric:tabular-nums;"><%= Math.round(Number(i.total_amount || 0)).toLocaleString('cs-CZ') %> <%= i.currency || 'Kč' %></span>
+            <span class="badge" style="<%= i.status === 'Zaplacena' ? 'background:#dcfce7;color:#166534;' : i.status === 'Po splatnosti' ? 'background:#fee2e2;color:#991b1b;' : 'background:#fef9c3;color:#854d0e;' %>"><%= i.status %></span>
+          </div>
+        </a>
+        <% }); %>
+      <% } else { %>
+        <p style="color:var(--text-muted);font-size:13px;">Žádné doklady</p>
       <% } %>
     </div>
   </div>

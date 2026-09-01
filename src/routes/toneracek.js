@@ -120,6 +120,7 @@ export default async function toneracekRoutes(fastify) {
       datumRegistrace:  row.created_at,
       souhlasMarketing: !!row.marketing_consent,
       souhlasNotifikace:!!row.notifications_consent,
+      souhlasGdpr:      !!row.gdpr_consent_at,
       aktivni:          row.active !== false,
     };
     if (includeNote) contact.poznamka = row.notes || null;
@@ -191,6 +192,7 @@ export default async function toneracekRoutes(fastify) {
           marketing_consent = ${b.souhlasMarketing ? true : false},
           is_registered = TRUE, active = TRUE,
           source = COALESCE(source, ${SOURCE}),
+          gdpr_consent_at = ${b.souhlasGdpr ? sql`COALESCE(gdpr_consent_at, NOW())` : sql`gdpr_consent_at`},
           modified_at = NOW()
         WHERE id = ${existing.id}
       `;
@@ -202,10 +204,11 @@ export default async function toneracekRoutes(fastify) {
     await sql`
       INSERT INTO crm_contacts
         (id, first_name, last_name, email, phone, company_name, address, city, zip,
-         marketing_consent, is_registered, active, source)
+         marketing_consent, is_registered, active, source, gdpr_consent_at)
       VALUES (${id}, ${b.jmeno||''}, ${b.prijmeni||''}, ${email}, ${b.telefon||''},
               ${b.firma||''}, ${b.ulice||''}, ${b.mesto||''}, ${b.psc||''},
-              ${b.souhlasMarketing ? true : false}, TRUE, TRUE, ${SOURCE})
+              ${b.souhlasMarketing ? true : false}, TRUE, TRUE, ${SOURCE},
+              ${b.souhlasGdpr ? new Date() : null})
     `;
     const [row] = await sql`SELECT * FROM crm_contacts WHERE id = ${id}`;
     return reply.code(201).send(mapContact(row));

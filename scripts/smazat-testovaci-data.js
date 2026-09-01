@@ -100,26 +100,45 @@ try {
     console.log(`   ${i.number.padEnd(16)} ${i.type.padEnd(9)} ${i.status}`);
   }
 
-  // ── Registrovaní zákazníci ────────────────────────────────
+  /*
+   * Zákazníci e-shopu — registrovaní i hosté.
+   *
+   * Dřív tu bylo `WHERE c.is_registered = TRUE`, takže hosté ze skriptu
+   * propadli. Objednávka bez účtu kontakt v CRM zakládá s
+   * `is_registered = FALSE` a úklid je pak neviděl: po smazání testovacích
+   * objednávek zůstaly osiřelé profily v CRM a nešlo je odsud dostat pryč.
+   *
+   * Rozlišit hosta konkrétního e-shopu jde teprve od migrace 035, která
+   * kontaktům dala sloupec `source`. Bere se tedy podle zdroje, ne podle
+   * příznaku registrace — a `--do` platí pro obojí stejně.
+   */
   const contacts = await sql`
-    SELECT c.id, c.email, c.first_name, c.last_name, c.created_at,
+    SELECT c.id, c.email, c.first_name, c.last_name, c.created_at, c.is_registered,
            (SELECT COUNT(*)::int FROM crm_contracts    x WHERE x.contact_id = c.id) AS smlouvy,
            (SELECT COUNT(*)::int FROM projects         x WHERE x.primary_contact_id = c.id) AS projekty,
            (SELECT COUNT(*)::int FROM accounting_invoices x
-              WHERE x.crm_contact_id = c.id AND (x.order_id IS NULL OR NOT (x.order_id = ANY(${orderIds.length ? orderIds : ['']})))) AS faktury_mimo
+              WHERE x.crm_contact_id = c.id AND (x.order_id IS NULL OR NOT (x.order_id = ANY(${orderIds.length ? orderIds : ['']})))) AS faktury_mimo,
+           (SELECT COUNT(*)::int FROM shop_orders x
+              WHERE x.crm_contact_id = c.id AND NOT (x.id = ANY(${orderIds.length ? orderIds : ['']}))) AS objednavky_mimo
     FROM crm_contacts c
-    WHERE c.is_registered = TRUE
+    WHERE (c.is_registered = TRUE OR c.source = ${shop.name})
       ${before ? sql`AND c.created_at < ${before}` : sql``}
     ORDER BY c.created_at
   `;
 
-  const kSmazani = contacts.filter((c) => !c.smlouvy && !c.projekty && !c.faktury_mimo);
-  const kOdregistrovani = contacts.filter((c) => c.smlouvy || c.projekty || c.faktury_mimo);
+  // Objednávka, která se teď nemaže, je taky důvod kontakt nechat být —
+  // jinak by úklid jedné testovací objednávky smazal zákazníka, který má
+  // ještě jinou, skutečnou.
+  const jeCista = (c) => !c.smlouvy && !c.projekty && !c.faktury_mimo && !c.objednavky_mimo;
+  const kSmazani = contacts.filter(jeCista);
+  const kOdregistrovani = contacts.filter((c) => !jeCista(c) && c.is_registered);
 
-  console.log(`\nRegistrovaní zákazníci (${contacts.length}):`);
-  for (const c of kSmazani) console.log(`   smazat        ${den(c.created_at)}  ${c.email}`);
+  console.log(`\nZákazníci e-shopu (${contacts.length}):`);
+  for (const c of kSmazani) {
+    console.log(`   smazat        ${den(c.created_at)}  ${(c.is_registered ? 'registrovaný' : 'host').padEnd(12)} ${c.email}`);
+  }
   for (const c of kOdregistrovani) {
-    const proc = [c.smlouvy && `${c.smlouvy}× smlouva`, c.projekty && `${c.projekty}× projekt`, c.faktury_mimo && `${c.faktury_mimo}× faktura mimo e-shop`].filter(Boolean).join(', ');
+    const proc = [c.smlouvy && `${c.smlouvy}× smlouva`, c.projekty && `${c.projekty}× projekt`, c.faktury_mimo && `${c.faktury_mimo}× faktura mimo e-shop`, c.objednavky_mimo && `${c.objednavky_mimo}× jiná objednávka`].filter(Boolean).join(', ');
     console.log(`   odregistrovat ${den(c.created_at)}  ${c.email}  (má ${proc})`);
   }
 
@@ -157,7 +176,7 @@ try {
     }
   });
 
-  console.log(`\n✓ Smazáno: ${orders.length} objednávek, ${invoices.length} dokladů, ${kSmazani.length} zákazníků.`);
+  console.log(`\n✓ Smazáno: ${orders.length} objednávek, ${invoices.length} dokladů, ${kSmazani.length} zákazníků (z toho ${kSmazani.filter((c) => !c.is_registered).length} hostů).`);
   if (kOdregistrovani.length) console.log(`  Odregistrováno (kontakt zůstal): ${kOdregistrovani.length}`);
   if (resetSeries) console.log('  Čítače číselných řad e-shopu vynulovány.');
   console.log('\nNa straně e-shopu ještě smaž hesla a tokeny:');
