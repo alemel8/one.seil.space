@@ -83,6 +83,47 @@ function verifyApiKey(request) {
   return expected && key === expected;
 }
 
+/**
+ * Požádá e-shop, ať podá zásilku u Zásilkovny.
+ *
+ * Balík se nově zakládá až za zaplacenou objednávkou. U karty to řeší Stripe
+ * webhook a u dobírky vzniká rovnou, ale **převod** se dozví o penězích až
+ * tady — když obsluha přepne objednávku na „Vyřízena", což jde teprve se
+ * zaplacenou zálohovkou.
+ *
+ * Nikdy nevyhodí výjimku: přepnutí stavu ani vystavení faktury nesmí spadnout
+ * kvůli tomu, že Packeta zrovna neodpovídá. Neúspěch se zaloguje a balík se
+ * podá ručně.
+ */
+async function pozadejEshopOPodaniBaliku(fastify, brand, order) {
+  const secret = process.env.SHOP_WEBHOOK_SECRET;
+  if (!secret) {
+    fastify.log.warn({ order: order.order_number },
+      'SHOP_WEBHOOK_SECRET není nastaveno, balík se nepodal — podej ho ručně');
+    return;
+  }
+  if (!brand?.url) return;
+
+  try {
+    const res = await fetch(`${brand.url}/api/orders/podat-balik`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-webhook-secret': secret },
+      body: JSON.stringify({ orderNumber: order.order_number, email: order.email }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      fastify.log.error({ order: order.order_number, status: res.status, data },
+        'E-shop odmítl podat balík');
+      return;
+    }
+    fastify.log.info({ order: order.order_number, tracking: data.tracking, uzPodano: data.uzPodano },
+      'Balík podán');
+  } catch (err) {
+    fastify.log.error({ err, order: order.order_number }, 'Podání balíku se nepodařilo vyžádat');
+  }
+}
+
 // ── Helper: toneráček shop_id ─────────────────────────────────
 
 async function getToneracekShopId(sql) {
@@ -734,6 +775,20 @@ export default async function toneracekRoutes(fastify) {
           return reply.redirect(`/ucetnictvi/objednavky/${order.id}?error=proforma-nezaplacena`);
         }
 
+        /*
+         * Teprve tady je jisté, že jsou peníze na účtu — u převodu to hlídá
+         * kontrola zálohovky o pár řádků výš, u karty Stripe webhook, který
+         * balík podal už dřív. Proto se zásilka zakládá až v tuhle chvíli.
+         *
+         * Musí to být PŘED sestavením e-mailu s fakturou: ten nese sledovací
+         * číslo, a to do téhle chvíle u převodu neexistovalo.
+         */
+        if (!order.tracking_number) {
+          await pozadejEshopOPodaniBaliku(fastify, await brandForShopId(order.shop_id), order);
+          const [cerstva] = await sql`SELECT tracking_number FROM shop_orders WHERE id = ${order.id}`;
+          if (cerstva?.tracking_number) order.tracking_number = cerstva.tracking_number;
+        }
+
         try {
           const { generateInvoiceForOrder, calcVatSummary } = await import('./invoices.js');
           const { renderInvoicePdf } = await import('../pdf.js');
@@ -751,9 +806,10 @@ export default async function toneracekRoutes(fastify) {
             // v rekapitulaci DPH "NaN Kč".
             const vatSummary = calcVatSummary(items);
 
-            // Tracking je v DB už od založení objednávky (e-shop podá zásilku
-            // u Packety a hned zavolá PATCH /orders/:id/tracking), takže tady
-            // je k dispozici a jde ven jedním e-mailem spolu s fakturou.
+            // Tracking je k dispozici: u karty ho zapsal Stripe webhook,
+            // u dobírky založení objednávky a u převodu ho pár řádků výš
+            // dožádal pozadejEshopOPodaniBaliku(). Jde ven jedním e-mailem
+            // spolu s fakturou.
             // Bez brandu by tenhle e-mail — nejdůležitější zpráva celé
             // objednávky — odešel jako SEIL s.r.o. <noreply@seil.cz>, tedy
             // od firmy, o které zákazník e-shopu nikdy neslyšel.

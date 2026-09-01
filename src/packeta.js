@@ -1,8 +1,12 @@
 // Packeta (Zásilkovna) SOAP API klient — stažení PDF štítku přímo ze serveru,
 // bez spoléhání na externě vygenerovaný (a časem expirující) odkaz.
-// WSDL: http://www.zasilkovna.cz/api/soap-php-bugfix.wsdl, endpoint http://www.zasilkovna.cz/api/soap
+// WSDL: https://www.zasilkovna.cz/api/soap-php-bugfix.wsdl, endpoint https://www.zasilkovna.cz/api/soap
+//
+// Endpoint je schválně HTTPS, i když ho WSDL uvádí bez šifrování: v obálce
+// jde apiPassword, a to nemá po síti cestovat čitelně. Ověřeno, že server
+// na HTTPS odpovídá stejně.
 
-const SOAP_ENDPOINT = 'http://www.zasilkovna.cz/api/soap';
+const SOAP_ENDPOINT = 'https://www.zasilkovna.cz/api/soap';
 
 function escapeXml(s) {
   return String(s).replace(/[<>&'"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
