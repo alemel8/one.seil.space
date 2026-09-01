@@ -23,8 +23,15 @@
       <option value="<%= c.id %>" <%= companyFilter === c.id ? 'selected' : '' %>><%= c.name %></option>
     <% }); %>
   </select>
+  <select name="source" class="form-select" style="width:auto;">
+    <option value="">Všechny zdroje</option>
+    <% (sources || []).forEach(s => { %>
+      <option value="<%= s.source %>" <%= sourceFilter === s.source ? 'selected' : '' %>><%= s.source %></option>
+    <% }); %>
+    <option value="-" <%= sourceFilter === '-' ? 'selected' : '' %>>(bez zdroje)</option>
+  </select>
   <button type="submit" class="btn btn-outline">Filtrovat</button>
-  <% if (q || companyFilter) { %>
+  <% if (q || companyFilter || sourceFilter) { %>
     <a href="/crm/kontakty" class="btn btn-ghost">Zrušit filtr</a>
   <% } %>
 </form>
@@ -36,6 +43,7 @@
       <tr>
         <th>Jméno</th>
         <th>Firma</th>
+        <th>Zdroj</th>
         <th>Pozice</th>
         <th>E-mail</th>
         <th>Telefon</th>
@@ -56,6 +64,11 @@
             <% if (contact.company_name) { %>
               <a href="/crm/firmy/<%= contact.company_id %>" style="color:var(--primary);" onclick="event.stopPropagation()"><%= contact.company_name %></a>
             <% } else { %>—<% } %>
+          </td>
+          <td>
+            <% if (contact.source) { %>
+              <span class="badge" style="background:var(--gray-100);color:var(--gray-600);font-size:11px;"><%= contact.source %></span>
+            <% } else { %><span style="color:var(--text-muted);">—</span><% } %>
           </td>
           <td style="color:var(--text-muted);font-size:13px;"><%= contact.title || '—' %></td>
           <td style="font-size:13px;">

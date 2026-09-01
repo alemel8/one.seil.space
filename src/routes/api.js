@@ -19,6 +19,12 @@ async function verifyApiKey(request) {
 
 // ── CRM upsert ───────────────────────────────────────────────
 
+/**
+ * Zdroj kontaktu i firmy je název e-shopu, ze kterého přišly — podle něj se
+ * filtruje v `/crm/kontakty` a `/crm/firmy`. Dřív se psal do `notes` jako
+ * „Zákazník <shop>", jenže do téhož sloupce si e-shop ukládá záložní hash
+ * hesla, takže u registrovaného zákazníka ta stopa zanikla.
+ */
 async function upsertCustomerToCRM(sql, { email, firstName, lastName, company, phone, city, country, isRegistered, shopName }) {
   if (!email) return { contactId: null, companyId: null };
 
@@ -30,8 +36,8 @@ async function upsertCustomerToCRM(sql, { email, firstName, lastName, company, p
     } else {
       companyId = generateId();
       await sql`
-        INSERT INTO crm_companies (id, name, company_type, city, country)
-        VALUES (${companyId}, ${company.trim()}, 'Zákazník', ${city||''}, ${country||''})
+        INSERT INTO crm_companies (id, name, company_type, city, country, source)
+        VALUES (${companyId}, ${company.trim()}, 'Zákazník', ${city||''}, ${country||''}, ${shopName || null})
       `;
     }
   }
@@ -48,6 +54,7 @@ async function upsertCustomerToCRM(sql, { email, firstName, lastName, company, p
         phone        = ${phone    ||''},
         company_id   = COALESCE(company_id, ${companyId}),
         is_registered = ${existing.is_registered || isReg},
+        source       = COALESCE(source, ${shopName || null}),
         modified_at  = NOW()
       WHERE id = ${existing.id}
     `;
@@ -56,10 +63,10 @@ async function upsertCustomerToCRM(sql, { email, firstName, lastName, company, p
     contactId = generateId();
     await sql`
       INSERT INTO crm_contacts
-        (id, first_name, last_name, email, phone, company_id, is_registered, notes)
+        (id, first_name, last_name, email, phone, company_id, is_registered, source)
       VALUES
         (${contactId}, ${firstName||''}, ${lastName||''}, ${email},
-         ${phone||''}, ${companyId}, ${isReg}, ${`Zákazník ${shopName}`})
+         ${phone||''}, ${companyId}, ${isReg}, ${shopName || null})
     `;
   }
 

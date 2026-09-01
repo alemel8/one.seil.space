@@ -7,6 +7,16 @@ import { fetchPacketLabelPdf } from '../packeta.js';
 
 const ORDER_STATUSES = ['Přijata', 'Vyřízena', 'Stornována'];
 
+/**
+ * Zdroj kontaktu a firmy pro CRM. Až přibude druhý e-shop, dostane vlastní
+ * hodnotu — filtr v `/crm/kontakty` a `/crm/firmy` je na ni postavený.
+ *
+ * Dřív se zdroj psal do `notes` jako „Zákazník Toneráček.cz". Nešlo se na to
+ * spolehnout: do téhož sloupce si e-shop ukládá záložní hash hesla
+ * (`PWDHASH:…`), takže u registrovaného zákazníka poznámka o zdroji zanikla.
+ */
+const SOURCE = 'Toneráček.cz';
+
 const PAYMENT_LABELS = {
   card: 'Platba kartou',
   transfer: 'Bankovní převod',
@@ -15,7 +25,7 @@ const PAYMENT_LABELS = {
 
 // ── CRM upsert zákazníka ──────────────────────────────────────
 
-async function upsertCustomerToCRM(sql, { email, firstName, lastName, company, phone, city, country, isRegistered }) {
+async function upsertCustomerToCRM(sql, { email, firstName, lastName, company, phone, city, country, isRegistered, source = SOURCE }) {
   if (!email) return { contactId: null, companyId: null };
 
   let companyId = null;
@@ -26,8 +36,8 @@ async function upsertCustomerToCRM(sql, { email, firstName, lastName, company, p
     } else {
       companyId = generateId();
       await sql`
-        INSERT INTO crm_companies (id, name, company_type, city, country)
-        VALUES (${companyId}, ${company.trim()}, 'Zákazník', ${city||''}, ${country||''})
+        INSERT INTO crm_companies (id, name, company_type, city, country, source)
+        VALUES (${companyId}, ${company.trim()}, 'Zákazník', ${city||''}, ${country||''}, ${source})
       `;
     }
   }
@@ -45,6 +55,7 @@ async function upsertCustomerToCRM(sql, { email, firstName, lastName, company, p
         phone        = ${phone     || ''},
         company_id   = COALESCE(company_id, ${companyId}),
         is_registered = ${newIsReg},
+        source       = COALESCE(source, ${source}),
         modified_at  = NOW()
       WHERE id = ${existing[0].id}
     `;
@@ -53,10 +64,10 @@ async function upsertCustomerToCRM(sql, { email, firstName, lastName, company, p
     contactId = generateId();
     await sql`
       INSERT INTO crm_contacts
-        (id, first_name, last_name, email, phone, company_id, is_registered, notes)
+        (id, first_name, last_name, email, phone, company_id, is_registered, source)
       VALUES
         (${contactId}, ${firstName||''}, ${lastName||''}, ${email},
-         ${phone||''}, ${companyId}, ${isReg}, 'Zákazník Toneráček.cz')
+         ${phone||''}, ${companyId}, ${isReg}, ${source})
     `;
   }
 
@@ -149,17 +160,52 @@ export default async function toneracekRoutes(fastify) {
     if (!b?.email) return reply.code(400).send({ error: 'email required' });
 
     const email = b.email.toLowerCase();
-    const existing = await sql`SELECT id FROM crm_contacts WHERE LOWER(email) = ${email} LIMIT 1`;
-    if (existing[0]) return reply.code(409).send({ error: 'Účet s tímto e-mailem již existuje' });
+
+    /*
+     * Kontakt se stejným e-mailem už v CRM být může, aniž by měl účet —
+     * objednávka hosta ho založí s `is_registered = FALSE`.
+     *
+     * Dřív to tady skončilo tvrdým 409 pro obojí. GET výš přitom filtruje na
+     * `is_registered = TRUE`, takže e-shop hosta neviděl, usoudil „účet
+     * neexistuje" a poslal POST — a 409 neuměl odlišit od chyby, takže
+     * zákazník dostal „Chyba serveru". Kdo si u nás jednou objednal jako
+     * host, se pak nemohl zaregistrovat.
+     *
+     * Existující host se proto povyšuje na registrovaného. Historie
+     * objednávek mu tím zůstane navázaná na tentýž kontakt.
+     */
+    const [existing] = await sql`
+      SELECT id, is_registered FROM crm_contacts WHERE LOWER(email) = ${email} LIMIT 1
+    `;
+
+    if (existing?.is_registered) {
+      return reply.code(409).send({ error: 'Účet s tímto e-mailem již existuje' });
+    }
+
+    if (existing) {
+      await sql`
+        UPDATE crm_contacts SET
+          first_name = ${b.jmeno||''}, last_name = ${b.prijmeni||''},
+          phone = ${b.telefon||''}, company_name = ${b.firma||''},
+          address = ${b.ulice||''}, city = ${b.mesto||''}, zip = ${b.psc||''},
+          marketing_consent = ${b.souhlasMarketing ? true : false},
+          is_registered = TRUE, active = TRUE,
+          source = COALESCE(source, ${SOURCE}),
+          modified_at = NOW()
+        WHERE id = ${existing.id}
+      `;
+      const [row] = await sql`SELECT * FROM crm_contacts WHERE id = ${existing.id}`;
+      return reply.code(200).send(mapContact(row));
+    }
 
     const id = generateId();
     await sql`
       INSERT INTO crm_contacts
         (id, first_name, last_name, email, phone, company_name, address, city, zip,
-         marketing_consent, is_registered, active, notes)
+         marketing_consent, is_registered, active, source)
       VALUES (${id}, ${b.jmeno||''}, ${b.prijmeni||''}, ${email}, ${b.telefon||''},
               ${b.firma||''}, ${b.ulice||''}, ${b.mesto||''}, ${b.psc||''},
-              ${b.souhlasMarketing ? true : false}, TRUE, TRUE, 'Zákazník Toneráček.cz')
+              ${b.souhlasMarketing ? true : false}, TRUE, TRUE, ${SOURCE})
     `;
     const [row] = await sql`SELECT * FROM crm_contacts WHERE id = ${id}`;
     return reply.code(201).send(mapContact(row));

@@ -6,8 +6,9 @@ export default async function crmRoutes(fastify) {
   // ── Firmy ──────────────────────────────────────────────────
 
   fastify.get('/crm/firmy', async (request, reply) => {
-    const q          = (request.query.q    || '').trim();
-    const typeFilter = (request.query.type || '').trim();
+    const q            = (request.query.q      || '').trim();
+    const typeFilter   = (request.query.type   || '').trim();
+    const sourceFilter = (request.query.source || '').trim();
     const page    = Math.max(1, parseInt(request.query.page || '1', 10));
     const perPage = 25;
     const offset  = (page - 1) * perPage;
@@ -15,16 +16,23 @@ export default async function crmRoutes(fastify) {
     const conditions = [];
     if (q)          conditions.push(sql`(name ILIKE ${'%' + q + '%'} OR city ILIKE ${'%' + q + '%'} OR country ILIKE ${'%' + q + '%'})`);
     if (typeFilter) conditions.push(sql`company_type = ${typeFilter}`);
+    // „(bez zdroje)" je vlastní volba, aby šlo najít ručně založené záznamy —
+    // prázdný řetězec znamená „nefiltrovat", takže NULL potřebuje svůj klíč.
+    if (sourceFilter === '-') conditions.push(sql`source IS NULL`);
+    else if (sourceFilter)    conditions.push(sql`source = ${sourceFilter}`);
     const where = conditions.length
       ? sql`WHERE ${conditions.reduce((a, b) => sql`${a} AND ${b}`)}`
       : sql``;
 
     const [{ count }] = await sql`SELECT COUNT(*)::int AS count FROM crm_companies ${where}`;
     const companies   = await sql`SELECT * FROM crm_companies ${where} ORDER BY name LIMIT ${perPage} OFFSET ${offset}`;
+    const sources     = await sql`
+      SELECT DISTINCT source FROM crm_companies WHERE source IS NOT NULL ORDER BY source
+    `;
 
     return reply.view('pages/crm/companies.ejs', {
       pageTitle: 'Firmy', currentPath: '/crm/firmy', user: request.user,
-      companies, q, typeFilter, total: count,
+      companies, q, typeFilter, sourceFilter, sources, total: count,
       currentPage: page, totalPages: Math.ceil(count / perPage),
     }, { layout: 'layouts/base.ejs' });
   });
@@ -107,6 +115,7 @@ export default async function crmRoutes(fastify) {
   fastify.get('/crm/kontakty', async (request, reply) => {
     const q             = (request.query.q       || '').trim();
     const companyFilter = (request.query.company || '').trim();
+    const sourceFilter  = (request.query.source  || '').trim();
     const page    = Math.max(1, parseInt(request.query.page || '1', 10));
     const perPage = 25;
     const offset  = (page - 1) * perPage;
@@ -114,6 +123,8 @@ export default async function crmRoutes(fastify) {
     const conditions = [];
     if (q)             conditions.push(sql`(c.first_name ILIKE ${'%'+q+'%'} OR c.last_name ILIKE ${'%'+q+'%'} OR c.email ILIKE ${'%'+q+'%'})`);
     if (companyFilter) conditions.push(sql`c.company_id = ${companyFilter}`);
+    if (sourceFilter === '-') conditions.push(sql`c.source IS NULL`);
+    else if (sourceFilter)    conditions.push(sql`c.source = ${sourceFilter}`);
     const where = conditions.length
       ? sql`WHERE ${conditions.reduce((a, b) => sql`${a} AND ${b}`)}`
       : sql``;
@@ -128,10 +139,13 @@ export default async function crmRoutes(fastify) {
       LIMIT ${perPage} OFFSET ${offset}
     `;
     const companies = await sql`SELECT id, name FROM crm_companies ORDER BY name`;
+    const sources   = await sql`
+      SELECT DISTINCT source FROM crm_contacts WHERE source IS NOT NULL ORDER BY source
+    `;
 
     return reply.view('pages/crm/contacts.ejs', {
       pageTitle: 'Kontakty', currentPath: '/crm/kontakty', user: request.user,
-      contacts, q, companyFilter, total: count,
+      contacts, q, companyFilter, sourceFilter, sources, total: count,
       currentPage: page, totalPages: Math.ceil(count / perPage), companies,
     }, { layout: 'layouts/base.ejs' });
   });

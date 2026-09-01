@@ -24,8 +24,15 @@
     <option value="Oboje" <%= typeFilter === 'Oboje' ? 'selected' : '' %>>Oboje</option>
     <option value="Ostatní" <%= typeFilter === 'Ostatní' ? 'selected' : '' %>>Ostatní</option>
   </select>
+  <select name="source" class="form-select" style="width:auto;">
+    <option value="">Všechny zdroje</option>
+    <% (sources || []).forEach(s => { %>
+      <option value="<%= s.source %>" <%= sourceFilter === s.source ? 'selected' : '' %>><%= s.source %></option>
+    <% }); %>
+    <option value="-" <%= sourceFilter === '-' ? 'selected' : '' %>>(bez zdroje)</option>
+  </select>
   <button type="submit" class="btn btn-outline">Filtrovat</button>
-  <% if (q || typeFilter) { %>
+  <% if (q || typeFilter || sourceFilter) { %>
     <a href="/crm/firmy" class="btn btn-ghost">Zrušit filtr</a>
   <% } %>
 </form>
@@ -37,6 +44,7 @@
       <tr>
         <th>Název firmy</th>
         <th>Typ</th>
+        <th>Zdroj</th>
         <th>Země</th>
         <th>Město</th>
         <th>E-mail</th>
@@ -60,6 +68,11 @@
               <span class="badge" style="background:var(--gray-100);color:var(--gray-600);">Ostatní</span>
             <% } %>
           </td>
+          <td>
+            <% if (company.source) { %>
+              <span class="badge" style="background:var(--gray-100);color:var(--gray-600);font-size:11px;"><%= company.source %></span>
+            <% } else { %><span style="color:var(--text-muted);">—</span><% } %>
+          </td>
           <td><%= company.country || '—' %></td>
           <td style="color:var(--text-muted);"><%= company.city || '—' %></td>
           <td style="font-size:13px;">
@@ -74,7 +87,7 @@
       <% } else { %>
       <tr>
         <td colspan="7" style="text-align:center;padding:48px;color:var(--text-muted);">
-          <%= (q || typeFilter) ? 'Žádné firmy nenalezeny' : 'Zatím žádné firmy' %>
+          <%= (q || typeFilter || sourceFilter) ? 'Žádné firmy nenalezeny' : 'Zatím žádné firmy' %>
         </td>
       </tr>
       <% } %>
@@ -88,10 +101,10 @@
   <span>Stránka <%= currentPage %> z <%= totalPages %> — celkem <%= total %> firem</span>
   <div style="display:flex;gap:6px;">
     <% if (currentPage > 1) { %>
-      <a href="?page=<%= currentPage - 1 %><%= q ? '&q=' + q : '' %><%= typeFilter ? '&type=' + typeFilter : '' %>" class="btn btn-outline btn-sm">← Předchozí</a>
+      <a href="?page=<%= currentPage - 1 %><%= q ? '&q=' + q : '' %><%= typeFilter ? '&type=' + typeFilter : '' %><%= sourceFilter ? '&source=' + encodeURIComponent(sourceFilter) : '' %>" class="btn btn-outline btn-sm">← Předchozí</a>
     <% } %>
     <% if (currentPage < totalPages) { %>
-      <a href="?page=<%= currentPage + 1 %><%= q ? '&q=' + q : '' %><%= typeFilter ? '&type=' + typeFilter : '' %>" class="btn btn-outline btn-sm">Další →</a>
+      <a href="?page=<%= currentPage + 1 %><%= q ? '&q=' + q : '' %><%= typeFilter ? '&type=' + typeFilter : '' %><%= sourceFilter ? '&source=' + encodeURIComponent(sourceFilter) : '' %>" class="btn btn-outline btn-sm">Další →</a>
     <% } %>
   </div>
 </div>
