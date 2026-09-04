@@ -4,6 +4,13 @@ import { brandForShopId } from '../brand.js';
 import { sendPushToAll } from '../push.js';
 import { renderSeriesNumber } from '../series-format.js';
 import { fetchPacketLabelPdf } from '../packeta.js';
+import {
+  DUVODY_POZASTAVENI, ExpediceBeziError, objednavkySeStavemSkladu,
+  pozadejEshopOPodaniBaliku, prazskyCas, spustExpedici, zalozBeh,
+} from '../expedice.js';
+
+/** Hodnoty sloupce „Sklad" v seznamu objednávek — filtr bere jen tyhle. */
+const SKLAD_STAVY = ['odeslano', 'ceka', 'blokovano', 'neplati'];
 
 const ORDER_STATUSES = ['Přijata', 'Vyřízena', 'Stornována'];
 
@@ -83,52 +90,21 @@ function verifyApiKey(request) {
   return expected && key === expected;
 }
 
-/**
- * Požádá e-shop, ať podá zásilku u Zásilkovny.
- *
- * Balík se nově zakládá až za zaplacenou objednávkou. U karty to řeší Stripe
- * webhook a u dobírky vzniká rovnou, ale **převod** se dozví o penězích až
- * tady — když obsluha přepne objednávku na „Vyřízena", což jde teprve se
- * zaplacenou zálohovkou.
- *
- * Nikdy nevyhodí výjimku: přepnutí stavu ani vystavení faktury nesmí spadnout
- * kvůli tomu, že Packeta zrovna neodpovídá. Neúspěch se zaloguje a balík se
- * podá ručně.
- */
-async function pozadejEshopOPodaniBaliku(fastify, brand, order) {
-  const secret = process.env.SHOP_WEBHOOK_SECRET;
-  if (!secret) {
-    fastify.log.warn({ order: order.order_number },
-      'SHOP_WEBHOOK_SECRET není nastaveno, balík se nepodal — podej ho ručně');
-    return;
-  }
-  if (!brand?.url) return;
-
-  try {
-    const res = await fetch(`${brand.url}/api/orders/podat-balik`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-webhook-secret': secret },
-      body: JSON.stringify({ orderNumber: order.order_number, email: order.email }),
-      signal: AbortSignal.timeout(30_000),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      fastify.log.error({ order: order.order_number, status: res.status, data },
-        'E-shop odmítl podat balík');
-      return;
-    }
-    fastify.log.info({ order: order.order_number, tracking: data.tracking, uzPodano: data.uzPodano },
-      'Balík podán');
-  } catch (err) {
-    fastify.log.error({ err, order: order.order_number }, 'Podání balíku se nepodařilo vyžádat');
-  }
-}
-
-// ── Helper: toneráček shop_id ─────────────────────────────────
+// ── Helper: toneráček shop ────────────────────────────────────
+//
+// Podání balíku u Zásilkovny se přestěhovalo do src/expedice.js — potřebuje ho
+// i ranní expedice, protože u převodu vzniká zásilka až přepnutím na
+// „Vyřízena", takže zaplacená objednávka ráno štítek nemá.
 
 async function getToneracekShopId(sql) {
   const rows = await sql`SELECT id FROM shops WHERE slug = 'toneracek' LIMIT 1`;
   return rows[0]?.id ?? null;
+}
+
+/** Celý řádek e-shopu — nastavení expedice i stav skladu ho potřebují. */
+async function getToneracekShop(sql) {
+  const [shop] = await sql`SELECT * FROM shops WHERE slug = 'toneracek' LIMIT 1`;
+  return shop ?? null;
 }
 
 export default async function toneracekRoutes(fastify) {
@@ -520,8 +496,9 @@ export default async function toneracekRoutes(fastify) {
 
     for (const item of items) {
       await sql`
-        INSERT INTO shop_order_items (order_id, sku, name, quantity, price, product_id)
-        VALUES (${orderId}, ${item.sku??''}, ${item.name}, ${item.quantity}, ${item.price}, ${item.productId??null})
+        INSERT INTO shop_order_items (order_id, sku, supplier_code, name, quantity, price, product_id)
+        VALUES (${orderId}, ${item.sku??''}, ${String(item.supplierCode ?? '').trim()},
+                ${item.name}, ${item.quantity}, ${item.price}, ${item.productId??null})
       `;
     }
 
@@ -673,37 +650,61 @@ export default async function toneracekRoutes(fastify) {
 
     const q            = (request.query.q      || '').trim();
     const statusFilter = (request.query.status || '').trim();
+    const skladFilter  = (request.query.sklad  || '').trim();
     const page    = Math.max(1, parseInt(request.query.page || '1', 10));
     const perPage = 25;
     const offset  = (page - 1) * perPage;
 
-    const shopId = await getToneracekShopId(sql);
+    const shop = await getToneracekShop(sql);
+    if (!shop) return reply.code(500).send('Toneráček shop není nakonfigurován');
 
-    const conditions = [sql`shop_id = ${shopId}`];
+    const conditions = [sql`o.shop_id = ${shop.id}`];
     if (q) conditions.push(sql`(
-      order_number ILIKE ${'%'+q+'%'} OR
-      first_name ILIKE ${'%'+q+'%'} OR last_name ILIKE ${'%'+q+'%'} OR
-      email ILIKE ${'%'+q+'%'} OR phone ILIKE ${'%'+q+'%'} OR
-      invoice_number ILIKE ${'%'+q+'%'}
+      o.order_number ILIKE ${'%'+q+'%'} OR
+      o.first_name ILIKE ${'%'+q+'%'} OR o.last_name ILIKE ${'%'+q+'%'} OR
+      o.email ILIKE ${'%'+q+'%'} OR o.phone ILIKE ${'%'+q+'%'} OR
+      o.invoice_number ILIKE ${'%'+q+'%'}
     )`);
-    if (statusFilter) conditions.push(sql`status = ${statusFilter}`);
+    if (statusFilter) conditions.push(sql`o.status = ${statusFilter}`);
 
-    const where = sql`WHERE ${conditions.reduce((a, b) => sql`${a} AND ${b}`)}`;
+    const where  = sql`WHERE ${conditions.reduce((a, b) => sql`${a} AND ${b}`)}`;
+    const zaklad = objednavkySeStavemSkladu(sql, shop, where);
+    const skladWhere = SKLAD_STAVY.includes(skladFilter)
+      ? sql`WHERE x.sklad_stav = ${skladFilter}`
+      : sql``;
 
-    const [{ count }] = await sql`SELECT COUNT(*)::int AS count FROM shop_orders ${where}`;
+    const [{ count }] = await sql`SELECT COUNT(*)::int AS count FROM (${zaklad}) x ${skladWhere}`;
     const orders      = await sql`
-      SELECT * FROM shop_orders ${where}
-      ORDER BY created_at DESC LIMIT ${perPage} OFFSET ${offset}
+      SELECT * FROM (${zaklad}) x ${skladWhere}
+      ORDER BY x.created_at DESC LIMIT ${perPage} OFFSET ${offset}
     `;
     const statusCounts = await sql`
-      SELECT status, COUNT(*)::int AS n FROM shop_orders WHERE shop_id = ${shopId} GROUP BY status
+      SELECT status, COUNT(*)::int AS n FROM shop_orders WHERE shop_id = ${shop.id} GROUP BY status
     `;
+    // Počty pro chipy se počítají nad celým e-shopem, ne nad vyfiltrovaným
+    // výběrem — jinak by po kliknutí na „nešlo do skladu" ostatní chipy zmizely.
+    const skladCounts = await sql`
+      SELECT x.sklad_stav, COUNT(*)::int AS n
+      FROM (${objednavkySeStavemSkladu(sql, shop, sql`WHERE o.shop_id = ${shop.id}`)}) x
+      GROUP BY x.sklad_stav
+    `;
+
+    // Výsledek ručního běhu se čte z databáze, ne z query parametru — takhle
+    // banner sedí, i když požadavek spadl uprostřed expedice.
+    const [expedice] = request.query.expedice
+      ? await sql`
+          SELECT * FROM warehouse_dispatches
+          WHERE id = ${parseInt(request.query.expedice, 10) || 0} AND shop_id = ${shop.id}`
+      : [];
 
     return reply.view('pages/toneracek/orders.ejs', {
       pageTitle: 'Objednávky Toneráček', currentPath: '/ucetnictvi/objednavky',
-      user: request.user, orders, total: count,
+      user: request.user, orders, total: count, shop,
       currentPage: page, totalPages: Math.ceil(count / perPage),
-      q, statusFilter, statusCounts, ORDER_STATUSES,
+      q, statusFilter, skladFilter, statusCounts, ORDER_STATUSES,
+      skladCounts: Object.fromEntries(skladCounts.map(r => [r.sklad_stav, r.n])),
+      duvody: DUVODY_POZASTAVENI,
+      expedice: expedice || null, error: request.query.error || null,
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -711,20 +712,28 @@ export default async function toneracekRoutes(fastify) {
 
   fastify.get('/ucetnictvi/objednavky/:id', async (request, reply) => {
     if (!request.user) return reply.redirect('/prihlasit');
-    const shopId = await getToneracekShopId(sql);
+    const shop = await getToneracekShop(sql);
+    if (!shop) return reply.code(500).send('Toneráček shop není nakonfigurován');
+
     const [order] = await sql`
-      SELECT * FROM shop_orders WHERE id = ${request.params.id} AND shop_id = ${shopId}
+      SELECT * FROM (${objednavkySeStavemSkladu(sql, shop,
+        sql`WHERE o.id = ${request.params.id} AND o.shop_id = ${shop.id}`)}) x
     `;
     if (!order) return reply.code(404).send('Objednávka nenalezena');
     const items        = await sql`SELECT * FROM shop_order_items WHERE order_id = ${order.id}`;
     const [invoice]    = await sql`SELECT id, number FROM accounting_invoices WHERE order_id = ${order.id} AND type = 'issued' LIMIT 1`;
     const [proforma]   = await sql`SELECT id, number, status FROM accounting_invoices WHERE order_id = ${order.id} AND type = 'proforma' LIMIT 1`;
+    const [sentBy]     = order.warehouse_sent_by
+      ? await sql`SELECT first_name, last_name FROM users WHERE id = ${order.warehouse_sent_by}`
+      : [];
 
     return reply.view('pages/toneracek/order-detail.ejs', {
       pageTitle: `Objednávka #${order.order_number}`,
       currentPath: '/ucetnictvi/objednavky', user: request.user,
       order, items, ORDER_STATUSES, invoice: invoice || null, proforma: proforma || null,
-      error: request.query.error || null,
+      error: request.query.error || null, saved: request.query.saved === '1',
+      duvody: DUVODY_POZASTAVENI,
+      sentBy: sentBy ? `${sentBy.first_name} ${sentBy.last_name}`.trim() : null,
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -784,7 +793,7 @@ export default async function toneracekRoutes(fastify) {
          * číslo, a to do téhle chvíle u převodu neexistovalo.
          */
         if (!order.tracking_number) {
-          await pozadejEshopOPodaniBaliku(fastify, await brandForShopId(order.shop_id), order);
+          await pozadejEshopOPodaniBaliku(fastify.log, await brandForShopId(order.shop_id), order);
           const [cerstva] = await sql`SELECT tracking_number FROM shop_orders WHERE id = ${order.id}`;
           if (cerstva?.tracking_number) order.tracking_number = cerstva.tracking_number;
         }
@@ -859,6 +868,63 @@ export default async function toneracekRoutes(fastify) {
     }
 
     return reply.redirect(`/ucetnictvi/objednavky/${order.id}`);
+  });
+
+  // ── Admin: Ruční odeslání expedice do skladu ───────────────
+  //
+  // Automat jede ráno sám. Tohle je cesta zpátky: ranní běh selhal, nebo se
+  // objednávka zaplatila přes den a sklad na ni nemá čekat do zítřka.
+
+  fastify.post('/ucetnictvi/objednavky/expedice', async (request, reply) => {
+    if (!request.user) return reply.redirect('/prihlasit');
+
+    const shop = await getToneracekShop(sql);
+    if (!shop) return reply.code(500).send('Toneráček shop není nakonfigurován');
+    if (!shop.warehouse_email) return reply.redirect('/ucetnictvi/objednavky?error=sklad-email');
+
+    let beh;
+    try {
+      beh = await zalozBeh(sql, {
+        shop, kind: 'rucni', runDate: prazskyCas().datum, userId: request.user.id,
+      });
+    } catch (err) {
+      // Zámek drží automat nebo druhý operátor — ať se sklad nedozví totéž dvakrát.
+      if (err instanceof ExpediceBeziError) {
+        return reply.redirect('/ucetnictvi/objednavky?error=expedice-bezi');
+      }
+      throw err;
+    }
+
+    await spustExpedici(sql, fastify.log, { shop, dispatch: beh });
+    return reply.redirect(`/ucetnictvi/objednavky?expedice=${beh.id}`);
+  });
+
+  // ── Admin: Ruční značka „sklad to má" ──────────────────────
+  //
+  // Pro objednávky předané skladu jinou cestou (telefon, osobní předání)
+  // a pro ty, které automat zadržel a obsluha je vyřídila sama.
+
+  fastify.post('/ucetnictvi/objednavky/:id/sklad', async (request, reply) => {
+    if (!request.user) return reply.redirect('/prihlasit');
+    const shopId = await getToneracekShopId(sql);
+
+    if ((request.body?.akce ?? '') === 'zrusit') {
+      await sql`
+        UPDATE shop_orders
+        SET warehouse_sent_at = NULL, warehouse_sent_by = NULL, warehouse_dispatch_id = NULL,
+            modified_at = NOW()
+        WHERE id = ${request.params.id} AND shop_id = ${shopId}
+      `;
+    } else {
+      // Podmínka na NULL drží čas skutečného odeslání — opakovaný klik ho nepřepíše.
+      await sql`
+        UPDATE shop_orders
+        SET warehouse_sent_at = NOW(), warehouse_sent_by = ${request.user.id},
+            warehouse_dispatch_id = NULL, warehouse_hold_reason = '', modified_at = NOW()
+        WHERE id = ${request.params.id} AND shop_id = ${shopId} AND warehouse_sent_at IS NULL
+      `;
+    }
+    return reply.redirect(`/ucetnictvi/objednavky/${request.params.id}?saved=1`);
   });
 
   // ── Admin: Uložení poznámky ────────────────────────────────

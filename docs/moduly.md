@@ -291,9 +291,46 @@ Typy firem: Zákazník, Dodavatel, Partner, Jiný. Každý kontakt může mít m
 | `GET /ucetnictvi/objednavky/:id` | Detail objednávky |
 | `POST /ucetnictvi/objednavky/:id/stav` | Změna stavu + automatická faktura |
 | `POST /ucetnictvi/objednavky/:id/poznamka` | Přidat poznámku |
-| `GET /ucetnictvi/migrace-airtable` | Migrace dat z Airtable (jednorázové) |
+| `GET /ucetnictvi/objednavky/:id/stitek` | Štítek Zásilkovny v PDF (stahuje se z Packety při každém načtení) |
+| `POST /ucetnictvi/objednavky/expedice` | Ruční spuštění expedice do skladu |
+| `POST /ucetnictvi/objednavky/:id/sklad` | Označit / odznačit odeslání do skladu |
+| `GET /ucetnictvi/migrace` | Migrace dat z Airtable (jednorázové) |
 
-Stavy: Přijata → Ve zpracování → Vyřízena / Stornována. Přechod do „Vyřízena" automaticky vytvoří fakturu.
+Stavy v administraci: Přijata → Vyřízena / Stornována. Přechod do „Vyřízena"
+automaticky vytvoří fakturu. Do `status` píše i e-shop („Čeká na platbu",
+„Zaplaceno", „Platba se nezdařila"), takže sloupec obsahuje víc hodnot,
+než nabízí formulář.
+
+### Ranní expedice do skladu
+
+Každý všední den po sedmé hodině pražského času odejde skladu jeden e-mail se
+zaplacenými objednávkami, které ještě nedostal, a se štítky Zásilkovny
+v příloze. Data žijí v migraci 037 (`shop_orders.warehouse_sent_at`,
+`warehouse_dispatches`, `shops.warehouse_email`), logiku má `src/expedice.js`,
+adresu skladu formulář v Nastavení → Eshopy.
+
+Čtyři pravidla, na kterých to stojí:
+
+- **Zaplaceno se nepozná ze `shop_orders.status` samotného.** U karty platí
+  „Zaplaceno"/„Vyřízena" nebo vyplněný tracking (e-shop podává balík až po
+  potvrzení Stripem, a obsluha může stav v administraci přepsat). U převodu
+  jedině zálohová faktura ve stavu „Zaplacena" — tracking u převodu nic
+  neznamená, protože e-shop podá balík i nezaplacené objednávce, když zákazník
+  po neúspěšné kartě přepne na převod. Dobírka jde vždy, balík má od založení.
+- **Jeden běh na e-shop a pražský den hlídá unikátní index, ne cooldown.**
+  Druhý index dovolí nejvýš jeden rozběhnutý běh, takže se automat a ruční
+  spuštění nikdy nepotkají.
+- **Pozastavená objednávka se nikdy nerazítkuje.** Když chybí výdejní místo,
+  balík se nepodaří podat nebo štítek stáhnout, objednávka do e-mailu nejde,
+  dostane důvod do `warehouse_hold_reason` a správci push (jednou za sedm dní
+  na objednávku). Zbytek expedice odejde normálně.
+- **Pořadí zápisů se nemění.** Razítko na objednávkách vzniká *před* odesláním
+  a `email_sent_at` hned po něm. Kdyby se to obrátilo, pád procesu mezi
+  odesláním a zápisem (deploy v 07:02) by skladu poslal totéž podruhé.
+
+Kód dodavatele, podle kterého sklad vychystává, posílá e-shop v položce
+objednávky (`supplierCode` → `shop_order_items.supplier_code`). Když chybí,
+řádek vytiskne interní SKU s poznámkou — `sku` **není** kód dodavatele.
 
 ---
 
@@ -535,6 +572,7 @@ Vše admin-only.
 | `GET/POST /nastaveni/ciselne-rady` | Číselné řady pro faktury (prefix, rok, padding) |
 | `GET/POST /nastaveni/eshopy` | E-shopy + správa API klíčů |
 | `POST /nastaveni/eshopy/:id/identita` | Identita e-shopu v e-mailech |
+| `POST /nastaveni/eshopy/:id/expedice` | Adresa skladu a datum, od kterého se posílá |
 | `GET /nastaveni/eshopy/:id/nahled-emailu` | Náhled šablony bez odeslání |
 | `GET/POST /nastaveni/ucetni-osnova` | Číselník účtů (MD/D pro předkontaci) |
 | `GET /api/accounting-chart` | API: účty pro autocomplete |
@@ -574,6 +612,14 @@ Spouští se jednou při startu serveru, pak každých 24 hodin. Prochází `rec
 
 ### Healthcheck worker (`src/healthcheck-worker.js`)
 Pinguje registrované URL v nastaveném intervalu. Zapisuje výsledky do `healthcheck_results`. Pokud selže, spouští notifikační pravidla.
+
+### Expedice do skladu (`src/expedice.js`)
+Tiká každých 5 minut (poprvé 20 s po startu). Ve všední den po 7:00 pražského
+času založí jeden běh na e-shop s vyplněnou adresou skladu, dožádá chybějící
+balíky u e-shopu, stáhne štítky z Packety a odešle jeden e-mail. Po přechodné
+chybě opakuje s lineárním odstupem (10, 20, 30… minut, nejvýš šestkrát), pak
+si řekne o obsluhu pushem a tlačítkem „Odeslat expedici teď". Pražský čas
+počítá přes `Intl` — kontejner nemá nastavené `TZ`.
 
 ### VPS kolektor (`src/collector.js`)
 Běží jako cron přímo na VPS hostu (ne v Dockeru). Sbírá: RAM, CPU, disk, swap, uptime, PostgreSQL stats, Docker kontejnery, SSL certifikáty, stáří záloh. Výstup: `latest.json` + append do `history.sqlite`.

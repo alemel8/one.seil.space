@@ -84,12 +84,12 @@ async function deliver({ audience, from, replyTo, to, subject, html, attachments
 
   if (!process.env.RESEND_API_KEY) {
     console.log(`[DEV EMAIL] To: ${to} | From: ${from} | Subject: ${subject}`);
-    return;
+    return '';
   }
 
   const bcc = bccFor(audience, to);
 
-  const { error } = await getResend().emails.send({
+  const { data, error } = await getResend().emails.send({
     from, to: [to], subject, html,
     ...(replyTo ? { replyTo } : {}),
     ...(bcc ? { bcc } : {}),
@@ -97,6 +97,9 @@ async function deliver({ audience, from, replyTo, to, subject, html, attachments
   });
 
   if (error) throw new Error(`Resend error: ${error.message}`);
+  // Ranní expedice si id zprávy ukládá k běhu — bez něj nejde dohledat,
+  // co přesně skladu odešlo.
+  return data?.id ?? '';
 }
 
 function pdfAttachment(invoice, pdfBuffer) {
@@ -378,4 +381,39 @@ ${body}
     audience: 'company', from: companySenderFor(issuer), replyTo: companyReplyToFor(issuer),
     to: email, subject: emailSubject, html, attachments,
   });
+}
+
+// ── Expedice do skladu ───────────────────────────────────────
+
+/**
+ * Interní e-mail skladu se seznamem zásilek a štítky v příloze.
+ *
+ * Firemní identita je tu správně — sklad je náš dodavatel, ne zákazník
+ * e-shopu, takže `emailShell()` se značkou e-shopu se nepoužije a obálka je
+ * stejná jako u firemních faktur.
+ *
+ * Vrací id zprávy z Resendu, aby se dalo uložit k běhu expedice.
+ */
+export async function sendExpediceEmail({ issuer, to, subject, html, attachments }) {
+  const velikost = (attachments ?? []).reduce((soucet, a) => soucet + (a.content?.length ?? 0), 0);
+  if (velikost > 35 * 1024 * 1024) {
+    throw new Error('Štítky v příloze přesahují limit Resendu (40 MB) — rozděl expedici na víc běhů');
+  }
+
+  const document = `<!DOCTYPE html>
+<html lang="cs"><head><meta charset="utf-8"><title>${esc(subject)}</title></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:Inter,-apple-system,sans-serif">
+<div style="max-width:560px;margin:0 auto;padding:32px 16px">
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:28px 32px">
+${html}
+    <p style="font-size:14px;color:#334155;margin:16px 0 0">${esc(issuer?.name || '')}</p>
+  </div>
+</div>
+</body></html>`;
+
+  const id = await deliver({
+    audience: 'company', from: companySenderFor(issuer), replyTo: companyReplyToFor(issuer),
+    to, subject, html: document, attachments,
+  });
+  return { id: id || '' };
 }

@@ -158,6 +158,12 @@ Registrované e-shopy.
 | `name` | TEXT | Zobrazovaný název |
 | `url` | TEXT | URL e-shopu |
 | `active` | BOOL | |
+| `email_from_name`, `email_from_address`, `email_reply_to` | TEXT | Odesílatel zákaznických e-mailů (migrace 030) |
+| `support_email`, `support_phone`, `support_phone_link` | TEXT | Kontakty v patičce |
+| `tagline`, `claim`, `logo_mark_url`, `logo_wordmark_url` | TEXT | Vzhled e-mailů |
+| `color_primary`, `color_primary_dark`, `color_primary_light`, `color_on_primary_soft` | TEXT | Barvy značky |
+| `warehouse_email` | TEXT | Adresa skladu pro ranní expedici; prázdné = vypnuto (migrace 037) |
+| `warehouse_dispatch_since` | DATE | Objednávky přijaté dřív se do skladu neposílají |
 
 ### `api_keys`
 API klíče pro příjem objednávek.
@@ -194,6 +200,10 @@ Objednávky z e-shopů.
 | `ip_address`, `notes` | TEXT | |
 | `crm_contact_id` | INT → crm_contacts | Automaticky linkovaný kontakt |
 | `crm_company_id` | INT → crm_companies | |
+| `warehouse_sent_at` | TIMESTAMPTZ | Kdy objednávka odešla skladu; NULL = ještě ne (migrace 037) |
+| `warehouse_dispatch_id` | INT → warehouse_dispatches | Který běh ji poslal; NULL u ručního označení |
+| `warehouse_sent_by` | INT → users | Kdo ji označil ručně |
+| `warehouse_hold_reason` | TEXT | Proč do skladu nešla (bez výdejního místa, balík nepodán, štítek nestažen) |
 | `created_at`, `modified_at` | TIMESTAMPTZ | |
 
 ### `shop_order_items`
@@ -208,6 +218,29 @@ Položky objednávek.
 | `quantity` | INT | |
 | `price` | NUMERIC | Cena za kus |
 | `product_id` | TEXT | ID produktu v e-shopu |
+| `supplier_code` | TEXT | Kód dodavatele pro sklad (Airtable „ID Dodavatele"). **Není to `sku`** — to je interní kód Toneráčku. Prázdné = neznámý |
+
+### `warehouse_dispatches`
+Jeden běh ranní expedice do skladu. Zároveň zámek — řádek vzniká před prací.
+
+| Sloupec | Typ | Popis |
+|---|---|---|
+| `id` | SERIAL PK | |
+| `shop_id` | INT → shops | |
+| `kind` | TEXT | `auto` / `rucni` |
+| `run_date` | DATE | Pražské datum běhu |
+| `status` | TEXT | `probiha` / `odeslano` / `prazdno` / `chyba` |
+| `attempt` | INT | Kolikátý pokus (backoff 10, 20, 30… minut, max 6) |
+| `started_at`, `finished_at` | TIMESTAMPTZ | |
+| `email_sent_at` | TIMESTAMPTZ | Kdy Resend zprávu přijal — bod, za kterým se běh už neposílá znovu |
+| `recipient`, `subject`, `resend_id` | TEXT | Co a komu odešlo |
+| `order_count`, `held_count` | INT | Odeslané a zadržené objednávky |
+| `error` | TEXT | |
+| `started_by` | INT → users | U ručního spuštění |
+
+Dva částečné unikátní indexy: `(shop_id, run_date) WHERE kind='auto'` (jeden
+automatický běh na den) a `(shop_id) WHERE status='probiha'` (nejvýš jeden
+rozběhnutý běh, i kdyby klikli dva operátoři naráz).
 
 ---
 

@@ -195,8 +195,9 @@ export default async function apiRoutes(fastify) {
 
     for (const item of items) {
       await sql`
-        INSERT INTO shop_order_items (order_id, sku, name, quantity, price, product_id)
-        VALUES (${orderId}, ${item.sku??''}, ${item.name}, ${item.quantity}, ${item.price}, ${item.productId??null})
+        INSERT INTO shop_order_items (order_id, sku, supplier_code, name, quantity, price, product_id)
+        VALUES (${orderId}, ${item.sku??''}, ${String(item.supplierCode ?? '').trim()},
+                ${item.name}, ${item.quantity}, ${item.price}, ${item.productId??null})
       `;
     }
 

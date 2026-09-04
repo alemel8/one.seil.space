@@ -63,6 +63,7 @@ Příjem nové objednávky.
   "items": [
     {
       "sku": "TN-001",
+      "supplierCode": "11208",
       "name": "Toner HP 12A",
       "quantity": 2,
       "price": 745.00,
@@ -129,6 +130,13 @@ potvrzení platby jen rezervací.
   "invoiceNumber": "FV-2026-10001"
 }
 ```
+
+---
+
+`supplierCode` je nepovinný kód dodavatele, podle kterého vychystává sklad
+(v Toneráčku Airtable pole „ID Dodavatele"). Ranní expedice ho tiskne do
+seznamu pro sklad; když chybí, vytiskne se místo něj `sku` s poznámkou.
+**`sku` kód dodavatele není** — je to interní kód e-shopu.
 
 ---
 

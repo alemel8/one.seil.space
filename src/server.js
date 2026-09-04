@@ -291,6 +291,16 @@ try {
   setInterval(runAll, 5 * 60_000);
 }
 
+// ── Background: ranní expedice do skladu ─────────────────────
+//
+// Tik si sám hlídá okno (všední den po sedmé pražského času) i to, že za den
+// proběhne jeden běh, takže restart v sedm ráno odeslání jen o pár minut
+// posune. Pořadí zápisů uvnitř je popsané v hlavičce src/expedice.js.
+{
+  const { startExpediceScheduler } = await import('./expedice.js');
+  startExpediceScheduler(fastify.log);
+}
+
 // ── Graceful shutdown ─────────────────────────────────────────
 
 const shutdown = async (signal) => {

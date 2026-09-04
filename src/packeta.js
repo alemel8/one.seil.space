@@ -38,6 +38,9 @@ export async function fetchPacketLabelPdf(packetId, format = 'A6 on A6') {
       'SOAPAction': 'http://www.zasilkovna.cz/api/soap/packetLabelPdf',
     },
     body: envelope,
+    // Bez timeoutu čeká fetch minuty. Ranní expedice stahuje štítky
+    // sekvenčně, takže jeden zaseklý hovor zdrží celý běh.
+    signal: AbortSignal.timeout(20_000),
   });
   const xml = await res.text();
 

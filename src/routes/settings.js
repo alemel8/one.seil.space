@@ -202,9 +202,18 @@ export default async function settingsRoutes(fastify) {
       WHERE r.event_type = 'app_down' ORDER BY r.id
     `;
 
+    const expedice = await sql`
+      SELECT * FROM warehouse_dispatches WHERE shop_id = ${shop.id}
+      ORDER BY started_at DESC LIMIT 5
+    `;
+
     return reply.view('pages/settings/shop-detail.ejs', {
       pageTitle: shop.name, currentPath: '/nastaveni/eshopy',
-      user: request.user, shop, checks, keys, channels, rules,
+      user: request.user, shop, checks, keys, channels, rules, expedice,
+      // Bez těchhle tajemství expedice objednávky jen zadrží — ať to admin
+      // vidí tady, a ne až v pushi o zadržených objednávkách.
+      maPacketaHeslo: Boolean(process.env.PACKETA_API_PASSWORD),
+      maWebhookSecret: Boolean(process.env.SHOP_WEBHOOK_SECRET),
       saved: request.query.saved === '1', newKey: request.query.newKey || null,
       error: request.query.error || null,
     }, { layout: 'layouts/base.ejs' });
@@ -247,6 +256,36 @@ export default async function settingsRoutes(fastify) {
       WHERE id = ${shopId}
     `;
     invalidateBrandCache(shopId);
+    return reply.redirect(`/nastaveni/eshopy/${shopId}?saved=1`);
+  });
+
+  // ── Expedice do skladu ───────────────────────────────────────
+  //
+  // Prázdná adresa znamená vypnuto — po nasazení tedy automat mlčí, dokud si
+  // ho někdo vědomě nezapne. `warehouse_dispatch_since` chrání první ráno:
+  // starší objednávky vyřídil sklad ručně a nemá je dostat znovu.
+
+  fastify.post('/nastaveni/eshopy/:id/expedice', async (request, reply) => {
+    const b = request.body || {};
+    const shopId = parseInt(request.params.id, 10);
+    if (!shopId) return reply.code(400).send('Neplatný eshop');
+
+    const email = (b.warehouse_email || '').trim().toLowerCase();
+    if (email && !email.includes('@')) {
+      return reply.redirect(`/nastaveni/eshopy/${shopId}?error=sklad-email`);
+    }
+
+    const since = (b.warehouse_dispatch_since || '').trim();
+    if (since && !/^\d{4}-\d{2}-\d{2}$/.test(since)) {
+      return reply.redirect(`/nastaveni/eshopy/${shopId}?error=sklad-datum`);
+    }
+
+    await sql`
+      UPDATE shops SET
+        warehouse_email = ${email},
+        warehouse_dispatch_since = COALESCE(${since || null}::date, warehouse_dispatch_since)
+      WHERE id = ${shopId}
+    `;
     return reply.redirect(`/nastaveni/eshopy/${shopId}?saved=1`);
   });
 
