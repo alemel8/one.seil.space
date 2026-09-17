@@ -303,11 +303,14 @@ než nabízí formulář.
 
 ### Ranní expedice do skladu
 
-Každý všední den po sedmé hodině pražského času odejde skladu jeden e-mail se
+Každý všední den po šesté hodině pražského času odejde skladu jeden e-mail se
 zaplacenými objednávkami, které ještě nedostal, a se štítky Zásilkovny
 v příloze. Data žijí v migraci 037 (`shop_orders.warehouse_sent_at`,
 `warehouse_dispatches`, `shops.warehouse_email`), logiku má `src/expedice.js`,
-adresu skladu formulář v Nastavení → Eshopy.
+adresu skladu formulář v Nastavení → Eshopy. Tentýž formulář drží i adresu pro
+skrytou kopii (`shops.warehouse_email_bcc`, migrace 038) — kopie chodí skrytě,
+aby sklad neodpovídal i tomu, kdo zásilky nevyřizuje, a s `EMAIL_BCC` nemá nic
+společného: to je kopie zákaznické pošty.
 
 Čtyři pravidla, na kterých to stojí:
 
@@ -326,7 +329,7 @@ adresu skladu formulář v Nastavení → Eshopy.
   na objednávku). Zbytek expedice odejde normálně.
 - **Pořadí zápisů se nemění.** Razítko na objednávkách vzniká *před* odesláním
   a `email_sent_at` hned po něm. Kdyby se to obrátilo, pád procesu mezi
-  odesláním a zápisem (deploy v 07:02) by skladu poslal totéž podruhé.
+  odesláním a zápisem (deploy v 06:02) by skladu poslal totéž podruhé.
 
 Kód dodavatele, podle kterého sklad vychystává, posílá e-shop v položce
 objednávky (`supplierCode` → `shop_order_items.supplier_code`). Když chybí,
@@ -614,7 +617,7 @@ Spouští se jednou při startu serveru, pak každých 24 hodin. Prochází `rec
 Pinguje registrované URL v nastaveném intervalu. Zapisuje výsledky do `healthcheck_results`. Pokud selže, spouští notifikační pravidla.
 
 ### Expedice do skladu (`src/expedice.js`)
-Tiká každých 5 minut (poprvé 20 s po startu). Ve všední den po 7:00 pražského
+Tiká každých 5 minut (poprvé 20 s po startu). Ve všední den po 6:00 pražského
 času založí jeden běh na e-shop s vyplněnou adresou skladu, dožádá chybějící
 balíky u e-shopu, stáhne štítky z Packety a odešle jeden e-mail. Po přechodné
 chybě opakuje s lineárním odstupem (10, 20, 30… minut, nejvýš šestkrát), pak

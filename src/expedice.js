@@ -1,7 +1,7 @@
 /**
  * Ranní expedice zaplacených objednávek do skladu.
  *
- * Každý všední den po sedmé hodině pražského času odejde skladu jeden e-mail
+ * Každý všední den po šesté hodině pražského času odejde skladu jeden e-mail
  * se všemi zaplacenými objednávkami, které ještě nedostal, a se štítky
  * Zásilkovny v příloze. Co přijde v pátek po odeslání, jde v pondělí — víkend
  * oknem neprojde.
@@ -13,7 +13,7 @@
  *
  * Řádek běhu vzniká PŘED prací a razítko na objednávkách PŘED odesláním.
  * Kdyby se to „zjednodušilo“ na „pošli a pak zapiš“, stačil by pád procesu
- * mezi přijetím e-mailu Resendem a commitem (deploy v 07:02, SIGTERM) a sklad
+ * mezi přijetím e-mailu Resendem a commitem (deploy v 06:02, SIGTERM) a sklad
  * by druhý den balil tytéž objednávky podruhé. Když odeslání selže, razítko
  * se zase odvolá — proto `warehouse_sent_by IS NULL`, ať se nesmaže ruční
  * označení obsluhy.
@@ -45,7 +45,7 @@ import { sendPushToAll } from './push.js';
 // ── Konstanty ─────────────────────────────────────────────────
 
 /** Hodina pražského času, od které se ráno odesílá. */
-export const HODINA_EXPEDICE = 7;
+export const HODINA_EXPEDICE = 6;
 
 /**
  * Dopočtené řádky, které e-shop ukládá mezi položky objednávky (doprava,
@@ -673,7 +673,8 @@ async function provedExpedici(sql, log, { shop, dispatch }) {
   let resendId = '';
   try {
     const vysledek = await sendExpediceEmail({
-      issuer: issuer || {}, to: shop.warehouse_email, subject, html, attachments: prilohy,
+      issuer: issuer || {}, to: shop.warehouse_email, bcc: shop.warehouse_email_bcc || undefined,
+      subject, html, attachments: prilohy,
     });
     resendId = vysledek?.id || '';
   } catch (err) {

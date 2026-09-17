@@ -62,7 +62,7 @@
         onsubmit="return confirm('Odešle skladu e-mail se všemi zaplacenými objednávkami, které ještě nedostal. Pokračovat?')">
     <button type="submit" class="btn btn-outline" <%= shop.warehouse_email ? '' : 'disabled' %>
             title="<%= shop.warehouse_email
-              ? 'Ranní expedice jede ve všední dny v 07:00 na ' + shop.warehouse_email
+              ? 'Ranní expedice jede ve všední dny v 06:00 na ' + shop.warehouse_email
               : 'E-shop nemá vyplněnou adresu skladu — doplňte ji v Nastavení → Eshopy' %>">
       Odeslat expedici teď
     </button>

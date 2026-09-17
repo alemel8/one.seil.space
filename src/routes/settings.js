@@ -275,6 +275,11 @@ export default async function settingsRoutes(fastify) {
       return reply.redirect(`/nastaveni/eshopy/${shopId}?error=sklad-email`);
     }
 
+    const bcc = (b.warehouse_email_bcc || '').trim().toLowerCase();
+    if (bcc && !bcc.includes('@')) {
+      return reply.redirect(`/nastaveni/eshopy/${shopId}?error=sklad-kopie`);
+    }
+
     const since = (b.warehouse_dispatch_since || '').trim();
     if (since && !/^\d{4}-\d{2}-\d{2}$/.test(since)) {
       return reply.redirect(`/nastaveni/eshopy/${shopId}?error=sklad-datum`);
@@ -283,6 +288,7 @@ export default async function settingsRoutes(fastify) {
     await sql`
       UPDATE shops SET
         warehouse_email = ${email},
+        warehouse_email_bcc = ${bcc},
         warehouse_dispatch_since = COALESCE(${since || null}::date, warehouse_dispatch_since)
       WHERE id = ${shopId}
     `;

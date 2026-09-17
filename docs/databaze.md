@@ -163,6 +163,7 @@ Registrované e-shopy.
 | `tagline`, `claim`, `logo_mark_url`, `logo_wordmark_url` | TEXT | Vzhled e-mailů |
 | `color_primary`, `color_primary_dark`, `color_primary_light`, `color_on_primary_soft` | TEXT | Barvy značky |
 | `warehouse_email` | TEXT | Adresa skladu pro ranní expedici; prázdné = vypnuto (migrace 037) |
+| `warehouse_email_bcc` | TEXT | Skrytá kopie expedice; prázdné = bez kopie (migrace 038) |
 | `warehouse_dispatch_since` | DATE | Objednávky přijaté dřív se do skladu neposílají |
 
 ### `api_keys`

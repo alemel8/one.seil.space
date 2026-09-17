@@ -54,26 +54,29 @@ function isUndeliverable(to) {
  * v migraci 030.
  */
 /**
- * Skrytá kopie zákaznických e-mailů pro dobu ladění.
+ * Skrytá kopie. Dva nezávislé zdroje, schválně se nemíchají:
  *
- * **Dočasné.** Zapíná se proměnnou `EMAIL_BCC`; prázdná nebo chybějící
- * hodnota znamená vypnuto, takže se to dá zhasnout bez zásahu do kódu.
- * Po odladění tuhle proměnnou smaž — chodí do ní kopie veškeré zákaznické
- * pošty včetně faktur, tedy osobní údaje.
+ * `explicit` je adresa od volajícího a patří ke konkrétnímu e-mailu —
+ * kopie ranní expedice visí na e-shopu (`shops.warehouse_email_bcc`), ne
+ * v prostředí, aby šla zapnout jednomu e-shopu a druhému ne.
  *
- * Firemních e-mailů (`audience: 'company'`) se to netýká, ty zákazníkovi
- * nechodí.
+ * `EMAIL_BCC` je **dočasná** kopie zákaznické pošty pro dobu ladění; prázdná
+ * nebo chybějící hodnota znamená vypnuto, takže se to dá zhasnout bez zásahu
+ * do kódu. Po odladění tuhle proměnnou smaž — chodí do ní kopie veškeré
+ * zákaznické pošty včetně faktur, tedy osobní údaje. Firemních e-mailů
+ * (`audience: 'company'`) se netýká; ty si o kopii musí říct samy.
  */
-function bccFor(audience, to) {
-  const bcc = (process.env.EMAIL_BCC || '').trim();
-  if (!bcc || audience !== 'customer') return undefined;
-  // Ať nechodí dvakrát, když zákazníkem je zrovna ta samá adresa.
+function bccFor(audience, to, explicit) {
+  const bcc = String(explicit ?? process.env.EMAIL_BCC ?? '').trim();
+  if (!bcc) return undefined;
+  if (!explicit && audience !== 'customer') return undefined;
+  // Ať nechodí dvakrát, když adresátem je zrovna ta samá adresa.
   const address = (String(to).match(/<([^>]*)>/)?.[1] ?? String(to)).trim().toLowerCase();
   if (address === bcc.toLowerCase()) return undefined;
   return [bcc];
 }
 
-async function deliver({ audience, from, replyTo, to, subject, html, attachments }) {
+async function deliver({ audience, from, replyTo, to, bcc: skrytaKopie, subject, html, attachments }) {
   if (audience === 'customer' && /@seil\.cz>?\s*$/i.test(from)) {
     throw new Error(`Zákaznický e-mail se pokusil odejít z firemní adresy: ${from}`);
   }
@@ -87,7 +90,7 @@ async function deliver({ audience, from, replyTo, to, subject, html, attachments
     return '';
   }
 
-  const bcc = bccFor(audience, to);
+  const bcc = bccFor(audience, to, skrytaKopie);
 
   const { data, error } = await getResend().emails.send({
     from, to: [to], subject, html,
@@ -394,7 +397,7 @@ ${body}
  *
  * Vrací id zprávy z Resendu, aby se dalo uložit k běhu expedice.
  */
-export async function sendExpediceEmail({ issuer, to, subject, html, attachments }) {
+export async function sendExpediceEmail({ issuer, to, bcc, subject, html, attachments }) {
   const velikost = (attachments ?? []).reduce((soucet, a) => soucet + (a.content?.length ?? 0), 0);
   if (velikost > 35 * 1024 * 1024) {
     throw new Error('Štítky v příloze přesahují limit Resendu (40 MB) — rozděl expedici na víc běhů');
@@ -413,7 +416,7 @@ ${html}
 
   const id = await deliver({
     audience: 'company', from: companySenderFor(issuer), replyTo: companyReplyToFor(issuer),
-    to, subject, html: document, attachments,
+    to, bcc, subject, html: document, attachments,
   });
   return { id: id || '' };
 }

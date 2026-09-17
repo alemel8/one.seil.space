@@ -131,8 +131,8 @@ describe('pražský čas a okno odeslání', () => {
   });
 
   test('okno nemá horní hranici — po výpadku se pošle i odpoledne', () => {
-    assert.equal(jeVOkne({ den: 1, hodina: 6 }), false);
-    assert.equal(jeVOkne({ den: 1, hodina: 7 }), true);
+    assert.equal(jeVOkne({ den: 1, hodina: 5 }), false);
+    assert.equal(jeVOkne({ den: 1, hodina: 6 }), true);
     assert.equal(jeVOkne({ den: 5, hodina: 15 }), true);
   });
 });
