@@ -1,5 +1,5 @@
 import { getDb } from '../db.js';
-import { getVapidPublicKey } from '../push.js';
+import { getVapidPublicKey, sendPushToUser } from '../push.js';
 
 export default async function pushRoutes(fastify) {
   const sql = getDb();
@@ -42,6 +42,19 @@ export default async function pushRoutes(fastify) {
       SELECT id FROM push_subscriptions WHERE user_id = ${request.user.id} AND endpoint = ${endpoint}
     `;
     return reply.send({ subscribed: !!row });
+  });
+
+  // Zkušební notifikace na vlastní zařízení. Jediný jiný spouštěč je skutečná
+  // objednávka, takže bez tohohle se registrace zařízení ověřit nedá — jen
+  // čekáním, jestli něco přijde.
+  fastify.post('/api/push/test', async (request, reply) => {
+    if (!request.user) return reply.code(401).send({ error: 'Unauthorized' });
+    const vysledek = await sendPushToUser(request.user.id, {
+      title: 'Zkušební notifikace',
+      body: 'Push notifikace fungují. Takhle přijde i nová objednávka.',
+      url: '/nastaveni',
+    });
+    return reply.send(vysledek);
   });
 
   // Uložení notifikačních preferencí

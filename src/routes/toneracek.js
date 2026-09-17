@@ -523,11 +523,17 @@ export default async function toneracekRoutes(fastify) {
       await issueProformaForOrder(orderId);
     }
 
+    // Objednávku push nesmí shodit, ale mlčet taky nesmí: „notifikace nepřišla"
+    // se jinak nedá odlišit od „notifikace se ani nepokusila odejít".
     sendPushToAll({
       title: 'Nová objednávka — Toneráček',
       body: `#${orderNumber} · ${customer.firstName} ${customer.lastName} · ${totalPrice} CZK`,
       url: `/ucetnictvi/objednavky/${orderId}`,
-    }).catch(() => {});
+    })
+      .then(({ odeslano, selhalo, duvod }) => {
+        if (!odeslano) fastify.log.warn({ orderNumber, selhalo, duvod }, 'Push o nové objednávce neodešel');
+      })
+      .catch(err => fastify.log.error({ err, orderNumber }, 'Push o nové objednávce selhal'));
 
     return reply.send({ orderId, orderNumber, invoiceNumber });
   });

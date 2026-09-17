@@ -27,8 +27,10 @@
         <div id="pushStatus" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px;">
           <span id="pushLabel" style="font-size:13px;color:var(--text-muted);">Zjišťuji stav…</span>
           <button id="pushBtn" class="btn btn-primary btn-sm" style="display:none;" onclick="togglePush()">Povolit notifikace</button>
+          <button id="pushTestBtn" class="btn btn-outline btn-sm" style="display:none;" onclick="testPush()">Poslat zkušební</button>
         </div>
         <p id="pushError" style="margin:4px 0 0;font-size:13px;color:var(--danger);display:none;"></p>
+        <p id="pushTestMsg" style="margin:4px 0 0;font-size:13px;display:none;"></p>
       </div>
 
       <div style="border-top:1px solid var(--border);"></div>
@@ -102,6 +104,34 @@ function setEnabled(on) {
     btn.className = 'btn btn-primary btn-sm';
   }
   btn.style.display = '';
+  document.getElementById('pushTestBtn').style.display = on ? '' : 'none';
+  document.getElementById('pushTestMsg').style.display = 'none';
+}
+
+// Zkušební notifikace. Odpověď říká, kolik zařízení ji dostalo — když žádné,
+// tak proč. Bez toho je „nic nepřišlo" jediná dostupná informace.
+async function testPush() {
+  const btn = document.getElementById('pushTestBtn');
+  const msg = document.getElementById('pushTestMsg');
+  btn.disabled = true;
+  msg.style.display = 'none';
+
+  try {
+    const res = await fetch('/api/push/test', { method: 'POST' });
+    const { odeslano, duvod } = await res.json();
+    if (odeslano) {
+      msg.textContent = `Odesláno na ${odeslano} zařízení. Pokud nic nepřišlo, blokuje notifikace systém nebo prohlížeč.`;
+      msg.style.color = 'var(--text-muted)';
+    } else {
+      msg.textContent = `Neodesláno: ${duvod || 'neznámý důvod'}`;
+      msg.style.color = 'var(--danger)';
+    }
+  } catch (e) {
+    msg.textContent = 'Zkušební notifikaci se nepodařilo odeslat: ' + e.message;
+    msg.style.color = 'var(--danger)';
+  }
+  msg.style.display = '';
+  btn.disabled = false;
 }
 
 async function togglePush() {

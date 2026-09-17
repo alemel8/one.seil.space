@@ -21,10 +21,22 @@ export function getVapidPublicKey() {
   return VAPID_PUBLIC || null;
 }
 
-// type: 'new_order' | string — filtruje dle user_notification_prefs
+/**
+ * Notifikace všem, kdo mají daný typ zapnutý. `type` ('new_order' | jiný
+ * řetězec) se filtruje podle `user_notification_prefs`; kdo tam řádek nemá,
+ * bere se jako zapnutý.
+ *
+ * Vrací souhrn `{ odeslano, selhalo, duvod }`, aby šlo zjistit, proč
+ * notifikace nepřišla. Dřív to zjistit nešlo: funkce mlčky skončila bez VAPID
+ * klíčů i bez jediné subscription a obě volání u nové objednávky měla
+ * `.catch(() => {})`, takže „push nikomu nechodí“, „nikdo nemá registrované
+ * zařízení“ a „Apple to odmítl“ vypadaly v logu stejně — totiž nijak.
+ *
+ * `duvod` je prázdný, když aspoň jedna notifikace odešla.
+ */
 export async function sendPushToAll(payload, type = 'new_order') {
   ensureConfigured();
-  if (!configured) return;
+  if (!configured) return { odeslano: 0, selhalo: 0, duvod: 'nejsou nastavené VAPID klíče' };
 
   const sql = getDb();
 
@@ -41,9 +53,39 @@ export async function sendPushToAll(payload, type = 'new_order') {
       END
   `;
 
-  if (!subs.length) return;
+  if (!subs.length) {
+    return { odeslano: 0, selhalo: 0, duvod: `žádné registrované zařízení s povoleným typem „${type}“` };
+  }
 
+  return odesli(sql, subs, payload);
+}
+
+/**
+ * Notifikace jen na zařízení jednoho uživatele. Pohání zkušební odeslání
+ * v nastavení — bez něj je jediný spouštěč push notifikace skutečná
+ * objednávka, takže se registrace zařízení nedá ověřit jinak než čekáním.
+ */
+export async function sendPushToUser(userId, payload) {
+  ensureConfigured();
+  if (!configured) return { odeslano: 0, selhalo: 0, duvod: 'nejsou nastavené VAPID klíče' };
+
+  const sql = getDb();
+  const subs = await sql`
+    SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ${userId}
+  `;
+
+  if (!subs.length) {
+    return { odeslano: 0, selhalo: 0, duvod: 'tenhle účet nemá registrované žádné zařízení' };
+  }
+
+  return odesli(sql, subs, payload);
+}
+
+async function odesli(sql, subs, payload) {
   const message = JSON.stringify(payload);
+  let odeslano = 0;
+  let selhalo = 0;
+  let duvod = '';
 
   await Promise.allSettled(
     subs.map(async sub => {
@@ -52,11 +94,21 @@ export async function sendPushToAll(payload, type = 'new_order') {
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
           message
         );
+        odeslano++;
       } catch (err) {
+        selhalo++;
+        // 410/404 je odhlášené zařízení — úklid, ne chyba k řešení. Cokoli
+        // jiného (401 za špatné VAPID klíče, 413 za velký payload) si zaslouží
+        // dostat se ven, jinak se hledá po hmatu.
         if (err.statusCode === 410 || err.statusCode === 404) {
           await sql`DELETE FROM push_subscriptions WHERE endpoint = ${sub.endpoint}`.catch(() => {});
+        } else {
+          duvod = `${err.statusCode ?? '?'} ${err.body || err.message}`.trim().slice(0, 200);
         }
       }
     })
   );
+
+  if (!odeslano && !duvod) duvod = 'všechna registrovaná zařízení byla mezitím odhlášena';
+  return { odeslano, selhalo, duvod: odeslano ? '' : duvod };
 }

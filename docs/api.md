@@ -255,6 +255,14 @@ Ověření, zda je toto zařízení registrováno.
 ```
 Response: `{ "subscribed": true }`
 
+### POST /api/push/test
+Zkušební notifikace na zařízení přihlášeného uživatele. Bez těla.
+
+Response: `{ "odeslano": 1, "selhalo": 0, "duvod": "" }` — `duvod` je vyplněný jen
+když neodešlo nic (chybí VAPID klíče, účet nemá registrované zařízení, push
+službu odmítla). Jediný jiný spouštěč notifikace je skutečná objednávka, takže
+tudy se registrace ověří, aniž by se na ni čekalo.
+
 ---
 
 ## Interní API (pro UI)

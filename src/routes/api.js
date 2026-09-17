@@ -215,11 +215,17 @@ export default async function apiRoutes(fastify) {
       fastify.log.warn({ err }, 'CRM upsert selhal (nekritické)');
     }
 
+    // Viz stejné místo v routes/toneracek.js: push objednávku neshodí, ale
+    // když neodejde, musí to být vidět v logu.
     sendPushToAll({
       title: `Nová objednávka — ${shop.shop_name}`,
       body: `#${orderNumber} · ${customer.firstName} ${customer.lastName} · ${b.totalPrice} ${b.currency ?? 'CZK'}`,
       url: `/ucetnictvi/objednavky/${orderId}`,
-    }).catch(() => {});
+    })
+      .then(({ odeslano, selhalo, duvod }) => {
+        if (!odeslano) fastify.log.warn({ orderNumber, selhalo, duvod }, 'Push o nové objednávce neodešel');
+      })
+      .catch(err => fastify.log.error({ err, orderNumber }, 'Push o nové objednávce selhal'));
 
     return reply.code(201).send({ orderId, orderNumber, sourceShop: shop.shop_id_slug, invoiceNumber });
   });
