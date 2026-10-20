@@ -127,6 +127,11 @@ ho chce ve formuláři (předvyplněný už zapsaným dnem úhrady, jinak pražs
 dneškem; bez něj pražský dnešek, ne `CURRENT_DATE`). Den kliknutí by posunul
 DUZP vystavené faktury, klidně do jiného měsíce DPH.
 
+**Potvrdil majitel 20. 10. 2026:** u karty a převodu se den přijetí úplaty
+tiskne pod nadpisem „Datum uskutečnění zdanitelného plnění"; DUZP dobírky je
+den vystavení faktury (ne předání dopravci ani doručení); starší karty bez
+`paid_at` berou den založení objednávky. Měnit jen po dohodě s účetní.
+
 **DUZP jde opravit** v úpravě vydané faktury (pole DUZP, prázdné = datum
 vystavení). Je to cesta pro karty zaplacené jindy než v den založení objednávky
 (před migrací 039) a pro potvrzení platby, které dorazilo po půlnoci.
