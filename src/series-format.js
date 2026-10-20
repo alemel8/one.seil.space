@@ -7,6 +7,12 @@
 //   DD         — den (01–31)
 //   X...       — náhodné číslice, počet X určuje počet znaků
 //   N...       — pořadové číslo řady, zero-padded na počet N
+//
+// Rok, měsíc a den jsou pražské, ne podle pásma procesu: kontejner může běžet
+// v UTC a faktura vystavená na Nový rok ve 0:30 by nesla v čísle loňský rok,
+// kdežto datum vystavení (pražské) už letošní.
+
+import { prazskyCas } from './prazsky-cas.js';
 
 const TOKEN_RE = /Y{4}|Y{2}|M{2}|D{2}|X+|N+/g;
 
@@ -23,11 +29,13 @@ export function renderSeriesNumber(series, date = new Date()) {
     return `${series.prefix}${yearPart}-${num}`;
   }
 
+  const [rok, mesic, den] = prazskyCas(date).datum.split('-');
+
   return series.format.replace(TOKEN_RE, (token) => {
-    if (token === 'YYYY') return String(date.getFullYear());
-    if (token === 'YY')   return String(date.getFullYear()).slice(-2);
-    if (token === 'MM')   return String(date.getMonth() + 1).padStart(2, '0');
-    if (token === 'DD')   return String(date.getDate()).padStart(2, '0');
+    if (token === 'YYYY') return rok;
+    if (token === 'YY')   return rok.slice(-2);
+    if (token === 'MM')   return mesic;
+    if (token === 'DD')   return den;
     if (token[0] === 'X') return randomDigits(token.length);
     if (token[0] === 'N') return String(series.current_number).padStart(token.length, '0');
     return token;

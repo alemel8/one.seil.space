@@ -127,9 +127,16 @@ potvrzení platby jen rezervací.
 {
   "orderId": "lx7k9abc123",
   "orderNumber": "10001",
-  "invoiceNumber": "FV-2026-10001"
+  "invoiceNumber": ""
 }
 ```
+
+`invoiceNumber` je vždy prázdné — faktura vzniká až vyřízením objednávky a číslo
+dostane z řady (např. `20260001`). Pak ho vrací `GET /api/toneracek/orders`
+(i `…/by-number/:orderNumber`) v `invoice_number` — vždy číslo vydané faktury,
+bez ní prázdné, i u starších objednávek, které mají v databázi uložené vymyšlené
+`FV-<rok>-<objednávka>`. K tomu žádný doklad neexistoval; e-shop má řádek
+„Faktura" při prázdné hodnotě skrýt, a to dřív nebo současně s nasazením Seilu.
 
 ---
 
@@ -145,6 +152,10 @@ Změna stavu platby. E-shop sem zapisuje „Zaplaceno“ / „Platba se nezdaři
 podle Stripe webhooků.
 
 **Body:** `{ "status": "Zaplaceno" }`
+
+První „Zaplaceno“ uloží okamžik do `shop_orders.paid_at`; další potvrzení
+(retry webhooku) ho nepřepíší. Z toho okamžiku je den přijetí úplaty na faktuře,
+proto má e-shop volat hned po potvrzení platby, ne až dávkově.
 
 ---
 
@@ -164,7 +175,8 @@ neúspěšné platbě kartou přepne na QR / převod / dobírku.
 `paymentMethod` je `card` | `transfer` | `cod`. `totalPrice` a `status` jsou
 volitelné — bez nich se nemění. Přepnutí na převod vystaví a odešle zálohovou
 fakturu stejně jako objednávka, která s převodem přišla rovnou z pokladny
-(druhou zálohovku k téže objednávce nevystaví).
+(druhou zálohovku k téže objednávce nevystaví). `status: "Zaplaceno"` zapíše
+okamžik platby do `paid_at` stejně jako `payment-status`.
 
 > Mění se stávající objednávka, ne nová: každá objednávka spotřebuje číslo
 > v účetní řadě a DELETE endpoint neexistuje, takže „objednej znovu jinou

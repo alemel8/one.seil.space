@@ -196,7 +196,8 @@ Objednávky z e-shopů.
 | `shipping_*` | TEXT | Doručovací adresa |
 | `pickup_point_id`, `pickup_point_name` | TEXT | Zásilkovna apod. |
 | `total_price` | NUMERIC | |
-| `invoice_number` | TEXT | Vygenerované číslo faktury |
+| `invoice_number` | TEXT | Číslo vydané faktury; zapisuje ho `generateInvoiceForOrder()`, do vystavení prázdné. Objednávky z doby před migrací 039 v něm nesou vymyšlené `FV-<rok>-<objednávka>`, ke kterému doklad neexistuje — e-shopu proto API posílá číslo z `accounting_invoices`, ne tenhle sloupec |
+| `paid_at` | TIMESTAMPTZ | Kdy e-shop poprvé ohlásil zaplacení kartou (stav „Zaplaceno“ při založení, v payment-status nebo payment-method); další potvrzení ho nepřepíší. Z něj je den přijetí úplaty karty (DUZP) na faktuře a od něj běží hlídaná lhůta 15 dnů. NULL = převod, dobírka, starší objednávky (migrace 039); zaplacená karta bez něj bere pražský den `created_at` — dopočítá se, nedopisuje (`denPlatbyKartou()`) |
 | `tracking_number`, `label_url` | TEXT | Sledování zásilky |
 | `ip_address`, `notes` | TEXT | |
 | `crm_contact_id` | INT → crm_contacts | Automaticky linkovaný kontakt |
@@ -299,8 +300,10 @@ Vydané i přijaté faktury.
 | `id` | SERIAL PK | |
 | `type` | TEXT | `issued` / `received` |
 | `number` | TEXT | Číslo faktury |
-| `status` | TEXT | Vystavena / Odeslaná / Zaplacena / Storno |
+| `status` | TEXT | Nezaplacena / Zaplacena / Po splatnosti / Storno (`STATUSES_ISSUED`) |
 | `issue_date`, `due_date` | DATE | |
+| `paid_date` | DATE | Den úhrady — den pohybu na účtu (párování s bankou) nebo den zadaný při ruční změně stavu, ne den kliknutí. U faktury k objednávce den přijetí úplaty (karta, převod), u dobírky NULL do spárování |
+| `taxable_date` | DATE | DUZP vydané faktury: u karty a převodu den přijetí úplaty, u dobírky den vystavení. NULL = shodné s `issue_date` (starší a ruční doklady). Tiskne ho PDF, je v CSV exportu a jde do POHODY jako `dateTax`; opravuje se v úpravě faktury (migrace 039) |
 | `customer_*` | TEXT | Fakturační údaje odběratele |
 | `supplier_ico` | TEXT | IČO dodavatele (přijaté faktury) |
 | `items_total`, `vat_total`, `total` | NUMERIC | Součty |

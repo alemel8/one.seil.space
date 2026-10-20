@@ -38,10 +38,16 @@
         <div><div style="color:var(--text-muted);font-size:12px;">IČO / DIČ</div><div><%= invoice.client_ico || '—' %> / <%= invoice.client_dic || '—' %></div></div>
         <div><div style="color:var(--text-muted);font-size:12px;">Adresa</div><div><%= invoice.client_address || '—' %></div></div>
         <div><div style="color:var(--text-muted);font-size:12px;">Měna</div><div><%= invoice.currency %></div></div>
-        <div><div style="color:var(--text-muted);font-size:12px;">Datum vystavení</div><div><%= new Date(invoice.issue_date).toLocaleDateString('cs-CZ') %></div></div>
-        <div><div style="color:var(--text-muted);font-size:12px;">Splatnost</div><div><%= invoice.due_date ? new Date(invoice.due_date).toLocaleDateString('cs-CZ') : '—' %></div></div>
+        <%# Data přes ceskeDatum() jako v PDF: toLocaleDateString() čte sloupec DATE
+            v pásmu procesu a západně od UTC by ukázal o den dřív. %>
+        <div><div style="color:var(--text-muted);font-size:12px;">Datum vystavení</div><div><%= ceskeDatum(invoice.issue_date) %></div></div>
+        <div><div style="color:var(--text-muted);font-size:12px;">Splatnost</div><div><%= invoice.due_date ? ceskeDatum(invoice.due_date) : '—' %></div></div>
+        <%# Totéž DUZP, které tiskne PDF a jde do POHODY — bez taxable_date je to datum vystavení. %>
+        <% if (invoice.type === 'issued') { %>
+        <div><div style="color:var(--text-muted);font-size:12px;">DUZP</div><div><%= ceskeDatum(invoice.taxable_date || invoice.issue_date) %></div></div>
+        <% } %>
         <% if (invoice.paid_date) { %>
-        <div><div style="color:var(--text-muted);font-size:12px;">Zaplaceno</div><div style="color:#166534;font-weight:500;"><%= new Date(invoice.paid_date).toLocaleDateString('cs-CZ') %></div></div>
+        <div><div style="color:var(--text-muted);font-size:12px;">Zaplaceno</div><div style="color:#166534;font-weight:500;"><%= ceskeDatum(invoice.paid_date) %></div></div>
         <% } %>
         <% if (invoice.order_id) { %>
         <div><div style="color:var(--text-muted);font-size:12px;">Z objednávky</div><div><a href="/ucetnictvi/objednavky/<%= invoice.order_id %>" style="color:var(--primary);">Zobrazit objednávku</a></div></div>
@@ -145,7 +151,12 @@
           📄 Stáhnout PDF
         </a>
         <button class="btn btn-ghost" data-modal-open="modalEmail" style="width:100%;">✉️ Odeslat emailem</button>
-        <% if (invoice.status === 'Po splatnosti') { %>
+        <%# Dobírku zákazník platí dopravci a peníze posílá Zásilkovna — „po
+            splatnosti“ u ní znamená nespárovanou dobírku, ne dluh zákazníka.
+            Server upomínku k dobírce odmítne i tak (deliverReminder()). %>
+        <% if (invoice.status === 'Po splatnosti' && order && order.payment_method === 'Dobírka') { %>
+        <p style="margin:0;font-size:12px;color:var(--text-muted);line-height:1.5;">Dobírka se neupomíná — spárujte ji s platbou od Zásilkovny, nebo objednávku stornujte, pokud se zásilka vrátila.</p>
+        <% } else if (invoice.status === 'Po splatnosti') { %>
         <button class="btn btn-ghost" data-modal-open="modalUpominka" style="width:100%;color:var(--warning);">⚠️ Odeslat upomínku</button>
         <% } %>
         <button class="btn btn-ghost" data-modal-open="modalStatus" style="width:100%;">🔄 Změnit stav</button>
@@ -201,11 +212,18 @@
     <div class="modal-header"><h3>Změnit stav faktury</h3><button class="modal-close" onclick="document.getElementById('modalStatus').style.display='none'">&times;</button></div>
     <form method="post" action="/ucetnictvi/vydane-faktury/<%= invoice.id %>/stav">
       <div class="modal-body">
-        <select name="status" class="form-select">
+        <select name="status" class="form-select" id="stavFaktury">
           <% STATUSES_ISSUED.forEach(s => { %>
           <option value="<%= s %>" <%= invoice.status===s?'selected':'' %>><%= s %></option>
           <% }) %>
         </select>
+        <%# Den, kdy peníze přišly, ne den kliknutí — u zálohové faktury z něj
+            vystavená faktura bere DUZP. %>
+        <div class="form-group" id="denUhrady" style="margin-top:12px;">
+          <label class="form-label">Datum úhrady</label>
+          <input type="date" name="paid_date" class="form-control"
+                 value="<%= typeof vychoziDenUhrady !== 'undefined' ? vychoziDenUhrady : '' %>">
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-ghost" onclick="document.getElementById('modalStatus').style.display='none'">Zrušit</button>
@@ -283,6 +301,16 @@
           <input type="date" name="due_date" class="form-control"
                  value="<%= invoice.due_date ? new Date(invoice.due_date).toISOString().split('T')[0] : '' %>">
         </div>
+        <%# DUZP jen u vydané faktury — zálohová daňovým dokladem není. Oprava
+            pro objednávky, u kterých Seil den platby nezná (před migrací 039). %>
+        <% if (invoice.type === 'issued') { %>
+        <div class="form-group">
+          <label class="form-label">DUZP</label>
+          <input type="date" name="taxable_date" class="form-control"
+                 value="<%= invoice.taxable_date ? new Date(invoice.taxable_date).toISOString().split('T')[0] : '' %>">
+          <small style="color:var(--text-muted);font-size:12px;">Prázdné = shodné s datem vystavení</small>
+        </div>
+        <% } %>
         <div class="form-group" style="grid-column:1/-1;">
           <label class="form-label">Poznámka</label>
           <textarea name="notes" class="form-control" rows="2"><%= invoice.notes %></textarea>
@@ -350,6 +378,14 @@ document.querySelectorAll('[data-modal-open]').forEach(btn => {
     btn.addEventListener('click', () => el.style.display = 'flex');
   }
 });
+// Datum úhrady dává smysl jen u stavu Zaplacena
+{
+  const stav = document.getElementById('stavFaktury');
+  const denUhrady = document.getElementById('denUhrady');
+  const prepni = () => { denUhrady.style.display = stav.value === 'Zaplacena' ? '' : 'none'; };
+  stav.addEventListener('change', prepni);
+  prepni();
+}
 <% if (typeof formError !== 'undefined' && formError) { %>
 document.getElementById('modalEdit').style.display = 'flex';
 <% } %>

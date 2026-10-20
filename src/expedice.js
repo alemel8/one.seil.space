@@ -22,7 +22,7 @@
  *
  * Dockerfile nenastavuje TZ ani neinstaluje tzdata a v Coolify to nikdo
  * negarantuje, takže `new Date().getHours()` může být UTC. Okno i datum běhu
- * proto počítá `prazskyCas()` přes `Intl`.
+ * proto počítá `prazskyCas()` přes `Intl` (src/prazsky-cas.js).
  *
  * ## Zaplaceno se nepozná z jednoho sloupce
  *
@@ -41,6 +41,10 @@ import { fetchPacketLabelPdf } from './packeta.js';
 import { sendExpediceEmail } from './email.js';
 import { esc } from './email-templates.js';
 import { sendPushToAll } from './push.js';
+import { jenDatum, prazskyCas } from './prazsky-cas.js';
+
+// Testy a routy objednávek ho berou odsud, kde byl dřív doma.
+export { prazskyCas };
 
 // ── Konstanty ─────────────────────────────────────────────────
 
@@ -175,26 +179,6 @@ export function seskupPodleZasilek(objednavky, polozkyPodleObjednavky) {
   return [...skupiny.values()];
 }
 
-const PRAZSKE_CASTI = new Intl.DateTimeFormat('en-US', {
-  timeZone: 'Europe/Prague', weekday: 'short',
-  year: 'numeric', month: '2-digit', day: '2-digit',
-  hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-});
-
-const DNY = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
-
-/** Pražské datum, den v týdnu (1 = pondělí) a hodina. Nezávislé na TZ kontejneru. */
-export function prazskyCas(date = new Date()) {
-  const casti = {};
-  for (const { type, value } of PRAZSKE_CASTI.formatToParts(date)) casti[type] = value;
-  return {
-    datum: `${casti.year}-${casti.month}-${casti.day}`,
-    den: DNY[casti.weekday] ?? 0,
-    hodina: Number(casti.hour),
-    minuta: Number(casti.minute),
-  };
-}
-
 /**
  * Okno pro odeslání. Bez horní hranice schválně: když server ležel do
  * jedenácti, je lepší poslat v jedenáct než až další den.
@@ -299,13 +283,6 @@ export class ExpediceBeziError extends Error {
   }
 }
 
-/** DATE sloupec z pg přijde jako Date; do dotazu patří „YYYY-MM-DD“, ať se nekonvertuje přes pásmo. */
-function jenDatum(hodnota) {
-  if (!hodnota) return '1970-01-01';
-  if (typeof hodnota === 'string') return hodnota.slice(0, 10);
-  return new Date(hodnota).toISOString().slice(0, 10);
-}
-
 /**
  * Podmínka „objednávka patří do skladu“. Jediná definice, kterou sdílí ranní
  * běh i seznam objednávek — kdyby si každý filtroval po svém, ikona
@@ -314,10 +291,12 @@ function jenDatum(hodnota) {
  * Očekává alias `o` (shop_orders) a `p` (poslední zálohová faktura).
  */
 export function podminkaKExpedici(sql, shop) {
+  // DATE sloupec z pg přijde jako Date; do dotazu patří „YYYY-MM-DD“, ať se nekonvertuje přes pásmo.
+  const od = jenDatum(shop.warehouse_dispatch_since) ?? '1970-01-01';
   return sql`
         o.shop_id = ${shop.id}
     AND o.warehouse_sent_at IS NULL
-    AND o.created_at >= (${jenDatum(shop.warehouse_dispatch_since)}::date::timestamp AT TIME ZONE 'Europe/Prague')
+    AND o.created_at >= (${od}::date::timestamp AT TIME ZONE 'Europe/Prague')
     AND o.status NOT IN ('Stornována', 'Čeká na platbu', 'Platba se nezdařila')
     AND (
          (o.payment_method = 'Platba kartou'   AND (o.status IN ('Zaplaceno', 'Vyřízena') OR o.tracking_number <> ''))

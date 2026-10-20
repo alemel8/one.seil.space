@@ -11,6 +11,7 @@
 // v pokladně co dělat — patří mezi ostatní závazky a spáruje se s výpisem.
 
 import { invoiceVs } from './series-format.js';
+import { jenDatum } from './prazsky-cas.js';
 
 function esc(str) {
   return String(str || '')
@@ -20,13 +21,10 @@ function esc(str) {
     .replace(/"/g, '&quot;');
 }
 
+// Řetězec YYYY-MM-DD se bere rovnou a Date z DATE sloupce v UTC, ať se datum
+// neposune přes časovou zónu — týž převod, jaký tiskne PDF.
 function fmtDate(d) {
-  if (!d) return '';
-  // Řetězec YYYY-MM-DD bereme rovnou, ať se datum neposune přes časovou zónu
-  if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d)) return d.slice(0, 10);
-  const dt = d instanceof Date ? d : new Date(d);
-  if (isNaN(dt)) return '';
-  return dt.toISOString().slice(0, 10);
+  return jenDatum(d) ?? '';
 }
 
 function fmtNum(n) {
@@ -128,6 +126,12 @@ function invoiceToXml(inv, items = [], idx = 1, opts = {}) {
   const partnerName = issued ? (inv.client_name || '') : (inv.supplier || '');
   const partnerIco  = issued ? (inv.client_ico  || '') : (inv.supplier_ico || '');
   const issueDate   = fmtDate(inv.issue_date);
+  // DUZP vydané faktury k objednávce je den přijetí úplaty, ne den vystavení
+  // (`taxable_date`, migrace 039). Do přiznání musí jít tentýž den, který
+  // tiskne PDF — karta zaplacená 30. 9. s fakturou vystavenou 7. 10. patří
+  // do zářijového DPH. Starší a ruční doklady ho nemají a zůstávají u data
+  // vystavení.
+  const taxDate     = (issued && fmtDate(inv.taxable_date)) || issueDate;
   const deductible  = issued || isVatDeductible(inv);
   const vs          = symVar(inv.number);
   const country     = issued ? null : countryIds(inv.supplier_country);
@@ -204,8 +208,8 @@ function invoiceToXml(inv, items = [], idx = 1, opts = {}) {
         </inv:number>` : ''}${vs ? `
         <inv:symVar>${esc(vs)}</inv:symVar>` : ''}${!issued && inv.number ? `
         <inv:originalDocument>${esc(trunc(inv.number, 32))}</inv:originalDocument>` : ''}${issueDate ? `
-        <inv:date>${issueDate}</inv:date>` : ''}${issueDate && deductible ? `
-        <inv:dateTax>${issueDate}</inv:dateTax>` : ''}${issueDate ? `
+        <inv:date>${issueDate}</inv:date>` : ''}${taxDate && deductible ? `
+        <inv:dateTax>${taxDate}</inv:dateTax>` : ''}${issueDate ? `
         <inv:dateAccounting>${issueDate}</inv:dateAccounting>` : ''}${(fmtDate(inv.due_date) || issueDate) ? `
         <inv:dateDue>${fmtDate(inv.due_date) || issueDate}</inv:dateDue>` : ''}${predkontace ? `
         <inv:accounting>

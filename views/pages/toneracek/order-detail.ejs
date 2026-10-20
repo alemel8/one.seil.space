@@ -7,6 +7,11 @@
 
   const shippingDiffers = order.shipping_address && order.shipping_address !== order.address;
 
+  // Vystavená faktura má přednost před `order.invoice_number`: objednávky
+  // z doby před migrací 039 v něm nesou vymyšlené „FV-<rok>-<objednávka>“,
+  // ke kterému žádný doklad neexistuje.
+  const cisloFaktury = invoice ? invoice.number : order.invoice_number;
+
   // ── Sklad ──
   const SKLAD_SVG = {
     odeslano:  '<circle cx="12" cy="12" r="10"/><polyline points="16 10 11 15 8 12"/>',
@@ -41,7 +46,7 @@
     </div>
     <p style="margin-top:4px;font-size:13px;color:var(--text-muted);">
       <%= new Date(order.created_at).toLocaleString('cs-CZ') %>
-      <% if (order.invoice_number) { %>&nbsp;·&nbsp;Faktura <%= order.invoice_number %><% } %>
+      <% if (cisloFaktury) { %>&nbsp;·&nbsp;Faktura <%= cisloFaktury %><% } %>
     </p>
   </div>
 </div>
@@ -299,10 +304,18 @@
       <div class="card-body">
         <h2 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 14px;">Informace</h2>
         <dl style="display:flex;flex-direction:column;gap:8px;font-size:12px;margin:0;color:var(--text-muted);">
-          <% if (order.invoice_number) { %>
+          <% if (cisloFaktury) { %>
           <div style="display:flex;justify-content:space-between;">
             <dt>Faktura</dt>
-            <dd style="margin:0;color:var(--text-primary);font-weight:500;"><%= order.invoice_number %></dd>
+            <dd style="margin:0;color:var(--text-primary);font-weight:500;"><%= cisloFaktury %></dd>
+          </div>
+          <% } %>
+          <%# Z tohohle okamžiku se počítá den přijetí úplaty na faktuře (DUZP),
+              proto ho obsluha musí vidět, když se zákazník ptá na datum. %>
+          <% if (order.paid_at) { %>
+          <div style="display:flex;justify-content:space-between;">
+            <dt>Zaplaceno</dt>
+            <dd style="margin:0;"><%= new Date(order.paid_at).toLocaleString('cs-CZ', { timeZone: 'Europe/Prague' }) %></dd>
           </div>
           <% } %>
           <div style="display:flex;justify-content:space-between;">

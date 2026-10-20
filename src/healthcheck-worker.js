@@ -3,6 +3,8 @@
 
 import { getDb } from './db.js';
 import { sendPushToAll } from './push.js';
+import { prazskyCas } from './prazsky-cas.js';
+import { STAVY_ZAPLACENE_KARTY, objednavkyKUpozorneni, upozorneniNaChybejiciDoklad } from './danovy-doklad.js';
 
 const sql = getDb();
 
@@ -185,10 +187,19 @@ export async function prepareReminders() {
     ? company.reminder_levels
     : DEFAULT_REMINDER_LEVELS;
 
+  // Faktury k dobírce do fronty nepatří. Zákazník platí dopravci při převzetí
+  // a peníze posílá Zásilkovna souhrnně — „po splatnosti“ tu znamená, že
+  // dobírku ještě nikdo nespároval, ne že zákazník dluží. Upomínka by chtěla
+  // zaplatit podruhé, a u nevyzvednuté zásilky za zboží, které nedostal.
+  // Souhrn po splatnosti pro správce níž je ukazuje dál.
   const overdue = await sql`
-    SELECT id, due_date, (CURRENT_DATE - due_date)::int AS days_overdue
-    FROM accounting_invoices
-    WHERE type = 'issued' AND status = 'Po splatnosti' AND due_date IS NOT NULL
+    SELECT i.id, i.due_date, (CURRENT_DATE - i.due_date)::int AS days_overdue
+    FROM accounting_invoices i
+    WHERE i.type = 'issued' AND i.status = 'Po splatnosti' AND i.due_date IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM shop_orders o
+        WHERE o.id = i.order_id AND o.payment_method = 'Dobírka'
+      )
   `;
 
   let created = 0;
@@ -239,4 +250,86 @@ export async function checkOverdueInvoices() {
     title: `📋 ${overdue.length} faktur po splatnosti`,
     url: waiting ? '/ucetnictvi/upominky' : '/ucetnictvi/vydane-faktury',
   });
+}
+
+// ── Lhůta pro daňový doklad ───────────────────────────────────
+//
+// Faktura k objednávce vzniká jen ručním přepnutím na „Vyřízena“. Zaplacená
+// objednávka, kterou nikdo nevyřídí, tak zůstane bez daňového dokladu, ačkoli
+// povinnost přiznat daň vznikla dnem přijetí úplaty a doklad se má vystavit
+// do 15 dnů (§ 28 odst. 8 ZDPH). Totéž dobírka: ranní expedice ji pošle do
+// skladu sama, zásilka se doručí, a když ji nikdo nevyřídí, doklad nevznikne
+// nikdy. Upozorní se, když lhůta běží deset dní a víc — ať zbude pět dní.
+//
+// Jednou za pražský den a až ráno: klíčem je datum, ne 23h cooldown jako
+// u splatnosti, který čas odeslání každý den posune o hodinu a časem ho
+// dostane do noci. Jen push správcům — zákazník ani sklad s tím nemají co
+// dělat, takže žádný e-mail.
+
+const HODINA_UPOZORNENI_NA_LHUTU = 8;
+
+export async function checkUninvoicedPaidOrders() {
+  const { datum: dnes, hodina } = prazskyCas();
+  if (hodina < HODINA_UPOZORNENI_NA_LHUTU) return;
+
+  const [uz] = await sql`
+    SELECT 1 FROM notification_log
+    WHERE event_type = 'faktura_lhuta' AND event_key = ${dnes}
+    LIMIT 1
+  `;
+  if (uz) return;
+
+  // Kandidáti: bez vydané faktury a s něčím, od čeho lhůta běží — platbou
+  // kartou (`paid_at`, u zaplacené karty bez něj založením objednávky),
+  // zaplacenou zálohovkou nebo odesláním do skladu (dobírka). Který den
+  // rozhoduje, určuje podle způsobu platby denVznikuPovinnosti()
+  // v src/danovy-doklad.js — tytéž dny, jaké jdou na fakturu, a testované.
+  //
+  // Karta bez `paid_at` (zaplacená před migrací 039) jen mimo objednávky
+  // přenesené z Airtable: ty mají za `id` id záznamu Airtable („rec…“, viz
+  // migrace v routes/toneracek.js), pocházejí z doby před spuštěním e-shopu
+  // a faktury k nim v Seilu nejsou ani nebudou. Náhradní den založení by je
+  // jinak všechny vytáhl do upozornění. Ostatní cesty (paid_at, zálohovka,
+  // expedice) historie z Airtable nemá, takže stačí podmínka tady.
+  //
+  // Zálohovky přes GROUP BY, ne korelovaným poddotazem: dokud není co hlásit,
+  // dotaz se opakuje každých pět minut a `accounting_invoices.order_id` nemá index.
+  const kandidati = await sql`
+    WITH zalohy AS (
+      SELECT order_id, MIN(paid_date) AS uhrazeno
+      FROM accounting_invoices
+      WHERE type = 'proforma' AND status = 'Zaplacena'
+      GROUP BY order_id
+    )
+    SELECT o.id, o.order_number, o.payment_method, o.status, o.paid_at, o.created_at,
+           o.warehouse_sent_at, z.uhrazeno
+    FROM shop_orders o
+    LEFT JOIN zalohy z ON z.order_id = o.id
+    WHERE o.status <> 'Stornována'
+      AND (
+           o.paid_at IS NOT NULL
+        OR z.uhrazeno IS NOT NULL
+        OR o.warehouse_sent_at IS NOT NULL
+        OR (o.payment_method = 'Platba kartou'
+            AND o.status IN ${sql(STAVY_ZAPLACENE_KARTY)}
+            AND o.id NOT LIKE 'rec%')
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM accounting_invoices i WHERE i.order_id = o.id AND i.type = 'issued'
+      )
+  `;
+  const objednavky = objednavkyKUpozorneni(kandidati, dnes);
+  if (!objednavky.length) return;
+
+  const { title, body, url } = upozorneniNaChybejiciDoklad(objednavky, dnes);
+
+  // Zápis před odesláním, stejně jako u zadržené expedice: bez VAPID klíčů
+  // nebo registrovaného zařízení by se push jinak zkoušel každých pět minut.
+  await sql`
+    INSERT INTO notification_log (event_type, event_key, message)
+    VALUES ('faktura_lhuta', ${dnes}, ${`${title}: ${body}`})
+  `;
+
+  const { odeslano, duvod } = await sendPushToAll({ title, body, url }, 'faktura_lhuta');
+  if (!odeslano) console.warn('[NOTIFY] Upozornění na chybějící fakturu neodešlo:', duvod);
 }

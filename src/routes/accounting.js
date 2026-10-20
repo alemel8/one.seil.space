@@ -1,8 +1,48 @@
 import { getDb, generateId } from '../db.js';
 import { naklady, mzdyPoMesicich, popisNakladu } from '../finance.js';
+import { prazskeDatum } from '../prazsky-cas.js';
 
 // Pozn: vydané a přijaté faktury jsou v src/routes/invoices.js
 // Tento soubor spravuje bankovní záznamy, manuální položky a Fio CSV import
+
+/**
+ * Doklad, ke kterému se příchozí platba sama spáruje, nebo null.
+ *
+ * Variabilní symbol se hledá jako podřetězec čísla dokladu, takže jeden
+ * symbol sedí na víc dokladů: vydaná faktura e-shopu 20260042, zálohovka
+ * ZF-20260042 i B2B faktura ve starém tvaru FV-2026-0042 mají všechny VS
+ * 20260042. Dřív se vzal kterýkoli z nich (LIMIT 1 bez pořadí) a platba
+ * skončila u cizího dokladu — ten, kdo zaplatil, pak dostal upomínku.
+ *
+ * Páruje se proto jen jednoznačná shoda. Víc kandidátů znamená, že platba
+ * zůstane nespárovaná a rozhodne obsluha v přehledu banky — ani shoda částky
+ * nerozhoduje: dvě objednávky na stejnou částku jsou u e-shopu běžné a chybné
+ * spárování je dražší než ruční. Jediný kandidát se páruje jako dřív, i když
+ * částka nesedí (doplatek, zaokrouhlení).
+ */
+export function vyberDokladKPlatbe(kandidati) {
+  return kandidati.length === 1 ? kandidati[0] : null;
+}
+
+/**
+ * Ručně spárovaný doklad je zaplacený ke dni pohybu na účtu, ne ke dni, kdy
+ * ho obsluha spárovala — u zálohovky z něj vystavená faktura bere DUZP
+ * a hlídání lhůty den, od kterého lhůta běží. Stejně jako automatické
+ * párování ve webhooku. Pražský dnešek jen jako pojistka pro případ, že by
+ * pohyb mezitím zmizel (sloupec `transaction_date` je NOT NULL).
+ */
+export async function zaplatDokladPohybem(sql, { docId, txId, now = new Date() }) {
+  await sql`
+    UPDATE accounting_invoices
+    SET status = 'Zaplacena',
+        paid_date = COALESCE(
+          (SELECT transaction_date FROM accounting_bank_transactions WHERE id = ${txId}),
+          ${prazskeDatum(now)}::date
+        ),
+        bank_transaction_id = ${txId}, modified_at = NOW()
+    WHERE id = ${docId} AND status != 'Zaplacena'
+  `;
+}
 
 export default async function accountingRoutes(fastify) {
   const sql = getDb();
@@ -111,12 +151,8 @@ export default async function accountingRoutes(fastify) {
             matched_at = NOW(), matched_by = ${request.user.id}
         WHERE id = ${txId}
       `;
-      await sql`
-        UPDATE accounting_invoices
-        SET status = 'Zaplacena', paid_date = CURRENT_DATE,
-            bank_transaction_id = ${txId}, modified_at = NOW()
-        WHERE id = ${docId} AND status != 'Zaplacena'
-      `;
+      // Den úhrady = den pohybu na účtu, viz zaplatDokladPohybem()
+      await zaplatDokladPohybem(sql, { docId, txId });
     }
     return reply.redirect('/ucetnictvi/banka');
   });
@@ -172,7 +208,7 @@ export default async function accountingRoutes(fastify) {
       const type       = rawAmount < 0 ? 'debit' : 'credit';
       const amount     = Math.abs(rawAmount);
       const currency   = rec.currency || 'CZK';
-      const txDate     = rec.transaction_date || rec.date || new Date().toISOString().split('T')[0];
+      const txDate     = rec.transaction_date || rec.date || prazskeDatum(new Date());
       const vs         = rec.variable_symbol || rec.variableSymbol || '';
       const ks         = rec.constant_symbol  || rec.constantSymbol  || '';
       const ss         = rec.specific_symbol  || rec.specificSymbol  || '';
@@ -188,28 +224,45 @@ export default async function accountingRoutes(fastify) {
       // mu doklad dorazí. Číslo objednávky v čísle zálohovky není, takže samo
       // hledání v `number` by tyhle platby nechalo nespárované. Viz
       // paymentVs() v src/series-format.js.
+      //
+      // Jen příchozí platby: odchozí platba dodavateli nese VS jeho faktury
+      // a ten se snadno trefí do čísla naší (20260042) — zálohovka by se
+      // „zaplatila“ a objednávka odešla do skladu bez peněz.
+      //
+      // Faktury k dobírce se podle čísla nepárují. Zákazník platí dopravci
+      // a Zásilkovna posílá peníze souhrnně pod vlastním symbolem; shoda VS
+      // s číslem dobírkové faktury je vždycky náhoda. Dřív byly tyhle faktury
+      // od vystavení „Zaplacena“ a do hledání nespadaly. Stornované doklady
+      // taky ne — platba k nim nepatří a jen by dělaly z jednoznačné shody
+      // nejednoznačnou.
+      //
+      // Víc kandidátů = žádné párování, viz vyberDokladKPlatbe(). Druhá větev
+      // (číslo objednávky) se zkouší jen tehdy, když první nenašla nic —
+      // nejednoznačná první větev nechá platbu obsluze.
       let matchedInvoiceId = null;
-      if (vs) {
+      if (vs && type === 'credit') {
         const vsClean = vs.replace(/\s/g, '');
-        const [byNumber] = await sql`
-          SELECT id FROM accounting_invoices
-          WHERE type IN ('issued', 'proforma') AND status != 'Zaplacena'
-            AND REPLACE(REPLACE(number, '-', ''), '/', '') LIKE ${'%' + vsClean + '%'}
-          LIMIT 1
+        const podleCisla = await sql`
+          SELECT i.id FROM accounting_invoices i
+          WHERE i.type IN ('issued', 'proforma') AND i.status NOT IN ('Zaplacena', 'Storno')
+            AND REPLACE(REPLACE(i.number, '-', ''), '/', '') LIKE ${'%' + vsClean + '%'}
+            AND NOT EXISTS (
+              SELECT 1 FROM shop_orders o
+              WHERE o.id = i.order_id AND o.payment_method = 'Dobírka'
+            )
         `;
 
-        let byOrder;
-        if (!byNumber) {
-          [byOrder] = await sql`
+        let hit = vyberDokladKPlatbe(podleCisla);
+        if (!podleCisla.length) {
+          const podleObjednavky = await sql`
             SELECT i.id FROM accounting_invoices i
             JOIN shop_orders o ON o.id = i.order_id
-            WHERE i.type = 'proforma' AND i.status != 'Zaplacena'
+            WHERE i.type = 'proforma' AND i.status NOT IN ('Zaplacena', 'Storno')
               AND REPLACE(REPLACE(o.order_number, '-', ''), '/', '') = ${vsClean}
-            LIMIT 1
           `;
+          hit = vyberDokladKPlatbe(podleObjednavky);
         }
 
-        const hit = byNumber || byOrder;
         if (hit) {
           matchedInvoiceId = hit.id;
           matched++;

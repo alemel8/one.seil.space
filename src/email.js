@@ -4,6 +4,8 @@ import {
   banner, cta, emailShell, esc, infoBlock, infoRow, note,
   paymentBlock, sectionLabel, trackingBlock,
 } from './email-templates.js';
+import { zobrazeniUhrady } from './danovy-doklad.js';
+import { ceskeDatum } from './prazsky-cas.js';
 
 let resend = null;
 function getResend() {
@@ -116,7 +118,9 @@ function pdfAttachment(invoice, pdfBuffer) {
 const money = (amount, currency) =>
   `${Number(amount).toLocaleString('cs-CZ', { minimumFractionDigits: 2 })} ${currency || 'Kč'}`;
 
-const czDate = (value) => (value ? new Date(value).toLocaleDateString('cs-CZ') : 'neuvedeno');
+// Splatnost (sloupec DATE) stejně jako v PDF v příloze: toLocaleDateString()
+// by ji v pásmu západně od UTC ukázal o den dřív, než ji tiskne doklad.
+const czDate = (value) => ceskeDatum(value) || 'neuvedeno';
 
 /** Odkaz na sledování zásilky Packety; čísla bez písmene na začátku mají prefix Z. */
 export function packetaTrackingUrl(trackingNumber) {
@@ -310,13 +314,40 @@ ${body}
 // ── Faktury ──────────────────────────────────────────────────
 
 /**
+ * Řádky souhrnu faktury v e-mailu. Řídí se týmž rozhodnutím o úhradě jako
+ * přiložené PDF (`uhrada` ze zobrazeniUhrady()), ať si e-mail a doklad
+ * neodporují: zaplacená faktura není „k úhradě“ a dobírka nemá splatnost —
+ * platí se při převzetí zásilky.
+ */
+export function invoiceSummaryRows(invoice, uhrada) {
+  const cislo = infoRow('Číslo faktury', esc(invoice.number));
+  const castka = `<strong>${money(invoice.total_amount, invoice.currency)}</strong>`;
+
+  if (uhrada?.zaplaceno) {
+    return [cislo, infoRow('Celkem', castka), infoRow('Stav', 'Zaplaceno')].join('');
+  }
+  if (uhrada?.dobirka) {
+    return [cislo, infoRow('K úhradě při převzetí', castka)].join('');
+  }
+  return [
+    cislo,
+    infoRow('Celkem k úhradě', castka),
+    invoice.due_date ? infoRow('Splatnost', czDate(invoice.due_date)) : '',
+  ].filter(Boolean).join('');
+}
+
+/**
  * Faktura zákazníkovi. `brand` je povinný u dokladů e-shopu (invoice.shop_id) —
  * bez něj by e-mail o vyřízené objednávce odešel jako SEIL s.r.o., což byl
  * největší identitní únik v celém toku. Faktury mimo e-shop (ruční, opakované)
  * `brand` nemají a firemní identita je u nich správně.
+ *
+ * `paid` a `paymentMethod` znamenají totéž co u renderInvoicePdf() — souhrn
+ * v e-mailu musí o úhradě říkat totéž co PDF v příloze.
  */
 export async function sendInvoiceEmail({
   invoice, issuer, brand, email, pdfBuffer, subject, intro, paymentDetails, trackingNumber,
+  paid = false, paymentMethod = '',
 }) {
   const emailSubject = subject || `Faktura ${invoice.number} od ${brand ? brand.name : issuer.name}`;
   const emailIntro = intro || `v příloze zasíláme fakturu č. <strong>${esc(invoice.number)}</strong>.`;
@@ -337,11 +368,7 @@ export async function sendInvoiceEmail({
       }
     : paymentDetails;
 
-  const summary = [
-    infoRow('Číslo faktury', esc(invoice.number)),
-    infoRow('Celkem k úhradě', `<strong>${money(invoice.total_amount, invoice.currency)}</strong>`),
-    invoice.due_date ? infoRow('Splatnost', czDate(invoice.due_date)) : '',
-  ].filter(Boolean).join('');
+  const summary = invoiceSummaryRows(invoice, zobrazeniUhrady({ invoice, paid, paymentMethod }));
 
   const body = `
         <p style="font-size:15px;color:#334155;margin:0 0 16px">Dobrý den,</p>

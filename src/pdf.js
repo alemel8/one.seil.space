@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
 import { invoiceVs } from './series-format.js';
 import { qrPlatbaDataUri } from './qr-platba.js';
+import { zobrazeniUhrady } from './danovy-doklad.js';
+import { ceskeDatum } from './prazsky-cas.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -36,40 +38,53 @@ async function getBrowser() {
 }
 
 /**
- * PDF faktury.
+ * HTML faktury — totéž, co jde do PDF, jen bez prohlížeče. Odděleně proto,
+ * aby se obsah dokladu (razítko, platební instrukce, DUZP) dal otestovat bez
+ * puppeteeru.
  *
  * `data.brand` vykreslí v záhlaví značku e-shopu místo vystavitele, `data.paid`
- * schová štítek „k úhradě" i platební instrukce. Obojí je volitelné — faktury
- * mimo e-shop je nemají a vypadají jako dřív.
+ * schová štítek „k úhradě" i platební instrukce. `data.paymentMethod` je způsob
+ * platby objednávky — faktura ho sama nenese a bez něj by se dobírka tiskla
+ * s číslem účtu a QR kódem jako doklad k převodu. Všechno je volitelné —
+ * faktury mimo e-shop to nemají a vypadají jako dřív.
  *
  * `data.vs` přebije výchozí odvození z čísla dokladu. Používá ho zálohová
  * faktura k objednávce, která se platí pod číslem objednávky — PDF musí
  * tisknout tentýž symbol jako e-mail a QR kód, jinak jsme zpátky u tří
  * různých variabilních symbolů k jedné platbě.
  */
-export async function renderInvoicePdf(data) {
+export async function renderInvoiceHtml(data) {
   const templatePath = path.join(projectRoot, 'views/pdf/invoice.ejs');
   // VS se počítá tady, aby ho měly stejný všechny cesty k PDF i e-mailu
   const vs = data.vs || invoiceVs(data.invoice?.number);
 
-  // QR jen na dokladu, který se ještě platí. Na zaplacené faktuře nemá co
-  // dělat — mizí i platební instrukce, do kterých patří.
-  const paid = data.paid || data.invoice?.status === 'Zaplacena';
-  const qrDataUri = paid ? null : await qrPlatbaDataUri({
+  const uhrada = zobrazeniUhrady({
+    invoice: data.invoice, paid: data.paid, paymentMethod: data.paymentMethod,
+  });
+
+  // QR jen na dokladu, který se platí převodem. Na zaplacené faktuře ani na
+  // dobírce nemá co dělat — mizí i platební instrukce, do kterých patří.
+  const qrDataUri = uhrada.instrukce ? await qrPlatbaDataUri({
     iban: data.issuer?.iban,
     amount: data.invoice?.total_amount,
     currency: data.invoice?.currency || 'CZK',
     variableSymbol: vs,
     message: `${data.invoice?.type === 'proforma' ? 'Zálohová faktura' : 'Faktura'} ${data.invoice?.number ?? ''}`.trim(),
-  });
+  }) : null;
 
-  const html = await ejs.renderFile(templatePath, {
+  return ejs.renderFile(templatePath, {
     brand: null,
-    paid: false,
     ...data,
     vs,
     qrDataUri,
+    uhrada,
+    ceskeDatum,
   });
+}
+
+/** PDF faktury. Parametry viz renderInvoiceHtml(). */
+export async function renderInvoicePdf(data) {
+  const html = await renderInvoiceHtml(data);
 
   const browser = await getBrowser();
   const page = await browser.newPage();

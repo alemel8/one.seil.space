@@ -270,13 +270,16 @@ try {
 
 // ── Background: healthcheck worker ────────────────────────────
 {
-  const { runHealthchecks, checkOverdueInvoices, checkVpsThresholds } = await import('./healthcheck-worker.js');
+  const {
+    runHealthchecks, checkOverdueInvoices, checkUninvoicedPaidOrders, checkVpsThresholds,
+  } = await import('./healthcheck-worker.js');
   const { readFileSync, existsSync } = await import('node:fs');
   const STATS_DIR = process.env.STATS_DIR || './data';
 
   const runAll = async () => {
     try { await runHealthchecks(); } catch (e) { fastify.log.error({ err: e }, 'healthcheck worker error'); }
     try { await checkOverdueInvoices(); } catch (e) { fastify.log.error({ err: e }, 'overdue check error'); }
+    try { await checkUninvoicedPaidOrders(); } catch (e) { fastify.log.error({ err: e }, 'invoice deadline check error'); }
     try {
       const file = `${STATS_DIR}/latest.json`;
       if (existsSync(file)) {

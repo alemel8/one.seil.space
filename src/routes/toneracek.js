@@ -8,6 +8,8 @@ import {
   DUVODY_POZASTAVENI, ExpediceBeziError, objednavkySeStavemSkladu,
   pozadejEshopOPodaniBaliku, prazskyCas, spustExpedici, zalozBeh,
 } from '../expedice.js';
+import { okamzikPlatbySql, zobrazeniUhrady } from '../danovy-doklad.js';
+import { ceskeDatum } from '../prazsky-cas.js';
 
 /** Hodnoty sloupce „Sklad" v seznamu objednávek — filtr bere jen tyhle. */
 const SKLAD_STAVY = ['odeslano', 'ceka', 'blokovano', 'neplati'];
@@ -105,6 +107,19 @@ async function getToneracekShopId(sql) {
 async function getToneracekShop(sql) {
   const [shop] = await sql`SELECT * FROM shops WHERE slug = 'toneracek' LIMIT 1`;
   return shop ?? null;
+}
+
+/**
+ * Objednávka tak, jak ji dostane e-shop: `invoice_number` je číslo vydané
+ * faktury (`vydana_faktura` z dotazu), jinak prázdné.
+ *
+ * `shop_orders.invoice_number` se zákazníkovi neposílá. Objednávky z doby
+ * před migrací 039 v něm nesou vymyšlené „FV-<rok>-<objednávka>“ — i ty, ke
+ * kterým mezitím vznikla faktura s číslem z řady (2026NNNN), takže e-shop
+ * ukazoval jiné číslo, než nese PDF. Data se kvůli tomu nepřepisují.
+ */
+export function objednavkaProEshop({ vydana_faktura, ...objednavka }) {
+  return { ...objednavka, invoice_number: vydana_faktura ?? '' };
 }
 
 export default async function toneracekRoutes(fastify) {
@@ -266,6 +281,14 @@ export default async function toneracekRoutes(fastify) {
 
   // ── API: Dotazy na objednávky ──────────────────────────────
 
+  // Číslo vydané faktury k objednávce `o`. E-shop ho ukazuje zákazníkovi,
+  // proto jde z faktury, ne z `o.invoice_number` — viz objednavkaProEshop().
+  const vydanaFakturaSql = () => sql`(
+    SELECT number FROM accounting_invoices
+    WHERE order_id = o.id AND type = 'issued'
+    ORDER BY created_at LIMIT 1
+  )`;
+
   fastify.get('/api/toneracek/orders', async (request, reply) => {
     if (!verifyApiKey(request)) return reply.code(401).send({ error: 'Unauthorized' });
     const email = (request.query.email || '').trim().toLowerCase();
@@ -273,13 +296,14 @@ export default async function toneracekRoutes(fastify) {
 
     const shopId = await getToneracekShopId(sql);
     const orders = await sql`
-      SELECT * FROM shop_orders
-      WHERE shop_id = ${shopId} AND LOWER(email) = ${email}
-      ORDER BY created_at DESC LIMIT 50
+      SELECT o.*, ${vydanaFakturaSql()} AS vydana_faktura
+      FROM shop_orders o
+      WHERE o.shop_id = ${shopId} AND LOWER(o.email) = ${email}
+      ORDER BY o.created_at DESC LIMIT 50
     `;
-    const result = await Promise.all(orders.map(async o => {
-      const items = await sql`SELECT name, quantity FROM shop_order_items WHERE order_id = ${o.id}`;
-      return { ...o, items };
+    const result = await Promise.all(orders.map(async row => {
+      const items = await sql`SELECT name, quantity FROM shop_order_items WHERE order_id = ${row.id}`;
+      return { ...objednavkaProEshop(row), items };
     }));
     return reply.send({ orders: result });
   });
@@ -290,10 +314,13 @@ export default async function toneracekRoutes(fastify) {
     const email = (request.query.email || '').trim().toLowerCase();
 
     const shopId = await getToneracekShopId(sql);
-    const [order] = await sql`
-      SELECT * FROM shop_orders WHERE shop_id = ${shopId} AND order_number = ${orderNumber} LIMIT 1
+    const [row] = await sql`
+      SELECT o.*, ${vydanaFakturaSql()} AS vydana_faktura
+      FROM shop_orders o
+      WHERE o.shop_id = ${shopId} AND o.order_number = ${orderNumber} LIMIT 1
     `;
-    if (!order) return reply.code(404).send({ error: 'Not found' });
+    if (!row) return reply.code(404).send({ error: 'Not found' });
+    const order = objednavkaProEshop(row);
     if (email && order.email.toLowerCase() !== email) return reply.code(403).send({ error: 'Forbidden' });
     const items = await sql`SELECT * FROM shop_order_items WHERE order_id = ${order.id}`;
     return reply.send({ order: { ...order, items } });
@@ -305,8 +332,12 @@ export default async function toneracekRoutes(fastify) {
     if (!status) return reply.code(400).send({ error: 'status required' });
 
     const shopId = await getToneracekShopId(sql);
+    // Okamžik platby si Seil musí uložit sám: faktura vzniká až při vyřízení
+    // a den přijetí úplaty se z ní tiskne jako DUZP. Jen první potvrzení —
+    // viz okamzikPlatbySql().
     const result = await sql`
-      UPDATE shop_orders SET status = ${status}, modified_at = NOW()
+      UPDATE shop_orders
+      SET status = ${status}, paid_at = ${okamzikPlatbySql(sql, status)}, modified_at = NOW()
       WHERE id = ${request.params.id} AND shop_id = ${shopId}
     `;
     if (result.count === 0) return reply.code(404).send({ error: 'Not found' });
@@ -396,7 +427,8 @@ export default async function toneracekRoutes(fastify) {
           // QR kód, a podle něj se platba páruje s výpisem.
           amount: Number(proforma.total_amount),
           variableSymbol: paymentVs(proforma, order.order_number),
-          dueDate: proforma.due_date ? new Date(proforma.due_date).toLocaleDateString('cs-CZ') : '',
+          // Tentýž den jako PDF v příloze, nezávisle na pásmu procesu
+          dueDate: ceskeDatum(proforma.due_date),
         },
       });
     } catch (err) {
@@ -459,9 +491,17 @@ export default async function toneracekRoutes(fastify) {
       orderNumber = last ? String(parseInt(last.order_number, 10) + 1) : '10001';
     }
 
-    const now = new Date();
-    const invoiceNumber = `FV-${now.getFullYear()}-${orderNumber}`;
+    // Číslo faktury tu ještě neexistuje — faktura vzniká až při vyřízení
+    // objednávky a číslo dostane z řady. Dřív se sem skládalo „FV-<rok>-<číslo
+    // objednávky>“ a e-shop ho zákazníkovi ukazoval jako „Faktura: …“, ačkoli
+    // žádný takový doklad nikdy nevznikl. Skutečné číslo do objednávky zapíše
+    // generateInvoiceForOrder().
+    const invoiceNumber = '';
     const orderId = generateId();
+    const initialStatus = status || 'Přijata';
+    // Objednávka, která přijde rovnou zaplacená, nese okamžik platby od
+    // založení; ostatním ho zapíše až PATCH payment-status.
+    const paidAt = initialStatus === 'Zaplaceno' ? new Date() : null;
 
     await sql`
       INSERT INTO shop_orders (
@@ -471,9 +511,9 @@ export default async function toneracekRoutes(fastify) {
         shipping_first_name, shipping_last_name, shipping_company,
         shipping_phone, shipping_address, shipping_city, shipping_zip,
         pickup_point_id, pickup_point_name,
-        total_price, invoice_number, ip_address
+        total_price, invoice_number, ip_address, paid_at
       ) VALUES (
-        ${orderId}, ${shopId}, ${orderNumber}, ${status || 'Přijata'},
+        ${orderId}, ${shopId}, ${orderNumber}, ${initialStatus},
         ${PAYMENT_LABELS[paymentMethod] ?? paymentMethod ?? ''},
         ${shipping?.method ?? 'Zásilkovna'},
         ${customer.firstName??''}, ${customer.lastName??''},
@@ -490,7 +530,7 @@ export default async function toneracekRoutes(fastify) {
         ${customer.shippingZip      ??customer.zip      ??''},
         ${shipping?.pickupPointId   ??''},
         ${shipping?.pickupPointName ??''},
-        ${totalPrice}, ${invoiceNumber}, ${ipAddress??''}
+        ${totalPrice}, ${invoiceNumber}, ${ipAddress??''}, ${paidAt}
       )
     `;
 
@@ -562,11 +602,15 @@ export default async function toneracekRoutes(fastify) {
     `;
     if (!order) return reply.code(404).send({ error: 'Not found' });
 
+    // Stav sem může přijít i jako „Zaplaceno“ (přepnutí na kartu, která rovnou
+    // projde) — pak se okamžik platby zapíše stejně jako v payment-status,
+    // jinak by faktura dostala DUZP až v den vyřízení.
     await sql`
       UPDATE shop_orders SET
         payment_method = ${label},
         total_price    = ${totalPrice ?? order.total_price},
         status         = ${status || order.status},
+        paid_at        = ${okamzikPlatbySql(sql, status)},
         modified_at    = NOW()
       WHERE id = ${order.id} AND shop_id = ${shopId}
     `;
@@ -829,19 +873,25 @@ export default async function toneracekRoutes(fastify) {
             // objednávky — odešel jako SEIL s.r.o. <noreply@seil.cz>, tedy
             // od firmy, o které zákazník e-shopu nikdy neslyšel.
             const brand = await brandForShopId(order.shop_id);
-            // Vyřízená objednávka je zaplacená: u převodu proti zálohové
-            // faktuře, u karty a dobírky taky. Doklad proto nese značku
-            // e-shopu a nevyzývá k další platbě.
-            const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary, brand, paid: true });
+            // Karta a převod jsou v tuhle chvíli zaplacené a doklad nevyzývá
+            // k další platbě. Dobírka ne: zákazník platí až při převzetí,
+            // takže razítko ZAPLACENO by u nevyzvednuté zásilky lhalo — PDF
+            // místo něj i místo čísla účtu napíše, že se platí dobírkou.
+            const uhrada = zobrazeniUhrady({ invoice, paymentMethod: order.payment_method });
+            const pdfBuffer = await renderInvoicePdf({
+              invoice, items, issuer, vatSummary, brand,
+              paid: uhrada.zaplaceno, paymentMethod: order.payment_method,
+            });
             // Vyřízená objednávka je vždycky zároveň předaná dopravci, takže
             // je to jedna zpráva, ne dvě varianty. Sledovací číslo tu bývá
             // (e-shop ho pošle hned po podání zásilky), ale když chybí,
             // zbytek e-mailu dává smysl i bez něj.
             await sendInvoiceEmail({
               invoice, issuer, brand, email: order.email, pdfBuffer,
+              paid: uhrada.zaplaceno, paymentMethod: order.payment_method,
               trackingNumber: order.tracking_number || undefined,
               subject: `Objednávka #${order.order_number} vyřízena a předána dopravci`,
-              intro: `Vaše objednávka č. <strong>${order.order_number}</strong> byla vyřízena a předána dopravci.<br>V příloze naleznete fakturu${order.tracking_number ? ', níže sledovací číslo zásilky' : ''}.`,
+              intro: `Vaše objednávka č. <strong>${order.order_number}</strong> byla vyřízena a předána dopravci.<br>V příloze naleznete fakturu${order.tracking_number ? ', níže sledovací číslo zásilky' : ''}.${uhrada.dobirka ? '<br>Částku zaplatíte při převzetí zásilky.' : ''}`,
             });
             fastify.log.info({ email: order.email, tracking: order.tracking_number || null }, 'Email s fakturou odeslán');
           }

@@ -102,11 +102,16 @@
       <h1><%= invoice.type === 'proforma' ? 'ZÁLOHOVÁ FAKTURA' : 'FAKTURA' %></h1>
       <div class="number"><%= invoice.number %></div>
       <div style="margin-top:8px;">
-        <%# `paid` posílá volající u faktury k vyřízené objednávce: ta je z
-            definice zaplacená, ať už převodem předem nebo kartou, takže nesmí
-            vyzývat k úhradě. %>
-        <% if (paid || invoice.status === 'Zaplacena') { %>
+        <%# Razítko řídí `uhrada` z renderInvoiceHtml() (zobrazeniUhrady() v
+            src/danovy-doklad.js). Dobírka razítko ZAPLACENO nedostane, i když
+            je objednávka vyřízená: zákazník platí až při převzetí a nevyzvednutá
+            zásilka by nechala „zaplacený“ doklad bez peněz. Ani PO SPLATNOSTI —
+            u dobírky to znamená, že ji ještě nikdo nespároval s penězi od
+            Zásilkovny, ne že zákazník dluží. %>
+        <% if (uhrada.zaplaceno) { %>
           <span class="badge-paid">ZAPLACENO</span>
+        <% } else if (uhrada.dobirka) { %>
+          <span class="badge-unpaid">DOBÍRKA</span>
         <% } else if (invoice.status === 'Po splatnosti') { %>
           <span class="badge-overdue">PO SPLATNOSTI</span>
         <% } else { %>
@@ -152,16 +157,30 @@
   </div>
 
   <!-- Metadata -->
+  <%# Všechna data přes ceskeDatum(), ne toLocaleDateString(): to čte datum
+      v pásmu procesu a na stroji západně od UTC by vystavení a splatnost
+      ukázalo o den dřív než DUZP o řádek níž. Dobírka se neplatí do data
+      splatnosti, ale při převzetí — datum v databázi slouží jen obsluze. %>
   <table class="meta-table">
     <tr>
       <td class="label">Datum vystavení</td>
-      <td class="value"><%= new Date(invoice.issue_date).toLocaleDateString('cs-CZ') %></td>
+      <td class="value"><%= ceskeDatum(invoice.issue_date) %></td>
       <td class="label" style="padding-left:40px;">Datum splatnosti</td>
-      <td class="value"><%= invoice.due_date ? new Date(invoice.due_date).toLocaleDateString('cs-CZ') : 'Ihned' %></td>
+      <td class="value"><%= uhrada.dobirka ? 'Při převzetí' : (invoice.due_date ? ceskeDatum(invoice.due_date) : 'Ihned') %></td>
     </tr>
+    <%# Daňový doklad musí nést den plnění nebo přijetí úplaty, liší-li se ode
+        dne vystavení (§ 29 odst. 1 písm. h ZDPH). Tiskne se vždy, i když je
+        shodný — čtenář pak nemusí domýšlet, co znamená chybějící řádek.
+        Zálohová faktura daňovým dokladem není, `uhrada.duzp` je u ní prázdné. %>
+    <% if (uhrada.duzp) { %>
+    <tr>
+      <td class="label">Datum uskutečnění zdanitelného plnění</td>
+      <td class="value" colspan="3"><%= ceskeDatum(uhrada.duzp) %></td>
+    </tr>
+    <% } %>
     <tr>
       <td class="label">Forma platby</td>
-      <td class="value">Bankovní převod</td>
+      <td class="value"><%= uhrada.formaPlatby %></td>
       <td class="label" style="padding-left:40px;">Variabilní symbol</td>
       <td class="value"><%= vs || invoice.number %></td>
     </tr>
@@ -248,7 +267,8 @@
         <span><%= Number(invoice.vat_amount).toLocaleString('cs-CZ', {minimumFractionDigits:2}) %> <%= invoice.currency || 'Kč' %></span>
       </div>
       <div class="summary-row total">
-        <span><%= paid || invoice.status === 'Zaplacena' ? 'CELKEM' : 'K ÚHRADĚ' %></span>
+        <%# Dobírka se platí dopravci při převzetí, ne na účet do data splatnosti. %>
+        <span><%= uhrada.zaplaceno ? 'CELKEM' : (uhrada.dobirka ? 'K ÚHRADĚ DOBÍRKOU' : 'K ÚHRADĚ') %></span>
         <span><%= Number(invoice.total_amount).toLocaleString('cs-CZ', {minimumFractionDigits:2}) %> <%= invoice.currency || 'Kč' %></span>
       </div>
     </div>
@@ -256,8 +276,15 @@
 
   <!-- Platební info -->
   <%# Zaplacený doklad platební instrukce neuvádí. Číslo účtu a variabilní
-      symbol na faktuře, která je vyřízená a uhrazená, svádí k druhé platbě. %>
-  <% if (!(paid || invoice.status === 'Zaplacena')) { %>
+      symbol na faktuře, která je vyřízená a uhrazená, svádí k druhé platbě —
+      a u dobírky k platbě, která se nespáruje, protože peníze vybere dopravce. %>
+  <% if (uhrada.dobirka) { %>
+  <div class="payment-info">
+    <div class="payment-info-body">
+      <strong>Úhrada dobírkou při převzetí zásilky</strong>
+    </div>
+  </div>
+  <% } else if (uhrada.instrukce) { %>
   <div class="payment-info">
     <div class="payment-info-body">
     <h4>Platební instrukce</h4>

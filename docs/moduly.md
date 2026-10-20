@@ -47,6 +47,18 @@ KPI na domovské stránce: počty faktur, objednávek, CRM kontaktů, členů t�
 | `GET /api/banka/doklady` | API: doklady pro autocomplete párování |
 | `GET /api/cashflow` | API: data cash flow |
 
+**Párování plateb.** Webhook `POST /api/webhook/banka` páruje jen příchozí
+platby, podle variabilního symbolu: nejdřív jako podřetězec čísla faktury
+nebo zálohovky, a když nic, podle čísla objednávky (zálohovka e-shopu se platí
+pod ním). Faktury k dobírce se podle čísla nepárují — peníze posílá Zásilkovna
+souhrnně pod vlastním symbolem — a stornované doklady taky ne. Páruje se jen
+jednoznačná shoda: když symbol sedí na víc dokladů (20260042, ZF-20260042
+i FV-2026-0042 mají týž VS), platba zůstane nespárovaná a rozhodne obsluha —
+ani shoda částky nerozhoduje (`vyberDokladKPlatbe()` v `src/routes/accounting.js`).
+Den úhrady (`paid_date`) je den pohybu na účtu (`transaction_date`), i při
+ručním spárování (`zaplatDokladPohybem()`) — u zálohovky z něj vystavená
+faktura bere DUZP.
+
 ---
 
 ## Faktury (`src/routes/invoices.js`)
@@ -82,6 +94,55 @@ ve formuláři jsou jen náhled. Server odmítne fakturu bez klienta, bez polož
 s nulovou částkou nebo s číslem, které už existuje (`accounting_invoices` má
 unikátní index na dvojici typ + číslo).
 
+### Faktura k objednávce e-shopu
+
+Vzniká přepnutím objednávky na „Vyřízena" (nebo záchrannou akcí
+`POST /ucetnictvi/objednavky/:id/generovat-fakturu`) v `generateInvoiceForOrder()`. Stav, den úhrady a DUZP (`taxable_date`) určuje
+`uhradaFakturyObjednavky()` v `src/danovy-doklad.js`:
+
+| Platba | Stav | `paid_date` = `taxable_date` |
+|---|---|---|
+| Platba kartou | Zaplacena | pražský den `shop_orders.paid_at`; bez něj (zaplaceno před migrací 039) pražský den založení objednávky, je-li ve stavu „Zaplaceno" nebo „Vyřízena"; jinak den vystavení |
+| Bankovní převod | Zaplacena | den úhrady zálohové faktury |
+| Dobírka | **Nezaplacena** | `paid_date` prázdné, DUZP = den vystavení (plnění = odeslání) |
+| cokoli jiného | Zaplacena | den vystavení (dosavadní chování) |
+
+**Datum na dokladu není den vystavení.** Faktura vzniká dny po platbě, ale daňový
+doklad musí nést den přijetí úplaty (§ 29 odst. 1 písm. h ZDPH). Dřív dostala
+karta zaplacená 1. 9. na fakturu „zaplaceno 7. 9.". Data dokladů k objednávce
+— vystavení, splatnost, DUZP i rok a měsíc v čísle z řady — se počítají
+v pražském čase (`src/prazsky-cas.js`): kontejner běží v UTC a platba ve 0:30
+by jinak spadla do předchozího dne. Výjimkou je přepnutí na „Po splatnosti"
+(`CURRENT_DATE` databáze) — proběhne o hodinu dvě později, na dokladu to nic
+nemění.
+
+**Karta zaplacená před migrací 039** nemá `paid_at`. Karta se platí rovnou
+v pokladně, takže za den přijetí úplaty se bere pražský den založení objednávky
+— jen u objednávky vedené jako zaplacená („Zaplaceno", „Vyřízena"). Počítá se
+při vystavení (`denPlatbyKartou()`), do databáze se nic nedopisuje.
+
+**Den úhrady zálohovky je den, kdy přišly peníze.** Automatické i ruční
+spárování s bankou ho bere z pohybu na účtu; ruční změna stavu na „Zaplacena"
+ho chce ve formuláři (předvyplněný už zapsaným dnem úhrady, jinak pražským
+dneškem; bez něj pražský dnešek, ne `CURRENT_DATE`). Den kliknutí by posunul
+DUZP vystavené faktury, klidně do jiného měsíce DPH.
+
+**DUZP jde opravit** v úpravě vydané faktury (pole DUZP, prázdné = datum
+vystavení). Je to cesta pro karty zaplacené jindy než v den založení objednávky
+(před migrací 039) a pro potvrzení platby, které dorazilo po půlnoci.
+
+**Dobírka zaplacená není.** Zákazník platí dopravci při převzetí; „zaplacená"
+faktura by u nevyzvednuté zásilky zůstala bez peněz. Za zaplacenou ji označí
+obsluha (změnou stavu s datem úhrady), až Zásilkovna peníze pošle — automatické
+párování podle čísla faktury ji vynechává.
+
+Číslo vystavené faktury se zapíše do `shop_orders.invoice_number`. Do vystavení
+je sloupec prázdný; dřív v něm od založení objednávky leželo vymyšlené
+`FV-<rok>-<objednávka>`. E-shopu (`GET /api/toneracek/orders`, `…/by-number`)
+jde v `invoice_number` číslo vydané faktury z `accounting_invoices`, ne obsah
+sloupce — u starších objednávek by to bylo to vymyšlené. Bez vydané faktury
+prázdné.
+
 ### PDF a odeslání
 
 PDF vykresluje `src/pdf.js` přes headless Chromium ze šablony
@@ -90,9 +151,33 @@ PDF vykresluje `src/pdf.js` přes headless Chromium ze šablony
 limitu banky a zároveň zůstal podřetězcem čísla faktury, na kterém stojí
 auto-párování plateb.
 
+Co doklad říká o úhradě, rozhoduje `zobrazeniUhrady()` v `src/danovy-doklad.js`
+— jedno místo pro šablonu i e-mail:
+
+- **Vydaná faktura vždy tiskne „Datum uskutečnění zdanitelného plnění"** —
+  `taxable_date`, bez něj datum vystavení. Zálohová faktura ho netiskne, daňovým
+  dokladem není.
+- **Zaplacená** má razítko ZAPLACENO a žádné platební instrukce ani QR kód.
+- **Dobírka** (podle `payment_method` objednávky, faktura ho nenese) nemá razítko
+  ZAPLACENO ani PO SPLATNOSTI, číslo účtu ani QR — místo nich štítek DOBÍRKA,
+  splatnost „Při převzetí" (ne datum +14 dní z databáze, to slouží jen
+  hlídání nespárovaných dobírek), součet „K úhradě dobírkou" a „Úhrada
+  dobírkou při převzetí zásilky". Volající proto předává `paymentMethod`.
+- „Forma platby" je způsob platby objednávky; u faktur mimo e-shop „Bankovní převod".
+- Data tiskne `ceskeDatum()`, ne `toLocaleDateString()` — nezávisle na pásmu
+  procesu. Totéž splatnost v e-mailu a data v detailu faktury v administraci.
+
+`renderInvoiceHtml()` vrací totéž HTML bez prohlížeče — na něm stojí test
+`test/danovy-doklad.test.js`.
+
 Odeslání e-mailem předvyplní adresu z faktury, jinak ji dohledá v CRM (kontakt →
 firma → IČO). Každý pokus se zapíše do `invoice_emails` včetně chyby, odeslané
-PDF se archivuje do `data/pdfs` a cesta se uloží do `pdf_path`.
+PDF se archivuje do `data/pdfs` a cesta se uloží do `pdf_path`. E-mail říká
+o úhradě totéž co PDF: platební údaje jen tam, kde je má i PDF, zaplacená faktura
+není „k úhradě" a dobírka nemá splatnost, ale „K úhradě při převzetí".
+
+CSV export vydaných faktur má DUZP v posledním sloupci (bez `taxable_date` datum
+vystavení), ať dosavadní sloupce zůstaly na svých místech.
 
 ### Hlídání splatnosti a upomínky
 
@@ -101,12 +186,39 @@ PDF se archivuje do `data/pdfs` a cesta se uloží do `pdf_path`.
 1. `markOverdueInvoices()` — přepne prošlé faktury z „Nezaplacena" na „Po splatnosti",
 2. `prepareReminders()` — podle prahů v `company_settings.reminder_levels`
    (výchozí 3 / 14 / 30 dní) založí upomínku ve stavu `ceka`; vždy jen nejvyšší
-   dosažený stupeň, ať klientovi nechodí tři naráz,
-3. jednou denně pošle souhrn do nastavených notifikačních kanálů.
+   dosažený stupeň, ať klientovi nechodí tři naráz. **Faktury k dobírce
+   vynechá** — zákazník platí dopravci a peníze posílá Zásilkovna, takže „po
+   splatnosti" znamená nespárovanou dobírku, ne dluh zákazníka,
+3. jednou denně pošle souhrn do nastavených notifikačních kanálů — dobírky v něm
+   zůstávají, ať je obsluha spáruje.
 
 **Upomínky se nikdy neodesílají automaticky.** Worker je jen připraví do fronty na
 `/ucetnictvi/upominky`, odeslání spouští člověk. Tři stupně důrazu (upozornění →
 upomínka → předžalobní výzva) definuje `sendReminderEmail()` v `src/email.js`.
+**Upomínku k dobírce nejde poslat ani ručně** — detail faktury místo tlačítka
+radí spárovat ji s platbou od Zásilkovny a `deliverReminder()` ji odmítne
+a důvod zapíše do historie odeslání.
+
+### Lhůta pro daňový doklad
+
+Faktura k objednávce vzniká jen ručním vyřízením, ale povinnost přiznat daň
+vzniká dnem přijetí úplaty (u dobírky plněním) a doklad se má vystavit do
+15 dnů (§ 28 odst. 8 ZDPH). `checkUninvoicedPaidOrders()` v
+`src/healthcheck-worker.js` proto jednou za pražský den po 8:00 pošle správcům
+push o objednávkách bez vydané faktury (a ne stornovaných), u kterých lhůta
+běží 10 dní a víc (zbývá nejvýš pět). Den, od kterého běží, určuje
+`denVznikuPovinnosti()` v `src/danovy-doklad.js` podle způsobu platby — tytéž
+dny, které jdou na fakturu:
+
+| Platba | Lhůta běží od |
+|---|---|
+| Platba kartou | pražského dne `paid_at`; bez něj (před migrací 039) pražského dne založení, je-li objednávka „Zaplaceno" nebo „Vyřízena". Objednávky přenesené z Airtable (`id` začíná `rec`) se takhle nehlídají — jsou z doby před spuštěním e-shopu |
+| Bankovní převod | dne úhrady zálohové faktury |
+| Dobírka | pražského dne `warehouse_sent_at` — ranní expedice ji do skladu pošle sama, fakturu vystaví až „Vyřízena" |
+
+U každé objednávky uvede, do kdy lhůta běží nebo kdy uplynula. Dedupe je řádek
+v `notification_log` (`faktura_lhuta`, klíč = pražské datum). Jen interní push
+— zákazník ani sklad nic nedostanou.
 
 ---
 
@@ -163,6 +275,11 @@ a zakládala mezi ostatní závazky, tak to dělá export rovnou za ni. Rozřaze
 duplicitě. Číslo od dodavatele proto jde do `originalDocument` (pole *Doklad*)
 a jeho číslice do `symVar`, aby se dala spárovat platba. U vydaných faktur
 je naopak autoritou naše řada, takže číslo posíláme.
+
+**`dateTax` vydané faktury je `taxable_date`**, ne datum vystavení — do přiznání
+musí jít tentýž DUZP, který tiskne PDF (karta zaplacená 30. 9. s fakturou
+z 7. 10. patří do září). Bez `taxable_date` (starší a ruční doklady) zůstává
+datum vystavení. `date` a `dateAccounting` nesou dál datum vystavení.
 
 **Bez nároku na odpočet DPH** (`vat_deductible = false`, u kategorie
 Reprezentace vynuceně — § 72 odst. 4 ZDPH) jde do balíčku celá částka včetně
@@ -297,9 +414,18 @@ Typy firem: Zákazník, Dodavatel, Partner, Jiný. Každý kontakt může mít m
 | `GET /ucetnictvi/migrace` | Migrace dat z Airtable (jednorázové) |
 
 Stavy v administraci: Přijata → Vyřízena / Stornována. Přechod do „Vyřízena"
-automaticky vytvoří fakturu. Do `status` píše i e-shop („Čeká na platbu",
-„Zaplaceno", „Platba se nezdařila"), takže sloupec obsahuje víc hodnot,
-než nabízí formulář.
+automaticky vytvoří fakturu (pravidla viz *Faktura k objednávce e-shopu*)
+a pošle ji zákazníkovi; u dobírky PDF i e-mail říkají, že se platí při
+převzetí. Do `status` píše i e-shop („Čeká na platbu", „Zaplaceno", „Platba
+se nezdařila"), takže sloupec obsahuje víc hodnot, než nabízí formulář.
+
+První „Zaplaceno" — z `PATCH …/payment-status`, z `PATCH …/payment-method`
+nebo rovnou při založení objednávky — zapíše do `shop_orders.paid_at` okamžik
+platby (`COALESCE`, opakovaný webhook ho nepřepíše) — faktura z něj bere den
+přijetí úplaty. `POST /api/toneracek/orders` vrací `invoiceNumber` prázdné:
+faktura v tu chvíli neexistuje, číslo se do objednávky zapíše až při vystavení.
+`GET /api/toneracek/orders` a `…/by-number` vrací v `invoice_number` číslo
+vydané faktury, bez ní prázdné.
 
 ### Ranní expedice do skladu
 
@@ -614,7 +740,7 @@ záloha se u B2C řeší stornem objednávky.
 Spouští se jednou při startu serveru, pak každých 24 hodin. Prochází `recurring_invoices` se `next_run_date <= NOW()`, generuje faktury, aktualizuje `next_run_date`.
 
 ### Healthcheck worker (`src/healthcheck-worker.js`)
-Pinguje registrované URL v nastaveném intervalu. Zapisuje výsledky do `healthcheck_results`. Pokud selže, spouští notifikační pravidla.
+Pinguje registrované URL v nastaveném intervalu. Zapisuje výsledky do `healthcheck_results`. Pokud selže, spouští notifikační pravidla. Ve stejném pětiminutovém tiku hlídá splatnost faktur a lhůtu pro daňový doklad k zaplaceným objednávkám a odeslaným dobírkám (viz *Faktury*).
 
 ### Expedice do skladu (`src/expedice.js`)
 Tiká každých 5 minut (poprvé 20 s po startu). Ve všední den po 6:00 pražského

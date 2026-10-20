@@ -10,6 +10,8 @@ import { writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { renderSeriesNumber, paymentVs } from '../series-format.js';
 import { saveAttachment, deleteAttachment, isSupportedMime, markMissingAttachments } from '../attachments.js';
+import { denUhradyZFormulare, uhradaFakturyObjednavky, zobrazeniUhrady } from '../danovy-doklad.js';
+import { ceskeDatum, jenDatum, prazskeDatum, pridejDny } from '../prazsky-cas.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '../..');
@@ -206,18 +208,34 @@ export function daysOverdue(dueDate, today = new Date()) {
   return Math.max(0, Math.floor(diff / 86400000));
 }
 
-async function deliverReminder(sql, { invoice, email, level, reminderId = null, daysOverdue: days, userId, log }) {
+export async function deliverReminder(sql, { invoice, email, level, reminderId = null, daysOverdue: days, userId, log }) {
   const issuer = await getIssuer(sql);
   const overdue = days ?? daysOverdue(invoice.due_date);
   let subject = `Upomínka k faktuře ${invoice.number}`;
   // Zálohovku k objednávce zákazník platí pod číslem objednávky, takže i
   // upomínka musí uvádět tentýž symbol jako původní e-mail a PDF.
-  const [ord] = await sql`SELECT order_number FROM shop_orders WHERE id = ${invoice.order_id} LIMIT 1`;
+  const [ord] = await sql`SELECT order_number, payment_method FROM shop_orders WHERE id = ${invoice.order_id} LIMIT 1`;
+
+  // Dobírku zákazník platí dopravci při převzetí a peníze posílá Zásilkovna.
+  // „Po splatnosti“ u ní znamená nespárovanou dobírku, ne dluh zákazníka —
+  // upomínka s číslem účtu by chtěla zaplatit podruhé, u nevyzvednuté zásilky
+  // za zboží, které nedostal. Fronta je nezakládá (prepareReminders()) a detail
+  // faktury tlačítko nenabízí; tohle je pojistka pro obě cesty k odeslání.
+  // Do historie odeslání se zapíše, ať je vidět, proč nic neodešlo.
+  if (ord?.payment_method === 'Dobírka') {
+    const error = 'Faktura k dobírce se neupomíná — zákazník platí dopravci při převzetí, peníze posílá Zásilkovna.';
+    await logInvoiceEmail(sql, { invoiceId: invoice.id, kind: 'upominka', level, email, subject,
+                                 status: 'chyba', error, userId });
+    return { ok: false, error };
+  }
 
   try {
     const items = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${invoice.id} ORDER BY id`;
+    // Přiložená faktura je tentýž doklad, jaký zákazník dostal — s formou
+    // platby z objednávky, ne s výchozím převodem.
     const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary: calcVatSummary(items),
-      brand: await brandForShopId(invoice.shop_id), vs: paymentVs(invoice, ord?.order_number) });
+      brand: await brandForShopId(invoice.shop_id), vs: paymentVs(invoice, ord?.order_number),
+      paymentMethod: ord?.payment_method });
 
     ({ subject } = await sendReminderEmail({
       invoice, issuer, brand: await brandForShopId(invoice.shop_id),
@@ -249,13 +267,13 @@ async function deliverReminder(sql, { invoice, email, level, reminderId = null, 
 
 // ── Generování čísla z číselné řady ──────────────────────────
 
-async function nextInvoiceNumber(sql, seriesId) {
+async function nextInvoiceNumber(sql, seriesId, now = new Date()) {
   const [series] = await sql`
     UPDATE invoice_number_series SET current_number = current_number + 1
     WHERE id = ${seriesId} AND active = TRUE RETURNING *
   `;
   if (!series) throw new Error('Číselná řada nenalezena nebo není aktivní');
-  return renderSeriesNumber(series);
+  return renderSeriesNumber(series, now);
 }
 
 // Výchozí číselná řada podle eshopu, ze kterého objednávka přišla
@@ -266,10 +284,6 @@ async function pickDefaultSeries(sql, shopId, entityType) {
     ORDER BY id LIMIT 1
   `;
   return series?.id || null;
-}
-
-function defaultDueDate(days) {
-  return new Date(Date.now() + days * 86400000).toISOString().split('T')[0];
 }
 
 async function insertOrderInvoiceItems(sql, orderItems, invoiceId, vatRate, totalAmount) {
@@ -335,13 +349,16 @@ async function insertOrderInvoiceItems(sql, orderItems, invoiceId, vatRate, tota
 // Volá se automaticky při vzniku objednávky s platbou převodem
 // (src/routes/toneracek.js), nebo jako ruční záchranná akce z UI.
 
-export async function generateProformaForOrder(sql, order) {
+export async function generateProformaForOrder(sql, order, { now = new Date() } = {}) {
   const orderItems = await sql`SELECT * FROM shop_order_items WHERE order_id = ${order.id}`;
+  // Pražský den jako u vydané faktury — objednávka po půlnoci by jinak
+  // dostala zálohovku se včerejším datem a o den kratší splatností.
+  const issueDate = prazskeDatum(now);
 
   const seriesId = await pickDefaultSeries(sql, order.shop_id, 'zalohova_faktura');
   let number = '';
-  if (seriesId) number = await nextInvoiceNumber(sql, seriesId);
-  if (!number) number = `ZF-${new Date().getFullYear()}-${order.order_number}`;
+  if (seriesId) number = await nextInvoiceNumber(sql, seriesId, now);
+  if (!number) number = `ZF-${issueDate.slice(0, 4)}-${order.order_number}`;
 
   const vatRate = 21;
   const totalWithVat = Number(order.total_price);
@@ -367,8 +384,8 @@ export async function generateProformaForOrder(sql, order) {
       ${[order.address, order.zip + ' ' + order.city].filter(Boolean).join(', ')},
       ${base}, ${vatAmt}, ${totalWithVat},
       ${order.currency || 'CZK'},
-      ${new Date().toISOString().split('T')[0]},
-      ${defaultDueDate(7)}
+      ${issueDate},
+      ${pridejDny(issueDate, 7)}
     )
   `;
 
@@ -381,18 +398,27 @@ export async function generateProformaForOrder(sql, order) {
 // ── Vystavit běžnou (vydanou) fakturu z objednávky ────────────────
 //
 // Volá se automaticky při přepnutí stavu objednávky na "Vyřízena"
-// (src/routes/toneracek.js). Faktura se vystavuje vždy jako už uhrazená —
-// u karty/dobírky je platba v tu chvíli fakticky přijatá, u převodu je
-// podmínkou zaplacená zálohová faktura (`fromProforma`), ze které se
-// faktura vystaví s nulovým doplatkem.
+// (src/routes/toneracek.js) a z ruční záchranné akce níž. Stav, den úhrady
+// a DUZP určuje uhradaFakturyObjednavky() v src/danovy-doklad.js: karta
+// a převod jsou zaplacené ke dni přijetí úplaty (u převodu je podmínkou
+// zaplacená zálohová faktura `fromProforma`, ze které se faktura vystaví
+// s nulovým doplatkem), dobírka zůstává nezaplacená — platí se až při
+// převzetí zásilky.
 
-export async function generateInvoiceForOrder(sql, order, { fromProforma } = {}) {
+export async function generateInvoiceForOrder(sql, order, { fromProforma, now = new Date() } = {}) {
   const orderItems = await sql`SELECT * FROM shop_order_items WHERE order_id = ${order.id}`;
+  // Pražský den, ne UTC — po půlnoci by jinak faktura nesla včerejší datum
+  // a DUZP dobírky by se rozešel s datem vystavení. Z téhož okamžiku bere rok
+  // i číslo z řady.
+  const issueDate = prazskeDatum(now);
 
   const seriesId = await pickDefaultSeries(sql, order.shop_id, 'faktura');
   let number = '';
-  if (seriesId) number = await nextInvoiceNumber(sql, seriesId);
-  if (!number) number = order.invoice_number || `FV-${new Date().getFullYear()}-${order.order_number}`;
+  if (seriesId) number = await nextInvoiceNumber(sql, seriesId, now);
+  // Bez číselné řady. Nové objednávky mají invoice_number prázdné (číslo se
+  // do něj zapisuje až níž); starší v něm nesou číslo, které e-shop zákazníkovi
+  // už ukázal, a to se tu radši dodrží.
+  if (!number) number = order.invoice_number || `FV-${issueDate.slice(0, 4)}-${order.order_number}`;
 
   const vatRate = 21;
   const totalWithVat = Number(order.total_price);
@@ -400,11 +426,11 @@ export async function generateInvoiceForOrder(sql, order, { fromProforma } = {})
   const vatAmt = +(totalWithVat - base).toFixed(2);
 
   const invoiceId = generateId();
-  const today = new Date().toISOString().split('T')[0];
+  const { status, paidDate, taxableDate } = uhradaFakturyObjednavky(order, { fromProforma, now });
 
   await sql`
     INSERT INTO accounting_invoices
-      (id, type, series_id, number, status, paid_date,
+      (id, type, series_id, number, status, paid_date, taxable_date,
        shop_id, order_id, crm_contact_id, crm_company_id, proforma_invoice_id,
        client_name, client_ico, client_dic, client_address,
        amount, vat_amount, total_amount, currency,
@@ -412,7 +438,7 @@ export async function generateInvoiceForOrder(sql, order, { fromProforma } = {})
     VALUES (
       ${invoiceId}, 'issued',
       ${seriesId},
-      ${number}, 'Zaplacena', ${today},
+      ${number}, ${status}, ${paidDate}, ${taxableDate},
       ${order.shop_id}, ${order.id},
       ${order.crm_contact_id || null}, ${order.crm_company_id || null}, ${fromProforma?.id || null},
       ${`${order.first_name} ${order.last_name}`.trim() || order.company || ''},
@@ -420,12 +446,17 @@ export async function generateInvoiceForOrder(sql, order, { fromProforma } = {})
       ${[order.address, order.zip + ' ' + order.city].filter(Boolean).join(', ')},
       ${base}, ${vatAmt}, ${totalWithVat},
       ${order.currency || 'CZK'},
-      ${today},
-      ${defaultDueDate(14)}
+      ${issueDate},
+      ${pridejDny(issueDate, 14)}
     )
   `;
 
   await insertOrderInvoiceItems(sql, orderItems, invoiceId, vatRate, totalWithVat);
+
+  // Objednávka nese číslo skutečného dokladu — e-shop ho ukazuje zákazníkovi
+  // a obsluha podle něj hledá. Dřív tu od založení objednávky leželo vymyšlené
+  // „FV-<rok>-<objednávka>“, ke kterému žádná faktura neexistovala.
+  await sql`UPDATE shop_orders SET invoice_number = ${number}, modified_at = NOW() WHERE id = ${order.id}`;
 
   const [invoice] = await sql`SELECT * FROM accounting_invoices WHERE id = ${invoiceId}`;
   return invoice;
@@ -485,6 +516,10 @@ export default async function invoicesRoutes(fastify) {
       emailSent, emailError, emailLog, reminders,
       suggestedEmail: await resolveClientEmail(sql, invoice),
       formError: FORM_ERRORS[request.query.formError] || '',
+      // Předvyplněný den úhrady ve změně stavu: už zapsaný, jinak pražský dnešek
+      vychoziDenUhrady: denUhradyZFormulare(invoice.paid_date),
+      // Data dokladu stejně jako v PDF — nezávisle na časovém pásmu procesu
+      ceskeDatum,
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -601,7 +636,7 @@ export default async function invoicesRoutes(fastify) {
   // Úprava vydané faktury (hlavička i položky)
   fastify.post('/ucetnictvi/vydane-faktury/:id/upravit', async (request, reply) => {
     const [invoice] = await sql`
-      SELECT id FROM accounting_invoices WHERE id = ${request.params.id} AND type IN ('issued', 'proforma')
+      SELECT id, type FROM accounting_invoices WHERE id = ${request.params.id} AND type IN ('issued', 'proforma')
     `;
     if (!invoice) return reply.code(404).send('Faktura nenalezena');
 
@@ -618,6 +653,12 @@ export default async function invoicesRoutes(fastify) {
       : { amount: parseFloat(b.amount) || 0, vatAmount: parseFloat(b.vat_amount) || 0,
           total: round2((parseFloat(b.amount) || 0) + (parseFloat(b.vat_amount) || 0)) };
 
+    // DUZP jen u vydané faktury (zálohová daňovým dokladem není) a jen když
+    // ho formulář poslal. Opravuje se tu den přijetí úplaty, který Seil
+    // u objednávek z doby před migrací 039 nezná, nebo potvrzení platby, které
+    // dorazilo až po půlnoci. Prázdné pole = shodné s datem vystavení.
+    const menitDuzp = invoice.type === 'issued' && b.taxable_date !== undefined;
+
     await sql.begin(async tx => {
       await tx`
         UPDATE accounting_invoices SET
@@ -628,6 +669,7 @@ export default async function invoicesRoutes(fastify) {
           client_email = ${(b.client_email||'').trim().toLowerCase()},
           issue_date = ${b.issue_date || null},
           due_date = ${b.due_date || null},
+          ${menitDuzp ? tx`taxable_date = ${jenDatum(b.taxable_date)},` : tx``}
           notes = ${(b.notes||'').trim()},
           account_debit = ${(b.account_debit||'').trim()},
           account_credit = ${(b.account_credit||'').trim()},
@@ -656,10 +698,15 @@ export default async function invoicesRoutes(fastify) {
 
   // Změna stavu faktury
   fastify.post('/ucetnictvi/vydane-faktury/:id/stav', async (request, reply) => {
-    const { status } = request.body || {};
+    const { status, paid_date } = request.body || {};
     if (!STATUSES_ISSUED.includes(status)) return reply.code(400).send('Neplatný stav');
     const updates = [sql`status = ${status}`, sql`modified_at = NOW()`];
-    if (status === 'Zaplacena') updates.push(sql`paid_date = CURRENT_DATE`);
+    // Den úhrady je den, kdy peníze přišly, ne den kliknutí — viz
+    // denUhradyZFormulare(). Bez data z formuláře pražský dnešek, ne
+    // CURRENT_DATE databáze.
+    if (status === 'Zaplacena') {
+      updates.push(sql`paid_date = ${denUhradyZFormulare(paid_date)}`);
+    }
     await sql`UPDATE accounting_invoices SET ${updates.reduce((a, b) => sql`${a}, ${b}`)} WHERE id = ${request.params.id}`;
     return reply.redirect(`/ucetnictvi/vydane-faktury/${request.params.id}`);
   });
@@ -672,9 +719,12 @@ export default async function invoicesRoutes(fastify) {
     const items = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${invoice.id} ORDER BY id`;
     const issuer = await getIssuer(sql);
     const vatSummary = calcVatSummary(items);
+    // Způsob platby nese objednávka, ne faktura — bez něj by dobírka v náhledu
+    // vypadala jako doklad k převodu.
+    const [ord] = await sql`SELECT payment_method FROM shop_orders WHERE id = ${invoice.order_id} LIMIT 1`;
 
     const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary,
-      brand: await brandForShopId(invoice.shop_id) });
+      brand: await brandForShopId(invoice.shop_id), paymentMethod: ord?.payment_method });
 
     // ?download=1 posílá tlačítko Stáhnout v náhledu dokladu
     const disposition = request.query.download === '1' ? 'attachment' : 'inline';
@@ -696,18 +746,23 @@ export default async function invoicesRoutes(fastify) {
     const vatSummary = calcVatSummary(items);
     const brand = await brandForShopId(invoice.shop_id);
     const subject = `Faktura ${invoice.number} od ${brand ? brand.name : issuer.name}`;
-    const [ord] = await sql`SELECT order_number FROM shop_orders WHERE id = ${invoice.order_id} LIMIT 1`;
+    const [ord] = await sql`SELECT order_number, payment_method FROM shop_orders WHERE id = ${invoice.order_id} LIMIT 1`;
+    // E-mail ukazuje platební údaje jen tam, kde je ukazuje i PDF v příloze.
+    // U dobírky a zaplacené faktury by číslo účtu s QR kódem svádělo k platbě,
+    // kterou nikdo nečeká.
+    const { instrukce } = zobrazeniUhrady({ invoice, paymentMethod: ord?.payment_method });
 
     try {
       const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary, brand,
-        vs: paymentVs(invoice, ord?.order_number) });
+        vs: paymentVs(invoice, ord?.order_number), paymentMethod: ord?.payment_method });
       await sendInvoiceEmail({
         invoice, issuer, brand, email, pdfBuffer, subject,
-        paymentDetails: {
+        paymentMethod: ord?.payment_method,
+        paymentDetails: instrukce ? {
           bankAccount:    issuer.bank_account || '',
           iban:           issuer.iban || '',
           variableSymbol: paymentVs(invoice, ord?.order_number),
-        },
+        } : undefined,
       });
 
       const pdfPath = await storeInvoicePdf(invoice, pdfBuffer, fastify.log);
@@ -1128,7 +1183,9 @@ export default async function invoicesRoutes(fastify) {
   // ── Export CSV ────────────────────────────────────────────────
   fastify.get('/ucetnictvi/vydane-faktury/export.csv', async (request, reply) => {
     const invoices = await sql`SELECT * FROM accounting_invoices WHERE type='issued' ORDER BY issue_date DESC`;
-    const header = 'Číslo;Klient;IČO;Vystavení;Splatnost;Zaplaceno;Základ;DPH;Celkem;Měna;Stav';
+    // DUZP až na konci — kdo si export načítá podle pořadí sloupců, o nic nepřijde.
+    // Bez taxable_date je to datum vystavení, stejně jako v PDF a v POHODĚ.
+    const header = 'Číslo;Klient;IČO;Vystavení;Splatnost;Zaplaceno;Základ;DPH;Celkem;Měna;Stav;DUZP';
     const rows = invoices.map(i => [
       i.number, i.client_name||'', i.client_ico||'',
       i.issue_date?.toISOString?.()?.slice(0,10) || '',
@@ -1138,6 +1195,7 @@ export default async function invoicesRoutes(fastify) {
       String(i.vat_amount||0).replace('.',','),
       String(i.total_amount||0).replace('.',','),
       i.currency, i.status,
+      jenDatum(i.taxable_date) ?? jenDatum(i.issue_date) ?? '',
     ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n');
     reply.header('Content-Type', 'text/csv; charset=utf-8');
     reply.header('Content-Disposition', 'attachment; filename="vydane-faktury.csv"');
