@@ -180,7 +180,8 @@ fastify.addHook('onRequest', async (request, reply) => {
   // (data/media), takže veřejná cesta by dávala účtenky, faktury a nově
   // i výplatní pásky komukoli, kdo uhodne název souboru. Profilové fotky
   // se z něj berou jen na stránkách za přihlášením.
-  const publicPaths = ['/prihlasit', '/health', '/static', '/health/api', '/api/toneracek', '/api/v1', '/api/docs', '/health/cookie-test', '/api/webhook'];
+  // '/api/eshop' si klíč ověřuje sám (src/eshop-klice.js) — bez session.
+  const publicPaths = ['/prihlasit', '/health', '/static', '/health/api', '/api/toneracek', '/api/eshop', '/api/v1', '/api/docs', '/health/cookie-test', '/api/webhook'];
   const isPublic = publicPaths.some(
     p => request.url === p || request.url.startsWith(p + '/') || request.url.startsWith(p + '?')
   );
@@ -203,6 +204,7 @@ const { default: invoicesRoutes }   = await import('./routes/invoices.js');
 const { default: receiptsRoutes }   = await import('./routes/receipts.js');
 const { default: documentsRoutes }  = await import('./routes/documents.js');
 const { default: toneracekRoutes }  = await import('./routes/toneracek.js');
+const { default: eshopApiRoutes }   = await import('./routes/eshop-api.js');
 const { default: settingsRoutes }   = await import('./routes/settings.js');
 const { default: monitoringRoutes } = await import('./routes/monitoring.js');
 const { default: pushRoutes }       = await import('./routes/push.js');
@@ -221,6 +223,7 @@ await fastify.register(invoicesRoutes);
 await fastify.register(receiptsRoutes);
 await fastify.register(documentsRoutes);
 await fastify.register(toneracekRoutes);
+await fastify.register(eshopApiRoutes);
 await fastify.register(settingsRoutes);
 await fastify.register(monitoringRoutes);
 await fastify.register(pushRoutes);
