@@ -103,10 +103,44 @@ async function getToneracekShopId(sql) {
   return rows[0]?.id ?? null;
 }
 
+// ── Admin: který e-shop ───────────────────────────────────────
+//
+// Seznam objednávek je po e-shopech (?eshop=<slug>), bez parametru ukazuje
+// Toneráček přesně jako dřív. Detail a akce nad objednávkou berou e-shop
+// z objednávky samé: všechny odkazy (push o nové objednávce, detail faktury,
+// upozornění na chybějící doklad, CRM) míří na /ucetnictvi/objednavky/:id bez
+// e-shopu a musí fungovat pro Toneráček i pro Dílnu.
+
+/** E-shop, který seznam objednávek ukáže bez ?eshop=. */
+const VYCHOZI_ESHOP = 'toneracek';
+
 /** Celý řádek e-shopu — nastavení expedice i stav skladu ho potřebují. */
-async function getToneracekShop(sql) {
-  const [shop] = await sql`SELECT * FROM shops WHERE slug = 'toneracek' LIMIT 1`;
+async function shopPodleSlugu(sql, slug) {
+  const [shop] = await sql`SELECT * FROM shops WHERE slug = ${slug} LIMIT 1`;
   return shop ?? null;
+}
+
+/** E-shop, kterému objednávka patří; null, když objednávka neexistuje. */
+async function shopObjednavky(sql, orderId) {
+  const [shop] = await sql`
+    SELECT s.* FROM shop_orders o JOIN shops s ON s.id = o.shop_id
+    WHERE o.id = ${orderId} LIMIT 1
+  `;
+  return shop ?? null;
+}
+
+/**
+ * Parametr e-shopu do odkazů seznamu. U výchozího e-shopu prázdný, ať
+ * dnešní adresy (záložky, odkazy v pushích) zůstanou, jak jsou.
+ */
+function eshopParam(shop) {
+  return shop && shop.slug !== VYCHOZI_ESHOP ? `eshop=${encodeURIComponent(shop.slug)}` : '';
+}
+
+/** Adresa seznamu objednávek e-shopu s dalšími parametry. */
+function seznamObjednavek(shop, ...parametry) {
+  const p = [...parametry, eshopParam(shop)].filter(Boolean);
+  return '/ucetnictvi/objednavky' + (p.length ? '?' + p.join('&') : '');
 }
 
 /**
@@ -711,8 +745,23 @@ export default async function toneracekRoutes(fastify) {
     const perPage = 25;
     const offset  = (page - 1) * perPage;
 
-    const shop = await getToneracekShop(sql);
-    if (!shop) return reply.code(500).send('Toneráček shop není nakonfigurován');
+    const slug = String(request.query.eshop || VYCHOZI_ESHOP).trim().toLowerCase();
+    const shop = await shopPodleSlugu(sql, slug);
+    if (!shop) {
+      return slug === VYCHOZI_ESHOP
+        ? reply.code(500).send('Toneráček shop není nakonfigurován')
+        : reply.code(404).send('E-shop nenalezen');
+    }
+    // Přepínač e-shopů. S jediným e-shopem se nevykreslí a stránka vypadá
+    // jako dřív.
+    const eshopy = await sql`
+      SELECT id, slug, name FROM shops
+      WHERE active = TRUE OR id = ${shop.id}
+      ORDER BY (slug = ${VYCHOZI_ESHOP}) DESC, id
+    `;
+    // Toneráček si nechává dosavadní nadpis („Objednávky Toneráček“, ne
+    // název e-shopu „Toneráček.cz“), ostatní e-shopy se jmenují podle sebe.
+    const nadpis = shop.slug === VYCHOZI_ESHOP ? 'Objednávky Toneráček' : `Objednávky ${shop.name}`;
 
     const conditions = [sql`o.shop_id = ${shop.id}`];
     if (q) conditions.push(sql`(
@@ -754,8 +803,9 @@ export default async function toneracekRoutes(fastify) {
       : [];
 
     return reply.view('pages/toneracek/orders.ejs', {
-      pageTitle: 'Objednávky Toneráček', currentPath: '/ucetnictvi/objednavky',
-      user: request.user, orders, total: count, shop,
+      pageTitle: nadpis, currentPath: '/ucetnictvi/objednavky',
+      user: request.user, orders, total: count, shop, eshopy, nadpis,
+      eshopQs: eshopParam(shop), vychoziEshop: VYCHOZI_ESHOP,
       currentPage: page, totalPages: Math.ceil(count / perPage),
       q, statusFilter, skladFilter, statusCounts, ORDER_STATUSES,
       skladCounts: Object.fromEntries(skladCounts.map(r => [r.sklad_stav, r.n])),
@@ -768,8 +818,8 @@ export default async function toneracekRoutes(fastify) {
 
   fastify.get('/ucetnictvi/objednavky/:id', async (request, reply) => {
     if (!request.user) return reply.redirect('/prihlasit');
-    const shop = await getToneracekShop(sql);
-    if (!shop) return reply.code(500).send('Toneráček shop není nakonfigurován');
+    const shop = await shopObjednavky(sql, request.params.id);
+    if (!shop) return reply.code(404).send('Objednávka nenalezena');
 
     const [order] = await sql`
       SELECT * FROM (${objednavkySeStavemSkladu(sql, shop,
@@ -787,6 +837,7 @@ export default async function toneracekRoutes(fastify) {
       pageTitle: `Objednávka #${order.order_number}`,
       currentPath: '/ucetnictvi/objednavky', user: request.user,
       order, items, ORDER_STATUSES, invoice: invoice || null, proforma: proforma || null,
+      shop, eshopQs: eshopParam(shop), vychoziEshop: VYCHOZI_ESHOP,
       error: request.query.error || null, saved: request.query.saved === '1',
       duvody: DUVODY_POZASTAVENI,
       sentBy: sentBy ? `${sentBy.first_name} ${sentBy.last_name}`.trim() : null,
@@ -797,9 +848,10 @@ export default async function toneracekRoutes(fastify) {
 
   fastify.get('/ucetnictvi/objednavky/:id/stitek', async (request, reply) => {
     if (!request.user) return reply.redirect('/prihlasit');
-    const shopId = await getToneracekShopId(sql);
+    // E-shop z objednávky samé — štítek stahuje jedno heslo Packety pro
+    // všechny e-shopy (Dílna je druhý odesílatel na témž účtu).
     const [order] = await sql`
-      SELECT tracking_number FROM shop_orders WHERE id = ${request.params.id} AND shop_id = ${shopId}
+      SELECT tracking_number FROM shop_orders WHERE id = ${request.params.id}
     `;
     if (!order?.tracking_number) return reply.code(404).send('Zásilka nenalezena');
 
@@ -821,12 +873,13 @@ export default async function toneracekRoutes(fastify) {
     const { status, send_email } = request.body ?? {};
     if (!ORDER_STATUSES.includes(status)) return reply.code(400).send('Neplatný stav');
 
-    const shopId = await getToneracekShopId(sql);
+    // E-shop z objednávky: řada faktury, značka e-mailu i podání balíku se
+    // dál řídí podle order.shop_id, takže pro Toneráček se nic nemění.
     const [order] = await sql`
       SELECT o.*, s.name AS shop_name
       FROM shop_orders o
       LEFT JOIN shops s ON o.shop_id = s.id
-      WHERE o.id = ${request.params.id} AND o.shop_id = ${shopId}
+      WHERE o.id = ${request.params.id}
     `;
     if (!order) return reply.code(404).send('Objednávka nenalezena');
 
@@ -940,9 +993,18 @@ export default async function toneracekRoutes(fastify) {
   fastify.post('/ucetnictvi/objednavky/expedice', async (request, reply) => {
     if (!request.user) return reply.redirect('/prihlasit');
 
-    const shop = await getToneracekShop(sql);
-    if (!shop) return reply.code(500).send('Toneráček shop není nakonfigurován');
-    if (!shop.warehouse_email) return reply.redirect('/ucetnictvi/objednavky?error=sklad-email');
+    // E-shop z formuláře (skryté shop_id u ostatních e-shopů); bez něj
+    // Toneráček jako dřív.
+    const shopId = parseInt(request.body?.shop_id, 10) || null;
+    const [shop] = shopId
+      ? await sql`SELECT * FROM shops WHERE id = ${shopId} LIMIT 1`
+      : [await shopPodleSlugu(sql, VYCHOZI_ESHOP)];
+    if (!shop) {
+      return shopId
+        ? reply.code(404).send('E-shop nenalezen')
+        : reply.code(500).send('Toneráček shop není nakonfigurován');
+    }
+    if (!shop.warehouse_email) return reply.redirect(seznamObjednavek(shop, 'error=sklad-email'));
 
     let beh;
     try {
@@ -952,13 +1014,13 @@ export default async function toneracekRoutes(fastify) {
     } catch (err) {
       // Zámek drží automat nebo druhý operátor — ať se sklad nedozví totéž dvakrát.
       if (err instanceof ExpediceBeziError) {
-        return reply.redirect('/ucetnictvi/objednavky?error=expedice-bezi');
+        return reply.redirect(seznamObjednavek(shop, 'error=expedice-bezi'));
       }
       throw err;
     }
 
     await spustExpedici(sql, fastify.log, { shop, dispatch: beh });
-    return reply.redirect(`/ucetnictvi/objednavky?expedice=${beh.id}`);
+    return reply.redirect(seznamObjednavek(shop, `expedice=${beh.id}`));
   });
 
   // ── Admin: Ruční značka „sklad to má" ──────────────────────
@@ -968,14 +1030,15 @@ export default async function toneracekRoutes(fastify) {
 
   fastify.post('/ucetnictvi/objednavky/:id/sklad', async (request, reply) => {
     if (!request.user) return reply.redirect('/prihlasit');
-    const shopId = await getToneracekShopId(sql);
+    // Bez filtru na e-shop: id objednávky je jednoznačné a značka patří
+    // objednávce kteréhokoli e-shopu.
 
     if ((request.body?.akce ?? '') === 'zrusit') {
       await sql`
         UPDATE shop_orders
         SET warehouse_sent_at = NULL, warehouse_sent_by = NULL, warehouse_dispatch_id = NULL,
             modified_at = NOW()
-        WHERE id = ${request.params.id} AND shop_id = ${shopId}
+        WHERE id = ${request.params.id}
       `;
     } else {
       // Podmínka na NULL drží čas skutečného odeslání — opakovaný klik ho nepřepíše.
@@ -983,7 +1046,7 @@ export default async function toneracekRoutes(fastify) {
         UPDATE shop_orders
         SET warehouse_sent_at = NOW(), warehouse_sent_by = ${request.user.id},
             warehouse_dispatch_id = NULL, warehouse_hold_reason = '', modified_at = NOW()
-        WHERE id = ${request.params.id} AND shop_id = ${shopId} AND warehouse_sent_at IS NULL
+        WHERE id = ${request.params.id} AND warehouse_sent_at IS NULL
       `;
     }
     return reply.redirect(`/ucetnictvi/objednavky/${request.params.id}?saved=1`);

@@ -39,10 +39,14 @@
 <div class="page-header">
   <div class="page-header-left">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-      <a href="/ucetnictvi/objednavky" style="color:var(--text-muted);text-decoration:none;font-size:13px;">← Objednávky</a>
+      <a href="/ucetnictvi/objednavky<%= eshopQs ? '?' + eshopQs : '' %>" style="color:var(--text-muted);text-decoration:none;font-size:13px;">← Objednávky</a>
       <span style="color:var(--border);">/</span>
       <h1 style="margin:0;">Objednávka #<%= order.order_number %></h1>
       <span class="badge" style="<%= statusStyle %>"><%= order.status %></span>
+      <%# E-shop se ukazuje jen u ostatních než Toneráčku — ten zůstává, jak byl. %>
+      <% if (shop.slug !== vychoziEshop) { %>
+        <span class="badge" style="background:var(--gray-100);color:var(--text-secondary);border:1px solid var(--border);"><%= shop.name %></span>
+      <% } %>
     </div>
     <p style="margin-top:4px;font-size:13px;color:var(--text-muted);">
       <%= new Date(order.created_at).toLocaleString('cs-CZ') %>

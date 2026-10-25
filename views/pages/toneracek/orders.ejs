@@ -43,8 +43,17 @@
          + SKLAD_SVG[o.sklad_stav] + '</svg></span>';
   }
 
+  // Parametr e-shopu jde do každého odkazu, ať filtr ani stránkování
+  // nepřeskočí na jiný e-shop. U výchozího (Toneráček) je prázdný a adresy
+  // zůstávají jako dřív.
+  const odkaz = (extra) => {
+    const p = [eshopQs, extra].filter(Boolean);
+    return '/ucetnictvi/objednavky' + (p.length ? '?' + p.join('&') : '');
+  };
+
   const qs = (extra) => {
     const p = [];
+    if (eshopQs) p.push(eshopQs);
     if (q) p.push('q=' + encodeURIComponent(q));
     if (statusFilter) p.push('status=' + encodeURIComponent(statusFilter));
     if (skladFilter) p.push('sklad=' + encodeURIComponent(skladFilter));
@@ -55,11 +64,12 @@
 
 <div class="page-header">
   <div class="page-header-left">
-    <h1>Objednávky Toneráček</h1>
+    <h1><%= nadpis %></h1>
     <p><%= total %> objednávek celkem</p>
   </div>
   <form method="post" action="/ucetnictvi/objednavky/expedice"
         onsubmit="return confirm('Odešle skladu e-mail se všemi zaplacenými objednávkami, které ještě nedostal. Pokračovat?')">
+    <% if (eshopQs) { %><input type="hidden" name="shop_id" value="<%= shop.id %>"><% } %>
     <button type="submit" class="btn btn-outline" <%= shop.warehouse_email ? '' : 'disabled' %>
             title="<%= shop.warehouse_email
               ? 'Ranní expedice jede ve všední dny v 06:00 na ' + shop.warehouse_email
@@ -69,20 +79,34 @@
   </form>
 </div>
 
+<% if (eshopy.length > 1) { %>
+<!-- Přepínač e-shopů (jen když je jich víc než jeden) -->
+<nav aria-label="E-shop" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;">
+  <% eshopy.forEach(e => { %>
+    <% const aktivni = e.id === shop.id; %>
+    <a href="<%= e.slug === vychoziEshop ? '/ucetnictvi/objednavky' : '/ucetnictvi/objednavky?eshop=' + encodeURIComponent(e.slug) %>"
+       <%- aktivni ? 'aria-current="page"' : '' %>
+       style="padding:6px 14px;border-radius:999px;font-size:13px;font-weight:500;text-decoration:none;border:1px solid <%= aktivni ? 'var(--primary)' : 'var(--border)' %>;background:<%= aktivni ? 'var(--primary)' : 'transparent' %>;color:<%= aktivni ? '#fff' : 'var(--text-secondary)' %>;">
+      <%= e.name %>
+    </a>
+  <% }) %>
+</nav>
+<% } %>
+
 <!-- Výsledek expedice (čte se z databáze, ne z URL — přežije i pád uprostřed běhu) -->
 <% if (expedice) { %>
   <% if (expedice.status === 'odeslano') { %>
     <div style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
       ✓ Expedice odeslána: <strong><%= expedice.order_count %></strong> objednávek na <%= expedice.recipient %>.
       <% if (expedice.held_count > 0) { %>
-        <a href="/ucetnictvi/objednavky?sklad=blokovano" style="color:#166534;font-weight:600;"><%= expedice.held_count %> objednávek zadrženo</a>.
+        <a href="<%= odkaz('sklad=blokovano') %>" style="color:#166534;font-weight:600;"><%= expedice.held_count %> objednávek zadrženo</a>.
       <% } %>
     </div>
   <% } else if (expedice.status === 'prazdno') { %>
     <div style="background:var(--gray-100);color:var(--text-secondary);padding:12px 16px;border-radius:8px;margin-bottom:20px;">
       Nic k odeslání — všechny zaplacené objednávky už sklad má.
       <% if (expedice.held_count > 0) { %>
-        <a href="/ucetnictvi/objednavky?sklad=blokovano"><%= expedice.held_count %> objednávek se nepodařilo připravit</a>.
+        <a href="<%= odkaz('sklad=blokovano') %>"><%= expedice.held_count %> objednávek se nepodařilo připravit</a>.
       <% } %>
     </div>
   <% } else if (expedice.status === 'chyba') { %>
@@ -116,20 +140,20 @@
   %>
   <% (statusCounts || []).forEach(sc => { %>
     <% const sc_style = statusColors[sc.status] || { bg: '#f1f5f9', color: '#475569' }; %>
-    <a href="/ucetnictvi/objednavky?status=<%= encodeURIComponent(sc.status) %>"
+    <a href="<%= odkaz('status=' + encodeURIComponent(sc.status)) %>"
        style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;background:<%= sc_style.bg %>;color:<%= sc_style.color %>;font-size:13px;font-weight:500;text-decoration:none;border:1px solid transparent;">
       <strong><%= sc.n %></strong> <%= sc.status %>
     </a>
   <% }); %>
 
   <% if (skladCounts.ceka) { %>
-    <a href="/ucetnictvi/objednavky?sklad=ceka"
+    <a href="<%= odkaz('sklad=ceka') %>"
        style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;background:#fef3c7;color:#92400e;font-size:13px;font-weight:500;text-decoration:none;border:1px solid transparent;">
       <strong><%= skladCounts.ceka %></strong> čeká na sklad
     </a>
   <% } %>
   <% if (skladCounts.blokovano) { %>
-    <a href="/ucetnictvi/objednavky?sklad=blokovano"
+    <a href="<%= odkaz('sklad=blokovano') %>"
        style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;background:#fee2e2;color:#991b1b;font-size:13px;font-weight:500;text-decoration:none;border:1px solid transparent;">
       <strong><%= skladCounts.blokovano %></strong> nešlo do skladu
     </a>
@@ -138,6 +162,7 @@
 
 <!-- Filtr -->
 <form method="get" style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+  <% if (eshopQs) { %><input type="hidden" name="eshop" value="<%= shop.slug %>"><% } %>
   <div style="position:relative;flex:1;min-width:240px;max-width:380px;">
     <svg style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -158,7 +183,7 @@
   </select>
   <button type="submit" class="btn btn-outline">Filtrovat</button>
   <% if (q || statusFilter || skladFilter) { %>
-    <a href="/ucetnictvi/objednavky" class="btn btn-ghost">Zrušit filtr</a>
+    <a href="<%= odkaz() %>" class="btn btn-ghost">Zrušit filtr</a>
   <% } %>
 </form>
 
