@@ -150,8 +150,14 @@ zkontrolovat Toneráček.
    lokální databázi odmítnou.
 2. Přečíst `migrations/040_eshop_api_a_ucty_po_eshopech.sql`: jen
    `CREATE … IF NOT EXISTS` a `ADD COLUMN IF NOT EXISTS` s konstantní výchozí
-   hodnotou (bez přepisu tabulek), `lock_timeout` 5 s.
-3. Domluvit, kdo hlídá Toneráček, a mít po ruce přístup do Coolify a na VPS.
+   hodnotou (bez přepisu tabulek), jedna transakce, `lock_timeout` 2 s,
+   tabulka `shops` (čte ji každý požadavek Toneráčku) se zamyká až posledním
+   příkazem.
+3. Domluvit, kdo hlídá Toneráček, a mít po ruce přístup do Coolify a na VPS
+   (`psql` do produkční databáze pro kontroly v okně).
+4. V Coolify ověřit, že nový kontejner nahradí starý až po úspěšném
+   healthchecku (Dockerfile ho má). Jinak by migrace, která nedoběhne,
+   znamenala výpadek backendu Toneráčku, dokud se nevyřeší.
 
 ### V okně
 
@@ -161,18 +167,51 @@ zkontrolovat Toneráček.
    pg_restore --list /root/zalohy/seil-…-pred-040.dump | head   # dump je čitelný
    ```
    Zálohu zkopírovat i mimo VPS.
-2. **Merge a push**: `git checkout main && git merge --ff-only eshop-dilnavlnenka && git push origin main`
+2. **Kontroly těsně před pushem** (`psql` do produkční databáze, jen čtení):
+   ```sql
+   -- a) Poslední migrace musí být 039 — jinak se nasazuje na jiný stav, než se testoval.
+   SELECT max(filename) FROM schema_migrations;          -- 039_den_prijeti_uhrady.sql
+
+   -- b) crm_contact_shops musí být prázdná. Výchozí is_registered je TRUE,
+   --    takže cizí řádky by /api/eshop bral jako hotové účty.
+   SELECT COUNT(*) FROM crm_contact_shops;               -- 0
+
+   -- c) Aktivní e-shopy a jejich objednávky. Čekáme jediný aktivní toneracek.
+   --    Každý další aktivní e-shop se hned po nasazení objeví v přepínači
+   --    seznamu objednávek a jeho objednávky půjdou otevřít, vyřídit,
+   --    stornovat i označit (detail, stav, sklad a štítek už nefiltrují
+   --    Toneráček); s vyplněnou adresou skladu ho bere i ranní expedice.
+   SELECT s.id, s.slug, s.active, s.warehouse_email <> '' AS expedice, COUNT(o.id) AS objednavek
+   FROM shops s LEFT JOIN shop_orders o ON o.shop_id = s.id
+   GROUP BY s.id ORDER BY s.id;
+
+   -- d) Žádná dlouhá transakce. ALTER na shops by za ní čekal a s ním každý
+   --    dotaz Toneráčku (nejvýš 2 s na pokus, při restartech opakovaně).
+   SELECT pid, usename, application_name, state, now() - xact_start AS trva, left(query, 80) AS dotaz
+   FROM pg_stat_activity
+   WHERE datname = current_database() AND pid <> pg_backend_pid()
+     AND xact_start < now() - interval '30 seconds';     -- nic
+   ```
+   Záloha z kroku 1 musí být dokončená a v okně nesmí běžet žádný plánovaný
+   `pg_dump` (cron na VPS, zálohy Coolify) — drží zámek na všech tabulkách.
+   Vrátí-li d) zapomenutou session `idle in transaction` (ne aplikaci),
+   ukončete ji `SELECT pg_terminate_backend(<pid>);`, jinak počkejte.
+   Neodpovídá-li a)–c), nenasazujte a nejdřív zjistěte proč.
+3. **Merge a push**: `git checkout main && git merge --ff-only eshop-dilnavlnenka && git push origin main`
    (nebo merge přes PR).
-3. **Logy deploye v Coolify** — čekat na:
+4. **Logy deploye v Coolify** — čekat na:
    ```
    [migrate] Spouštím 040_eshop_api_a_ucty_po_eshopech.sql
    [migrate] ✓ 040_eshop_api_a_ucty_po_eshopech.sql
    one.seil.space běží na http://0.0.0.0:3000
    ```
-   Spadne-li migrace (např. `lock_timeout` za dlouhou transakcí), nic se
-   nezapsalo (migrace běží v transakci) a kontejner se po restartu pokusí
-   znovu. Opakuje-li se to, viz *Návrat*.
-4. **Kouřový test Toneráčku** (hned po startu):
+   Spadne-li migrace (`canceling statement due to lock timeout`), nic se
+   nezapsalo (migrace běží v jedné transakci) a kontejner se po restartu
+   pokusí znovu. Každý pokus může požadavky Toneráčku pozdržet až o 2 s.
+   Opakuje-li se to, najděte blokující session (kontrola d) z kroku 2, nebo
+   `SELECT pid, pg_blocking_pids(pid), left(query, 80) FROM pg_stat_activity
+   WHERE wait_event_type = 'Lock';`) a ukončete ji, případně viz *Návrat*.
+5. **Kouřový test Toneráčku** (hned po startu):
    - `https://one.seil.space/health` → `{"ok":true}`;
    - přihlášení existujícím účtem na toneracek.cz (čte
      `/api/toneracek/users?withNote=1` a zapisuje poslední přihlášení);
@@ -186,10 +225,10 @@ zkontrolovat Toneráček.
    - v logu žádné 500 u `/api/toneracek`.
    Testovací objednávku na produkci jen po dohodě — spotřebuje čísla v řadách
    a vystaví skutečný doklad SEIL s.r.o.
-5. **Konfigurace Dílny** — kroky 1–6 výš. Dokud e-shop Dílny neběží, nic
+6. **Konfigurace Dílny** — kroky 1–6 výš. Dokud e-shop Dílny neběží, nic
    dalšího se neděje (bez klíče se k API nikdo nedostane, bez adresy skladu
    ho ranní expedice přeskakuje).
-6. Po prvních objednávkách Dílny: objednávka v `/ucetnictvi/objednavky?eshop=dilnavlnenka`,
+7. Po prvních objednávkách Dílny: objednávka v `/ucetnictvi/objednavky?eshop=dilnavlnenka`,
    zálohovka s prefixem Dílny, platební údaje v potvrzení, po zaplacení
    Vyřízena → faktura z řady Dílny a e-mail od `noreply@dilnavlnenka.cz`.
 

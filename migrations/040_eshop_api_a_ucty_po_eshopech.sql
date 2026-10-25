@@ -9,51 +9,24 @@
 --
 -- Bezpečné na živé databázi: jen CREATE … IF NOT EXISTS a ADD COLUMN
 -- IF NOT EXISTS s konstantní (nebo stabilní) výchozí hodnotou, což Postgres
--- od verze 11 zapíše do katalogu bez přepisu tabulky. lock_timeout hlídá, ať
--- se ALTER na `shops` nezařadí za dlouhou transakci a nezablokuje za sebou
--- každý dotaz Toneráčku — radši ať start spadne a zkusí se znovu.
-
-SET LOCAL lock_timeout = '5s';
-
--- ── Klíče pro /api/eshop ──────────────────────────────────────
--- Schválně ne `api_keys`. Starší /api/v1 přijme kterýkoli aktivní klíč
--- z `api_keys` a jeho zákaznické endpointy čtou a mění všechny kontakty
--- v CRM — klíč Dílny uložený tam by tedy otevřel i zákazníky Toneráčku
--- a obchodní partnery SEILu.
+-- od verze 11 zapíše do katalogu bez přepisu tabulky.
 --
--- Ukládá se jen SHA-256 otisk. Klíč se ukáže jednou při vygenerování;
--- kdo má přístup k databázi nebo k zálohám, z otisku klíč nezíská.
+-- Pořadí je kvůli zámkům, ne kvůli čtení. Celá migrace je jedna transakce
+-- (src/migrate.js) a každý zámek drží až do COMMIT:
+--   1. crm_contact_shops — na main ho nikdo nečte ani nepíše;
+--   2. eshop_api_keys — cizí klíče berou na `shops` a `users` zámek, který
+--      blokuje jen zápis, čtení ne;
+--   3. ALTER TABLE shops úplně nakonec. Bere výhradní zámek a každý požadavek
+--      Toneráčku čte `shops` (getToneracekShopId) — výhradní zámek se tak
+--      drží milisekundy až do COMMIT, a ne po celou dobu čekání na zámky
+--      ostatních tabulek.
+-- Když ALTER na `shops` čeká za cizí transakcí (pg_dump, zapomenutá psql
+-- session „idle in transaction“), řadí se za něj i čtení Toneráčku.
+-- lock_timeout ho proto pustí nejvýš na 2 s: radši ať start spadne, celá
+-- transakce se vrátí a kontejner to zkusí znovu (docs/druhy-eshop.md,
+-- kontroly před nasazením).
 
-CREATE TABLE IF NOT EXISTS eshop_api_keys (
-  id           SERIAL PRIMARY KEY,
-  shop_id      INTEGER NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
-  key_hash     TEXT NOT NULL UNIQUE,
-  label        TEXT NOT NULL DEFAULT '',
-  active       BOOLEAN NOT NULL DEFAULT TRUE,
-  created_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  last_used_at TIMESTAMPTZ,
-  revoked_at   TIMESTAMPTZ,
-  CONSTRAINT eshop_api_keys_hash_chk CHECK (key_hash ~ '^[0-9a-f]{64}$')
-);
-
-CREATE INDEX IF NOT EXISTS eshop_api_keys_shop_idx ON eshop_api_keys (shop_id);
-
-COMMENT ON TABLE eshop_api_keys IS
-  'Klíče pro /api/eshop/* — jen SHA-256 otisk (hex). Klíč určuje e-shop, každý dotaz API je omezený na jeho shop_id.';
-
--- ── Tajemství pro volání One SEIL → e-shop ────────────────────
--- Podání balíku (POST {shops.url}/api/orders/podat-balik) se podepisuje
--- hlavičkou x-webhook-secret. Dosud jedna globální SHOP_WEBHOOK_SECRET pro
--- všechny e-shopy, takže by Dílna musela znát tajemství Toneráčku a únik
--- z jednoho e-shopu by otevřel podávání balíků u druhého.
--- Toneráček sloupec nepoužívá a jede dál na globální SHOP_WEBHOOK_SECRET;
--- ostatní e-shopy jen na vlastním — prázdné = balík se nepodá.
-
-ALTER TABLE shops ADD COLUMN IF NOT EXISTS webhook_secret TEXT NOT NULL DEFAULT '';
-
-COMMENT ON COLUMN shops.webhook_secret IS
-  'x-webhook-secret pro volání e-shopu (podat-balik). Prázdné = balík se nepodá. Toneráček sloupec nepoužívá (SHOP_WEBHOOK_SECRET z prostředí).';
+SET LOCAL lock_timeout = '2s';
 
 -- ── Zákaznické účty po e-shopech ──────────────────────────────
 -- crm_contact_shops existuje od migrace 001 a nikdo ho nečte ani nepíše.
@@ -98,3 +71,45 @@ COMMENT ON COLUMN crm_contact_shops.password_backup IS
   'Záložní kopie bcrypt hashe hesla z e-shopu (PWDHASH:…), obdoba crm_contacts.notes u Toneráčku. Ven jen přes ?withNote=1.';
 COMMENT ON COLUMN crm_contact_shops.gdpr_consent_at IS
   'Kdy zákazník potvrdil souhlas se zpracováním údajů v tomhle e-shopu. NULL = nemáme záznam.';
+
+-- ── Klíče pro /api/eshop ──────────────────────────────────────
+-- Schválně ne `api_keys`. Starší /api/v1 přijme kterýkoli aktivní klíč
+-- z `api_keys` a jeho zákaznické endpointy čtou a mění všechny kontakty
+-- v CRM — klíč Dílny uložený tam by tedy otevřel i zákazníky Toneráčku
+-- a obchodní partnery SEILu.
+--
+-- Ukládá se jen SHA-256 otisk. Klíč se ukáže jednou při vygenerování;
+-- kdo má přístup k databázi nebo k zálohám, z otisku klíč nezíská.
+
+CREATE TABLE IF NOT EXISTS eshop_api_keys (
+  id           SERIAL PRIMARY KEY,
+  shop_id      INTEGER NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
+  key_hash     TEXT NOT NULL UNIQUE,
+  label        TEXT NOT NULL DEFAULT '',
+  active       BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_used_at TIMESTAMPTZ,
+  revoked_at   TIMESTAMPTZ,
+  CONSTRAINT eshop_api_keys_hash_chk CHECK (key_hash ~ '^[0-9a-f]{64}$')
+);
+
+CREATE INDEX IF NOT EXISTS eshop_api_keys_shop_idx ON eshop_api_keys (shop_id);
+
+COMMENT ON TABLE eshop_api_keys IS
+  'Klíče pro /api/eshop/* — jen SHA-256 otisk (hex). Klíč určuje e-shop, každý dotaz API je omezený na jeho shop_id.';
+
+-- ── Tajemství pro volání One SEIL → e-shop ────────────────────
+-- Podání balíku (POST {shops.url}/api/orders/podat-balik) se podepisuje
+-- hlavičkou x-webhook-secret. Dosud jedna globální SHOP_WEBHOOK_SECRET pro
+-- všechny e-shopy, takže by Dílna musela znát tajemství Toneráčku a únik
+-- z jednoho e-shopu by otevřel podávání balíků u druhého.
+-- Toneráček sloupec nepoužívá a jede dál na globální SHOP_WEBHOOK_SECRET;
+-- ostatní e-shopy jen na vlastním — prázdné = balík se nepodá.
+--
+-- Poslední příkaz migrace — viz pořadí v hlavičce.
+
+ALTER TABLE shops ADD COLUMN IF NOT EXISTS webhook_secret TEXT NOT NULL DEFAULT '';
+
+COMMENT ON COLUMN shops.webhook_secret IS
+  'x-webhook-secret pro volání e-shopu (podat-balik). Prázdné = balík se nepodá. Toneráček sloupec nepoužívá (SHOP_WEBHOOK_SECRET z prostředí).';
