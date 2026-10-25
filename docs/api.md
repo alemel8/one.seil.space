@@ -1,6 +1,9 @@
 # API dokumentace
 
-Interaktivní Swagger UI je dostupné na `/api/docs` (vyžaduje přihlášení).
+Interaktivní Swagger UI je dostupné na `/api/docs`. Pozor: cesta je mezi
+veřejnými (`publicPaths` v `src/server.js`), přihlášení nevyžaduje. Cesty
+`/api/eshop/*` jsou ze Swaggeru skryté (`schema.hide`), popisuje je tenhle
+dokument.
 
 ---
 
@@ -17,6 +20,15 @@ Klíče se spravují v `/nastaveni/eshopy`.
 Authorization: Bearer <TONERACEK_API_KEY>
 ```
 Hodnota z env proměnné `TONERACEK_API_KEY`.
+
+### Bearer klíč e-shopu (`/api/eshop`)
+```
+Authorization: Bearer <klíč e-shopu, 64 hex znaků>
+```
+Klíč vydává Nastavení → Eshopy → detail e-shopu → *Napojení e-shopu*. Ukáže
+se jednou, v databázi (`eshop_api_keys`) je jen jeho SHA-256 otisk. Klíč
+**určuje e-shop** — viz [E-shop API](#e-shop-api-apieshop). Klíče z
+`api_keys` (X-API-Key, `/api/v1`) tu neplatí a obráceně.
 
 ---
 
@@ -228,6 +240,60 @@ Aktualizace čísla zásilky.
   "labelUrl": "https://toneracek.cz/labels/Z123456789.pdf"
 }
 ```
+
+---
+
+## E-shop API (`/api/eshop`)
+
+Pro další e-shopy napojené stejně jako Toneráček (první je Dílna Vlněnka).
+**Stejných 11 endpointů, těla, stavové kódy i tvary odpovědí** jako
+`/api/toneracek/*` výš — e-shop, který je kopií Toneráčku, mění jen předponu
+cesty a klíč. Shodu hlídá `test/toneracek-kontrakt.test.js` (jeden scénář
+přes obě API, porovnání se vzorem z doby před zásahem).
+
+| Metoda a cesta | Jako u Toneráčku |
+|---|---|
+| `GET /api/eshop/users?email=[&withNote=1]` | registrovaný zákazník; `poznamka` (záložní hash hesla) jen s `withNote=1` |
+| `GET /api/eshop/users/:id` | |
+| `POST /api/eshop/users` | registrace; `201` nový kontakt, `200` kontakt už v CRM byl, `409` účet v tomhle e-shopu už je |
+| `PATCH /api/eshop/users/:id` | profil, souhlasy, `posledniPrihlaseni`, `poznamka` |
+| `GET /api/eshop/orders?email=` | posledních 50 objednávek s položkami a číslem vydané faktury |
+| `GET /api/eshop/orders/by-number/:orderNumber[?email=]` | `403` při cizím e-mailu |
+| `PATCH /api/eshop/orders/:id/payment-status` | první „Zaplaceno“ uloží `paid_at` |
+| `POST /api/eshop/orders` | číslo z řady e-shopu, zálohovka u převodu, CRM, push |
+| `PATCH /api/eshop/orders/:id/payment-method` | `card` \| `transfer` \| `cod`; přepnutí na převod vystaví zálohovku |
+| `PATCH /api/eshop/orders/:id/tracking` | |
+| `GET /api/eshop/orders/:id/payment-details[?pdf=1]` | `409 not-transfer` mimo převod |
+
+Rozdíly proti `/api/toneracek` (žádný nemění tvar odpovědi):
+
+- **E-shop se bere z klíče** a každý dotaz je omezený na jeho `shop_id`,
+  včetně uživatelů a platebních údajů. Cizí objednávka nebo účet vrací `404`.
+  Bez klíče, se špatným, zrušeným klíčem nebo s klíčem vypnutého e-shopu
+  (`shops.active = FALSE`) `401 {"error":"Unauthorized"}` — ještě před
+  čtením těla požadavku.
+- **Účty jsou po e-shopech** (`crm_contact_shops`). Kontakt v CRM je jeden na
+  e-mail; registrace, záložní hash hesla, souhlasy (marketing, notifikace,
+  GDPR) a poslední přihlášení jsou zvlášť pro každý e-shop. Zákazník
+  Toneráčku tedy na e-shopu dostane `404`, dokud se tam nezaregistruje, a
+  heslo z e-shopu Toneráček neotevře. `crm_contacts.is_registered`, `notes`,
+  `marketing_consent` ani `gdpr_consent_at` se odsud nezapisují (čte je
+  Toneráček). Sdílené jméno, telefon, firma a adresa se jen doplňují, když
+  jsou prázdné; co zákazník změní na e-shopu, vidí jen tam.
+- `datumRegistrace` je den registrace v tomhle e-shopu, ne vznik kontaktu.
+- Registrace (`POST /users`) vymaže případný starý záložní hash hesla —
+  e-shop hned po ní zapíše nový přes `PATCH … { poznamka }`.
+- Objednávka účet nezakládá ani nezvedá: `isRegistered` v těle se ignoruje,
+  zákazník se k e-shopu jen přihlásí jako host. CRM zdroj = název e-shopu,
+  titulek push notifikace „Nová objednávka — <název e-shopu>“.
+- `POST /orders` vrátí `503`, dokud e-shop nemá vyplněnou identitu e-mailů
+  (Nastavení → Eshopy) — jinak by nešla vyrenderovat zálohovka a zákazník by
+  dostal potvrzení bez variabilního symbolu.
+
+Postup napojení nového e-shopu je v [druhy-eshop.md](druhy-eshop.md).
+
+> `GET /api/toneracek/orders/:id/payment-details` je od téže změny omezený
+> na objednávky Toneráčku jako ostatní jeho endpointy (dřív jediný nebyl).
 
 ---
 

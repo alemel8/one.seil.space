@@ -165,9 +165,25 @@ Registrované e-shopy.
 | `warehouse_email` | TEXT | Adresa skladu pro ranní expedici; prázdné = vypnuto (migrace 037) |
 | `warehouse_email_bcc` | TEXT | Skrytá kopie expedice; prázdné = bez kopie (migrace 038) |
 | `warehouse_dispatch_since` | DATE | Objednávky přijaté dřív se do skladu neposílají |
+| `webhook_secret` | TEXT | `x-webhook-secret` pro volání e-shopu (podání balíku); prázdné = globální `SHOP_WEBHOOK_SECRET` (migrace 040) |
+
+### `eshop_api_keys`
+Klíče pro `/api/eshop/*` (migrace 040). Klíč určuje e-shop; ukládá se jen
+otisk. Schválně ne `api_keys` — klíč odtamtud otevírá i starší `/api/v1`
+a s ním všechny kontakty v CRM.
+
+| Sloupec | Typ | Popis |
+|---|---|---|
+| `id` | SERIAL PK | |
+| `shop_id` | INT → shops (CASCADE) | |
+| `key_hash` | TEXT UNIQUE | SHA-256 klíče v hexu (CHECK na 64 hex znaků) |
+| `label` | TEXT | Popis („produkce (Coolify)“) |
+| `active` | BOOL | Zrušený klíč přestane platit hned |
+| `created_by` | INT → users | Kdo klíč vydal |
+| `created_at`, `last_used_at`, `revoked_at` | TIMESTAMPTZ | `last_used_at` se zapisuje nejvýš jednou za 5 minut |
 
 ### `api_keys`
-API klíče pro příjem objednávek.
+API klíče pro příjem objednávek (starší `/api/v1`, hlavička `X-API-Key`).
 
 | Sloupec | Typ | Popis |
 |---|---|---|
@@ -277,16 +293,25 @@ Fyzické osoby.
 | `created_at` | TIMESTAMPTZ | |
 
 ### `crm_contact_shops`
-Per-shop registrační data kontaktu (marketing consent, registrační datum).
+Zákaznický účet kontaktu v jednom e-shopu napojeném přes `/api/eshop`
+(od migrace 040; účty Toneráčku jsou v `crm_contacts`). Řádek vzniká i pro
+hosta z objednávky (`is_registered = FALSE`). Primární klíč
+`(contact_id, shop_id)`.
 
 | Sloupec | Typ | Popis |
 |---|---|---|
-| `id` | SERIAL PK | |
-| `contact_id` | INT → crm_contacts | |
-| `shop_id` | INT → shops | |
-| `registered_at` | TIMESTAMPTZ | |
-| `marketing_consent` | BOOL | |
-| `is_registered` | BOOL | |
+| `contact_id` | TEXT → crm_contacts (CASCADE) | |
+| `shop_id` | INT → shops (CASCADE) | |
+| `is_registered` | BOOL | Účet v tomhle e-shopu. Výchozí `TRUE` z migrace 001 — kód zapisuje vždy výslovně |
+| `registered_at` | TIMESTAMPTZ | Registrace v e-shopu (u hosta první objednávka) |
+| `marketing_consent`, `notifications_consent` | BOOL | Souhlasy pro tenhle e-shop |
+| `gdpr_consent_at` | TIMESTAMPTZ | Kdy dal souhlas se zpracováním údajů tomuhle e-shopu |
+| `last_login` | TIMESTAMPTZ | |
+| `password_backup` | TEXT | Záložní hash hesla z e-shopu (`PWDHASH:…`), ven jen přes `?withNote=1` |
+| `active` | BOOL | |
+| `first_name`, `last_name`, `phone`, `company_name`, `address`, `city`, `zip` | TEXT | Profil v e-shopu; `NULL` = převzít z `crm_contacts` |
+| `external_id` | TEXT | Nepoužívá se |
+| `modified_at` | TIMESTAMPTZ | |
 
 ---
 
