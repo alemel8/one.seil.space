@@ -229,6 +229,10 @@
             <span style="color:var(--text-muted);">(prvních 8 znaků SHA-256)</span>
           <% } else if (maGlobalniWebhookSecret) { %>
             Vlastní tajemství není — platí globální <code>SHOP_WEBHOOK_SECRET</code>.
+            <% if (!vydavaEshopKlice) { %>
+            <br><span style="color:#b45309;">Toneráček na něm jede. Vlastní tajemství mu nastavte jen zároveň
+            s <code>WEBHOOK_SECRET</code> v e-shopu Toneráčku — do té doby by se u převodu přestaly podávat balíky.</span>
+            <% } %>
           <% } else { %>
             <span style="color:#b91c1c;">Není nastavené vlastní ani globální <code>SHOP_WEBHOOK_SECRET</code> — balík se u převodu nepodá.</span>
           <% } %>

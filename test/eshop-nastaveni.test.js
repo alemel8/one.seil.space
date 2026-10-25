@@ -121,6 +121,13 @@ describe('nastavení: klíče pro /api/eshop a tajemství pro balíky', () => {
     assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.toneracek.id}?error=eshop-klic-toneracek`);
     const [{ n }] = await sql`SELECT COUNT(*)::int AS n FROM eshop_api_keys WHERE shop_id = ${ctx.toneracek.id}`;
     assert.equal(n, 0);
+
+    const detail = await get(`/nastaveni/eshopy/${ctx.toneracek.id}?error=eshop-klic-toneracek`);
+    assert.equal(detail.status, 200);
+    const html = await detail.text();
+    assert.ok(html.includes('klíč pro <code>/api/eshop</code> se mu nevydává'), 'vysvětlení místo formuláře');
+    assert.ok(!html.includes(`/nastaveni/eshopy/${ctx.toneracek.id}/eshop-klic/vytvorit`), 'bez formuláře na klíč');
+    assert.ok(html.includes(`/nastaveni/eshopy/${ctx.toneracek.id}/webhook-secret`), 'tajemství jde nastavit i Toneráčku');
   });
 
   test('tajemství pro podání balíku: vygenerovat, odmítnout krátké, vrátit na globální', async () => {
