@@ -1,0 +1,669 @@
+[
+  {
+    "krok": "uživatel neexistuje",
+    "status": 404,
+    "body": {
+      "error": "Not found"
+    }
+  },
+  {
+    "krok": "registrace",
+    "status": 201,
+    "body": {
+      "id": "<id>",
+      "email": "kontrakt-<run>@example.invalid",
+      "jmeno": "Jana",
+      "prijmeni": "Kontraktová",
+      "telefon": "777123456",
+      "firma": "Firma s.r.o.",
+      "ulice": "Dělnická 12",
+      "mesto": "Praha",
+      "psc": "17000",
+      "datumRegistrace": "<cas>",
+      "souhlasMarketing": true,
+      "souhlasNotifikace": false,
+      "souhlasGdpr": true,
+      "aktivni": true
+    }
+  },
+  {
+    "krok": "registrace podruhé",
+    "status": 409,
+    "body": {
+      "error": "Účet s tímto e-mailem již existuje"
+    }
+  },
+  {
+    "krok": "uživatel podle e-mailu",
+    "status": 200,
+    "body": {
+      "id": "<id>",
+      "email": "kontrakt-<run>@example.invalid",
+      "jmeno": "Jana",
+      "prijmeni": "Kontraktová",
+      "telefon": "777123456",
+      "firma": "Firma s.r.o.",
+      "ulice": "Dělnická 12",
+      "mesto": "Praha",
+      "psc": "17000",
+      "datumRegistrace": "<cas>",
+      "souhlasMarketing": true,
+      "souhlasNotifikace": false,
+      "souhlasGdpr": true,
+      "aktivni": true
+    }
+  },
+  {
+    "krok": "úprava uživatele",
+    "status": 200,
+    "body": {
+      "id": "<id>",
+      "email": "kontrakt-<run>@example.invalid",
+      "jmeno": "Jana",
+      "prijmeni": "Kontraktová",
+      "telefon": "999888777",
+      "firma": "Firma s.r.o.",
+      "ulice": "Dělnická 12",
+      "mesto": "Praha",
+      "psc": "17000",
+      "datumRegistrace": "<cas>",
+      "souhlasMarketing": true,
+      "souhlasNotifikace": true,
+      "souhlasGdpr": true,
+      "aktivni": true
+    }
+  },
+  {
+    "krok": "uživatel s poznámkou",
+    "status": 200,
+    "body": {
+      "id": "<id>",
+      "email": "kontrakt-<run>@example.invalid",
+      "jmeno": "Jana",
+      "prijmeni": "Kontraktová",
+      "telefon": "999888777",
+      "firma": "Firma s.r.o.",
+      "ulice": "Dělnická 12",
+      "mesto": "Praha",
+      "psc": "17000",
+      "datumRegistrace": "<cas>",
+      "souhlasMarketing": true,
+      "souhlasNotifikace": true,
+      "souhlasGdpr": true,
+      "aktivni": true,
+      "poznamka": "PWDHASH:kontrakt"
+    }
+  },
+  {
+    "krok": "uživatel podle id",
+    "status": 200,
+    "body": {
+      "id": "<id>",
+      "email": "kontrakt-<run>@example.invalid",
+      "jmeno": "Jana",
+      "prijmeni": "Kontraktová",
+      "telefon": "999888777",
+      "firma": "Firma s.r.o.",
+      "ulice": "Dělnická 12",
+      "mesto": "Praha",
+      "psc": "17000",
+      "datumRegistrace": "<cas>",
+      "souhlasMarketing": true,
+      "souhlasNotifikace": true,
+      "souhlasGdpr": true,
+      "aktivni": true
+    }
+  },
+  {
+    "krok": "úprava bez polí",
+    "status": 200,
+    "body": {
+      "id": "<id>",
+      "email": "kontrakt-<run>@example.invalid",
+      "jmeno": "Jana",
+      "prijmeni": "Kontraktová",
+      "telefon": "999888777",
+      "firma": "Firma s.r.o.",
+      "ulice": "Dělnická 12",
+      "mesto": "Praha",
+      "psc": "17000",
+      "datumRegistrace": "<cas>",
+      "souhlasMarketing": true,
+      "souhlasNotifikace": true,
+      "souhlasGdpr": true,
+      "aktivni": true
+    }
+  },
+  {
+    "krok": "neznámé id",
+    "status": 404,
+    "body": {
+      "error": "Not found"
+    }
+  },
+  {
+    "krok": "uživatel bez e-mailu",
+    "status": 400,
+    "body": {
+      "error": "email required"
+    }
+  },
+  {
+    "krok": "registrace bez e-mailu",
+    "status": 400,
+    "body": {
+      "error": "email required"
+    }
+  },
+  {
+    "krok": "objednávka převodem",
+    "status": 200,
+    "body": {
+      "orderId": "<id>",
+      "orderNumber": "<cislo-objednavky>",
+      "invoiceNumber": ""
+    }
+  },
+  {
+    "krok": "objednávka kartou",
+    "status": 200,
+    "body": {
+      "orderId": "<id>",
+      "orderNumber": "<cislo-objednavky>",
+      "invoiceNumber": ""
+    }
+  },
+  {
+    "krok": "objednávka na dobírku",
+    "status": 200,
+    "body": {
+      "orderId": "<id>",
+      "orderNumber": "<cislo-objednavky>",
+      "invoiceNumber": ""
+    }
+  },
+  {
+    "krok": "objednávka bez dat",
+    "status": 400,
+    "body": {
+      "error": "Chybí povinná data objednávky"
+    }
+  },
+  {
+    "krok": "seznam objednávek",
+    "status": 200,
+    "body": {
+      "orders": [
+        {
+          "id": "<id>",
+          "shop_id": "<id>",
+          "order_number": "<cislo-objednavky>",
+          "status": "Přijata",
+          "email": "kontrakt-<run>@example.invalid",
+          "first_name": "Jana",
+          "last_name": "Kontraktová",
+          "company": "",
+          "ic": "",
+          "dic": "",
+          "phone": "+420777123456",
+          "address": "Dělnická 12",
+          "city": "Praha",
+          "zip": "17000",
+          "country": "Česká republika",
+          "shipping_method": "Zásilkovna",
+          "shipping_first_name": "Jana",
+          "shipping_last_name": "Kontraktová",
+          "shipping_company": "",
+          "shipping_phone": "+420777123456",
+          "shipping_address": "Dělnická 12",
+          "shipping_city": "Praha",
+          "shipping_zip": "17000",
+          "pickup_point_id": "4321",
+          "pickup_point_name": "Z-BOX Praha 7, Dělnická",
+          "payment_method": "Dobírka",
+          "currency": "CZK",
+          "total_price": "418.00",
+          "invoice_number": "",
+          "tracking_number": "",
+          "label_url": "",
+          "ip_address": "",
+          "notes": "",
+          "crm_contact_id": "<id>",
+          "crm_company_id": null,
+          "created_at": "<cas>",
+          "modified_at": "<cas>",
+          "created_by": null,
+          "modified_by": null,
+          "warehouse_sent_at": null,
+          "warehouse_dispatch_id": null,
+          "warehouse_sent_by": null,
+          "warehouse_hold_reason": "",
+          "paid_at": null,
+          "items": [
+            {
+              "name": "Položka jedna",
+              "quantity": 2
+            },
+            {
+              "name": "Doprava",
+              "quantity": 1
+            }
+          ]
+        },
+        {
+          "id": "<id>",
+          "shop_id": "<id>",
+          "order_number": "<cislo-objednavky>",
+          "status": "Čeká na platbu",
+          "email": "kontrakt-<run>@example.invalid",
+          "first_name": "Jana",
+          "last_name": "Kontraktová",
+          "company": "",
+          "ic": "",
+          "dic": "",
+          "phone": "+420777123456",
+          "address": "Dělnická 12",
+          "city": "Praha",
+          "zip": "17000",
+          "country": "Česká republika",
+          "shipping_method": "Zásilkovna",
+          "shipping_first_name": "Jana",
+          "shipping_last_name": "Kontraktová",
+          "shipping_company": "",
+          "shipping_phone": "+420777123456",
+          "shipping_address": "Dělnická 12",
+          "shipping_city": "Praha",
+          "shipping_zip": "17000",
+          "pickup_point_id": "4321",
+          "pickup_point_name": "Z-BOX Praha 7, Dělnická",
+          "payment_method": "Platba kartou",
+          "currency": "CZK",
+          "total_price": "378.00",
+          "invoice_number": "",
+          "tracking_number": "",
+          "label_url": "",
+          "ip_address": "",
+          "notes": "",
+          "crm_contact_id": "<id>",
+          "crm_company_id": null,
+          "created_at": "<cas>",
+          "modified_at": "<cas>",
+          "created_by": null,
+          "modified_by": null,
+          "warehouse_sent_at": null,
+          "warehouse_dispatch_id": null,
+          "warehouse_sent_by": null,
+          "warehouse_hold_reason": "",
+          "paid_at": null,
+          "items": [
+            {
+              "name": "Položka jedna",
+              "quantity": 2
+            },
+            {
+              "name": "Doprava",
+              "quantity": 1
+            }
+          ]
+        },
+        {
+          "id": "<id>",
+          "shop_id": "<id>",
+          "order_number": "<cislo-objednavky>",
+          "status": "Přijata",
+          "email": "kontrakt-<run>@example.invalid",
+          "first_name": "Jana",
+          "last_name": "Kontraktová",
+          "company": "",
+          "ic": "",
+          "dic": "",
+          "phone": "+420777123456",
+          "address": "Dělnická 12",
+          "city": "Praha",
+          "zip": "17000",
+          "country": "Česká republika",
+          "shipping_method": "Zásilkovna",
+          "shipping_first_name": "Jana",
+          "shipping_last_name": "Kontraktová",
+          "shipping_company": "",
+          "shipping_phone": "+420777123456",
+          "shipping_address": "Dělnická 12",
+          "shipping_city": "Praha",
+          "shipping_zip": "17000",
+          "pickup_point_id": "4321",
+          "pickup_point_name": "Z-BOX Praha 7, Dělnická",
+          "payment_method": "Bankovní převod",
+          "currency": "CZK",
+          "total_price": "378.00",
+          "invoice_number": "",
+          "tracking_number": "",
+          "label_url": "",
+          "ip_address": "192.0.2.10",
+          "notes": "",
+          "crm_contact_id": "<id>",
+          "crm_company_id": null,
+          "created_at": "<cas>",
+          "modified_at": "<cas>",
+          "created_by": null,
+          "modified_by": null,
+          "warehouse_sent_at": null,
+          "warehouse_dispatch_id": null,
+          "warehouse_sent_by": null,
+          "warehouse_hold_reason": "",
+          "paid_at": null,
+          "items": [
+            {
+              "name": "Položka jedna",
+              "quantity": 2
+            },
+            {
+              "name": "Doprava",
+              "quantity": 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "krok": "seznam bez e-mailu",
+    "status": 400,
+    "body": {
+      "error": "email required"
+    }
+  },
+  {
+    "krok": "detail objednávky",
+    "status": 200,
+    "body": {
+      "order": {
+        "id": "<id>",
+        "shop_id": "<id>",
+        "order_number": "<cislo-objednavky>",
+        "status": "Přijata",
+        "email": "kontrakt-<run>@example.invalid",
+        "first_name": "Jana",
+        "last_name": "Kontraktová",
+        "company": "",
+        "ic": "",
+        "dic": "",
+        "phone": "+420777123456",
+        "address": "Dělnická 12",
+        "city": "Praha",
+        "zip": "17000",
+        "country": "Česká republika",
+        "shipping_method": "Zásilkovna",
+        "shipping_first_name": "Jana",
+        "shipping_last_name": "Kontraktová",
+        "shipping_company": "",
+        "shipping_phone": "+420777123456",
+        "shipping_address": "Dělnická 12",
+        "shipping_city": "Praha",
+        "shipping_zip": "17000",
+        "pickup_point_id": "4321",
+        "pickup_point_name": "Z-BOX Praha 7, Dělnická",
+        "payment_method": "Bankovní převod",
+        "currency": "CZK",
+        "total_price": "378.00",
+        "invoice_number": "",
+        "tracking_number": "",
+        "label_url": "",
+        "ip_address": "192.0.2.10",
+        "notes": "",
+        "crm_contact_id": "<id>",
+        "crm_company_id": null,
+        "created_at": "<cas>",
+        "modified_at": "<cas>",
+        "created_by": null,
+        "modified_by": null,
+        "warehouse_sent_at": null,
+        "warehouse_dispatch_id": null,
+        "warehouse_sent_by": null,
+        "warehouse_hold_reason": "",
+        "paid_at": null,
+        "items": [
+          {
+            "id": "<id>",
+            "order_id": "<id>",
+            "sku": "K-1",
+            "name": "Položka jedna",
+            "quantity": 2,
+            "price": "149.00",
+            "product_id": "rec1",
+            "multipack_id": null,
+            "supplier_code": "11208"
+          },
+          {
+            "id": "<id>",
+            "order_id": "<id>",
+            "sku": "DOPRAVA",
+            "name": "Doprava",
+            "quantity": 1,
+            "price": "79.00",
+            "product_id": null,
+            "multipack_id": null,
+            "supplier_code": ""
+          }
+        ]
+      }
+    }
+  },
+  {
+    "krok": "detail s cizím e-mailem",
+    "status": 403,
+    "body": {
+      "error": "Forbidden"
+    }
+  },
+  {
+    "krok": "detail neexistující",
+    "status": 404,
+    "body": {
+      "error": "Not found"
+    }
+  },
+  {
+    "krok": "platební údaje",
+    "status": 200,
+    "body": {
+      "variableSymbol": "<vs>",
+      "amount": 378,
+      "currency": "CZK",
+      "dueDate": "<datum>",
+      "bankAccount": "",
+      "iban": "",
+      "swift": "",
+      "bankName": "",
+      "proformaNumber": "<cislo-zalohovky>",
+      "pdf": null
+    }
+  },
+  {
+    "krok": "platební údaje s PDF",
+    "status": 200,
+    "body": {
+      "variableSymbol": "<vs>",
+      "amount": 378,
+      "currency": "CZK",
+      "dueDate": "<datum>",
+      "bankAccount": "",
+      "iban": "",
+      "swift": "",
+      "bankName": "",
+      "proformaNumber": "<cislo-zalohovky>",
+      "pdf": {
+        "filename": "zalohova-faktura-<cislo-zalohovky>.pdf",
+        "contentBase64": "<pdf>"
+      }
+    }
+  },
+  {
+    "krok": "platební údaje u karty",
+    "status": 409,
+    "body": {
+      "error": "not-transfer"
+    }
+  },
+  {
+    "krok": "platební údaje neexistující",
+    "status": 404,
+    "body": {
+      "error": "Objednávka nenalezena"
+    }
+  },
+  {
+    "krok": "zaplaceno",
+    "status": 200,
+    "body": {
+      "ok": true
+    }
+  },
+  {
+    "krok": "stav platby bez stavu",
+    "status": 400,
+    "body": {
+      "error": "status required"
+    }
+  },
+  {
+    "krok": "stav platby neexistující",
+    "status": 404,
+    "body": {
+      "error": "Not found"
+    }
+  },
+  {
+    "krok": "přepnutí na převod",
+    "status": 200,
+    "body": {
+      "ok": true
+    }
+  },
+  {
+    "krok": "přepnutí na nesmysl",
+    "status": 400,
+    "body": {
+      "error": "paymentMethod musí být card, transfer nebo cod"
+    }
+  },
+  {
+    "krok": "přepnutí neexistující",
+    "status": 404,
+    "body": {
+      "error": "Not found"
+    }
+  },
+  {
+    "krok": "tracking",
+    "status": 200,
+    "body": {
+      "ok": true
+    }
+  },
+  {
+    "krok": "tracking neexistující",
+    "status": 404,
+    "body": {
+      "error": "Objednávka nenalezena"
+    }
+  },
+  {
+    "krok": "detail po změnách",
+    "status": 200,
+    "body": {
+      "order": {
+        "id": "<id>",
+        "shop_id": "<id>",
+        "order_number": "<cislo-objednavky>",
+        "status": "Přijata",
+        "email": "kontrakt-<run>@example.invalid",
+        "first_name": "Jana",
+        "last_name": "Kontraktová",
+        "company": "",
+        "ic": "",
+        "dic": "",
+        "phone": "+420777123456",
+        "address": "Dělnická 12",
+        "city": "Praha",
+        "zip": "17000",
+        "country": "Česká republika",
+        "shipping_method": "Zásilkovna",
+        "shipping_first_name": "Jana",
+        "shipping_last_name": "Kontraktová",
+        "shipping_company": "",
+        "shipping_phone": "+420777123456",
+        "shipping_address": "Dělnická 12",
+        "shipping_city": "Praha",
+        "shipping_zip": "17000",
+        "pickup_point_id": "4321",
+        "pickup_point_name": "Z-BOX Praha 7, Dělnická",
+        "payment_method": "Bankovní převod",
+        "currency": "CZK",
+        "total_price": "340.00",
+        "invoice_number": "",
+        "tracking_number": "Z1112223334",
+        "label_url": "",
+        "ip_address": "",
+        "notes": "",
+        "crm_contact_id": "<id>",
+        "crm_company_id": null,
+        "created_at": "<cas>",
+        "modified_at": "<cas>",
+        "created_by": null,
+        "modified_by": null,
+        "warehouse_sent_at": null,
+        "warehouse_dispatch_id": null,
+        "warehouse_sent_by": null,
+        "warehouse_hold_reason": "",
+        "paid_at": "<cas>",
+        "items": [
+          {
+            "id": "<id>",
+            "order_id": "<id>",
+            "sku": "K-1",
+            "name": "Položka jedna",
+            "quantity": 2,
+            "price": "149.00",
+            "product_id": "rec1",
+            "multipack_id": null,
+            "supplier_code": "11208"
+          },
+          {
+            "id": "<id>",
+            "order_id": "<id>",
+            "sku": "DOPRAVA",
+            "name": "Doprava",
+            "quantity": 1,
+            "price": "79.00",
+            "product_id": null,
+            "multipack_id": null,
+            "supplier_code": ""
+          }
+        ]
+      }
+    }
+  },
+  {
+    "krok": "platební údaje po přepnutí",
+    "status": 200,
+    "body": {
+      "variableSymbol": "<vs>",
+      "amount": 340,
+      "currency": "CZK",
+      "dueDate": "<datum>",
+      "bankAccount": "",
+      "iban": "",
+      "swift": "",
+      "bankName": "",
+      "proformaNumber": "<cislo-zalohovky>",
+      "pdf": null
+    }
+  },
+  {
+    "krok": "bez klíče",
+    "status": 401,
+    "body": {
+      "error": "Unauthorized"
+    }
+  }
+]
