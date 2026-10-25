@@ -436,16 +436,53 @@ describe('zákaznické účty po e-shopech', { skip: !TONERACEK_KEY && 'chybí T
     assert.equal((await call(ctx.a.klic, 'GET', `/api/eshop/users?email=${encodeURIComponent(mail)}`)).status, 200);
   });
 
-  test('host s objednávkou se může zaregistrovat; prázdné sdílené údaje se doplní', async () => {
+  test('host s objednávkou se může zaregistrovat; profil jde do účtu e-shopu, telefon do CRM jen z objednávky', async () => {
     const mail = email('host');
     await zalozObjednavku(ctx.a, mail, { customer: { phone: '' } });
     assert.equal((await call(ctx.a.klic, 'GET', `/api/eshop/users?email=${encodeURIComponent(mail)}`)).status, 404);
-    const reg = await call(ctx.a.klic, 'POST', '/api/eshop/users', { email: mail, jmeno: 'Jana', prijmeni: 'Testová', telefon: '606' });
+    const reg = await call(ctx.a.klic, 'POST', '/api/eshop/users',
+      { email: mail, jmeno: 'Jana', prijmeni: 'Testová', telefon: '606', ulice: 'Pletená 1' });
     assert.equal(reg.status, 200);
-    const [c] = await sql`SELECT phone, is_registered FROM crm_contacts WHERE LOWER(email) = ${mail}`;
-    assert.equal(c.phone, '606', 'prázdný telefon v CRM se doplnil');
+    assert.equal(reg.body.telefon, '606');
+    assert.equal(reg.body.ulice, 'Pletená 1');
+    let [c] = await sql`SELECT phone, address, is_registered FROM crm_contacts WHERE LOWER(email) = ${mail}`;
+    assert.equal(c.phone, '', 'registrace sdílený kontakt nemění — e-mail ještě nikdo neověřil');
+    assert.equal(c.address, '');
     assert.equal(c.is_registered, false);
     assert.equal((await call(ctx.a.klic, 'GET', `/api/eshop/users?email=${encodeURIComponent(mail)}`)).status, 200);
+
+    // Objednávka prázdné jméno a telefon kontaktu, který není účtem Toneráčku, doplní.
+    await zalozObjednavku(ctx.a, mail, { customer: { phone: '777000222' } });
+    [c] = await sql`SELECT phone FROM crm_contacts WHERE LOWER(email) = ${mail}`;
+    assert.equal(c.phone, '777000222');
+  });
+
+  test('účet Toneráčku s prázdnými údaji: registrace, úprava profilu ani objednávka na e-shopu ho nedoplní', async () => {
+    // Pokladna Toneráčku předvyplňuje firmu a adresu z účtu. Registraci na
+    // e-shopu může s cizím e-mailem poslat kdokoli, ověření přijde až potom.
+    const mail = email('prazdny-toneracek');
+    const reg = await call(TONERACEK_KEY, 'POST', '/api/toneracek/users', { email: mail, jmeno: 'Tomáš', prijmeni: 'Toner' });
+    assert.equal(reg.status, 201);
+    const toneracekPred = (await call(TONERACEK_KEY, 'GET', `/api/toneracek/users?email=${encodeURIComponent(mail)}`)).body;
+    assert.deepEqual([toneracekPred.telefon, toneracekPred.firma, toneracekPred.ulice, toneracekPred.mesto, toneracekPred.psc],
+      ['', '', '', '', '']);
+    const [radekPred] = await sql`SELECT * FROM crm_contacts WHERE id = ${reg.body.id}`;
+
+    const cizi = await call(ctx.a.klic, 'POST', '/api/eshop/users', {
+      email: mail.toUpperCase(), jmeno: 'Cizí', prijmeni: 'Člověk', telefon: '600111222',
+      firma: `Vlna ${r} s.r.o.`, ulice: 'Pletená 1', mesto: 'Brno', psc: '60200',
+    });
+    assert.equal(cizi.status, 200);
+    assert.equal(cizi.body.firma, `Vlna ${r} s.r.o.`, 'na e-shopu má účet svůj profil');
+    const upr = await call(ctx.a.klic, 'PATCH', `/api/eshop/users/${reg.body.id}`, { telefon: '600333444', mesto: 'Olomouc' });
+    assert.equal(upr.status, 200);
+    assert.equal(upr.body.mesto, 'Olomouc');
+    await zalozObjednavku(ctx.a, mail, { customer: { phone: '600555666', company: `Vlna ${r} s.r.o.` } });
+
+    const toneracekPo = (await call(TONERACEK_KEY, 'GET', `/api/toneracek/users?email=${encodeURIComponent(mail)}`)).body;
+    assert.deepEqual(toneracekPo, toneracekPred, 'Toneráček vidí účet přesně jako předtím');
+    const [radekPo] = await sql`SELECT * FROM crm_contacts WHERE id = ${reg.body.id}`;
+    assert.deepEqual({ ...radekPo }, { ...radekPred }, 'řádek účtu Toneráčku v CRM se nezměnil ani v jednom sloupci');
   });
 
   test('chybějící e-mail je 400 a neznámé id 404', async () => {

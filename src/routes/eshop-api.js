@@ -10,12 +10,13 @@
  *     uživatelů a platebních údajů. Klíč Dílny tedy na objednávku, doklad ani
  *     účet Toneráčku nedosáhne a obráceně.
  *  2. **Účty jsou po e-shopech** v crm_contact_shops. Kontakt v CRM zůstává
- *     jeden na e-mail; registrace, heslo (záložní hash), souhlasy a poslední
- *     přihlášení jsou zvlášť pro každý e-shop. Tenhle soubor proto NIKDY
- *     nezapisuje crm_contacts.is_registered, .notes, .marketing_consent ani
- *     .gdpr_consent_at — z nich čte své účty Toneráček (/api/toneracek
- *     i záložní přihlášení v e-shopu). Sdílené údaje kontaktu (jméno,
- *     telefon, adresa) se odsud jen doplňují, když jsou prázdné.
+ *     jeden na e-mail; registrace, heslo (záložní hash), souhlasy, profil
+ *     a poslední přihlášení jsou zvlášť pro každý e-shop. Tenhle soubor proto
+ *     NIKDY nezapisuje crm_contacts.is_registered, .notes, .marketing_consent
+ *     ani .gdpr_consent_at — z nich čte své účty Toneráček (/api/toneracek
+ *     i záložní přihlášení v e-shopu) — a kontakt, který je účtem Toneráčku
+ *     (is_registered = TRUE), nemění vůbec. Sdílené jméno a telefon jinému
+ *     kontaktu doplní jen objednávka, a to jen prázdné.
  *
  * /api/toneracek/* zůstává, jak je. Pomocné funkce (zálohovka, číslo
  * objednávky, CRM) jsou tu zkopírované, ne sdílené: routa Toneráčku je
@@ -109,9 +110,14 @@ const PROFIL = [
 ];
 
 /**
- * Doplní prázdné sdílené údaje kontaktu. Neprázdné se nepřepisují: kontakt
- * je společný všem e-shopům i obchodu SEILu a co zákazník napsal na Dílně,
- * nesmí změnit, co vidí na Toneráčku.
+ * Doplní prázdné sdílené údaje kontaktu z objednávky. Neprázdné se
+ * nepřepisují: kontakt je společný všem e-shopům i obchodu SEILu.
+ *
+ * Kontakt, který je účtem Toneráčku (is_registered = TRUE), se nemění vůbec,
+ * ani prázdné pole. Přesně tyhle sloupce vrací /api/toneracek jako účet
+ * a pokladna Toneráčku z nich předvyplňuje firmu a adresu na objednávce
+ * i faktuře. Objednávku na Dílně může s cizím e-mailem poslat kdokoli —
+ * telefon nebo firma odsud by se jinak objevily v cizím účtu na Toneráčku.
  */
 async function doplnPrazdneUdaje(sql, contactId, hodnoty) {
   const sets = Object.entries(hodnoty)
@@ -120,7 +126,7 @@ async function doplnPrazdneUdaje(sql, contactId, hodnoty) {
   if (!sets.length) return;
   await sql`
     UPDATE crm_contacts SET ${sets.reduce((a, b) => sql`${a}, ${b}`)}, modified_at = NOW()
-    WHERE id = ${contactId}
+    WHERE id = ${contactId} AND is_registered = FALSE
   `;
 }
 
@@ -128,10 +134,11 @@ async function doplnPrazdneUdaje(sql, contactId, hodnoty) {
 
 /**
  * Obdoba upsertCustomerToCRM() z routes/toneracek.js pro e-shop z klíče.
- * Rozdíly: zdroj je název e-shopu, sdílené údaje se jen doplňují
- * a registrace se z objednávky nikdy nezvedá — účet vzniká jen přes
- * POST /users. Zákazník se k e-shopu přihlásí řádkem v crm_contact_shops
- * s výslovným is_registered = FALSE (výchozí hodnota sloupce je TRUE).
+ * Rozdíly: zdroj je název e-shopu, jméno a telefon se jen doplňují (u účtu
+ * Toneráčku vůbec — viz doplnPrazdneUdaje) a registrace se z objednávky
+ * nikdy nezvedá — účet vzniká jen přes POST /users. Zákazník se k e-shopu
+ * přihlásí řádkem v crm_contact_shops s výslovným is_registered = FALSE
+ * (výchozí hodnota sloupce je TRUE).
  */
 async function upsertCustomerToCRM(sql, shop, { email, firstName, lastName, company, phone, city, country }) {
   if (!email) return { contactId: null, companyId: null };
@@ -156,13 +163,15 @@ async function upsertCustomerToCRM(sql, shop, { email, firstName, lastName, comp
   let contactId;
   if (existing[0]) {
     contactId = existing[0].id;
+    // Účtu Toneráčku se nesahá ani na firmu a zdroj; objednávka na něj
+    // i na firmu odkazuje sama (shop_orders.crm_contact_id, crm_company_id).
     await doplnPrazdneUdaje(sql, contactId, { first_name: firstName, last_name: lastName, phone });
     await sql`
       UPDATE crm_contacts SET
         company_id  = COALESCE(company_id, ${companyId}),
         source      = COALESCE(source, ${source}),
         modified_at = NOW()
-      WHERE id = ${contactId}
+      WHERE id = ${contactId} AND is_registered = FALSE
     `;
   } else {
     contactId = generateId();
@@ -336,6 +345,12 @@ export default async function eshopApiRoutes(fastify) {
      * může — zákazník Toneráčku, host z objednávky, obchodní partner — a to
      * registraci nebrání. 409 znamená jen „už má účet tady“.
      *
+     * Profil z registrace jde jen do účtu e-shopu (crm_contact_shops), do
+     * existujícího kontaktu ne. E-shop účet zakládá dřív, než zákazník
+     * potvrdí e-mail, takže kdokoli může zkusit registraci s cizí adresou —
+     * a firma či adresa odtud by jinak doplnila účet Toneráčku a jeho pokladna
+     * by je předvyplnila na další objednávku a fakturu.
+     *
      * V transakci a se zámkem kontaktu: dvě souběžné registrace téhož
      * e-mailu nesmí obě projít a založit dva účty.
      */
@@ -362,8 +377,11 @@ export default async function eshopApiRoutes(fastify) {
         if (contact) novy = true;
         else [contact] = await tx`SELECT id FROM crm_contacts WHERE email = ${email} FOR UPDATE`;
       } else {
-        await doplnPrazdneUdaje(tx, contact.id, profil);
-        await tx`UPDATE crm_contacts SET source = COALESCE(source, ${shop.name}) WHERE id = ${contact.id}`;
+        // Jen zdroj kontaktu, který ho nemá — a nikdy u účtu Toneráčku.
+        await tx`
+          UPDATE crm_contacts SET source = ${shop.name}
+          WHERE id = ${contact.id} AND source IS NULL AND is_registered = FALSE
+        `;
       }
 
       // Upsert, který projde jen u hosta nebo nového řádku. Registrovaný
@@ -415,12 +433,12 @@ export default async function eshopApiRoutes(fastify) {
     const b = request.body || {};
     const id = request.params.id;
 
+    // Profil se mění jen v účtu e-shopu — sdílený kontakt v CRM (a s ním
+    // účet Toneráčku) zůstává, jak je. Viz POST /api/eshop/users.
     const sets = [];
-    const profil = {};
     for (const [klic, sloupec] of PROFIL) {
       if (b[klic] === undefined) continue;
       sets.push(sql`${sql(sloupec)} = ${b[klic] ?? ''}`);
-      profil[sloupec] = b[klic];
     }
     if (b.souhlasMarketing  !== undefined) sets.push(sql`marketing_consent = ${!!b.souhlasMarketing}`);
     if (b.souhlasNotifikace !== undefined) sets.push(sql`notifications_consent = ${!!b.souhlasNotifikace}`);
@@ -434,8 +452,6 @@ export default async function eshopApiRoutes(fastify) {
         WHERE contact_id = ${id} AND shop_id = ${shop.id} AND is_registered = TRUE
       `;
       if (result.count === 0) return reply.code(404).send({ error: 'Not found' });
-      // Až po ověření účtu — cizí id nesmí posloužit k zápisu do CRM.
-      await doplnPrazdneUdaje(sql, id, profil);
     }
 
     const [row] = await ucetSql(sql, shop.id, sql`c.id = ${id}`);

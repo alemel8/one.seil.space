@@ -23,9 +23,12 @@ balíku, zákaznické účty, adresa skladu.
 
 Kontakt v CRM je jeden na e-mail pro všechny e-shopy. Zákazník Toneráčku se
 na Dílně registruje zvlášť, vlastním heslem; heslo z Dílny Toneráček neotevře
-a souhlasy dané Dílně neplatí pro Toneráček. Jméno, telefon a adresu v CRM
-Dílna jen doplňuje, když chybí — co zákazník upraví na Dílně, vidí jen na
-Dílně.
+a souhlasy dané Dílně neplatí pro Toneráček. Profil (jméno, telefon, firma,
+adresa) z registrace a úprav na Dílně jde jen do účtu Dílny — co zákazník
+upraví na Dílně, vidí jen na Dílně. Kontakt, který je účtem Toneráčku, Dílna
+nemění vůbec (ani prázdné pole: pokladna Toneráčku z něj předvyplňuje firmu
+a adresu). Hostovi nebo obchodnímu partnerovi doplní prázdné jméno a telefon
+jen objednávka z Dílny.
 
 Detail objednávky, štítek, změna stavu, značka „sklad to má“ i poznámka
 berou e-shop z objednávky samé, takže každý odkaz `/ucetnictvi/objednavky/:id`

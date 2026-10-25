@@ -77,10 +77,9 @@ ALTER TABLE crm_contact_shops ADD COLUMN IF NOT EXISTS active          BOOLEAN N
 ALTER TABLE crm_contact_shops ADD COLUMN IF NOT EXISTS modified_at     TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
 -- Profil, jak ho zákazník vidí v účtu tohohle e-shopu. NULL = převzít údaj
--- z crm_contacts. Sdílený kontakt se z /api/eshop jen doplňuje tam, kde je
--- prázdný — jinak by úprava profilu na Dílně přepsala, co zákazník vidí na
--- Toneráčku. Bez vlastních sloupců by ale zákazník Dílny nemohl změnit
--- ani vlastní telefon.
+-- z crm_contacts. Registrace a úprava profilu na /api/eshop píšou jen sem:
+-- u zákazníka Toneráčku je sdílený kontakt jeho účtem a co napíše na Dílně,
+-- se na Toneráčku objevit nesmí (ani v prázdném poli).
 ALTER TABLE crm_contact_shops ADD COLUMN IF NOT EXISTS first_name   TEXT;
 ALTER TABLE crm_contact_shops ADD COLUMN IF NOT EXISTS last_name    TEXT;
 ALTER TABLE crm_contact_shops ADD COLUMN IF NOT EXISTS phone        TEXT;

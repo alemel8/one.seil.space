@@ -278,8 +278,10 @@ Rozdíly proti `/api/toneracek` (žádný nemění tvar odpovědi):
   Toneráčku tedy na e-shopu dostane `404`, dokud se tam nezaregistruje, a
   heslo z e-shopu Toneráček neotevře. `crm_contacts.is_registered`, `notes`,
   `marketing_consent` ani `gdpr_consent_at` se odsud nezapisují (čte je
-  Toneráček). Sdílené jméno, telefon, firma a adresa se jen doplňují, když
-  jsou prázdné; co zákazník změní na e-shopu, vidí jen tam.
+  Toneráček) a kontakt, který je účtem Toneráčku (`is_registered = TRUE`),
+  se odsud nemění vůbec. Profil z registrace a z `PATCH` jde jen do účtu
+  e-shopu — co zákazník napíše na e-shopu, vidí jen tam. Sdílený kontakt
+  (host, obchodní partner) doplní jen objednávka: prázdné jméno a telefon.
 - `datumRegistrace` je den registrace v tomhle e-shopu, ne vznik kontaktu.
 - Registrace (`POST /users`) vymaže případný starý záložní hash hesla —
   e-shop hned po ní zapíše nový přes `PATCH … { poznamka }`.
