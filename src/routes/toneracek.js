@@ -651,7 +651,13 @@ export default async function toneracekRoutes(fastify) {
   fastify.get('/api/toneracek/orders/:id/payment-details', async (request, reply) => {
     if (!verifyApiKey(request)) return reply.code(401).send({ error: 'Unauthorized' });
 
-    const [order] = await sql`SELECT * FROM shop_orders WHERE id = ${request.params.id} LIMIT 1`;
+    // Jen objednávky Toneráčku, stejně jako ostatní endpointy tady. Bez toho
+    // by klíč Toneráčku přečetl jméno a adresu ze zálohovky jiného e-shopu
+    // (Dílna) a ještě mu ji nechal vystavit. Toneráčku samotnému se nic nemění.
+    const shopId = await getToneracekShopId(sql);
+    const [order] = await sql`
+      SELECT * FROM shop_orders WHERE id = ${request.params.id} AND shop_id = ${shopId} LIMIT 1
+    `;
     if (!order) return reply.code(404).send({ error: 'Objednávka nenalezena' });
     if (order.payment_method !== 'Bankovní převod') {
       return reply.code(409).send({ error: 'not-transfer' });
