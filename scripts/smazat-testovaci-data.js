@@ -31,12 +31,16 @@
  *   • nemaže bankovní transakce — ty jsou skutečná data z výpisu; jen u nich
  *     zruší napárování na mazanou fakturu,
  *   • nemaže kontakt, který má i CRM historii (smlouvu, projekt, fakturu mimo
- *     e-shop), objednávku nebo účet v jiném e-shopu, ani objednávku v tomhle
- *     e-shopu, která se nemaže. Takovému kontaktu zruší nanejvýš účet v tomhle
- *     e-shopu, a to jen když mu tu po úklidu žádná objednávka nezůstane —
- *     skutečnému zákazníkovi úklid jedné testovací objednávky účet nevezme,
+ *     e-shop), objednávku, účet nebo vazbu hosta v jiném e-shopu, ani
+ *     objednávku v tomhle e-shopu, která se nemaže. Objednávky se k němu
+ *     počítají podle vazby i podle e-mailu — vazba (crm_contact_id) chybí,
+ *     když se zápis do CRM při objednávce nepovedl (jen se zaloguje).
+ *     Takovému kontaktu zruší nanejvýš účet v tomhle e-shopu, a to jen když
+ *     mu tu po úklidu žádná objednávka nezůstane — skutečnému zákazníkovi
+ *     úklid jedné testovací objednávky účet nevezme,
  *   • nesahá na účty jiných e-shopů: příznak crm_contacts.is_registered patří
- *     Toneráčku a při úklidu jiného e-shopu se nemění.
+ *     Toneráčku a při úklidu jiného e-shopu se nemění; maže se jen řádek
+ *     crm_contact_shops tohohle e-shopu.
  */
 
 import postgres from 'postgres';
@@ -138,6 +142,10 @@ try {
           : sql``}
       )`;
 
+  // Objednávka patří kontaktu podle vazby, nebo podle e-mailu, když vazba
+  // chybí (zápis do CRM při objednávce selhal a jen se zalogoval).
+  const objednavkaKontaktu = sql`(x.crm_contact_id = c.id OR (c.email <> '' AND LOWER(x.email) = LOWER(c.email)))`;
+
   const contacts = await sql`
     SELECT c.id, c.email, c.first_name, c.last_name, c.created_at,
            ${uctyVKontaktech ? sql`c.is_registered` : sql`COALESCE(cs.is_registered, FALSE)`} AS registrovany,
@@ -148,12 +156,14 @@ try {
            (SELECT COUNT(*)::int FROM accounting_invoices x
               WHERE x.crm_contact_id = c.id AND (x.order_id IS NULL OR NOT (x.order_id = ANY(${vybraneObjednavky})))) AS faktury_mimo,
            (SELECT COUNT(*)::int FROM shop_orders x
-              WHERE x.crm_contact_id = c.id AND x.shop_id = ${shop.id} AND NOT (x.id = ANY(${vybraneObjednavky}))) AS objednavky_tady,
+              WHERE ${objednavkaKontaktu} AND x.shop_id = ${shop.id} AND NOT (x.id = ANY(${vybraneObjednavky}))) AS objednavky_tady,
            (SELECT COUNT(*)::int FROM shop_orders x
-              WHERE x.crm_contact_id = c.id AND x.shop_id <> ${shop.id}) AS objednavky_jinde,
+              WHERE ${objednavkaKontaktu} AND x.shop_id <> ${shop.id}) AS objednavky_jinde,
            ((SELECT COUNT(*)::int FROM crm_contact_shops x
                WHERE x.contact_id = c.id AND x.shop_id <> ${shop.id} AND x.is_registered = TRUE)
-            + ${uctyVKontaktech ? sql`0` : sql`(CASE WHEN c.is_registered THEN 1 ELSE 0 END)`}) AS ucty_jinde
+            + ${uctyVKontaktech ? sql`0` : sql`(CASE WHEN c.is_registered THEN 1 ELSE 0 END)`}) AS ucty_jinde,
+           (SELECT COUNT(*)::int FROM crm_contact_shops x
+              WHERE x.contact_id = c.id AND x.shop_id <> ${shop.id} AND x.is_registered = FALSE) AS hoste_jinde
     FROM crm_contacts c
     LEFT JOIN crm_contact_shops cs ON cs.contact_id = c.id AND cs.shop_id = ${shop.id}
     WHERE ${rozsah}
@@ -161,9 +171,11 @@ try {
   `;
 
   // Smazat celý kontakt jde jen tehdy, když po úklidu nezůstane nic jiného:
-  // CRM historie, jiná objednávka tady, objednávka nebo účet v jiném e-shopu.
+  // CRM historie, jiná objednávka tady, objednávka, účet nebo vazba hosta
+  // v jiném e-shopu. Smazání kontaktu by kaskádou smazalo i jeho řádky
+  // crm_contact_shops ve všech e-shopech.
   const jeCista = (c) => !c.smlouvy && !c.projekty && !c.faktury_mimo
-    && !c.objednavky_tady && !c.objednavky_jinde && !c.ucty_jinde;
+    && !c.objednavky_tady && !c.objednavky_jinde && !c.ucty_jinde && !c.hoste_jinde;
   // Účet v tomhle e-shopu se ruší, jen když tu po úklidu žádná objednávka
   // nezůstane. U --do jen účet založený před tím dnem (Toneráček čas
   // registrace nezná, tam rozhoduje vznik kontaktu, podle kterého se vybíral).
@@ -180,6 +192,7 @@ try {
     c.objednavky_tady && `${c.objednavky_tady}× jiná objednávka tady`,
     c.objednavky_jinde && `${c.objednavky_jinde}× objednávka v jiném e-shopu`,
     c.ucty_jinde && `${c.ucty_jinde}× účet v jiném e-shopu`,
+    c.hoste_jinde && `${c.hoste_jinde}× host v jiném e-shopu`,
   ].filter(Boolean).join(', ');
 
   console.log(`\nZákazníci e-shopu (${contacts.length}):`);
@@ -199,6 +212,7 @@ try {
     process.exit(0);
   }
 
+  const zustaly = [];
   await sql.begin(async (tx) => {
     if (invoiceIds.length) {
       // Bankovní pohyby jsou skutečná data z výpisu, jen je odpárujeme
@@ -216,8 +230,17 @@ try {
       await tx`DELETE FROM shop_orders      WHERE id = ANY(${orderIds})`;
     }
     for (const c of kSmazani) {
-      await tx`DELETE FROM crm_contact_shops WHERE contact_id = ${c.id}`;
-      await tx`DELETE FROM crm_contacts      WHERE id = ${c.id}`;
+      await tx`DELETE FROM crm_contact_shops WHERE contact_id = ${c.id} AND shop_id = ${shop.id}`;
+      // Pojistka v témže příkazu pro to, co mohlo přibýt od výpisu výš:
+      // řádek jiného e-shopu (kaskáda by ho smazala) nebo objednávka, která
+      // tu zůstává. Takový kontakt zůstane.
+      const smazany = await tx`
+        DELETE FROM crm_contacts c
+        WHERE c.id = ${c.id}
+          AND NOT EXISTS (SELECT 1 FROM crm_contact_shops x WHERE x.contact_id = c.id)
+          AND NOT EXISTS (SELECT 1 FROM shop_orders x WHERE ${objednavkaKontaktu})
+      `;
+      if (!smazany.count) zustaly.push(c);
     }
     for (const c of kOdregistrovani) {
       if (uctyVKontaktech) {
@@ -233,7 +256,11 @@ try {
     }
   });
 
-  console.log(`\n✓ Smazáno: ${orders.length} objednávek, ${invoices.length} dokladů, ${kSmazani.length} zákazníků (z toho ${kSmazani.filter((c) => !c.registrovany).length} hostů).`);
+  const smazani = kSmazani.filter((c) => !zustaly.includes(c));
+  console.log(`\n✓ Smazáno: ${orders.length} objednávek, ${invoices.length} dokladů, ${smazani.length} zákazníků (z toho ${smazani.filter((c) => !c.registrovany).length} hostů).`);
+  if (zustaly.length) {
+    console.log(`  Kontakt zůstal (mezitím přibyla objednávka nebo vazba na jiný e-shop), jen odpojen: ${zustaly.map((c) => c.email).join(', ')}`);
+  }
   if (kOdregistrovani.length) {
     console.log(`  ${uctyVKontaktech ? 'Odregistrováno' : 'Odpojeno od e-shopu (účet i souhlasy)'} — kontakt zůstal: ${kOdregistrovani.length}`);
   }

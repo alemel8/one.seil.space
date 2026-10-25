@@ -264,6 +264,8 @@ zkontrolovat Toneráček.
 
 `scripts/smazat-testovaci-data.js --eshop dilnavlnenka` (bez `--smazat` jen
 vypíše, co by se stalo) maže objednávky a doklady e-shopu a jeho testovací
-zákazníky. Zákazníky Toneráčku nechává být: kontakt s objednávkou nebo účtem
-v jiném e-shopu zůstane, odpojí se jen od Dílny. Testovat se má na stagingu;
-na produkci jen s dumpem po ruce.
+zákazníky. Zákazníky Toneráčku nechává být: kontakt s objednávkou, účtem nebo
+vazbou hosta v jiném e-shopu zůstane, odpojí se jen od Dílny. Objednávky
+počítá podle vazby i podle e-mailu (vazba chybí, když zápis do CRM při
+objednávce selhal). Testovat se má na stagingu; na produkci jen s dumpem po
+ruce.
