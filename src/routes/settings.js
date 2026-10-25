@@ -1,6 +1,15 @@
+import crypto from 'node:crypto';
 import { getDb, generateId } from '../db.js';
 import { renderSeriesNumber } from '../series-format.js';
 import { invalidateBrandCache, shopBrand } from '../brand.js';
+import { hashKlice, otiskKlice, vygenerujKlic } from '../eshop-klice.js';
+
+/**
+ * Toneráček jede přes /api/toneracek s klíčem z TONERACEK_API_KEY a jeho
+ * účty jsou v crm_contacts. Klíč pro /api/eshop by mu založil druhou,
+ * oddělenou sadu účtů, proto se pro něj nevydává.
+ */
+const ESHOP_S_VLASTNIM_API = 'toneracek';
 
 export default async function settingsRoutes(fastify) {
   const sql = getDb();
@@ -181,8 +190,13 @@ export default async function settingsRoutes(fastify) {
 
   // ── Detail eshopu (healthcheck + alerty) ──────────────────────
 
-  fastify.get('/nastaveni/eshopy/:id', async (request, reply) => {
-    const [shop] = await sql`SELECT * FROM shops WHERE id = ${request.params.id}`;
+  /**
+   * Detail e-shopu. Vykresluje ho i POST, který vydává klíč nebo tajemství —
+   * ty se ukážou jednou přímo v odpovědi. Přesměrování s klíčem v URL
+   * (?newKey=…) by ho zapsalo do logu požadavků i do historie prohlížeče.
+   */
+  async function vykresliDetail(request, reply, shopId, extra = {}) {
+    const [shop] = await sql`SELECT * FROM shops WHERE id = ${shopId}`;
     if (!shop) return reply.code(404).send('Eshop nenalezen');
 
     const checks = await sql`
@@ -195,6 +209,13 @@ export default async function settingsRoutes(fastify) {
       WHERE h.shop_id = ${shop.id} ORDER BY h.name
     `;
     const keys = await sql`SELECT * FROM api_keys WHERE shop_id = ${shop.id} ORDER BY created_at DESC`;
+    const eshopKlice = (await sql`
+      SELECT k.id, k.label, k.active, k.created_at, k.last_used_at, k.revoked_at, k.key_hash,
+             TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS vytvoril
+      FROM eshop_api_keys k LEFT JOIN users u ON u.id = k.created_by
+      WHERE k.shop_id = ${shop.id}
+      ORDER BY k.active DESC, k.created_at DESC
+    `).map(({ key_hash, ...k }) => ({ ...k, otisk: otiskKlice(key_hash) }));
     const channels = await sql`SELECT * FROM notification_channels ORDER BY name`;
     const rules = await sql`
       SELECT r.*, c.name AS channel_name FROM notification_rules r
@@ -207,16 +228,100 @@ export default async function settingsRoutes(fastify) {
       ORDER BY started_at DESC LIMIT 5
     `;
 
+    if (extra.novyEshopKlic || extra.novyWebhookSecret) {
+      reply.header('Cache-Control', 'no-store');
+    }
+
     return reply.view('pages/settings/shop-detail.ejs', {
       pageTitle: shop.name, currentPath: '/nastaveni/eshopy',
-      user: request.user, shop, checks, keys, channels, rules, expedice,
+      user: request.user, shop, checks, keys, channels, rules, expedice, eshopKlice,
       // Bez těchhle tajemství expedice objednávky jen zadrží — ať to admin
-      // vidí tady, a ne až v pushi o zadržených objednávkách.
+      // vidí tady, a ne až v pushi o zadržených objednávkách. Tajemství pro
+      // podání balíku má e-shop vlastní, nebo platí globální.
       maPacketaHeslo: Boolean(process.env.PACKETA_API_PASSWORD),
-      maWebhookSecret: Boolean(process.env.SHOP_WEBHOOK_SECRET),
+      maWebhookSecret: Boolean(shop.webhook_secret || process.env.SHOP_WEBHOOK_SECRET),
+      maGlobalniWebhookSecret: Boolean(process.env.SHOP_WEBHOOK_SECRET),
+      otiskWebhookSecret: shop.webhook_secret ? otiskKlice(hashKlice(shop.webhook_secret)) : '',
+      vydavaEshopKlice: shop.slug !== ESHOP_S_VLASTNIM_API,
+      novyEshopKlic: extra.novyEshopKlic || null,
+      novyWebhookSecret: extra.novyWebhookSecret || null,
       saved: request.query.saved === '1', newKey: request.query.newKey || null,
-      error: request.query.error || null,
+      error: extra.error || request.query.error || null,
     }, { layout: 'layouts/base.ejs' });
+  }
+
+  fastify.get('/nastaveni/eshopy/:id', async (request, reply) => {
+    return vykresliDetail(request, reply, request.params.id);
+  });
+
+  // ── Klíče pro /api/eshop ─────────────────────────────────────
+  //
+  // Vlastní tabulka, ne api_keys výš: klíč z api_keys otevírá i starší
+  // /api/v1 a s ním všechny kontakty v CRM. V databázi zůstane jen otisk,
+  // klíč se ukáže jednou v odpovědi na tenhle POST.
+
+  fastify.post('/nastaveni/eshopy/:id/eshop-klic/vytvorit', async (request, reply) => {
+    const shopId = parseInt(request.params.id, 10);
+    if (!shopId) return reply.code(400).send('Neplatný eshop');
+    const [shop] = await sql`SELECT id, slug FROM shops WHERE id = ${shopId}`;
+    if (!shop) return reply.code(404).send('Eshop nenalezen');
+    if (shop.slug === ESHOP_S_VLASTNIM_API) {
+      return reply.redirect(`/nastaveni/eshopy/${shopId}?error=eshop-klic-toneracek`);
+    }
+
+    const label = String(request.body?.label || '').trim().slice(0, 100);
+    const { klic, hash, otisk } = vygenerujKlic();
+    await sql`
+      INSERT INTO eshop_api_keys (shop_id, key_hash, label, active, created_by)
+      VALUES (${shopId}, ${hash}, ${label}, TRUE, ${request.user.id})
+    `;
+    request.log.info({ shopId, otisk }, 'Vydán klíč pro /api/eshop');
+    return vykresliDetail(request, reply, shopId, { novyEshopKlic: { klic, otisk, label } });
+  });
+
+  fastify.post('/nastaveni/eshopy/:id/eshop-klic/:keyId/zrusit', async (request, reply) => {
+    const shopId = parseInt(request.params.id, 10);
+    if (!shopId) return reply.code(400).send('Neplatný eshop');
+    // Zneplatní se hned: API klíč ověřuje při každém požadavku, nic necachuje.
+    await sql`
+      UPDATE eshop_api_keys SET active = FALSE, revoked_at = COALESCE(revoked_at, NOW())
+      WHERE id = ${parseInt(request.params.keyId, 10) || 0} AND shop_id = ${shopId}
+    `;
+    return reply.redirect(`/nastaveni/eshopy/${shopId}?saved=1`);
+  });
+
+  // ── Tajemství pro podání balíku (One SEIL → e-shop) ───────────
+  //
+  // Hlavička x-webhook-secret u POST {url e-shopu}/api/orders/podat-balik.
+  // Prázdné = globální SHOP_WEBHOOK_SECRET (tak jede Toneráček). Hodnota se
+  // v administraci neukazuje, jen otisk — ať jde porovnat s WEBHOOK_SECRET
+  // v e-shopu, aniž by ležela v HTML.
+
+  fastify.post('/nastaveni/eshopy/:id/webhook-secret', async (request, reply) => {
+    const shopId = parseInt(request.params.id, 10);
+    if (!shopId) return reply.code(400).send('Neplatný eshop');
+    const [shop] = await sql`SELECT id FROM shops WHERE id = ${shopId}`;
+    if (!shop) return reply.code(404).send('Eshop nenalezen');
+
+    const akce = String(request.body?.akce || '');
+    if (akce === 'vymazat') {
+      await sql`UPDATE shops SET webhook_secret = '' WHERE id = ${shopId}`;
+      return reply.redirect(`/nastaveni/eshopy/${shopId}?saved=1`);
+    }
+    if (akce === 'vygenerovat') {
+      const secret = crypto.randomBytes(32).toString('hex');
+      await sql`UPDATE shops SET webhook_secret = ${secret} WHERE id = ${shopId}`;
+      return vykresliDetail(request, reply, shopId, { novyWebhookSecret: secret });
+    }
+
+    const secret = String(request.body?.webhook_secret || '').trim();
+    // Krátké nebo s mezerou je skoro jistě chyba při kopírování; tajemství
+    // se navíc posílá v hlavičce, kde mezera nemá co dělat.
+    if (secret.length < 32 || /\s/.test(secret)) {
+      return reply.redirect(`/nastaveni/eshopy/${shopId}?error=webhook-secret`);
+    }
+    await sql`UPDATE shops SET webhook_secret = ${secret} WHERE id = ${shopId}`;
+    return reply.redirect(`/nastaveni/eshopy/${shopId}?saved=1`);
   });
 
   // ── Identita e-mailů e-shopu ─────────────────────────────────

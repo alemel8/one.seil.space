@@ -41,6 +41,34 @@
 </div>
 <% } %>
 
+<% if (typeof error !== 'undefined' && error === 'webhook-secret') { %>
+<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+  Tajemství pro podání balíku musí mít aspoň 32 znaků a žádnou mezeru.
+</div>
+<% } %>
+
+<% if (typeof error !== 'undefined' && error === 'eshop-klic-toneracek') { %>
+<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+  Toneráček má vlastní API (<code>/api/toneracek</code>, klíč v <code>TONERACEK_API_KEY</code>) — klíč pro <code>/api/eshop</code> se mu nevydává.
+</div>
+<% } %>
+
+<% if (novyEshopKlic) { %>
+<div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:16px;margin-bottom:20px;">
+  <strong>Nový klíč pro <code>/api/eshop</code><%= novyEshopKlic.label ? ' — ' + novyEshopKlic.label : '' %> (zobrazí se pouze jednou!):</strong><br>
+  <code style="font-family:var(--font-mono);font-size:14px;word-break:break-all;display:block;margin-top:8px;padding:8px;background:white;border-radius:4px;border:1px solid #e5e7eb;"><%= novyEshopKlic.klic %></code>
+  <small style="color:var(--text-muted);">Vložte ho do prostředí e-shopu jako <code>SEIL_API_KEY</code>. One SEIL si drží jen otisk <code><%= novyEshopKlic.otisk %></code> — klíč už znovu ukázat nejde, jen vydat nový.</small>
+</div>
+<% } %>
+
+<% if (novyWebhookSecret) { %>
+<div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:16px;margin-bottom:20px;">
+  <strong>Nové tajemství pro podání balíku (zobrazí se pouze jednou!):</strong><br>
+  <code style="font-family:var(--font-mono);font-size:14px;word-break:break-all;display:block;margin-top:8px;padding:8px;background:white;border-radius:4px;border:1px solid #e5e7eb;"><%= novyWebhookSecret %></code>
+  <small style="color:var(--text-muted);">Vložte ho do prostředí e-shopu jako <code>WEBHOOK_SECRET</code>. Do té doby e-shop podání balíku odmítne.</small>
+</div>
+<% } %>
+
 <div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;">
 
   <div style="display:flex;flex-direction:column;gap:20px;">
@@ -130,6 +158,103 @@
       </div>
     </div>
 
+    <!-- Napojení e-shopu: klíče pro /api/eshop a tajemství pro podání balíku -->
+    <div class="card">
+      <div class="card-header">Napojení e-shopu (<code>/api/eshop</code>)</div>
+      <div class="card-body">
+        <% if (vydavaEshopKlice) { %>
+        <p style="font-size:13px;color:var(--text-muted);margin:0 0 16px;">
+          E-shop volá One SEIL na <code>/api/eshop/*</code> s hlavičkou
+          <code>Authorization: Bearer &lt;klíč&gt;</code>. Klíč určuje e-shop:
+          objednávky, doklady i zákaznické účty vidí jen ty svoje. Vypnutý
+          klíč přestane platit okamžitě.
+        </p>
+
+        <table class="data-table" style="font-size:13px;margin-bottom:14px;">
+          <thead><tr><th>Popis</th><th>Otisk</th><th>Vytvořen</th><th>Naposledy použit</th><th>Stav</th><th></th></tr></thead>
+          <tbody>
+            <% eshopKlice.forEach(k => { %>
+            <tr>
+              <td><%= k.label || '—' %><% if (k.vytvoril) { %><br><span style="font-size:11px;color:var(--text-muted);"><%= k.vytvoril %></span><% } %></td>
+              <td><code style="background:var(--gray-100);padding:2px 6px;border-radius:4px;font-size:12px;"><%= k.otisk %></code></td>
+              <td style="color:var(--text-muted);"><%= new Date(k.created_at).toLocaleString('cs-CZ') %></td>
+              <td style="color:var(--text-muted);"><%= k.last_used_at ? new Date(k.last_used_at).toLocaleString('cs-CZ') : 'nikdy' %></td>
+              <td>
+                <% if (k.active) { %><span class="badge" style="background:#dcfce7;color:#166534;">Aktivní</span>
+                <% } else { %><span class="badge" style="background:var(--gray-100);color:var(--gray-500);" title="<%= k.revoked_at ? 'Zrušen ' + new Date(k.revoked_at).toLocaleString('cs-CZ') : '' %>">Zrušený</span><% } %>
+              </td>
+              <td>
+                <% if (k.active) { %>
+                <form method="post" action="/nastaveni/eshopy/<%= shop.id %>/eshop-klic/<%= k.id %>/zrusit" style="display:inline;"
+                      onsubmit="return confirm('Zrušit klíč? E-shop, který ho používá, okamžitě přestane fungovat.')">
+                  <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger);">Zrušit</button>
+                </form>
+                <% } %>
+              </td>
+            </tr>
+            <% }) %>
+            <% if (!eshopKlice.length) { %>
+            <tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted);">Žádný klíč — e-shop se k One SEIL zatím nepřipojí.</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+
+        <form method="post" action="/nastaveni/eshopy/<%= shop.id %>/eshop-klic/vytvorit" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:24px;">
+          <div class="form-group" style="flex:1;min-width:220px;margin:0;">
+            <label class="form-label">Popis klíče</label>
+            <input type="text" name="label" class="form-control" maxlength="100" placeholder="produkce (Coolify)">
+          </div>
+          <button type="submit" class="btn btn-outline">Vygenerovat klíč</button>
+        </form>
+        <% } else { %>
+        <p style="font-size:13px;color:var(--text-muted);margin:0 0 20px;">
+          Toneráček jede přes <code>/api/toneracek</code> s klíčem v proměnné
+          <code>TONERACEK_API_KEY</code> a jeho zákaznické účty jsou v CRM
+          kontaktech. Klíč pro <code>/api/eshop</code> se mu nevydává — založil
+          by mu druhou, oddělenou sadu účtů.
+        </p>
+        <% } %>
+
+        <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Tajemství pro podání balíku</div>
+        <p style="font-size:13px;color:var(--text-muted);margin:0 0 12px;">
+          One SEIL jím podepisuje žádost o podání balíku
+          (<code><%= shop.url || 'URL e-shopu' %>/api/orders/podat-balik</code>, hlavička
+          <code>x-webhook-secret</code>). V e-shopu musí být stejná hodnota
+          v <code>WEBHOOK_SECRET</code>.
+        </p>
+        <p style="font-size:13px;margin:0 0 12px;">
+          <% if (otiskWebhookSecret) { %>
+            Vlastní tajemství e-shopu: <strong>nastaveno</strong>, otisk
+            <code style="background:var(--gray-100);padding:2px 6px;border-radius:4px;font-size:12px;"><%= otiskWebhookSecret %></code>
+            <span style="color:var(--text-muted);">(prvních 8 znaků SHA-256)</span>
+          <% } else if (maGlobalniWebhookSecret) { %>
+            Vlastní tajemství není — platí globální <code>SHOP_WEBHOOK_SECRET</code>.
+          <% } else { %>
+            <span style="color:#b91c1c;">Není nastavené vlastní ani globální <code>SHOP_WEBHOOK_SECRET</code> — balík se u převodu nepodá.</span>
+          <% } %>
+        </p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+          <form method="post" action="/nastaveni/eshopy/<%= shop.id %>/webhook-secret"
+                onsubmit="return confirm('Vygenerovat nové tajemství? Dokud ho nevložíte do e-shopu, podání balíku selže.')">
+            <input type="hidden" name="akce" value="vygenerovat">
+            <button type="submit" class="btn btn-outline btn-sm">Vygenerovat nové</button>
+          </form>
+          <form method="post" action="/nastaveni/eshopy/<%= shop.id %>/webhook-secret" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+            <input type="hidden" name="akce" value="nastavit">
+            <input type="password" name="webhook_secret" class="form-control" minlength="32" autocomplete="off" placeholder="vložit vlastní (min. 32 znaků)" style="width:260px;">
+            <button type="submit" class="btn btn-outline btn-sm">Uložit</button>
+          </form>
+          <% if (otiskWebhookSecret) { %>
+          <form method="post" action="/nastaveni/eshopy/<%= shop.id %>/webhook-secret"
+                onsubmit="return confirm('Smazat vlastní tajemství? Pak platí globální SHOP_WEBHOOK_SECRET.')">
+            <input type="hidden" name="akce" value="vymazat">
+            <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger);">Použít globální</button>
+          </form>
+          <% } %>
+        </div>
+      </div>
+    </div>
+
     <!-- Expedice do skladu -->
     <div class="card">
       <div class="card-header">Expedice do skladu</div>
@@ -145,7 +270,7 @@
         <div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:13px;">
           <strong>Chybí přístupové údaje.</strong>
           <% if (!maPacketaHeslo) { %>Bez <code>PACKETA_API_PASSWORD</code> se nestáhnou štítky.<% } %>
-          <% if (!maWebhookSecret) { %>Bez <code>SHOP_WEBHOOK_SECRET</code> se u převodu nepodá balík.<% } %>
+          <% if (!maWebhookSecret) { %>Bez tajemství pro podání balíku (vlastního ani <code>SHOP_WEBHOOK_SECRET</code>) se u převodu nepodá balík.<% } %>
           Objednávky se v takovém případě jen zadrží a čekají na další ráno.
         </div>
         <% } %>
@@ -201,7 +326,7 @@
                 <td>
                   <span class="badge" style="<%= stavStyl %>" title="<%= b.error || '' %>"><%= stavText %></span>
                   <% if (b.held_count > 0) { %>
-                    <a href="/ucetnictvi/objednavky?sklad=blokovano" style="font-size:11px;color:var(--text-muted);">· <%= b.held_count %> zadrženo</a>
+                    <a href="/ucetnictvi/objednavky?sklad=blokovano<%= shop.slug !== 'toneracek' ? '&eshop=' + encodeURIComponent(shop.slug) : '' %>" style="font-size:11px;color:var(--text-muted);">· <%= b.held_count %> zadrženo</a>
                   <% } %>
                 </td>
               </tr>
@@ -288,9 +413,12 @@
       </div>
     </div>
 
-    <!-- API klíče -->
+    <!-- API klíče (starší /api/v1) -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-      <h3>API klíče</h3>
+      <div>
+        <h3>API klíče</h3>
+        <p style="font-size:12px;color:var(--text-muted);margin:2px 0 0;">Starší <code>/api/v1</code> (hlavička <code>X-API-Key</code>). E-shop napojený jako Toneráček potřebuje klíč pro <code>/api/eshop</code> výše, ne tenhle.</p>
+      </div>
       <form method="post" action="/nastaveni/eshopy/api-klic/vytvorit">
         <input type="hidden" name="shop_id" value="<%= shop.id %>">
         <button type="submit" class="btn btn-outline btn-sm">+ Nový klíč</button>
