@@ -16,16 +16,27 @@
  * Volby:
  *   --eshop <slug>   povinné, aby nešlo omylem sáhnout na cizí e-shop
  *   --do <YYYY-MM-DD>  jen objednávky vytvořené PŘED tímhle dnem
- *   --cisla 1,2,3    jen vyjmenovaná čísla objednávek
+ *   --cisla 1,2,3    jen vyjmenovaná čísla objednávek — a jen zákazníci
+ *                    těchto objednávek, nikdo jiný
  *   --smazat         provede mazání (jinak jen výpis)
  *   --rady           vrátí čítače číselných řad e-shopu na nulu
+ *
+ * Kterých zákazníků se úklid týká — jen zákazníků TOHOTO e-shopu:
+ *   • kontaktů z mazaných objednávek,
+ *   • bez --cisla navíc účtů a zákazníků e-shopu: řádek v crm_contact_shops
+ *     (účty /api/eshop), zdroj = název e-shopu a u Toneráčku i registrace
+ *     v crm_contacts (jeho účty z /api/toneracek tam žijí odjakživa).
  *
  * Co skript NEDĚLÁ schválně:
  *   • nemaže bankovní transakce — ty jsou skutečná data z výpisu; jen u nich
  *     zruší napárování na mazanou fakturu,
  *   • nemaže kontakt, který má i CRM historii (smlouvu, projekt, fakturu mimo
- *     e-shop). U takového jen zhasne příznak registrace, protože smazat
- *     obchodního partnera kvůli testovací registraci by byla větší škoda.
+ *     e-shop), objednávku nebo účet v jiném e-shopu, ani objednávku v tomhle
+ *     e-shopu, která se nemaže. Takovému kontaktu zruší nanejvýš účet v tomhle
+ *     e-shopu, a to jen když mu tu po úklidu žádná objednávka nezůstane —
+ *     skutečnému zákazníkovi úklid jedné testovací objednávky účet nevezme,
+ *   • nesahá na účty jiných e-shopů: příznak crm_contacts.is_registered patří
+ *     Toneráčku a při úklidu jiného e-shopu se nemění.
  */
 
 import postgres from 'postgres';
@@ -101,45 +112,85 @@ try {
   }
 
   /*
-   * Zákazníci e-shopu — registrovaní i hosté.
+   * Zákazníci e-shopu — registrovaní i hosté, ale jen TOHOTO e-shopu.
    *
-   * Dřív tu bylo `WHERE c.is_registered = TRUE`, takže hosté ze skriptu
-   * propadli. Objednávka bez účtu kontakt v CRM zakládá s
-   * `is_registered = FALSE` a úklid je pak neviděl: po smazání testovacích
-   * objednávek zůstaly osiřelé profily v CRM a nešlo je odsud dostat pryč.
+   * Dřív tu bylo `WHERE c.is_registered = TRUE OR c.source = <e-shop>`.
+   * `is_registered` ale na e-shop vázané není, takže výběr bral registrované
+   * zákazníky všech e-shopů a `--cisla` omezovalo jen objednávky. Ostré
+   * spuštění by smazalo zákazníky Toneráčku bez objednávek a těm
+   * s objednávkami zrušilo registraci — i při úklidu jediné objednávky
+   * samotného Toneráčku.
    *
-   * Rozlišit hosta konkrétního e-shopu jde teprve od migrace 035, která
-   * kontaktům dala sloupec `source`. Bere se tedy podle zdroje, ne podle
-   * příznaku registrace — a `--do` platí pro obojí stejně.
+   * Kde má e-shop účty: Toneráček v crm_contacts (/api/toneracek, příznak
+   * is_registered), ostatní e-shopy v crm_contact_shops (/api/eshop).
    */
+  const uctyVKontaktech = shop.slug === 'toneracek';
+  const vybraneObjednavky = orderIds.length ? orderIds : [''];
+
+  const rozsah = numbers
+    ? sql`c.id IN (SELECT crm_contact_id FROM shop_orders WHERE id = ANY(${vybraneObjednavky}))`
+    : sql`(
+        c.id IN (SELECT crm_contact_id FROM shop_orders WHERE id = ANY(${vybraneObjednavky}))
+        OR (cs.contact_id IS NOT NULL ${before ? sql`AND cs.registered_at < ${before}` : sql``})
+        OR (c.source = ${shop.name} ${before ? sql`AND c.created_at < ${before}` : sql``})
+        ${uctyVKontaktech
+          ? sql`OR (c.is_registered = TRUE ${before ? sql`AND c.created_at < ${before}` : sql``})`
+          : sql``}
+      )`;
+
   const contacts = await sql`
-    SELECT c.id, c.email, c.first_name, c.last_name, c.created_at, c.is_registered,
+    SELECT c.id, c.email, c.first_name, c.last_name, c.created_at,
+           ${uctyVKontaktech ? sql`c.is_registered` : sql`COALESCE(cs.is_registered, FALSE)`} AS registrovany,
+           (cs.contact_id IS NOT NULL) AS ma_radek_eshopu,
+           cs.registered_at AS registrovany_od,
            (SELECT COUNT(*)::int FROM crm_contracts    x WHERE x.contact_id = c.id) AS smlouvy,
            (SELECT COUNT(*)::int FROM projects         x WHERE x.primary_contact_id = c.id) AS projekty,
            (SELECT COUNT(*)::int FROM accounting_invoices x
-              WHERE x.crm_contact_id = c.id AND (x.order_id IS NULL OR NOT (x.order_id = ANY(${orderIds.length ? orderIds : ['']})))) AS faktury_mimo,
+              WHERE x.crm_contact_id = c.id AND (x.order_id IS NULL OR NOT (x.order_id = ANY(${vybraneObjednavky})))) AS faktury_mimo,
            (SELECT COUNT(*)::int FROM shop_orders x
-              WHERE x.crm_contact_id = c.id AND NOT (x.id = ANY(${orderIds.length ? orderIds : ['']}))) AS objednavky_mimo
+              WHERE x.crm_contact_id = c.id AND x.shop_id = ${shop.id} AND NOT (x.id = ANY(${vybraneObjednavky}))) AS objednavky_tady,
+           (SELECT COUNT(*)::int FROM shop_orders x
+              WHERE x.crm_contact_id = c.id AND x.shop_id <> ${shop.id}) AS objednavky_jinde,
+           ((SELECT COUNT(*)::int FROM crm_contact_shops x
+               WHERE x.contact_id = c.id AND x.shop_id <> ${shop.id} AND x.is_registered = TRUE)
+            + ${uctyVKontaktech ? sql`0` : sql`(CASE WHEN c.is_registered THEN 1 ELSE 0 END)`}) AS ucty_jinde
     FROM crm_contacts c
-    WHERE (c.is_registered = TRUE OR c.source = ${shop.name})
-      ${before ? sql`AND c.created_at < ${before}` : sql``}
+    LEFT JOIN crm_contact_shops cs ON cs.contact_id = c.id AND cs.shop_id = ${shop.id}
+    WHERE ${rozsah}
     ORDER BY c.created_at
   `;
 
-  // Objednávka, která se teď nemaže, je taky důvod kontakt nechat být —
-  // jinak by úklid jedné testovací objednávky smazal zákazníka, který má
-  // ještě jinou, skutečnou.
-  const jeCista = (c) => !c.smlouvy && !c.projekty && !c.faktury_mimo && !c.objednavky_mimo;
+  // Smazat celý kontakt jde jen tehdy, když po úklidu nezůstane nic jiného:
+  // CRM historie, jiná objednávka tady, objednávka nebo účet v jiném e-shopu.
+  const jeCista = (c) => !c.smlouvy && !c.projekty && !c.faktury_mimo
+    && !c.objednavky_tady && !c.objednavky_jinde && !c.ucty_jinde;
+  // Účet v tomhle e-shopu se ruší, jen když tu po úklidu žádná objednávka
+  // nezůstane. U --do jen účet založený před tím dnem (Toneráček čas
+  // registrace nezná, tam rozhoduje vznik kontaktu, podle kterého se vybíral).
+  const uctemPredDnem = (c) => !before || uctyVKontaktech
+    || (c.registrovany_od && new Date(c.registrovany_od) < new Date(before));
   const kSmazani = contacts.filter(jeCista);
-  const kOdregistrovani = contacts.filter((c) => !jeCista(c) && c.is_registered);
+  const kOdregistrovani = contacts.filter((c) => !jeCista(c) && !c.objednavky_tady
+    && (uctyVKontaktech ? c.registrovany : c.ma_radek_eshopu) && uctemPredDnem(c));
+  const kPonechani = contacts.filter((c) => !kSmazani.includes(c) && !kOdregistrovani.includes(c));
+
+  const proc = (c) => [
+    c.smlouvy && `${c.smlouvy}× smlouva`, c.projekty && `${c.projekty}× projekt`,
+    c.faktury_mimo && `${c.faktury_mimo}× faktura mimo e-shop`,
+    c.objednavky_tady && `${c.objednavky_tady}× jiná objednávka tady`,
+    c.objednavky_jinde && `${c.objednavky_jinde}× objednávka v jiném e-shopu`,
+    c.ucty_jinde && `${c.ucty_jinde}× účet v jiném e-shopu`,
+  ].filter(Boolean).join(', ');
 
   console.log(`\nZákazníci e-shopu (${contacts.length}):`);
   for (const c of kSmazani) {
-    console.log(`   smazat        ${den(c.created_at)}  ${(c.is_registered ? 'registrovaný' : 'host').padEnd(12)} ${c.email}`);
+    console.log(`   smazat        ${den(c.created_at)}  ${(c.registrovany ? 'registrovaný' : 'host').padEnd(12)} ${c.email}`);
   }
   for (const c of kOdregistrovani) {
-    const proc = [c.smlouvy && `${c.smlouvy}× smlouva`, c.projekty && `${c.projekty}× projekt`, c.faktury_mimo && `${c.faktury_mimo}× faktura mimo e-shop`, c.objednavky_mimo && `${c.objednavky_mimo}× jiná objednávka`].filter(Boolean).join(', ');
-    console.log(`   odregistrovat ${den(c.created_at)}  ${c.email}  (má ${proc})`);
+    console.log(`   ${uctyVKontaktech ? 'odregistrovat' : 'odpojit      '} ${den(c.created_at)}  ${c.email}  (kontakt zůstane, má ${proc(c)})`);
+  }
+  for (const c of kPonechani) {
+    console.log(`   ponechat      ${den(c.created_at)}  ${c.email}  (má ${proc(c) || 'účet založený po --do'})`);
   }
 
   if (!apply) {
@@ -169,18 +220,28 @@ try {
       await tx`DELETE FROM crm_contacts      WHERE id = ${c.id}`;
     }
     for (const c of kOdregistrovani) {
-      await tx`UPDATE crm_contacts SET is_registered = FALSE WHERE id = ${c.id}`;
+      if (uctyVKontaktech) {
+        await tx`UPDATE crm_contacts SET is_registered = FALSE WHERE id = ${c.id}`;
+      } else {
+        // Účet (nebo jen vazba hosta) i se záložním hashem hesla a souhlasy —
+        // jen v tomhle e-shopu; účty jiných e-shopů a Toneráčku zůstávají.
+        await tx`DELETE FROM crm_contact_shops WHERE contact_id = ${c.id} AND shop_id = ${shop.id}`;
+      }
     }
     if (resetSeries) {
       await tx`UPDATE invoice_number_series SET current_number = 0 WHERE shop_id = ${shop.id}`;
     }
   });
 
-  console.log(`\n✓ Smazáno: ${orders.length} objednávek, ${invoices.length} dokladů, ${kSmazani.length} zákazníků (z toho ${kSmazani.filter((c) => !c.is_registered).length} hostů).`);
-  if (kOdregistrovani.length) console.log(`  Odregistrováno (kontakt zůstal): ${kOdregistrovani.length}`);
+  console.log(`\n✓ Smazáno: ${orders.length} objednávek, ${invoices.length} dokladů, ${kSmazani.length} zákazníků (z toho ${kSmazani.filter((c) => !c.registrovany).length} hostů).`);
+  if (kOdregistrovani.length) {
+    console.log(`  ${uctyVKontaktech ? 'Odregistrováno' : 'Odpojeno od e-shopu (účet i souhlasy)'} — kontakt zůstal: ${kOdregistrovani.length}`);
+  }
+  if (kPonechani.length) console.log(`  Ponecháno beze změny: ${kPonechani.length}`);
   if (resetSeries) console.log('  Čítače číselných řad e-shopu vynulovány.');
   console.log('\nNa straně e-shopu ještě smaž hesla a tokeny:');
-  console.log('  (v kontejneru e-shopu) node scripts/smazat-testovaci-uzivatele.mjs ' + kSmazani.map((c) => c.email).join(' '));
+  console.log('  (v kontejneru e-shopu) node scripts/smazat-testovaci-uzivatele.mjs '
+    + [...kSmazani, ...kOdregistrovani].map((c) => c.email).join(' '));
 } finally {
   await sql.end();
 }
