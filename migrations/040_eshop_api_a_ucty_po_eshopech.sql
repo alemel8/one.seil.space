@@ -47,12 +47,13 @@ COMMENT ON TABLE eshop_api_keys IS
 -- hlavičkou x-webhook-secret. Dosud jedna globální SHOP_WEBHOOK_SECRET pro
 -- všechny e-shopy, takže by Dílna musela znát tajemství Toneráčku a únik
 -- z jednoho e-shopu by otevřel podávání balíků u druhého.
--- Prázdné = platí globální SHOP_WEBHOOK_SECRET (Toneráček tak jede dál).
+-- Toneráček sloupec nepoužívá a jede dál na globální SHOP_WEBHOOK_SECRET;
+-- ostatní e-shopy jen na vlastním — prázdné = balík se nepodá.
 
 ALTER TABLE shops ADD COLUMN IF NOT EXISTS webhook_secret TEXT NOT NULL DEFAULT '';
 
 COMMENT ON COLUMN shops.webhook_secret IS
-  'x-webhook-secret pro volání e-shopu (podat-balik). Prázdné = globální SHOP_WEBHOOK_SECRET.';
+  'x-webhook-secret pro volání e-shopu (podat-balik). Prázdné = balík se nepodá. Toneráček sloupec nepoužívá (SHOP_WEBHOOK_SECRET z prostředí).';
 
 -- ── Zákaznické účty po e-shopech ──────────────────────────────
 -- crm_contact_shops existuje od migrace 001 a nikdo ho nečte ani nepíše.

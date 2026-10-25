@@ -1,8 +1,10 @@
 // Podání balíku u e-shopu podepsané tajemstvím TOHO e-shopu.
 //
 // Dřív jedno globální SHOP_WEBHOOK_SECRET pro všechny e-shopy — Dílna by
-// musela znát tajemství Toneráčku. Teď shops.webhook_secret, prázdné =
-// globální (Toneráček jede dál na globálním).
+// musela znát tajemství Toneráčku. Teď: Toneráček jen globální (sloupec
+// shops.webhook_secret se u něj nečte), ostatní e-shopy jen vlastní
+// shops.webhook_secret. Bez něj se jejich balík nepodá — globální jim
+// nikdy nejde, ani když se tajemství nepodaří načíst.
 //
 // Potřebuje databázi, běžící server ne. „E-shop“ je lokální HTTP server na
 // 127.0.0.1, ven nejde nic.
@@ -28,7 +30,7 @@ const r = crypto.randomBytes(4).toString('hex');
 const SECRET_ESHOPU = crypto.randomBytes(32).toString('hex');
 const SECRET_GLOBALNI = `globalni-${crypto.randomBytes(16).toString('hex')}`;
 
-let sql, server, url, expedice;
+let sql, server, url, expedice, toneracek;
 const prijate = [];
 const shops = {};
 const puvodniEnv = process.env.SHOP_WEBHOOK_SECRET;
@@ -57,6 +59,8 @@ before(async () => {
       RETURNING *`;
     shops[klic] = s;
   }
+  [toneracek] = await sql`SELECT * FROM shops WHERE slug = 'toneracek'`;
+  assert.ok(toneracek, 'migrace 030 zakládá e-shop toneracek');
 });
 
 after(async () => {
@@ -72,17 +76,40 @@ after(async () => {
 });
 
 describe('tajemství pro podání balíku', () => {
-  test('vlastní tajemství e-shopu má přednost před globálním', async () => {
+  test('Toneráček jen globální, ostatní e-shopy jen vlastní', async () => {
     process.env.SHOP_WEBHOOK_SECRET = SECRET_GLOBALNI;
     assert.equal(await expedice.webhookSecretEshopu(shops.vlastni.id), SECRET_ESHOPU);
-    assert.equal(await expedice.webhookSecretEshopu(shops.bez.id), SECRET_GLOBALNI, 'prázdné = globální');
-    assert.equal(await expedice.webhookSecretEshopu(null), SECRET_GLOBALNI);
+    assert.equal(await expedice.webhookSecretEshopu(shops.bez.id), '',
+      'jiný e-shop bez vlastního tajemství globální (= Toneráčku) nedostane');
+    assert.equal(await expedice.webhookSecretEshopu(null), '');
+    assert.equal(await expedice.webhookSecretEshopu(toneracek.id), SECRET_GLOBALNI);
+    assert.equal(await expedice.webhookSecretEshopu(toneracek.id, null, { id: toneracek.id, slug: 'toneracek' }),
+      SECRET_GLOBALNI, 'se značkou Toneráčku bez dotazu do databáze');
+    assert.equal(await expedice.webhookSecretEshopu(shops.bez.id, null, { id: toneracek.id, slug: 'toneracek' }), '',
+      'značka jiného e-shopu, než je objednávka, nic neotevře');
+  });
+
+  test('když se tajemství nepodaří načíst, jiný e-shop nedostane nic', async () => {
+    process.env.SHOP_WEBHOOK_SECRET = SECRET_GLOBALNI;
+    // Nečíselné id shodí dotaz — stejná cesta jako výpadek databáze.
+    assert.equal(await expedice.webhookSecretEshopu('neni-cislo'), '');
+  });
+
+  test('Toneráček vlastní tajemství z databáze nepoužije', async () => {
+    process.env.SHOP_WEBHOOK_SECRET = SECRET_GLOBALNI;
+    const puvodni = toneracek.webhook_secret ?? '';
+    try {
+      await sql`UPDATE shops SET webhook_secret = ${'e'.repeat(40)} WHERE id = ${toneracek.id}`;
+      assert.equal(await expedice.webhookSecretEshopu(toneracek.id), SECRET_GLOBALNI);
+    } finally {
+      await sql`UPDATE shops SET webhook_secret = ${puvodni} WHERE id = ${toneracek.id}`;
+    }
   });
 
   test('žádost o balík nese tajemství e-shopu objednávky', async () => {
     process.env.SHOP_WEBHOOK_SECRET = SECRET_GLOBALNI;
     prijate.length = 0;
-    const brand = { id: shops.vlastni.id, url };
+    const brand = { id: shops.vlastni.id, slug: shops.vlastni.slug, url };
     const vysledek = await expedice.pozadejEshopOPodaniBaliku(null, brand,
       { shop_id: shops.vlastni.id, order_number: '70000001', email: 'x@example.invalid' });
     assert.deepEqual(vysledek, { ok: true, httpStatus: 200, tracking: 'Z9876543210', uzPodano: false });
@@ -92,20 +119,30 @@ describe('tajemství pro podání balíku', () => {
     assert.deepEqual(prijate[0].body, { orderNumber: '70000001', email: 'x@example.invalid' });
   });
 
-  test('e-shop bez vlastního tajemství (Toneráček) jede na globálním jako dřív', async () => {
+  test('Toneráček jede na globálním jako dřív', async () => {
     process.env.SHOP_WEBHOOK_SECRET = SECRET_GLOBALNI;
     prijate.length = 0;
-    await expedice.pozadejEshopOPodaniBaliku(null, { id: shops.bez.id, url },
-      { shop_id: shops.bez.id, order_number: '10001', email: 'x@example.invalid' });
+    await expedice.pozadejEshopOPodaniBaliku(null, { id: toneracek.id, slug: 'toneracek', url },
+      { shop_id: toneracek.id, order_number: '10001', email: 'x@example.invalid' });
+    assert.equal(prijate.length, 1);
     assert.equal(prijate[0].secret, SECRET_GLOBALNI);
   });
 
-  test('bez jakéhokoli tajemství se nic neodešle', async () => {
+  test('e-shop bez vlastního tajemství nic neodešle, ani s globálním v prostředí', async () => {
+    process.env.SHOP_WEBHOOK_SECRET = SECRET_GLOBALNI;
+    prijate.length = 0;
+    const vysledek = await expedice.pozadejEshopOPodaniBaliku(null, { id: shops.bez.id, slug: shops.bez.slug, url },
+      { shop_id: shops.bez.id, order_number: '10002', email: 'x@example.invalid' });
+    assert.deepEqual(vysledek, { ok: false, error: 'E-shop nemá tajemství pro podání balíku' });
+    assert.equal(prijate.length, 0);
+  });
+
+  test('bez SHOP_WEBHOOK_SECRET se balík Toneráčku nepodá', async () => {
     delete process.env.SHOP_WEBHOOK_SECRET;
     prijate.length = 0;
-    const vysledek = await expedice.pozadejEshopOPodaniBaliku(null, { id: shops.bez.id, url },
-      { shop_id: shops.bez.id, order_number: '10002', email: 'x@example.invalid' });
-    assert.equal(vysledek.ok, false);
+    const vysledek = await expedice.pozadejEshopOPodaniBaliku(null, { id: toneracek.id, slug: 'toneracek', url },
+      { shop_id: toneracek.id, order_number: '10003', email: 'x@example.invalid' });
+    assert.deepEqual(vysledek, { ok: false, error: 'SHOP_WEBHOOK_SECRET není nastaveno' });
     assert.equal(prijate.length, 0);
   });
 });

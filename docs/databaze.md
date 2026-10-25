@@ -165,7 +165,7 @@ Registrované e-shopy.
 | `warehouse_email` | TEXT | Adresa skladu pro ranní expedici; prázdné = vypnuto (migrace 037) |
 | `warehouse_email_bcc` | TEXT | Skrytá kopie expedice; prázdné = bez kopie (migrace 038) |
 | `warehouse_dispatch_since` | DATE | Objednávky přijaté dřív se do skladu neposílají |
-| `webhook_secret` | TEXT | `x-webhook-secret` pro volání e-shopu (podání balíku); prázdné = globální `SHOP_WEBHOOK_SECRET` (migrace 040) |
+| `webhook_secret` | TEXT | `x-webhook-secret` pro volání e-shopu (podání balíku); prázdné = balík se nepodá. Toneráček ho nepoužívá, jede na `SHOP_WEBHOOK_SECRET` z prostředí (migrace 040) |
 
 ### `eshop_api_keys`
 Klíče pro `/api/eshop/*` (migrace 040). Klíč určuje e-shop; ukládá se jen

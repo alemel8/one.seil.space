@@ -368,11 +368,17 @@ export async function nactiPolozky(sql, orderIds) {
  * trvalou chybu (chybí výdejní místo) od přechodné (e-shop je dole).
  */
 export async function pozadejEshopOPodaniBaliku(log, brand, order) {
-  const secret = await webhookSecretEshopu(order.shop_id ?? brand?.id, log);
+  const secret = await webhookSecretEshopu(order.shop_id ?? brand?.id, log, brand);
   if (!secret) {
-    log?.warn?.({ order: order.order_number },
-      'SHOP_WEBHOOK_SECRET není nastaveno (ani vlastní tajemství e-shopu), balík se nepodal — podej ho ručně');
-    return { ok: false, error: 'SHOP_WEBHOOK_SECRET není nastaveno' };
+    const toneracek = brand?.slug === VYCHOZI_ESHOP;
+    log?.warn?.({ order: order.order_number, eshop: brand?.slug },
+      toneracek
+        ? 'SHOP_WEBHOOK_SECRET není nastaveno, balík se nepodal — podej ho ručně'
+        : 'E-shop nemá vlastní tajemství pro podání balíku (Nastavení → Eshopy), balík se nepodal — podej ho ručně');
+    return {
+      ok: false,
+      error: toneracek ? 'SHOP_WEBHOOK_SECRET není nastaveno' : 'E-shop nemá tajemství pro podání balíku',
+    };
   }
   if (!brand?.url) return { ok: false, error: 'E-shop nemá vyplněnou adresu' };
 
@@ -401,24 +407,36 @@ export async function pozadejEshopOPodaniBaliku(log, brand, order) {
 }
 
 /**
- * Tajemství pro volání e-shopu (hlavička x-webhook-secret): vlastní
- * z `shops.webhook_secret`, jinak globální SHOP_WEBHOOK_SECRET.
+ * Tajemství pro volání e-shopu (hlavička x-webhook-secret).
  *
- * Vlastní tajemství má e-shop proto, aby únik z jednoho e-shopu neotevřel
- * podávání balíků u druhého. Toneráček má vlastní prázdné a jede na
- * globálním jako dřív — i když se dotaz nepovede, spadne se na globální,
- * ať se mu kvůli tomu nic nezmění.
+ * Toneráček jede jen na globální SHOP_WEBHOOK_SECRET jako před migrací 040;
+ * `shops.webhook_secret` se u něj nečte a administrace mu ho nastavit nedá.
+ * Jinak by jedno kliknutí v nastavení podepisovalo jeho balíky tajemstvím,
+ * které e-shop Toneráčku nezná: podat-balik by vracel 401 a převody by se
+ * vyřizovaly bez zásilky. S předanou značkou (`znacka` z brandForShopId) se
+ * Toneráček na databázi vůbec neptá.
+ *
+ * Ostatní e-shopy mají jen vlastní tajemství. Globální je tajemství Toneráčku
+ * — kdo ho zná, nechá u Toneráčku podat balík k jakékoli objednávce, i
+ * nezaplacené —, takže se jinému e-shopu nikdy neposílá: bez vlastního
+ * tajemství (i když se ho nepodaří načíst) se vrací '' a balík se nepodá
+ * (volající to hlásí jako „podej ho ručně“, expedice objednávku zadrží).
  */
-export async function webhookSecretEshopu(shopId, log) {
-  if (shopId) {
-    try {
-      const [row] = await getDb()`SELECT webhook_secret FROM shops WHERE id = ${shopId}`;
-      if (row?.webhook_secret) return row.webhook_secret;
-    } catch (err) {
-      log?.warn?.({ err, shopId }, 'Tajemství e-shopu se nepodařilo načíst, použije se SHOP_WEBHOOK_SECRET');
-    }
+export async function webhookSecretEshopu(shopId, log, znacka = null) {
+  const globalni = process.env.SHOP_WEBHOOK_SECRET || '';
+  if (znacka?.slug === VYCHOZI_ESHOP && Number(znacka.id) === Number(shopId)) return globalni;
+  if (!shopId) return '';
+
+  let shop;
+  try {
+    [shop] = await getDb()`SELECT slug, webhook_secret FROM shops WHERE id = ${shopId}`;
+  } catch (err) {
+    log?.error?.({ err, shopId }, 'Tajemství e-shopu se nepodařilo načíst, balík se nepodá');
+    return '';
   }
-  return process.env.SHOP_WEBHOOK_SECRET || '';
+  if (!shop) return '';
+  if (shop.slug === VYCHOZI_ESHOP) return globalni;
+  return shop.webhook_secret || '';
 }
 
 /**

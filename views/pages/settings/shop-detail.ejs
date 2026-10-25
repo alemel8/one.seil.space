@@ -47,6 +47,12 @@
 </div>
 <% } %>
 
+<% if (typeof error !== 'undefined' && error === 'webhook-secret-toneracek') { %>
+<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+  Toneráček podepisuje podání balíku proměnnou <code>SHOP_WEBHOOK_SECRET</code> z prostředí One SEIL — vlastní tajemství se mu tady nenastavuje.
+</div>
+<% } %>
+
 <% if (typeof error !== 'undefined' && error === 'eshop-klic-toneracek') { %>
 <div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
   Toneráček má vlastní API (<code>/api/toneracek</code>, klíč v <code>TONERACEK_API_KEY</code>) — klíč pro <code>/api/eshop</code> se mu nevydává.
@@ -216,25 +222,37 @@
         <% } %>
 
         <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Tajemství pro podání balíku</div>
+        <% if (tajemstviZProstredi) { %>
+        <p style="font-size:13px;color:var(--text-muted);margin:0 0 12px;">
+          Toneráček podepisuje žádost o podání balíku
+          (<code><%= shop.url || 'URL e-shopu' %>/api/orders/podat-balik</code>, hlavička
+          <code>x-webhook-secret</code>) proměnnou <code>SHOP_WEBHOOK_SECRET</code>
+          z prostředí One SEIL; v e-shopu Toneráčku je stejná hodnota
+          v <code>WEBHOOK_SECRET</code>. Vlastní tajemství se mu tady nenastavuje —
+          měnit ho jde jen v prostředí obou aplikací zároveň.
+        </p>
+        <p style="font-size:13px;margin:0;">
+          <% if (maWebhookSecret) { %>
+            <code>SHOP_WEBHOOK_SECRET</code>: <strong>nastaveno</strong>
+          <% } else { %>
+            <span style="color:#b91c1c;"><code>SHOP_WEBHOOK_SECRET</code> není nastavené — balík se u převodu nepodá.</span>
+          <% } %>
+        </p>
+        <% } else { %>
         <p style="font-size:13px;color:var(--text-muted);margin:0 0 12px;">
           One SEIL jím podepisuje žádost o podání balíku
           (<code><%= shop.url || 'URL e-shopu' %>/api/orders/podat-balik</code>, hlavička
           <code>x-webhook-secret</code>). V e-shopu musí být stejná hodnota
-          v <code>WEBHOOK_SECRET</code>.
+          v <code>WEBHOOK_SECRET</code>. Globální <code>SHOP_WEBHOOK_SECRET</code>
+          patří Toneráčku a tomuhle e-shopu se nikdy neposílá.
         </p>
         <p style="font-size:13px;margin:0 0 12px;">
           <% if (otiskWebhookSecret) { %>
-            Vlastní tajemství e-shopu: <strong>nastaveno</strong>, otisk
+            Tajemství e-shopu: <strong>nastaveno</strong>, otisk
             <code style="background:var(--gray-100);padding:2px 6px;border-radius:4px;font-size:12px;"><%= otiskWebhookSecret %></code>
             <span style="color:var(--text-muted);">(prvních 8 znaků SHA-256)</span>
-          <% } else if (maGlobalniWebhookSecret) { %>
-            Vlastní tajemství není — platí globální <code>SHOP_WEBHOOK_SECRET</code>.
-            <% if (!vydavaEshopKlice) { %>
-            <br><span style="color:#b45309;">Toneráček na něm jede. Vlastní tajemství mu nastavte jen zároveň
-            s <code>WEBHOOK_SECRET</code> v e-shopu Toneráčku — do té doby by se u převodu přestaly podávat balíky.</span>
-            <% } %>
           <% } else { %>
-            <span style="color:#b91c1c;">Není nastavené vlastní ani globální <code>SHOP_WEBHOOK_SECRET</code> — balík se u převodu nepodá.</span>
+            <span style="color:#b91c1c;"><strong>Chybí tajemství — balíky se u převodu nepodají.</strong> Vygenerujte ho a vložte do e-shopu jako <code>WEBHOOK_SECRET</code>.</span>
           <% } %>
         </p>
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
@@ -250,12 +268,13 @@
           </form>
           <% if (otiskWebhookSecret) { %>
           <form method="post" action="/nastaveni/eshopy/<%= shop.id %>/webhook-secret"
-                onsubmit="return confirm('Smazat vlastní tajemství? Pak platí globální SHOP_WEBHOOK_SECRET.')">
+                onsubmit="return confirm('Smazat tajemství? One SEIL pak balíky tohoto e-shopu nepodá, dokud nenastavíte nové.')">
             <input type="hidden" name="akce" value="vymazat">
-            <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger);">Použít globální</button>
+            <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger);">Smazat</button>
           </form>
           <% } %>
         </div>
+        <% } %>
       </div>
     </div>
 
@@ -274,7 +293,8 @@
         <div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:13px;">
           <strong>Chybí přístupové údaje.</strong>
           <% if (!maPacketaHeslo) { %>Bez <code>PACKETA_API_PASSWORD</code> se nestáhnou štítky.<% } %>
-          <% if (!maWebhookSecret) { %>Bez tajemství pro podání balíku (vlastního ani <code>SHOP_WEBHOOK_SECRET</code>) se u převodu nepodá balík.<% } %>
+          <% if (!maWebhookSecret && tajemstviZProstredi) { %>Bez <code>SHOP_WEBHOOK_SECRET</code> se u převodu nepodá balík.<% } %>
+          <% if (!maWebhookSecret && !tajemstviZProstredi) { %>Bez tajemství pro podání balíku (<em>Napojení e-shopu</em> výš) se u převodu nepodá balík.<% } %>
           Objednávky se v takovém případě jen zadrží a čekají na další ráno.
         </div>
         <% } %>

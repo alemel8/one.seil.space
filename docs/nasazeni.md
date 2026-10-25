@@ -27,7 +27,7 @@ Viz `.env.example` pro kompletní přehled. Klíčové proměnné:
 | `VAPID_EMAIL` | Kontaktní e-mail pro VAPID (`mailto:info@seil.cz`) |
 | `TONERACEK_API_KEY` | Bearer token pro webhook z Toneráček.cz |
 | `PACKETA_API_PASSWORD` | Heslo k API Zásilkovny. Bez něj se nestáhnou štítky — ranní expedice objednávky jen zadrží |
-| `SHOP_WEBHOOK_SECRET` | Sdílené tajemství pro volání zpět do e-shopu (podání balíku). Bez něj se u převodu balík nepodá. E-shop s vlastním tajemstvím (Nastavení → Eshopy → *Napojení e-shopu*, `shops.webhook_secret`) používá to svoje; Toneráček jede na globálním |
+| `SHOP_WEBHOOK_SECRET` | Tajemství pro volání zpět do e-shopu **Toneráčku** (podání balíku), shodné s `WEBHOOK_SECRET` v jeho e-shopu. Bez něj se u převodu balík nepodá. Další e-shopy mají vlastní tajemství (Nastavení → Eshopy → *Napojení e-shopu*, `shops.webhook_secret`) a tohle nikdy nedostanou |
 | `STATS_DIR` | Adresář s VPS stats (`/var/lib/vps-stats`) |
 
 ### Generování VAPID klíčů (jednorázové)

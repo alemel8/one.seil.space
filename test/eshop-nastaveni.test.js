@@ -2,8 +2,9 @@
 //
 // Klíč se ukáže jednou přímo v odpovědi (ne v URL, kde by skončil v logu)
 // a v databázi zůstane jen jeho SHA-256 otisk. Toneráčku se klíč pro
-// /api/eshop nevydává — má vlastní API a účty v crm_contacts. Starší klíče
-// pro /api/v1 fungují jako dřív.
+// /api/eshop nevydává — má vlastní API a účty v crm_contacts — a ani
+// tajemství pro balíky: jede na SHOP_WEBHOOK_SECRET z prostředí. Starší
+// klíče pro /api/v1 fungují jako dřív.
 //
 // Jede proti běžícímu serveru a testovací databázi; přihlášení obchází
 // vložením session. Zakládá si vlastní e-shop a správce a po sobě je uklidí.
@@ -127,10 +128,32 @@ describe('nastavení: klíče pro /api/eshop a tajemství pro balíky', () => {
     const html = await detail.text();
     assert.ok(html.includes('klíč pro <code>/api/eshop</code> se mu nevydává'), 'vysvětlení místo formuláře');
     assert.ok(!html.includes(`/nastaveni/eshopy/${ctx.toneracek.id}/eshop-klic/vytvorit`), 'bez formuláře na klíč');
-    assert.ok(html.includes(`/nastaveni/eshopy/${ctx.toneracek.id}/webhook-secret`), 'tajemství jde nastavit i Toneráčku');
+    assert.ok(!html.includes(`/nastaveni/eshopy/${ctx.toneracek.id}/webhook-secret`), 'bez formuláře na tajemství');
+    assert.ok(html.includes('proměnnou <code>SHOP_WEBHOOK_SECRET</code>'), 'vysvětlení, odkud Toneráček bere tajemství');
   });
 
-  test('tajemství pro podání balíku: vygenerovat, odmítnout krátké, vrátit na globální', async () => {
+  test('Toneráčku nejde tajemství pro balíky vygenerovat, nastavit ani smazat', async () => {
+    const vlastni = 'n'.repeat(40);
+    for (const telo of [{ akce: 'vygenerovat' }, { akce: 'nastavit', webhook_secret: vlastni }, { akce: 'vymazat' }]) {
+      const res = await post(`/nastaveni/eshopy/${ctx.toneracek.id}/webhook-secret`, telo);
+      assert.equal(res.status, 302, telo.akce);
+      assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.toneracek.id}?error=webhook-secret-toneracek`);
+    }
+    // Ne „před = po“: test expedice si sloupec Toneráčku souběžně na chvíli
+    // nastavuje, aby ověřil, že ho podání balíku ignoruje.
+    const [po] = await sql`SELECT webhook_secret FROM shops WHERE id = ${ctx.toneracek.id}`;
+    assert.notEqual(po.webhook_secret, vlastni, 'vlastní tajemství se neuložilo');
+    assert.doesNotMatch(po.webhook_secret, /^[0-9a-f]{64}$/, 'vygenerované tajemství se neuložilo');
+
+    const html = await (await get(`/nastaveni/eshopy/${ctx.toneracek.id}?error=webhook-secret-toneracek`)).text();
+    assert.ok(html.includes('vlastní tajemství se mu tady nenastavuje'));
+  });
+
+  test('tajemství pro podání balíku: vygenerovat, odmítnout krátké, smazat', async () => {
+    const bez = await (await get(`/nastaveni/eshopy/${ctx.shop.id}`)).text();
+    assert.ok(bez.includes('Chybí tajemství — balíky se u převodu nepodají'), 'e-shop bez tajemství vidí varování');
+    assert.ok(!bez.includes('Použít globální'), 'globální tajemství (Toneráčku) se jinému e-shopu nenabízí');
+
     const res = await post(`/nastaveni/eshopy/${ctx.shop.id}/webhook-secret`, { akce: 'vygenerovat' });
     assert.equal(res.status, 200);
     const secret = (await res.text()).match(/<code[^>]*>([0-9a-f]{64})<\/code>/)?.[1];
@@ -149,6 +172,8 @@ describe('nastavení: klíče pro /api/eshop a tajemství pro balíky', () => {
     assert.equal(s.webhook_secret, vlastni);
     const detail = await (await get(`/nastaveni/eshopy/${ctx.shop.id}`)).text();
     assert.ok(!detail.includes(vlastni), 'tajemství se v administraci neukazuje');
+    assert.ok(detail.includes(crypto.createHash('sha256').update(vlastni).digest('hex').slice(0, 8)), 'jen otisk');
+    assert.ok(!detail.includes('Chybí tajemství'));
 
     await post(`/nastaveni/eshopy/${ctx.shop.id}/webhook-secret`, { akce: 'vymazat' });
     [s] = await sql`SELECT webhook_secret FROM shops WHERE id = ${ctx.shop.id}`;

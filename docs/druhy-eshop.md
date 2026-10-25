@@ -18,7 +18,7 @@ balíku, zákaznické účty, adresa skladu.
 | API | `/api/toneracek/*` | `/api/eshop/*` — stejných 11 endpointů, těla i odpovědi |
 | Klíč | `TONERACEK_API_KEY` v prostředí One SEIL | řádek v `eshop_api_keys` (jen SHA-256 otisk), určuje e-shop |
 | Zákaznické účty | `crm_contacts` (`is_registered`, `notes` = záložní hash hesla) | `crm_contact_shops` — po e-shopech |
-| Tajemství pro `podat-balik` | globální `SHOP_WEBHOOK_SECRET` | `shops.webhook_secret`, prázdné = globální |
+| Tajemství pro `podat-balik` | globální `SHOP_WEBHOOK_SECRET`, jen z prostředí (v administraci se nenastavuje) | jen vlastní `shops.webhook_secret`; bez něj se balík nepodá — globální patří Toneráčku a jinam se neposílá |
 | Seznam objednávek | `/ucetnictvi/objednavky` | `/ucetnictvi/objednavky?eshop=<slug>` |
 
 Kontakt v CRM je jeden na e-mail pro všechny e-shopy. Zákazník Toneráčku se
@@ -81,7 +81,10 @@ e-shop nemá vyplněnou identitu, API objednávky odmítá (`503`).
 5. **Tajemství pro podání balíku** — tamtéž, **Vygenerovat nové**. Ukáže se
    jednou; do prostředí e-shopu jako `WEBHOOK_SECRET`. Kontrola shody bez
    ukazování hodnoty: `printf %s "$WEBHOOK_SECRET" | shasum -a 256 | cut -c1-8`
-   na straně e-shopu = otisk v administraci.
+   na straně e-shopu = otisk v administraci. Bez tohohle kroku One SEIL
+   balíky Dílny nepodá (detail e-shopu to hlásí červeně) — globální
+   `SHOP_WEBHOOK_SECRET` je tajemství Toneráčku a Dílně se nikdy neposílá.
+   Nevkládejte ho do `WEBHOOK_SECRET` Dílny, ani když e-shop podání odmítá.
 
 6. **Healthcheck** — detail e-shopu → **+ Healthcheck**, URL
    `https://dilnavlnenka.cz/api/health`.

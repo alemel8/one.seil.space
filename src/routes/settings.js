@@ -232,17 +232,20 @@ export default async function settingsRoutes(fastify) {
       reply.header('Cache-Control', 'no-store');
     }
 
+    const toneracek = shop.slug === ESHOP_S_VLASTNIM_API;
+
     return reply.view('pages/settings/shop-detail.ejs', {
       pageTitle: shop.name, currentPath: '/nastaveni/eshopy',
       user: request.user, shop, checks, keys, channels, rules, expedice, eshopKlice,
       // Bez těchhle tajemství expedice objednávky jen zadrží — ať to admin
       // vidí tady, a ne až v pushi o zadržených objednávkách. Tajemství pro
-      // podání balíku má e-shop vlastní, nebo platí globální.
+      // podání balíku bere Toneráček jen z prostředí a ostatní e-shopy jen
+      // vlastní (webhookSecretEshopu v expedice.js).
       maPacketaHeslo: Boolean(process.env.PACKETA_API_PASSWORD),
-      maWebhookSecret: Boolean(shop.webhook_secret || process.env.SHOP_WEBHOOK_SECRET),
-      maGlobalniWebhookSecret: Boolean(process.env.SHOP_WEBHOOK_SECRET),
-      otiskWebhookSecret: shop.webhook_secret ? otiskKlice(hashKlice(shop.webhook_secret)) : '',
-      vydavaEshopKlice: shop.slug !== ESHOP_S_VLASTNIM_API,
+      maWebhookSecret: toneracek ? Boolean(process.env.SHOP_WEBHOOK_SECRET) : Boolean(shop.webhook_secret),
+      tajemstviZProstredi: toneracek,
+      otiskWebhookSecret: !toneracek && shop.webhook_secret ? otiskKlice(hashKlice(shop.webhook_secret)) : '',
+      vydavaEshopKlice: !toneracek,
       novyEshopKlic: extra.novyEshopKlic || null,
       novyWebhookSecret: extra.novyWebhookSecret || null,
       saved: request.query.saved === '1', newKey: request.query.newKey || null,
@@ -293,15 +296,24 @@ export default async function settingsRoutes(fastify) {
   // ── Tajemství pro podání balíku (One SEIL → e-shop) ───────────
   //
   // Hlavička x-webhook-secret u POST {url e-shopu}/api/orders/podat-balik.
-  // Prázdné = globální SHOP_WEBHOOK_SECRET (tak jede Toneráček). Hodnota se
-  // v administraci neukazuje, jen otisk — ať jde porovnat s WEBHOOK_SECRET
-  // v e-shopu, aniž by ležela v HTML.
+  // Každý e-shop kromě Toneráčku má vlastní; bez něj se jeho balík nepodá —
+  // globální SHOP_WEBHOOK_SECRET je tajemství Toneráčku a jinam se neposílá.
+  // Hodnota se v administraci neukazuje, jen otisk — ať jde porovnat
+  // s WEBHOOK_SECRET v e-shopu, aniž by ležela v HTML.
 
   fastify.post('/nastaveni/eshopy/:id/webhook-secret', async (request, reply) => {
     const shopId = parseInt(request.params.id, 10);
     if (!shopId) return reply.code(400).send('Neplatný eshop');
-    const [shop] = await sql`SELECT id FROM shops WHERE id = ${shopId}`;
+    const [shop] = await sql`SELECT id, slug FROM shops WHERE id = ${shopId}`;
     if (!shop) return reply.code(404).send('Eshop nenalezen');
+
+    // Toneráček jede jen na SHOP_WEBHOOK_SECRET z prostředí, stejně jako jeho
+    // API klíč. Dřív tu šlo jedním kliknutím nastavit mu vlastní tajemství,
+    // které e-shop Toneráčku nezná — podání balíku by pak vracelo 401
+    // a převody by se vyřizovaly bez zásilky.
+    if (shop.slug === ESHOP_S_VLASTNIM_API) {
+      return reply.redirect(`/nastaveni/eshopy/${shopId}?error=webhook-secret-toneracek`);
+    }
 
     const akce = String(request.body?.akce || '');
     if (akce === 'vymazat') {
