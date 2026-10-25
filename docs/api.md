@@ -296,6 +296,9 @@ Postup napojení nového e-shopu je v [druhy-eshop.md](druhy-eshop.md).
 
 > `GET /api/toneracek/orders/:id/payment-details` je od téže změny omezený
 > na objednávky Toneráčku jako ostatní jeho endpointy (dřív jediný nebyl).
+> `PATCH /api/toneracek/users/:id` bez polí vrací jen registrovaný účet
+> Toneráčku jako `GET /users/:id`, jinak `404` (dřív kterýkoli kontakt v CRM
+> podle id, na neznámé id `500`).
 
 ---
 

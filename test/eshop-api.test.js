@@ -485,6 +485,23 @@ describe('zákaznické účty po e-shopech', { skip: !TONERACEK_KEY && 'chybí T
     assert.deepEqual({ ...radekPo }, { ...radekPred }, 'řádek účtu Toneráčku v CRM se nezměnil ani v jednom sloupci');
   });
 
+  test('klíč Toneráčku nepřečte zákazníka jen jiného e-shopu ani úpravou bez polí', async () => {
+    const mail = email('jen-eshop-cteni');
+    const reg = await call(ctx.a.klic, 'POST', '/api/eshop/users',
+      { email: mail, jmeno: 'Dita', prijmeni: 'Dílnová', telefon: '777123456', ulice: 'Tajná 1' });
+    assert.equal(reg.status, 201);
+    assert.equal((await call(TONERACEK_KEY, 'GET', `/api/toneracek/users/${reg.body.id}`)).status, 404);
+    const prazdna = await call(TONERACEK_KEY, 'PATCH', `/api/toneracek/users/${reg.body.id}`, {});
+    assert.equal(prazdna.status, 404, 'dřív 200 se jménem, telefonem a adresou zákazníka jiného e-shopu');
+    assert.deepEqual(prazdna.body, { error: 'Not found' });
+    assert.equal((await call(TONERACEK_KEY, 'PATCH', '/api/toneracek/users/neexistuje', {})).status, 404, 'neznámé id není 500');
+    // Registrovaný zákazník Toneráčku dostane úpravou bez polí svůj účet jako dřív
+    // (celou odpověď hlídá i test/toneracek-kontrakt.test.js).
+    const vlastni = await call(TONERACEK_KEY, 'PATCH', `/api/toneracek/users/${ctx.idOba}`, {});
+    assert.equal(vlastni.status, 200);
+    assert.equal(vlastni.body.id, ctx.idOba);
+  });
+
   test('chybějící e-mail je 400 a neznámé id 404', async () => {
     assert.equal((await call(ctx.a.klic, 'GET', '/api/eshop/users')).status, 400);
     assert.equal((await call(ctx.a.klic, 'POST', '/api/eshop/users', {})).status, 400);

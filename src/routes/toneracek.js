@@ -298,7 +298,15 @@ export default async function toneracekRoutes(fastify) {
     if (b.poznamka    !== undefined) sets.push(sql`notes = ${b.poznamka}`);
 
     if (sets.length === 0) {
-      const [row] = await sql`SELECT * FROM crm_contacts WHERE id = ${request.params.id}`;
+      // Jen registrovaný účet, stejně jako GET /users/:id a úprava s poli
+      // níž. Bez podmínky vracel kterýkoli kontakt v CRM podle id — i
+      // zákazníka jen jiného e-shopu (Dílny) nebo obchodního partnera SEILu —
+      // a na neexistující id padal na 500. E-shop Toneráčku sem posílá jen
+      // přihlášené, tedy registrované zákazníky; těm se nic nemění.
+      const [row] = await sql`
+        SELECT * FROM crm_contacts WHERE id = ${request.params.id} AND is_registered = TRUE
+      `;
+      if (!row) return reply.code(404).send({ error: 'Not found' });
       return reply.send(mapContact(row));
     }
 
