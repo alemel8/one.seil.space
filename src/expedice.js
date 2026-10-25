@@ -70,6 +70,12 @@ const BACKOFF_MS = 10 * 60_000;
 /** HTTP stavy e-shopu, které se opakováním nespraví. */
 const TRVALE_HTTP = [400, 401, 403, 404, 422];
 
+/**
+ * E-shop, který jde v ranní expedici první a jehož odkazy a pushe zůstávají
+ * bez označení e-shopu (seznam objednávek ho ukazuje bez ?eshop=).
+ */
+const VYCHOZI_ESHOP = 'toneracek';
+
 /** Co se stalo, řečí obsluhy. Používá UI i push. */
 export const DUVODY_POZASTAVENI = {
   'bez-vydejniho-mista': 'objednávka nemá výdejní místo, balík nelze podat — vyřiďte ji ručně a označte',
@@ -362,10 +368,10 @@ export async function nactiPolozky(sql, orderIds) {
  * trvalou chybu (chybí výdejní místo) od přechodné (e-shop je dole).
  */
 export async function pozadejEshopOPodaniBaliku(log, brand, order) {
-  const secret = process.env.SHOP_WEBHOOK_SECRET;
+  const secret = await webhookSecretEshopu(order.shop_id ?? brand?.id, log);
   if (!secret) {
     log?.warn?.({ order: order.order_number },
-      'SHOP_WEBHOOK_SECRET není nastaveno, balík se nepodal — podej ho ručně');
+      'SHOP_WEBHOOK_SECRET není nastaveno (ani vlastní tajemství e-shopu), balík se nepodal — podej ho ručně');
     return { ok: false, error: 'SHOP_WEBHOOK_SECRET není nastaveno' };
   }
   if (!brand?.url) return { ok: false, error: 'E-shop nemá vyplněnou adresu' };
@@ -392,6 +398,27 @@ export async function pozadejEshopOPodaniBaliku(log, brand, order) {
     log?.error?.({ err, order: order.order_number }, 'Podání balíku se nepodařilo vyžádat');
     return { ok: false, error: err.message };
   }
+}
+
+/**
+ * Tajemství pro volání e-shopu (hlavička x-webhook-secret): vlastní
+ * z `shops.webhook_secret`, jinak globální SHOP_WEBHOOK_SECRET.
+ *
+ * Vlastní tajemství má e-shop proto, aby únik z jednoho e-shopu neotevřel
+ * podávání balíků u druhého. Toneráček má vlastní prázdné a jede na
+ * globálním jako dřív — i když se dotaz nepovede, spadne se na globální,
+ * ať se mu kvůli tomu nic nezmění.
+ */
+export async function webhookSecretEshopu(shopId, log) {
+  if (shopId) {
+    try {
+      const [row] = await getDb()`SELECT webhook_secret FROM shops WHERE id = ${shopId}`;
+      if (row?.webhook_secret) return row.webhook_secret;
+    } catch (err) {
+      log?.warn?.({ err, shopId }, 'Tajemství e-shopu se nepodařilo načíst, použije se SHOP_WEBHOOK_SECRET');
+    }
+  }
+  return process.env.SHOP_WEBHOOK_SECRET || '';
 }
 
 /**
@@ -476,7 +503,7 @@ async function zacatekObdobi(sql, shop, dispatch) {
  * Push o objednávkách, které skladu nešly. Dedupe na sedm dní podle
  * objednávky — objednávka bez výdejního místa by jinak bzučela každé ráno.
  */
-async function oznamPozastavene(sql, pozastavene, log) {
+async function oznamPozastavene(sql, pozastavene, log, shop) {
   const nove = [];
 
   for (const polozka of pozastavene) {
@@ -500,10 +527,16 @@ async function oznamPozastavene(sql, pozastavene, log) {
     .map(p => `#${p.order.order_number} — ${DUVODY_KRATCE[p.reason] ?? p.reason}`)
     .join('; ');
 
+  // U Toneráčku beze změny; u dalších e-shopů jméno v titulku a odkaz na
+  // jejich seznam — jinak by push o objednávkách Dílny otevřel Toneráček.
+  const jinyEshop = shop && shop.slug !== VYCHOZI_ESHOP;
   await sendPushToAll({
-    title: 'Expedice do skladu: zadržené objednávky',
+    title: jinyEshop
+      ? `Expedice do skladu (${shop.name}): zadržené objednávky`
+      : 'Expedice do skladu: zadržené objednávky',
     body: vypis + (nove.length > 5 ? ` a dalších ${nove.length - 5}` : ''),
-    url: '/ucetnictvi/objednavky?sklad=blokovano',
+    url: '/ucetnictvi/objednavky?sklad=blokovano'
+      + (jinyEshop ? `&eshop=${encodeURIComponent(shop.slug)}` : ''),
   }, 'expedice').catch(err => log?.warn?.({ err }, 'Push o zadržených objednávkách neodešel'));
 }
 
@@ -613,14 +646,14 @@ async function provedExpedici(sql, log, { shop, dispatch }) {
         SET status = 'chyba', finished_at = NOW(), order_count = 0, held_count = ${pozastavene.length},
             error = ${`Žádnou zásilku se nepodařilo připravit, zadržených objednávek: ${pozastavene.length}`}
         WHERE id = ${dispatch.id}`;
-      await oznamPozastavene(sql, pozastavene, log);
+      await oznamPozastavene(sql, pozastavene, log, shop);
       return { status: 'chyba', orderCount: 0, heldCount: pozastavene.length };
     }
     await sql`
       UPDATE warehouse_dispatches
       SET status = 'prazdno', finished_at = NOW(), order_count = 0, held_count = ${pozastavene.length}
       WHERE id = ${dispatch.id}`;
-    await oznamPozastavene(sql, pozastavene, log);
+    await oznamPozastavene(sql, pozastavene, log, shop);
     return { status: 'prazdno', orderCount: 0, heldCount: pozastavene.length };
   }
 
@@ -678,7 +711,7 @@ async function provedExpedici(sql, log, { shop, dispatch }) {
   log?.info?.({ dispatchId: dispatch.id, zasilek: skupiny.length, zadrzeno: pozastavene.length, resendId },
     'Expedice do skladu odeslána');
 
-  await oznamPozastavene(sql, pozastavene, log);
+  await oznamPozastavene(sql, pozastavene, log, shop);
 
   return { status: 'odeslano', orderCount: ids.length, heldCount: pozastavene.length };
 }
@@ -734,7 +767,12 @@ export async function tikExpedice(log) {
   bezi = true;
   try {
     const sql = getDb();
-    const shopy = await sql`SELECT * FROM shops WHERE active = TRUE AND warehouse_email <> ''`;
+    // E-shopy jdou po sobě a Packeta umí odpovídat po desítkách sekund —
+    // pevné pořadí s Toneráčkem první, ať mu ranní e-mail nezdrží jiný e-shop.
+    // Bez adresy skladu se e-shop přeskakuje jako dřív (expedice vypnutá).
+    const shopy = await sql`
+      SELECT * FROM shops WHERE active = TRUE AND warehouse_email <> ''
+      ORDER BY (slug = ${VYCHOZI_ESHOP}) DESC, id`;
     for (const shop of shopy) {
       try {
         await zpracujShop(sql, log, shop);
