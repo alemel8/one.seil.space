@@ -4,7 +4,8 @@
 // a v databázi zůstane jen jeho SHA-256 otisk. Toneráčku se klíč pro
 // /api/eshop nevydává — má vlastní API a účty v crm_contacts — a ani
 // tajemství pro balíky: jede na SHOP_WEBHOOK_SECRET z prostředí. Starší
-// klíče pro /api/v1 fungují jako dřív.
+// klíče z api_keys a /api/v1 jsou od 26. 10. 2026 pryč — klíče se vydávají
+// jen tady.
 //
 // Jede proti běžícímu serveru a testovací databázi; přihlášení obchází
 // vložením session. Zakládá si vlastní e-shop a správce a po sobě je uklidí.
@@ -180,11 +181,28 @@ describe('nastavení: klíče pro /api/eshop a tajemství pro balíky', () => {
     assert.equal(s.webhook_secret, '');
   });
 
-  test('starší API klíče (/api/v1) fungují jako dřív', async () => {
-    const res = await post('/nastaveni/eshopy/api-klic/vytvorit', { shop_id: String(ctx.shop.id) });
-    assert.equal(res.status, 302);
-    assert.match(res.headers.get('location'), /^\/nastaveni\/eshopy\?saved=1&newKey=[0-9a-f]{64}$/);
+  test('starší API klíče a /api/v1 jsou pryč — klíč se vydává jen v detailu e-shopu', async () => {
+    // Vydání i deaktivace starého klíče už neexistují a nic nezaloží.
+    assert.equal((await post('/nastaveni/eshopy/api-klic/vytvorit', { shop_id: String(ctx.shop.id) })).status, 404);
+    assert.equal((await post('/nastaveni/eshopy/api-klic/1/deaktivovat')).status, 404);
     const [{ n }] = await sql`SELECT COUNT(*)::int AS n FROM api_keys WHERE shop_id = ${ctx.shop.id}`;
-    assert.equal(n, 1);
+    assert.equal(n, 0);
+
+    // Ani platný starý klíč neotevře /api/v1 (dřív četlo a měnilo všechny kontakty v CRM).
+    const stary = crypto.randomBytes(32).toString('hex');
+    await sql`INSERT INTO api_keys (key, shop_id, active) VALUES (${stary}, ${ctx.shop.id}, TRUE)`;
+    for (const cesta of ['/api/v1/customers', '/api/v1/orders', '/api/docs']) {
+      const res = await fetch(BASE + cesta, { headers: { 'x-api-key': stary }, redirect: 'manual' });
+      assert.notEqual(res.status, 200, `${cesta} nesmí odpovědět 200`);
+      assert.ok([302, 404].includes(res.status), `${cesta}: čekal jsem 404 nebo přesměrování na přihlášení, ne ${res.status}`);
+    }
+
+    // Přehled i detail nabízí jen nový způsob.
+    const prehled = await (await get('/nastaveni/eshopy')).text();
+    assert.ok(!prehled.includes('api-klic'), 'přehled bez starých klíčů');
+    assert.ok(!prehled.includes('+ Nový klíč'));
+    const detail = await (await get(`/nastaveni/eshopy/${ctx.shop.id}`)).text();
+    assert.ok(!detail.includes('api-klic') && !detail.includes('/api/v1'), 'detail bez starých klíčů');
+    assert.ok(detail.includes(`/nastaveni/eshopy/${ctx.shop.id}/eshop-klic/vytvorit`), 'detail vydává klíč pro /api/eshop');
   });
 });

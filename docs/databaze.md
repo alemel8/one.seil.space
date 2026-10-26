@@ -169,8 +169,8 @@ Registrované e-shopy.
 
 ### `eshop_api_keys`
 Klíče pro `/api/eshop/*` (migrace 040). Klíč určuje e-shop; ukládá se jen
-otisk. Schválně ne `api_keys` — klíč odtamtud otevírá i starší `/api/v1`
-a s ním všechny kontakty v CRM.
+otisk. Jediné místo, odkud se klíče vydávají (detail e-shopu → *Napojení
+e-shopu*).
 
 | Sloupec | Typ | Popis |
 |---|---|---|
@@ -183,7 +183,9 @@ a s ním všechny kontakty v CRM.
 | `created_at`, `last_used_at`, `revoked_at` | TIMESTAMPTZ | `last_used_at` se zapisuje nejvýš jednou za 5 minut |
 
 ### `api_keys`
-API klíče pro příjem objednávek (starší `/api/v1`, hlavička `X-API-Key`).
+**Nepoužívá se** (od 26. 10. 2026). Klíče pro starší `/api/v1` (hlavička
+`X-API-Key`); API i jeho správa jsou pryč, kód tabulku nečte. Zůstala, aby
+se nic nemazalo — dá se zrušit samostatnou migrací.
 
 | Sloupec | Typ | Popis |
 |---|---|---|

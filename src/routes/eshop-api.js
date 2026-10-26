@@ -40,8 +40,8 @@ const PAYMENT_LABELS = {
   cod: 'Dobírka',
 };
 
-// Swagger na /api/docs je veřejný a bez tohohle by vypsal i tyhle cesty.
-// Dokumentace je v docs/api.md.
+// Bývalo kvůli veřejnému Swaggeru na /api/docs (zrušený 26. 10. 2026);
+// Fastify klíč `hide` jinak ignoruje. Dokumentace je v docs/api.md.
 const SKRYTO = { schema: { hide: true } };
 
 /**

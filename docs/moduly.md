@@ -468,16 +468,14 @@ objednávky (`supplierCode` → `shop_order_items.supplier_code`). Když chybí,
 
 ---
 
-## Multi-shop API (`src/routes/api.js`)
+## API e-shopů
 
-| Route | Popis |
-|---|---|
-| `POST /api/v1/orders` | Příjem objednávky (X-API-Key header) |
-| `GET /api/v1/orders` | Seznam objednávek e-shopu |
-| `GET /api/v1/customers` | Zákazníci e-shopu |
-| `GET /api/docs` | Swagger UI (OpenAPI dokumentace) |
-
-Každý e-shop má vlastní API klíč. Dokumentace dostupná na `/api/docs`.
+`/api/toneracek/*` (`src/routes/toneracek.js`, klíč `TONERACEK_API_KEY`)
+a `/api/eshop/*` (`src/routes/eshop-api.js`, klíč z detailu e-shopu →
+*Napojení e-shopu*), popis v [api.md](api.md). Starší multi-shop API
+`/api/v1` (`src/routes/api.js`, hlavička `X-API-Key`) a Swagger na
+`/api/docs` byly 26. 10. 2026 odstraněny — nikdo je nepoužíval a klíč
+z `api_keys` otevíral všechny kontakty v CRM.
 
 ---
 

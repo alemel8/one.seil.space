@@ -1,21 +1,17 @@
 # API dokumentace
 
-Interaktivní Swagger UI je dostupné na `/api/docs`. Pozor: cesta je mezi
-veřejnými (`publicPaths` v `src/server.js`), přihlášení nevyžaduje. Cesty
-`/api/eshop/*` jsou ze Swaggeru skryté (`schema.hide`), popisuje je tenhle
-dokument.
+API pro e-shopy: `/api/toneracek` (Toneráček) a `/api/eshop` (ostatní e-shopy,
+stejný kontrakt). Starší multi-shop API `/api/v1` (hlavička `X-API-Key`,
+klíče v tabulce `api_keys`) a veřejný Swagger na `/api/docs` jsou od
+26. 10. 2026 pryč: nikdo je nepoužíval a klíč z `api_keys` otevíral čtení
+i úpravy všech kontaktů v CRM. Tabulka `api_keys` v databázi zůstala, kód
+ji nečte.
 
 ---
 
 ## Autentizace API
 
-### X-API-Key (multi-shop API)
-```
-X-API-Key: <64 hex znaků>
-```
-Klíče se spravují v `/nastaveni/eshopy`.
-
-### Bearer token (Toneráček webhook)
+### Bearer token (Toneráček)
 ```
 Authorization: Bearer <TONERACEK_API_KEY>
 ```
@@ -25,19 +21,17 @@ Hodnota z env proměnné `TONERACEK_API_KEY`.
 ```
 Authorization: Bearer <klíč e-shopu, 64 hex znaků>
 ```
-Klíč vydává Nastavení → Eshopy → detail e-shopu → *Napojení e-shopu*. Ukáže
-se jednou, v databázi (`eshop_api_keys`) je jen jeho SHA-256 otisk. Klíč
-**určuje e-shop** — viz [E-shop API](#e-shop-api-apieshop). Klíče z
-`api_keys` (X-API-Key, `/api/v1`) tu neplatí a obráceně.
+Klíč vydává Nastavení → Eshopy → detail e-shopu → *Napojení e-shopu* — jiné
+místo pro klíče už není. Ukáže se jednou, v databázi (`eshop_api_keys`) je
+jen jeho SHA-256 otisk. Klíč **určuje e-shop** — viz
+[E-shop API](#e-shop-api-apieshop).
 
 ---
 
-## Multi-shop API (`/api/v1`)
+## Toneráček API (`/api/toneracek`)
 
-### POST /api/v1/orders
-Příjem nové objednávky.
-
-**Headers:** `X-API-Key: <key>`, `Content-Type: application/json`
+### POST /api/toneracek/orders
+Příjem objednávky.
 
 **Body:**
 ```json
@@ -84,51 +78,6 @@ Příjem nové objednávky.
   ]
 }
 ```
-
-**Response 201:**
-```json
-{
-  "orderId": "lx7k9abc123",
-  "orderNumber": "12345",
-  "sourceShop": "muj-eshop",
-  "invoiceNumber": "ESHOP-2026-12345"
-}
-```
-
----
-
-### GET /api/v1/orders
-Seznam objednávek e-shopu.
-
-**Query params:**
-- `email` — filtr dle e-mailu zákazníka
-- `limit` — počet výsledků (výchozí 50)
-
-**Response 200:**
-```json
-[
-  {
-    "id": "lx7k9abc123",
-    "order_number": "12345",
-    "status": "Přijata",
-    "total_price": 1490,
-    "email": "jan@example.com",
-    "created_at": "2026-06-04T10:00:00Z"
-  }
-]
-```
-
----
-
-### GET /api/v1/customers
-Zákazníci e-shopu registrovaní přes CRM.
-
----
-
-## Toneráček API (`/api/toneracek`)
-
-### POST /api/toneracek/orders
-Struktura shodná s `/api/v1/orders` s drobnými odchylkami v názvech polí.
 
 Volitelné `status` nastaví výchozí stav objednávky (bez něj „Přijata“).
 E-shop ho posílá jako `"Čeká na platbu"` u plateb kartou — objednávka je do

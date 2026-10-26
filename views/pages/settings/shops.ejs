@@ -1,7 +1,7 @@
 <div class="page-header">
   <div class="page-header-left">
-    <h1>Eshopy &amp; API klíče</h1>
-    <p>Správa napojených eshopů a jejich API přístupů</p>
+    <h1>Eshopy</h1>
+    <p>Napojené eshopy. Klíč pro API, tajemství pro balíky a identitu e-mailů najdete v detailu eshopu.</p>
   </div>
   <button class="btn btn-primary" data-modal-open="modalCreateShop">+ Nový eshop</button>
 </div>
@@ -10,20 +10,11 @@
 <div class="alert alert-success" style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:12px 16px;border-radius:8px;margin-bottom:20px;">✓ Uloženo</div>
 <% } %>
 
-<% if (newKey) { %>
-<div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:16px;margin-bottom:20px;">
-  <strong>Nový API klíč (zobrazí se pouze jednou!):</strong><br>
-  <code style="font-family:var(--font-mono);font-size:14px;word-break:break-all;display:block;margin-top:8px;padding:8px;background:white;border-radius:4px;border:1px solid #e5e7eb;"><%= newKey %></code>
-  <small style="color:var(--text-muted);">Zkopíruj a ulož klíč — po zavření stránky ho nelze znovu zobrazit.</small>
-</div>
-<% } %>
-
 <!-- Eshopy -->
-<h3 style="margin-bottom:12px;">Eshopy</h3>
 <div class="table-wrapper" style="margin-bottom:32px;">
   <table class="data-table">
     <thead>
-      <tr><th>Název</th><th>Slug (ID)</th><th>URL</th><th>API klíče</th><th>Stav</th></tr>
+      <tr><th>Název</th><th>Slug (ID)</th><th>URL</th><th>Klíče API</th><th>Stav</th></tr>
     </thead>
     <tbody>
       <% shops.forEach(sh => { %>
@@ -31,7 +22,13 @@
         <td style="font-weight:500;"><a href="/nastaveni/eshopy/<%= sh.id %>" style="color:var(--text-primary);text-decoration:none;"><%= sh.name %></a></td>
         <td><code style="background:var(--gray-100);padding:2px 6px;border-radius:4px;font-size:12px;"><%= sh.slug %></code></td>
         <td><a href="<%= sh.url %>" target="_blank" style="color:var(--primary);"><%- sh.url || '—' %></a></td>
-        <td><%= sh.key_count %></td>
+        <td>
+          <% if (sh.slug === eshopSVlastnimApi) { %>
+            <span style="color:var(--text-muted);font-size:13px;">vlastní (<code>TONERACEK_API_KEY</code>)</span>
+          <% } else { %>
+            <a href="/nastaveni/eshopy/<%= sh.id %>" style="color:var(--primary);"><%= sh.key_count %> aktivní</a>
+          <% } %>
+        </td>
         <td>
           <% if (sh.active) { %>
             <span class="badge" style="background:#dcfce7;color:#166534;">Aktivní</span>
@@ -43,47 +40,6 @@
       <% }) %>
       <% if (!shops.length) { %>
       <tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted);">Žádné eshopy</td></tr>
-      <% } %>
-    </tbody>
-  </table>
-</div>
-
-<!-- API klíče -->
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-  <h3>API klíče</h3>
-  <button class="btn btn-outline btn-sm" data-modal-open="modalCreateKey">+ Nový klíč</button>
-</div>
-<div class="table-wrapper">
-  <table class="data-table">
-    <thead>
-      <tr><th>Eshop</th><th>Klíč (maskovaný)</th><th>Stav</th><th>Vytvořen</th><th></th></tr>
-    </thead>
-    <tbody>
-      <% keys.forEach(k => { %>
-      <tr>
-        <td><%= k.shop_name %></td>
-        <td><code style="background:var(--gray-100);padding:2px 6px;border-radius:4px;font-size:12px;"><%= k.key.substring(0,8) %>••••••••</code></td>
-        <td>
-          <% if (k.active) { %>
-            <span class="badge" style="background:#dcfce7;color:#166534;">Aktivní</span>
-          <% } else { %>
-            <span class="badge" style="background:var(--gray-100);color:var(--gray-500);">Neaktivní</span>
-          <% } %>
-        </td>
-        <td style="color:var(--text-muted);font-size:13px;">
-          <%= new Date(k.created_at).toLocaleDateString('cs-CZ') %>
-        </td>
-        <td>
-          <% if (k.active) { %>
-          <form method="post" action="/nastaveni/eshopy/api-klic/<%= k.id %>/deaktivovat" style="display:inline;">
-            <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="return confirm('Deaktivovat klíč?')">Deaktivovat</button>
-          </form>
-          <% } %>
-        </td>
-      </tr>
-      <% }) %>
-      <% if (!keys.length) { %>
-      <tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted);">Žádné API klíče</td></tr>
       <% } %>
     </tbody>
   </table>
@@ -115,34 +71,6 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-ghost" onclick="document.getElementById('modalCreateShop').style.display='none'">Zrušit</button>
         <button type="submit" class="btn btn-primary">Vytvořit</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<!-- Modal: Nový API klíč -->
-<div id="modalCreateKey" class="modal-overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
-  <div class="modal" style="max-width:400px;width:90%;">
-    <div class="modal-header">
-      <h3>Nový API klíč</h3>
-      <button class="modal-close" onclick="document.getElementById('modalCreateKey').style.display='none'">&times;</button>
-    </div>
-    <form method="post" action="/nastaveni/eshopy/api-klic/vytvorit">
-      <div class="modal-body">
-        <div class="form-group">
-          <label class="form-label">Eshop *</label>
-          <select name="shop_id" class="form-select" required>
-            <option value="">Vyberte eshop</option>
-            <% shops.forEach(sh => { %>
-            <option value="<%= sh.id %>"><%= sh.name %></option>
-            <% }) %>
-          </select>
-        </div>
-        <p style="color:var(--text-muted);font-size:13px;margin-top:12px;">Klíč bude vygenerován automaticky. Po vytvoření ho zobrazíme jednou — nezapomeňte ho zkopírovat.</p>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-ghost" onclick="document.getElementById('modalCreateKey').style.display='none'">Zrušit</button>
-        <button type="submit" class="btn btn-primary">Vygenerovat klíč</button>
       </div>
     </form>
   </div>

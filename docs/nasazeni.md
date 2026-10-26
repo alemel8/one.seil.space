@@ -161,7 +161,7 @@ Nová migrace: přidej soubor `migrations/0NN_název.sql`. Bude aplikována při
 - `.env`, `data/`, `*.sqlite` jsou v `.gitignore` — nikdy necommituj
 - Session uložena v PostgreSQL, httpOnly cookies
 - Admin přístup je hlídán v každé route zvlášť (`request.user.is_admin`)
-- API klíče pro e-shopy jsou 64 hex znaků (256 bit entropie)
+- API klíče pro e-shopy jsou 64 hex znaků (256 bit entropie), v databázi jen SHA-256 otisk (`eshop_api_keys`)
 - File uploads: validace MIME type, max 20 MB
 - SQL injection: parametrizované dotazy přes `postgres` library (template literals)
 - Puppeteer/Chromium: sandbox vypnut kvůli Dockeru (`--no-sandbox`)

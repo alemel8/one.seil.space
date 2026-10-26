@@ -16,7 +16,7 @@ Přístup je chráněn přihlášením; existuje role uživatel a administrátor
 | **Notifikace** | e-mail (Resend) + push notifikace v PWA na telefonu |
 | **VPS monitoring** | RAM, CPU, disk, Docker, SSL, backupy, 72h grafy |
 | **Healthchecky** | HTTP ping monitorovaných URL, notifikace při výpadku |
-| **Správa** | uživatelé, nastavení firmy, číselné řady, e-shopy a API klíče |
+| **Správa** | uživatelé, nastavení firmy, číselné řady, e-shopy (klíče pro API v detailu e-shopu) |
 
 ## Technologický stack
 
@@ -67,7 +67,7 @@ one.seil.space/
 
 ### Příchozí objednávka z e-shopu
 ```
-E-shop webhook/API → /api/v1/orders nebo /api/toneracek/orders
+E-shop → /api/toneracek/orders nebo /api/eshop/orders
   → INSERT shop_orders + shop_order_items
   → Upsert zákazník do CRM
   → Push notifikace všem uživatelům

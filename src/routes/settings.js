@@ -138,24 +138,24 @@ export default async function settingsRoutes(fastify) {
     return reply.redirect('/nastaveni/ciselne-rady');
   });
 
-  // ── Eshopy + API klíče ────────────────────────────────────────
+  // ── Eshopy ────────────────────────────────────────────────────
+  //
+  // Klíče se vydávají jen v detailu e-shopu (karta „Napojení e-shopu“, tabulka
+  // eshop_api_keys). Starší klíče z api_keys otevíraly /api/v1 a s ním všechny
+  // kontakty v CRM; nikdo to API nepoužíval, 26. 10. 2026 zmizelo i s nimi.
+  // Tabulka api_keys v databázi zůstala (nic se nemaže), kód ji už nečte.
 
   fastify.get('/nastaveni/eshopy', async (request, reply) => {
     const shops = await sql`
-      SELECT s.*, COUNT(k.id)::int AS key_count
+      SELECT s.*, COUNT(k.id) FILTER (WHERE k.active)::int AS key_count
       FROM shops s
-      LEFT JOIN api_keys k ON k.shop_id = s.id
+      LEFT JOIN eshop_api_keys k ON k.shop_id = s.id
       GROUP BY s.id ORDER BY s.name
     `;
-    const keys = await sql`
-      SELECT k.*, s.name AS shop_name
-      FROM api_keys k JOIN shops s ON k.shop_id = s.id
-      ORDER BY s.name, k.created_at DESC
-    `;
     return reply.view('pages/settings/shops.ejs', {
-      pageTitle: 'Eshopy & API klíče', currentPath: '/nastaveni/eshopy',
-      user: request.user, shops, keys,
-      saved: request.query.saved === '1', newKey: request.query.newKey || null,
+      pageTitle: 'Eshopy', currentPath: '/nastaveni/eshopy',
+      user: request.user, shops, eshopSVlastnimApi: ESHOP_S_VLASTNIM_API,
+      saved: request.query.saved === '1',
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -170,23 +170,6 @@ export default async function settingsRoutes(fastify) {
     return reply.redirect('/nastaveni/eshopy?saved=1');
   });
 
-  fastify.post('/nastaveni/eshopy/api-klic/vytvorit', async (request, reply) => {
-    const b = request.body || {};
-    const shopId = parseInt(b.shop_id, 10);
-    if (!shopId) return reply.redirect('/nastaveni/eshopy?error=missing');
-
-    // Vygeneruj bezpečný API klíč
-    const { randomBytes } = await import('node:crypto');
-    const newKey = randomBytes(32).toString('hex');
-
-    await sql`INSERT INTO api_keys (key, shop_id, active) VALUES (${newKey}, ${shopId}, TRUE)`;
-    return reply.redirect(`/nastaveni/eshopy?saved=1&newKey=${newKey}`);
-  });
-
-  fastify.post('/nastaveni/eshopy/api-klic/:id/deaktivovat', async (request, reply) => {
-    await sql`UPDATE api_keys SET active = FALSE WHERE id = ${request.params.id}`;
-    return reply.redirect('/nastaveni/eshopy');
-  });
 
   // ── Detail eshopu (healthcheck + alerty) ──────────────────────
 
@@ -208,7 +191,6 @@ export default async function settingsRoutes(fastify) {
       ) r ON TRUE
       WHERE h.shop_id = ${shop.id} ORDER BY h.name
     `;
-    const keys = await sql`SELECT * FROM api_keys WHERE shop_id = ${shop.id} ORDER BY created_at DESC`;
     const eshopKlice = (await sql`
       SELECT k.id, k.label, k.active, k.created_at, k.last_used_at, k.revoked_at, k.key_hash,
              TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS vytvoril
@@ -236,7 +218,7 @@ export default async function settingsRoutes(fastify) {
 
     return reply.view('pages/settings/shop-detail.ejs', {
       pageTitle: shop.name, currentPath: '/nastaveni/eshopy',
-      user: request.user, shop, checks, keys, channels, rules, expedice, eshopKlice,
+      user: request.user, shop, checks, channels, rules, expedice, eshopKlice,
       // Bez těchhle tajemství expedice objednávky jen zadrží — ať to admin
       // vidí tady, a ne až v pushi o zadržených objednávkách. Tajemství pro
       // podání balíku bere Toneráček jen z prostředí a ostatní e-shopy jen
@@ -248,7 +230,7 @@ export default async function settingsRoutes(fastify) {
       vydavaEshopKlice: !toneracek,
       novyEshopKlic: extra.novyEshopKlic || null,
       novyWebhookSecret: extra.novyWebhookSecret || null,
-      saved: request.query.saved === '1', newKey: request.query.newKey || null,
+      saved: request.query.saved === '1',
       error: extra.error || request.query.error || null,
     }, { layout: 'layouts/base.ejs' });
   }
@@ -259,9 +241,9 @@ export default async function settingsRoutes(fastify) {
 
   // ── Klíče pro /api/eshop ─────────────────────────────────────
   //
-  // Vlastní tabulka, ne api_keys výš: klíč z api_keys otevírá i starší
-  // /api/v1 a s ním všechny kontakty v CRM. V databázi zůstane jen otisk,
-  // klíč se ukáže jednou v odpovědi na tenhle POST.
+  // Jediné místo, kde se klíče vydávají (starší api_keys a /api/v1 jsou pryč,
+  // viz přehled eshopů výš). V databázi zůstane jen otisk, klíč se ukáže
+  // jednou v odpovědi na tenhle POST.
 
   fastify.post('/nastaveni/eshopy/:id/eshop-klic/vytvorit', async (request, reply) => {
     const shopId = parseInt(request.params.id, 10);

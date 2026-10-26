@@ -4,8 +4,6 @@ import fastifySession from '@fastify/session';
 import formbody from '@fastify/formbody';
 import view from '@fastify/view';
 import staticPlugin from '@fastify/static';
-import swagger from '@fastify/swagger';
-import swaggerUi from '@fastify/swagger-ui';
 import ejs from 'ejs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -73,31 +71,9 @@ await fastify.register(staticPlugin, {
   decorateReply: false,
 });
 
-await fastify.register(swagger, {
-  openapi: {
-    openapi: '3.0.0',
-    info: {
-      title: 'one.seil.space API',
-      description: 'Multi-eshop API pro příjem objednávek a správu zákazníků v CRM.',
-      version: '1.0.0',
-    },
-    components: {
-      securitySchemes: {
-        apiKey: { type: 'apiKey', name: 'X-API-Key', in: 'header' },
-      },
-    },
-    tags: [
-      { name: 'Objednávky', description: 'Příjem a správa objednávek z eshopů' },
-      { name: 'Zákazníci',  description: 'Registrace a správa zákazníků v CRM' },
-    ],
-  },
-});
-
-await fastify.register(swaggerUi, {
-  routePrefix: '/api/docs',
-  uiConfig: { docExpansion: 'list', deepLinking: true },
-  staticCSP: true,
-});
+// Veřejná Swagger dokumentace na /api/docs popisovala jen starší /api/v1
+// (hlavička X-API-Key), které je od 26. 10. 2026 pryč. API e-shopů
+// (/api/toneracek, /api/eshop) je popsané v docs/api.md.
 
 // ── Auth hook ─────────────────────────────────────────────────
 
@@ -181,7 +157,7 @@ fastify.addHook('onRequest', async (request, reply) => {
   // i výplatní pásky komukoli, kdo uhodne název souboru. Profilové fotky
   // se z něj berou jen na stránkách za přihlášením.
   // '/api/eshop' si klíč ověřuje sám (src/eshop-klice.js) — bez session.
-  const publicPaths = ['/prihlasit', '/health', '/static', '/health/api', '/api/toneracek', '/api/eshop', '/api/v1', '/api/docs', '/health/cookie-test', '/api/webhook'];
+  const publicPaths = ['/prihlasit', '/health', '/static', '/health/api', '/api/toneracek', '/api/eshop', '/health/cookie-test', '/api/webhook'];
   const isPublic = publicPaths.some(
     p => request.url === p || request.url.startsWith(p + '/') || request.url.startsWith(p + '?')
   );
@@ -192,7 +168,6 @@ fastify.addHook('onRequest', async (request, reply) => {
 
 // ── Routes ────────────────────────────────────────────────────
 
-const { default: apiRoutes }        = await import('./routes/api.js');
 const { default: dashboardRoutes }  = await import('./routes/dashboard.js');
 const { default: crmRoutes }        = await import('./routes/crm.js');
 const { default: projectsRoutes }   = await import('./routes/projects.js');
@@ -211,7 +186,6 @@ const { default: pushRoutes }       = await import('./routes/push.js');
 const { default: userSettingsRoutes } = await import('./routes/user-settings.js');
 const { default: tradeRoutes }      = await import('./routes/trade.js');
 
-await fastify.register(apiRoutes);
 await fastify.register(dashboardRoutes);
 await fastify.register(crmRoutes);
 await fastify.register(projectsRoutes);
