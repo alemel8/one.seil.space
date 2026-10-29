@@ -62,7 +62,7 @@
           </thead>
           <tbody>
             <% if (rules.length > 0) { %>
-              <% const eventLabels = { app_down:'App down', disk_high:'Disk > %', ram_high:'RAM > %', cpu_high:'CPU load >', invoice_overdue:'Faktury po splatnosti' }; %>
+              <% const eventLabels = { app_down:'App down', disk_high:'Disk > %', ram_high:'RAM > %', cpu_high:'CPU load >', invoice_overdue:'Faktury po splatnosti', marketing_pno_high:'PNO nad prahem (marketing)', marketing_sync_failed:'Stahování marketingu selhalo' }; %>
               <% rules.forEach(r => { %>
               <tr>
                 <td><%= eventLabels[r.event_type] || r.event_type %></td>
@@ -220,6 +220,8 @@
             <option value="ram_high">RAM překročí práh (%)</option>
             <option value="cpu_high">CPU load překročí práh</option>
             <option value="invoice_overdue">Faktury po splatnosti (denní)</option>
+            <option value="marketing_pno_high">PNO e-shopu nad prahem (marketing, denní)</option>
+            <option value="marketing_sync_failed">Stahování marketingových statistik selhalo</option>
           </select>
         </div>
         <div class="form-group">

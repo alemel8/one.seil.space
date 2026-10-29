@@ -1,0 +1,21 @@
+{
+  "dimensionHeaders": [{ "name": "date" }, { "name": "sessionSourceMedium" }],
+  "metricHeaders": [
+    { "name": "sessions", "type": "TYPE_INTEGER" },
+    { "name": "totalUsers", "type": "TYPE_INTEGER" },
+    { "name": "ecommercePurchases", "type": "TYPE_INTEGER" },
+    { "name": "purchaseRevenue", "type": "TYPE_CURRENCY" }
+  ],
+  "rows": [
+    { "dimensionValues": [{ "value": "20261005" }, { "value": "google / organic" }], "metricValues": [{ "value": "71" }, { "value": "66" }, { "value": "1" }, { "value": "1290" }] },
+    { "dimensionValues": [{ "value": "20261005" }, { "value": "google / cpc" }], "metricValues": [{ "value": "38" }, { "value": "35" }, { "value": "2" }, { "value": "1345.54" }] },
+    { "dimensionValues": [{ "value": "20261005" }, { "value": "(direct) / (none)" }], "metricValues": [{ "value": "24" }, { "value": "20" }, { "value": "0" }, { "value": "0" }] },
+    { "dimensionValues": [{ "value": "20261005" }, { "value": "seznam / organic" }], "metricValues": [{ "value": "9" }, { "value": "7" }, { "value": "0" }, { "value": "0" }] },
+    { "dimensionValues": [{ "value": "20261006" }, { "value": "google / organic" }], "metricValues": [{ "value": "60" }, { "value": "57" }, { "value": "0" }, { "value": "0" }] },
+    { "dimensionValues": [{ "value": "20261006" }, { "value": "(direct) / (none)" }], "metricValues": [{ "value": "38" }, { "value": "34" }, { "value": "0" }, { "value": "0" }] },
+    { "dimensionValues": [{ "value": "20261007" }, { "value": "google / organic" }], "metricValues": [{ "value": "5" }, { "value": "5" }, { "value": "0" }, { "value": "0" }] }
+  ],
+  "rowCount": 7,
+  "metadata": { "currencyCode": "CZK", "timeZone": "Europe/Prague" },
+  "kind": "analyticsData#runReport"
+}

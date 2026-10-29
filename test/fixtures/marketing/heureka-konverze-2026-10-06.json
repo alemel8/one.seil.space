@@ -1,0 +1,18 @@
+{
+  "conversions": [
+    {
+      "date": "2026-10-06",
+      "click_source": "product_detail",
+      "on_bidded_position": true,
+      "satellite_name": "heureka.cz",
+      "product_card_id": 1234567,
+      "shop_item": { "id": "T01020", "name": "HP 305XL černá" },
+      "portal_category": { "id": 1306, "name": "Inkoustové náplně", "tree": ["Počítače a kancelář", "Tiskárny a příslušenství", "Inkoustové náplně"] },
+      "visits": { "total": 11, "bidded": 11, "not_bidded": 0, "free": 0 },
+      "orders": { "total": 0, "bidded": 0, "not_bidded": 0, "free": 0 },
+      "revenue": { "total": 0, "bidded": 0, "not_bidded": 0, "free": 0 },
+      "costs_with_vat": { "total": "66.55", "bidded": "66.55", "not_bidded": "0" },
+      "costs_without_vat": { "total": "55.00", "bidded": "55.00", "not_bidded": "0" }
+    }
+  ]
+}

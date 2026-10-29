@@ -1,0 +1,28 @@
+{
+  "od": "2026-10-05",
+  "do": "2026-10-07",
+  "hledani": {
+    "celkem": 41,
+    "bezVysledku": [
+      { "dotaz": "canon 545 xl", "n": 3, "posledni": "2026-10-06T10:11:12.000Z" },
+      { "dotaz": "brother tn 2421", "n": 2, "posledni": "2026-10-05T18:40:00.000Z" },
+      { "dotaz": "  canon 545 xl ", "n": 1, "posledni": "2026-10-06T11:00:00.000Z" }
+    ],
+    "nejcastejsi": [
+      { "dotaz": "HP 305XL", "n": 12, "vysledku": 4 },
+      { "dotaz": "canon 545 xl", "n": 3, "vysledku": 0 }
+    ]
+  },
+  "kosiky": {
+    "pocet": 3,
+    "hodnota": 3290,
+    "dokonceno": 1,
+    "pripomenuto": 1,
+    "top": [{ "sku": "T03031", "nazev": "Canon CRG-716Y", "pocet": 3 }]
+  },
+  "poDnech": [
+    { "datum": "2026-10-05", "hledani": 15, "hledaniBezVysledku": 2, "kosiky": 1, "kosikyHodnota": 756 },
+    { "datum": "2026-10-06", "hledani": 18, "hledaniBezVysledku": 3, "kosiky": 2, "kosikyHodnota": 2534 },
+    { "datum": "2026-10-07", "hledani": 8, "hledaniBezVysledku": 0, "kosiky": 0, "kosikyHodnota": 0 }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "userId": 456789,
+  "userName": "obchod@toneracek.cz",
+  "actor": null,
+  "scope": ["campaign", "group", "ad_list", "keyword", "conversion", "sem", "retargeting"]
+}

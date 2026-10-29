@@ -1,0 +1,12 @@
+{
+  "rows": [
+    { "keys": ["2026-10-05", "toner hp 305xl"], "clicks": 6, "impressions": 140, "ctr": 0.0429, "position": 4.1 },
+    { "keys": ["2026-10-05", "canon crg-716"], "clicks": 4, "impressions": 92, "ctr": 0.0435, "position": 6.8 },
+    { "keys": ["2026-10-05", "toneráček"], "clicks": 4, "impressions": 15, "ctr": 0.2667, "position": 1.1 },
+    { "keys": ["2026-10-05", "brother tn-2421 kompatibilní"], "clicks": 0, "impressions": 210, "ctr": 0, "position": 23.5 },
+    { "keys": ["2026-10-06", "toner hp 305xl"], "clicks": 9, "impressions": 171, "ctr": 0.0526, "position": 3.9 },
+    { "keys": ["2026-10-06", "náplň epson 603"], "clicks": 3, "impressions": 88, "ctr": 0.0341, "position": 7.2 },
+    { "keys": ["2026-10-07", "toner hp 305xl"], "clicks": 1, "impressions": 20, "ctr": 0.05, "position": 5 }
+  ],
+  "responseAggregationType": "byProperty"
+}

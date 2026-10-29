@@ -1,0 +1,17 @@
+[
+  {
+    "results": [
+      {
+        "customer": {
+          "resourceName": "customers/8827181396",
+          "id": "8827181396",
+          "descriptiveName": "Toneráček",
+          "currencyCode": "CZK",
+          "timeZone": "Europe/Prague"
+        }
+      }
+    ],
+    "fieldMask": "customer.id,customer.descriptiveName,customer.currencyCode,customer.timeZone",
+    "requestId": "a9QwErTyUiOpAsDfGhJkLz"
+  }
+]

@@ -1,0 +1,13 @@
+{
+  "name": "properties/318467224",
+  "parent": "accounts/123456789",
+  "createTime": "2024-08-01T09:12:33.000Z",
+  "updateTime": "2026-09-30T18:02:11.000Z",
+  "displayName": "Toneráček",
+  "industryCategory": "SHOPPING",
+  "timeZone": "Europe/Prague",
+  "currencyCode": "CZK",
+  "serviceLevel": "GOOGLE_ANALYTICS_STANDARD",
+  "account": "accounts/123456789",
+  "propertyType": "PROPERTY_TYPE_ORDINARY"
+}

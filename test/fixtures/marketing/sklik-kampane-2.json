@@ -1,0 +1,6 @@
+{
+  "items": [
+    { "id": 7654321, "name": "Zboží – tonery", "type": "zbozi", "zboziPremiseId": 55555, "firstDate": "2026-10-06", "lastDate": "2026-10-06", "impressions": 4870, "clicks": 74, "totalMoney": 52550, "conversions": 0, "conversionValue": 0 },
+    { "id": 1111111, "name": "Obsahová – retargeting", "type": "context", "firstDate": "2026-10-06", "lastDate": "2026-10-06", "impressions": 12400, "clicks": 15, "totalMoney": 7350, "conversions": -1, "conversionValue": 0 }
+  ]
+}

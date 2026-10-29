@@ -1,0 +1,8 @@
+{
+  "name": "accounts/123456789",
+  "accountId": "123456789",
+  "accountName": "Toneráček",
+  "adultContent": false,
+  "timeZone": { "id": "Europe/Prague" },
+  "languageCode": "cs"
+}

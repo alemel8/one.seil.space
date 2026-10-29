@@ -1,0 +1,7 @@
+{
+  "items": [
+    { "id": 1234567, "name": "Tonery – vyhledávání", "type": "fulltext", "firstDate": "2026-10-05", "lastDate": "2026-10-05", "impressions": 2310, "clicks": 96, "totalMoney": 123450, "conversions": 2, "conversionValue": 318900 },
+    { "id": 1234567, "name": "Tonery – vyhledávání", "type": "fulltext", "firstDate": "2026-10-06", "lastDate": "2026-10-06", "impressions": 1980, "clicks": 71, "totalMoney": 98005, "conversions": 0, "conversionValue": 0 },
+    { "id": 7654321, "name": "Zboží – tonery", "type": "zbozi", "zboziPremiseId": 55555, "firstDate": "2026-10-05", "lastDate": "2026-10-05", "impressions": 5120, "clicks": 88, "totalMoney": 61600, "conversions": 1, "conversionValue": 129000 }
+  ]
+}

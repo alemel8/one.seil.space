@@ -185,6 +185,7 @@ const { default: monitoringRoutes } = await import('./routes/monitoring.js');
 const { default: pushRoutes }       = await import('./routes/push.js');
 const { default: userSettingsRoutes } = await import('./routes/user-settings.js');
 const { default: tradeRoutes }      = await import('./routes/trade.js');
+const { default: marketingRoutes }  = await import('./routes/marketing.js');
 
 await fastify.register(dashboardRoutes);
 await fastify.register(crmRoutes);
@@ -203,6 +204,7 @@ await fastify.register(monitoringRoutes);
 await fastify.register(pushRoutes);
 await fastify.register(userSettingsRoutes);
 await fastify.register(tradeRoutes);
+await fastify.register(marketingRoutes);
 
 // ── Error handlers ────────────────────────────────────────────
 
@@ -279,6 +281,15 @@ try {
 {
   const { startExpediceScheduler } = await import('./expedice.js');
   startExpediceScheduler(fastify.log);
+}
+
+// ── Background: noční stahování marketingových statistik ─────
+//
+// Po páté pražského času jeden běh na zdroj a den; okno se přepisuje zpětně,
+// protože platformy dopočítávají konverze. Zámek a backoff v src/marketing/sync.js.
+{
+  const { startMarketingScheduler } = await import('./marketing/sync.js');
+  startMarketingScheduler(fastify.log);
 }
 
 // ── Graceful shutdown ─────────────────────────────────────────

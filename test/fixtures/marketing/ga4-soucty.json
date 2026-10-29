@@ -1,0 +1,38 @@
+{
+  "dimensionHeaders": [{ "name": "date" }],
+  "metricHeaders": [
+    { "name": "sessions", "type": "TYPE_INTEGER" },
+    { "name": "totalUsers", "type": "TYPE_INTEGER" },
+    { "name": "newUsers", "type": "TYPE_INTEGER" },
+    { "name": "engagementRate", "type": "TYPE_FLOAT" },
+    { "name": "itemsViewed", "type": "TYPE_INTEGER" },
+    { "name": "addToCarts", "type": "TYPE_INTEGER" },
+    { "name": "checkouts", "type": "TYPE_INTEGER" },
+    { "name": "ecommercePurchases", "type": "TYPE_INTEGER" },
+    { "name": "purchaseRevenue", "type": "TYPE_CURRENCY" }
+  ],
+  "rows": [
+    {
+      "dimensionValues": [{ "value": "20261005" }],
+      "metricValues": [
+        { "value": "142" }, { "value": "128" }, { "value": "97" }, { "value": "0.6126760563380281" },
+        { "value": "311" }, { "value": "19" }, { "value": "7" }, { "value": "3" }, { "value": "2635.54" }
+      ]
+    },
+    {
+      "dimensionValues": [{ "value": "20261006" }],
+      "metricValues": [
+        { "value": "98" }, { "value": "91" }, { "value": "70" }, { "value": "0.58" },
+        { "value": "204" }, { "value": "11" }, { "value": "2" }, { "value": "0" }, { "value": "0" }
+      ]
+    }
+  ],
+  "rowCount": 2,
+  "metadata": { "currencyCode": "CZK", "timeZone": "Europe/Prague" },
+  "propertyQuota": {
+    "tokensPerDay": { "consumed": 14, "remaining": 199986 },
+    "tokensPerHour": { "consumed": 14, "remaining": 39986 },
+    "concurrentRequests": { "consumed": 0, "remaining": 10 }
+  },
+  "kind": "analyticsData#runReport"
+}

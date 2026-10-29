@@ -1,0 +1,6 @@
+{
+  "siteEntry": [
+    { "siteUrl": "sc-domain:toneracek.cz", "permissionLevel": "siteRestrictedUser" },
+    { "siteUrl": "https://dilnavlnenka.cz/", "permissionLevel": "siteFullUser" }
+  ]
+}

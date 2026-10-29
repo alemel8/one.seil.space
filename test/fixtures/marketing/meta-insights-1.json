@@ -1,0 +1,39 @@
+{
+  "data": [
+    {
+      "campaign_id": "120210001234560001",
+      "campaign_name": "Retargeting – košík",
+      "spend": "215.37",
+      "impressions": "8120",
+      "clicks": "96",
+      "inline_link_clicks": "71",
+      "actions": [
+        { "action_type": "link_click", "value": "71" },
+        { "action_type": "landing_page_view", "value": "58" },
+        { "action_type": "omni_purchase", "value": "2" },
+        { "action_type": "offsite_conversion.fb_pixel_purchase", "value": "2" }
+      ],
+      "action_values": [
+        { "action_type": "omni_purchase", "value": "1879.00" },
+        { "action_type": "offsite_conversion.fb_pixel_purchase", "value": "1879.00" }
+      ],
+      "purchase_roas": [{ "action_type": "omni_purchase", "value": "8.724242" }],
+      "date_start": "2026-10-05",
+      "date_stop": "2026-10-05"
+    },
+    {
+      "campaign_id": "120210001234560002",
+      "campaign_name": "Katalog – DPA",
+      "spend": "348.9",
+      "impressions": "15470",
+      "clicks": "203",
+      "inline_link_clicks": "160",
+      "date_start": "2026-10-05",
+      "date_stop": "2026-10-05"
+    }
+  ],
+  "paging": {
+    "cursors": { "before": "MAZDZD", "after": "MQZDZD" },
+    "next": "https://graph.facebook.com/v26.0/act_123456789/insights?access_token=TAJNE-TOKEN&level=campaign&fields=campaign_id&time_increment=1&limit=500&after=MQZDZD"
+  }
+}

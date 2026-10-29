@@ -1,0 +1,60 @@
+{
+  "conversions": [
+    {
+      "date": "2026-10-05",
+      "click_source": "product_detail",
+      "on_bidded_position": true,
+      "satellite_name": "heureka.cz",
+      "product_card_id": 9876543,
+      "shop_item": { "id": "T03031", "name": "Canon CRG-716Y žlutý" },
+      "portal_category": { "id": 1305, "name": "Tonery", "tree": ["Počítače a kancelář", "Tiskárny a příslušenství", "Tonery"] },
+      "visits": { "total": 14, "bidded": 9, "not_bidded": 3, "free": 2 },
+      "orders": { "total": 1, "bidded": 1, "not_bidded": 0, "free": 0 },
+      "revenue": { "total": 1290.0, "bidded": 1290.0, "not_bidded": 0, "free": 0 },
+      "costs_with_vat": { "total": 84.7, "bidded": 84.7, "not_bidded": 0 },
+      "costs_without_vat": { "total": 70.0, "bidded": 70.0, "not_bidded": 0 }
+    },
+    {
+      "date": "2026-10-05",
+      "click_source": "category",
+      "on_bidded_position": false,
+      "satellite_name": "heureka.cz",
+      "product_card_id": 9876543,
+      "shop_item": { "id": "T03031", "name": "Canon CRG-716Y žlutý" },
+      "portal_category": { "id": 1305, "name": "Tonery", "tree": ["Počítače a kancelář", "Tiskárny a příslušenství", "Tonery"] },
+      "visits": { "total": 6, "bidded": 0, "not_bidded": 6, "free": 0 },
+      "orders": { "total": 0, "bidded": 0, "not_bidded": 0, "free": 0 },
+      "revenue": { "total": 0, "bidded": 0, "not_bidded": 0, "free": 0 },
+      "costs_with_vat": { "total": 29.04, "bidded": 0, "not_bidded": 29.04 },
+      "costs_without_vat": { "total": 24.0, "bidded": 0, "not_bidded": 24.0 }
+    },
+    {
+      "date": "2026-10-05",
+      "click_source": "product_detail",
+      "on_bidded_position": true,
+      "satellite_name": "heureka.cz",
+      "product_card_id": 1234567,
+      "shop_item": { "id": "T01020", "name": "HP 305XL černá" },
+      "portal_category": { "id": 1306, "name": "Inkoustové náplně", "tree": ["Počítače a kancelář", "Tiskárny a příslušenství", "Inkoustové náplně"] },
+      "visits": { "total": 22, "bidded": 20, "not_bidded": 2, "free": 0 },
+      "orders": { "total": 2, "bidded": 2, "not_bidded": 0, "free": 0 },
+      "revenue": { "total": 1578.0, "bidded": 1578.0, "not_bidded": 0, "free": 0 },
+      "costs_with_vat": { "total": 133.1, "bidded": 133.1, "not_bidded": 0 },
+      "costs_without_vat": { "total": 110.0, "bidded": 110.0, "not_bidded": 0 }
+    },
+    {
+      "date": "2026-10-05",
+      "click_source": "product_detail",
+      "on_bidded_position": false,
+      "satellite_name": "heureka.cz",
+      "product_card_id": 5555555,
+      "shop_item": { "id": "T09999", "name": "Epson 603 sada" },
+      "portal_category": { "id": 1306, "name": "Inkoustové náplně", "tree": [] },
+      "visits": { "total": 3, "bidded": 0, "not_bidded": 0, "free": 3 },
+      "orders": { "total": 0, "bidded": 0, "not_bidded": 0, "free": 0 },
+      "revenue": { "total": 0, "bidded": 0, "not_bidded": 0, "free": 0 },
+      "costs_with_vat": null,
+      "costs_without_vat": null
+    }
+  ]
+}

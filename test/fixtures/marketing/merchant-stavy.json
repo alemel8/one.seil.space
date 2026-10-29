@@ -1,0 +1,25 @@
+{
+  "aggregateProductStatuses": [
+    {
+      "name": "accounts/123456789/aggregateProductStatuses/SHOPPING_ADS~CZ",
+      "reportingContext": "SHOPPING_ADS",
+      "country": "CZ",
+      "stats": { "activeCount": "1498", "pendingCount": "12", "disapprovedCount": "57", "expiringCount": "3" },
+      "itemLevelIssues": [
+        { "code": "image_link_broken", "severity": "DISAPPROVED", "resolution": "merchant_action", "attribute": "image_link", "description": "Obrázek nelze stáhnout", "numProducts": "57" }
+      ]
+    },
+    {
+      "name": "accounts/123456789/aggregateProductStatuses/SHOPPING_ADS~SK",
+      "reportingContext": "SHOPPING_ADS",
+      "country": "SK",
+      "stats": { "activeCount": "2", "pendingCount": "0", "disapprovedCount": "1", "expiringCount": "0" }
+    },
+    {
+      "name": "accounts/123456789/aggregateProductStatuses/FREE_LISTINGS~CZ",
+      "reportingContext": "FREE_LISTINGS",
+      "country": "CZ",
+      "stats": { "activeCount": "1510", "pendingCount": "0", "disapprovedCount": "45", "expiringCount": "0" }
+    }
+  ]
+}

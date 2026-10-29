@@ -1,0 +1,6 @@
+{
+  "results": [
+    { "productPerformanceView": { "date": { "year": 2026, "month": 10, "day": 6 }, "marketingMethod": "ORGANIC", "clicks": "37", "impressions": "2980", "clickThroughRate": 0.012416 } },
+    { "productPerformanceView": { "date": "2026-10-06", "marketingMethod": "ADS", "clicks": "61", "impressions": "4410", "clickThroughRate": 0.013832 } }
+  ]
+}

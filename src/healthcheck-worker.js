@@ -54,7 +54,12 @@ async function sendEmailNotification(toEmail, subject, text) {
   });
 }
 
-async function dispatchAlert(eventType, eventKey, message, opts = {}) {
+/**
+ * Rozešle upozornění podle pravidel (notification_rules) a vrátí počet
+ * oslovených kanálů — marketingové alerty (src/marketing/alerty.js) bez
+ * pravidla posílají aspoň push všem.
+ */
+export async function dispatchAlert(eventType, eventKey, message, opts = {}) {
   const channels = await sql`
     SELECT c.* FROM notification_rules r
     JOIN notification_channels c ON r.channel_id = c.id
@@ -78,6 +83,7 @@ async function dispatchAlert(eventType, eventKey, message, opts = {}) {
       console.error('[NOTIFY] Error sending to channel', ch.id, err.message);
     }
   }
+  return channels.length;
 }
 
 // ── Ping jednotlivých healthchecků ───────────────────────────
