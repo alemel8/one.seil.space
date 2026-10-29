@@ -16,6 +16,7 @@ Přístup je chráněn přihlášením; existuje role uživatel a administrátor
 | **Notifikace** | e-mail (Resend) + push notifikace v PWA na telefonu |
 | **VPS monitoring** | RAM, CPU, disk, Docker, SSL, backupy, 72h grafy |
 | **Healthchecky** | HTTP ping monitorovaných URL, notifikace při výpadku |
+| **Marketing** | PNO, ROAS, marže a zisk po reklamě po e-shopech; náklady z GA4, Google Ads, Search Console, Merchant, Sklik/Zboží, Heureka, Meta a z e-shopu; ruční náklady; noční synchronizace |
 | **Správa** | uživatelé, nastavení firmy, číselné řady, e-shopy (klíče pro API v detailu e-shopu) |
 
 ## Technologický stack
@@ -27,6 +28,7 @@ Přístup je chráněn přihlášením; existuje role uživatel a administrátor
 - **E-mail:** Resend
 - **AI:** Anthropic Claude API (analýza účtenek)
 - **Push notifikace:** Web Push / VAPID
+- **Grafy:** Chart.js 4.4.7 (vendorovaný UMD build `public/chart.umd.min.js`, MIT)
 - **Deploy:** Docker, Coolify, VPS vps.seil.space
 
 ## Struktura repozitáře
@@ -46,6 +48,8 @@ one.seil.space/
 │   ├── healthcheck-worker.js # Worker pro HTTP healthchecky
 │   ├── collector.js        # VPS stats kolektor (cron na hostu)
 │   ├── session-store.js    # PostgreSQL session store
+│   ├── google-auth.js      # Service account Googlu (JWT → token), společný pro Disk i Marketing
+│   ├── atribuce-objednavky.js # Zdroj objednávky a nákupní cena z těla POST …/orders
 │   └── routes/             # Fastify route pluginy (viz moduly.md)
 ├── views/                  # EJS šablony
 │   ├── layouts/base.ejs    # Hlavní layout (navbar, sidebar)
@@ -53,6 +57,7 @@ one.seil.space/
 │   └── pdf/invoice.ejs     # Šablona pro PDF faktury
 ├── public/
 │   ├── sw.js               # Service Worker (PWA + push notifikace)
+│   ├── chart.umd.min.js    # Chart.js 4.4.7 (UMD, MIT) pro grafy
 │   └── manifest.json       # PWA manifest
 ├── migrations/             # Číslované SQL migrace (001–010)
 ├── docs/                   # Tato dokumentace
@@ -68,7 +73,7 @@ one.seil.space/
 ### Příchozí objednávka z e-shopu
 ```
 E-shop → /api/toneracek/orders nebo /api/eshop/orders
-  → INSERT shop_orders + shop_order_items
+  → INSERT shop_orders (+ zdroj objednávky z `marketing`) + shop_order_items (+ nákupní cena)
   → Upsert zákazník do CRM
   → Push notifikace všem uživatelům
   → (volitelně) e-mail zákazníkovi

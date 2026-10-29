@@ -4,79 +4,24 @@
 //   GOOGLE_SERVICE_ACCOUNT_JSON — obsah JSON klíče service accountu (celý JSON
 //   v jedné env proměnné). Složku na Disku je potřeba nasdílet e-mailu
 //   service accountu (client_email) s právem Čtenář.
+//
+// Přihlášení (JWT → access token) je od sekce Marketing společné
+// v src/google-auth.js: tentýž service account čte i GA4, Search Console
+// a Merchant, každý se svým scope. Volání Disku a texty chyb tu zůstávají,
+// jak byly.
 
-import { createSign } from 'node:crypto';
+import { accessToken } from './google-auth.js';
 
-const TOKEN_URL = 'https://oauth2.googleapis.com/token';
-const API       = 'https://www.googleapis.com/drive/v3';
-const SCOPE     = 'https://www.googleapis.com/auth/drive.readonly';
+export { isConfigured, serviceAccountEmail } from './google-auth.js';
 
-let cachedToken = null; // { token, expiresAt }
-
-export function isConfigured() {
-  return Boolean(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
-}
-
-function credentials() {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (!raw) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON není nastavena.');
-  let json;
-  try {
-    json = JSON.parse(raw);
-  } catch {
-    throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON není platný JSON.');
-  }
-  if (!json.client_email || !json.private_key) {
-    throw new Error('V GOOGLE_SERVICE_ACCOUNT_JSON chybí client_email nebo private_key.');
-  }
-  // Klíč se do env proměnných často vkládá s escapovanými novými řádky
-  return { email: json.client_email, key: json.private_key.replace(/\\n/g, '\n') };
-}
-
-export function serviceAccountEmail() {
-  try { return credentials().email; } catch { return null; }
-}
-
-function b64url(input) {
-  return Buffer.from(input).toString('base64')
-    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-async function accessToken() {
-  if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) return cachedToken.token;
-
-  const { email, key } = credentials();
-  const now = Math.floor(Date.now() / 1000);
-  const claims = {
-    iss: email, scope: SCOPE, aud: TOKEN_URL,
-    iat: now, exp: now + 3600,
-  };
-  const unsigned = `${b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))}.${b64url(JSON.stringify(claims))}`;
-  const signature = createSign('RSA-SHA256').update(unsigned).sign(key, 'base64')
-    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-
-  const res = await fetch(TOKEN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-      assertion: `${unsigned}.${signature}`,
-    }),
-  });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(`Google odmítl přihlášení service accountu: ${body.error_description || body.error || res.status}`);
-  }
-
-  cachedToken = { token: body.access_token, expiresAt: Date.now() + (body.expires_in || 3600) * 1000 };
-  return cachedToken.token;
-}
+const API   = 'https://www.googleapis.com/drive/v3';
+const SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
 
 async function api(pathname, params = {}) {
   const url = new URL(API + pathname);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
 
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${await accessToken()}` } });
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${await accessToken([SCOPE])}` } });
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
     if (res.status === 404) throw new Error('Složka nebo soubor na Google Disku nenalezen — je nasdílený service accountu?');
@@ -116,7 +61,7 @@ export async function downloadFile(fileId) {
   const url = new URL(`${API}/files/${fileId}`);
   url.searchParams.set('alt', 'media');
   url.searchParams.set('supportsAllDrives', 'true');
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${await accessToken()}` } });
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${await accessToken([SCOPE])}` } });
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
     throw new Error(`Stažení souboru z Google Disku selhalo (${res.status}): ${detail.slice(0, 200)}`);

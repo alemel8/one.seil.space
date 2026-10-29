@@ -29,6 +29,8 @@ Viz `.env.example` pro kompletní přehled. Klíčové proměnné:
 | `PACKETA_API_PASSWORD` | Heslo k API Zásilkovny. Bez něj se nestáhnou štítky — ranní expedice objednávky jen zadrží |
 | `SHOP_WEBHOOK_SECRET` | Tajemství pro volání zpět do e-shopu **Toneráčku** (podání balíku), shodné s `WEBHOOK_SECRET` v jeho e-shopu. Bez něj se u převodu balík nepodá. Další e-shopy mají vlastní tajemství (Nastavení → Eshopy → *Napojení e-shopu*, `shops.webhook_secret`) a tohle nikdy nedostanou |
 | `STATS_DIR` | Adresář s VPS stats (`/var/lib/vps-stats`) |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | Celý JSON klíč service accountu Googlu v jedné proměnné. Jeden účet pro import faktur z Google Disku i pro sekci Marketing (GA4, Google Ads, Search Console, Merchant); jeho e-mail se přidává jako čtenář tam, odkud má číst (`src/google-auth.js`) |
+| `MARKETING_SECRETS_KEY` | 64 hex znaků pro šifrování tokenů Sklik / Heureka / Meta v databázi (AES-256-GCM); bez něj nejde v nastavení e-shopu uložit token Skliku, Heureky ani Mety. Generuje se `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
 
 ### Generování VAPID klíčů (jednorázové)
 ```bash
@@ -165,6 +167,22 @@ Nová migrace: přidej soubor `migrations/0NN_název.sql`. Bude aplikována při
 - File uploads: validace MIME type, max 20 MB
 - SQL injection: parametrizované dotazy přes `postgres` library (template literals)
 - Puppeteer/Chromium: sandbox vypnut kvůli Dockeru (`--no-sandbox`)
+
+---
+
+## Vendorované knihovny ve `public/`
+
+`public/chart.umd.min.js` je **Chart.js 4.4.7** — UMD build
+`dist/chart.umd.js` z npm balíčku `chart.js@4.4.7` beze změny (licence MIT,
+hlavička s verzí je v souboru; SHA-256
+`2812cb8825fdc57469eb2f7bb055e9429244e599920511ee477e828499b632cb`). Kreslí
+grafy na `/monitoring`, `/ucetnictvi/prehled` a v sekci Marketing; do
+29. 10. 2026 tu ležel 431bajtový stub, který jen varoval do konzole, takže
+grafy nic nekreslily. Aktualizace: stáhnout týž soubor novější verze
+(`curl -L https://cdn.jsdelivr.net/npm/chart.js@<verze>/dist/chart.umd.js`),
+ověřit `Chart.js v<verze>` v hlavičce a **zvednout `CACHE_NAME`
+v `public/sw.js`** — nainstalovaná PWA jinak drží starou kopii. Chart.js
+kreslí do canvasu a CSS proměnné nezná, barvy grafů se zadávají hexem.
 
 ---
 

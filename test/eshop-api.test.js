@@ -4,6 +4,8 @@
 // Jede proti běžícímu serveru a testovací databázi; zakládá si vlastní
 // e-shopy s náhodným slugem, klíči a číselnými řadami a po sobě je uklidí.
 // Na Toneráček sahá jen přes jeho API a jen na data, která sám založí.
+// Od migrace 042 hlídá i kontrakt zdroje objednávky a nákupní ceny
+// (`marketing`, `items[].costPrice`, docs/api.md) pro /api/eshop i /api/toneracek.
 //
 //   DATABASE_URL=postgresql://…@127.0.0.1/… TEST_BASE_URL=http://127.0.0.1:3999 \
 //   TONERACEK_API_KEY=<tentýž jako u serveru> node --test test/eshop-api.test.js
@@ -15,6 +17,7 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import postgres from 'postgres';
+import { SLOUPCE_ATRIBUCE } from '../src/atribuce-objednavky.js';
 
 const BASE = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000';
 const TONERACEK_KEY = process.env.TONERACEK_API_KEY || '';
@@ -81,8 +84,9 @@ const objednavka = (mail, over = {}) => ({
   shipping: { method: 'Zásilkovna', pickupPointId: '1234', pickupPointName: 'Z-BOX Praha 7' },
   paymentMethod: over.paymentMethod ?? 'transfer',
   ...(over.status ? { status: over.status } : {}),
-  items: [{ sku: 'PRIZE-1', supplierCode: '', name: 'Merino příze', quantity: 2, price: 149.4 }],
+  items: over.items ?? [{ sku: 'PRIZE-1', supplierCode: '', name: 'Merino příze', quantity: 2, price: 149.4 }],
   totalPrice: over.totalPrice ?? 298.8,
+  ...(over.marketing ? { marketing: over.marketing } : {}),
 });
 
 async function zalozObjednavku(shop, mail, over) {
@@ -97,6 +101,102 @@ async function zalozObjednavkuToneracku(mail, over) {
   assert.equal(res.status, 200, JSON.stringify(res.body));
   uklid.orders.push(res.body.orderId);
   return res.body;
+}
+
+// ── Zdroj objednávky a nákupní cena (migrace 042, docs/api.md) ──
+
+// Časy dotyků relativně k „teď“: One SEIL bere jen čas do ±1 roku od přijetí.
+const PRVNI_DOTYK_AT = new Date(Date.now() - 7 * 24 * 3600_000).toISOString();
+const POSLEDNI_DOTYK_AT = new Date(Date.now() - 3600_000).toISOString();
+const MARKETING = {
+  consent: 'all',
+  first: {
+    source: 'Google', medium: 'CPC', campaign: 'Tonery HP', term: 'hp 12a', content: 'textovy',
+    clickIdKind: 'gclid', clickId: 'Cj0KCQ-abc_123', referrerHost: 'www.google.com',
+    landingPage: '/produkty/hp-12a?gclid=Cj0KCQ-abc_123', at: PRVNI_DOTYK_AT,
+  },
+  last: {
+    source: 'seznam', medium: 'cpc', campaign: 'sklik-tonery', clickIdKind: 'sznclid', clickId: 'szn-1',
+    referrerHost: 'search.seznam.cz', landingPage: '/', at: POSLEDNI_DOTYK_AT,
+  },
+};
+const POLOZKY_S_NAKUPNI_CENOU = [
+  { sku: 'PRIZE-1', supplierCode: '', name: 'Merino příze', quantity: 2, price: 149.4, costPrice: 210.456, costPriceVatIncluded: false },
+  { sku: 'DOPRAVA', name: 'Doprava', quantity: 1, price: 79, costPrice: null, costPriceVatIncluded: null },
+];
+/** Sloupce položky, které by-number smí vrátit — bez cost_price a cost_price_vat_included. */
+const SLOUPCE_POLOZKY = ['id', 'order_id', 'sku', 'name', 'quantity', 'price', 'product_id', 'multipack_id', 'supplier_code'];
+
+/**
+ * Kontrakt zdroje objednávky a nákupní ceny pro jedno API (`prefix` + klíč):
+ * POST s `marketing` a `costPrice` → by-number vrací 21 sloupců atribuce
+ * vyčištěné podle src/atribuce-objednavky.js a položky jen s povolenými
+ * sloupci; `cost_price` nikdy neopustí One SEIL (jen v databázi, na haléře);
+ * bez marketingového souhlasu se click-id neuloží; nepoužitelný čas dotyku
+ * nahradí čas přijetí; bez `marketing` a `costPrice` zůstanou výchozí '' a NULL.
+ */
+async function overZdrojANakupniCenu(prefix, klic, mail) {
+  const post = async (telo) => {
+    const res = await call(klic, 'POST', `${prefix}/orders`, telo);
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    uklid.orders.push(res.body.orderId);
+    return res.body;
+  };
+  const detail = async (o) => {
+    const res = await call(klic, 'GET', `${prefix}/orders/by-number/${o.orderNumber}?email=${encodeURIComponent(mail)}`);
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    return res.body;
+  };
+  const atribuce = (order) => Object.fromEntries(SLOUPCE_ATRIBUCE.map((k) => [k, order[k]]));
+
+  // Plná objednávka: atribuce vyčištěná (malá písmena, jen hostitel, jen cesta), položky bez nákupní ceny.
+  const plna = await post(objednavka(mail, { marketing: MARKETING, items: POLOZKY_S_NAKUPNI_CENOU, totalPrice: 377.8 }));
+  const telo = await detail(plna);
+  assert.deepEqual(atribuce(telo.order), {
+    utm_source_first: 'google', utm_medium_first: 'cpc', utm_campaign_first: 'Tonery HP', utm_term_first: 'hp 12a',
+    utm_content_first: 'textovy', click_id_kind_first: 'gclid', click_id_first: 'Cj0KCQ-abc_123',
+    referrer_host_first: 'google.com', landing_page_first: '/produkty/hp-12a', touch_first_at: PRVNI_DOTYK_AT,
+    utm_source_last: 'seznam', utm_medium_last: 'cpc', utm_campaign_last: 'sklik-tonery', utm_term_last: '',
+    utm_content_last: '', click_id_kind_last: 'sznclid', click_id_last: 'szn-1',
+    referrer_host_last: 'search.seznam.cz', landing_page_last: '/', touch_last_at: POSLEDNI_DOTYK_AT,
+    attribution_consent: 'all',
+  });
+  assert.equal(telo.order.items.length, 2);
+  for (const polozka of telo.order.items) assert.deepEqual(Object.keys(polozka), SLOUPCE_POLOZKY);
+  assert.ok(!JSON.stringify(telo).includes('cost_price'), 'nákupní cena nesmí z by-number odejít');
+  const seznam = await call(klic, 'GET', `${prefix}/orders?email=${encodeURIComponent(mail)}`);
+  assert.equal(seznam.status, 200);
+  assert.ok(!JSON.stringify(seznam.body).includes('cost_price'), 'ani ze seznamu objednávek');
+  assert.ok(seznam.body.orders.every((o) => o.items.every((p) => Object.keys(p).sort().join() === 'name,quantity')),
+    'seznam nese u položky jen název a počet');
+  const polozky = await sql`SELECT sku, cost_price, cost_price_vat_included FROM shop_order_items WHERE order_id = ${plna.orderId} ORDER BY id`;
+  assert.deepEqual(polozky.map((p) => ({ ...p })), [
+    { sku: 'PRIZE-1', cost_price: '210.46', cost_price_vat_included: false }, // NUMERIC vrací postgres.js jako text; na haléře
+    { sku: 'DOPRAVA', cost_price: null, cost_price_vat_included: null },
+  ]);
+
+  // Bez marketingového souhlasu se click-id neuloží (druh ani hodnota), zbytek dotyku ano.
+  const analytics = await post(objednavka(mail, { marketing: { consent: 'analytics', last: MARKETING.last } }));
+  const [a] = await sql`
+    SELECT attribution_consent, utm_source_last, click_id_kind_last, click_id_last, touch_last_at, utm_source_first, touch_first_at
+    FROM shop_orders WHERE id = ${analytics.orderId}`;
+  assert.deepEqual({ ...a, touch_last_at: a.touch_last_at.toISOString() }, {
+    attribution_consent: 'analytics', utm_source_last: 'seznam', click_id_kind_last: '', click_id_last: '',
+    touch_last_at: POSLEDNI_DOTYK_AT, utm_source_first: '', touch_first_at: null,
+  });
+
+  // Nepoužitelný čas dotyku → čas přijetí, ne NULL (touch_last_at IS NULL = atribuce neposlána).
+  const rozbity = await post(objednavka(mail, { marketing: { consent: 'none', last: { source: 'google', medium: 'cpc', at: 'not-a-date' } } }));
+  const [r] = await sql`SELECT utm_source_last, touch_last_at FROM shop_orders WHERE id = ${rozbity.orderId}`;
+  assert.equal(r.utm_source_last, 'google');
+  assert.ok(r.touch_last_at && Math.abs(r.touch_last_at.getTime() - Date.now()) < 60_000, 'čas přijetí objednávky');
+
+  // Starší e-shop bez `marketing` a `costPrice`: výchozí hodnoty sloupců.
+  const bez = await post(objednavka(mail));
+  const bezTelo = await detail(bez);
+  assert.deepEqual(atribuce(bezTelo.order), Object.fromEntries(SLOUPCE_ATRIBUCE.map((k) => [k, k.startsWith('touch_') ? null : ''])));
+  const [p] = await sql`SELECT cost_price, cost_price_vat_included FROM shop_order_items WHERE order_id = ${bez.orderId}`;
+  assert.deepEqual({ ...p }, { cost_price: null, cost_price_vat_included: null });
 }
 
 before(async () => {
@@ -235,6 +335,10 @@ describe('objednávky po e-shopech', () => {
     assert.equal((await call(ctx.b.klic, 'GET', `/api/eshop/orders/by-number/${ctx.oA.orderNumber}`)).status, 404);
   });
 
+  test('zdroj objednávky a nákupní cena: by-number vrací atribuci, cost_price nikdy neopustí One SEIL', async () => {
+    await overZdrojANakupniCenu('/api/eshop', ctx.a.klic, email('atribuce'));
+  });
+
   test('cizí klíč objednávku nezmění ani nepřečte', async () => {
     const id = ctx.oA.orderId;
     assert.equal((await call(ctx.b.klic, 'PATCH', `/api/eshop/orders/${id}/payment-status`, { status: 'Zaplaceno' })).status, 404);
@@ -337,6 +441,10 @@ describe('Toneráček a další e-shop se navzájem nevidí', { skip: !TONERACEK
     const vlastni = await call(TONERACEK_KEY, 'GET', `/api/toneracek/orders/${t.orderId}/payment-details`);
     assert.equal(vlastni.status, 200);
     assert.equal(vlastni.body.variableSymbol, t.orderNumber);
+  });
+
+  test('/api/toneracek drží tentýž kontrakt zdroje objednávky a nákupní ceny', async () => {
+    await overZdrojANakupniCenu('/api/toneracek', TONERACEK_KEY, email('toneracek-atribuce'));
   });
 });
 

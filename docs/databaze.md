@@ -166,6 +166,8 @@ Registrované e-shopy.
 | `warehouse_email_bcc` | TEXT | Skrytá kopie expedice; prázdné = bez kopie (migrace 038) |
 | `warehouse_dispatch_since` | DATE | Objednávky přijaté dřív se do skladu neposílají |
 | `webhook_secret` | TEXT | `x-webhook-secret` pro volání e-shopu (podání balíku); prázdné = balík se nepodá. Toneráček ho nepoužívá, jede na `SHOP_WEBHOOK_SECRET` z prostředí (migrace 040) |
+| `marketing_margin_pct` | NUMERIC(5,2) | Odhad marže v % z ceny bez DPH pro položky bez `cost_price`; `0` = bez odhadu (migrace 042) |
+| `marketing_pno_alert_pct` | NUMERIC(5,2) | Práh PNO v % pro upozornění; `0` = bez upozornění (migrace 042) |
 
 ### `eshop_api_keys`
 Klíče pro `/api/eshop/*` (migrace 040). Klíč určuje e-shop; ukládá se jen
@@ -224,6 +226,12 @@ Objednávky z e-shopů.
 | `warehouse_dispatch_id` | INT → warehouse_dispatches | Který běh ji poslal; NULL u ručního označení |
 | `warehouse_sent_by` | INT → users | Kdo ji označil ručně |
 | `warehouse_hold_reason` | TEXT | Proč do skladu nešla (bez výdejního místa, balík nepodán, štítek nestažen) |
+| `utm_source_first`, `utm_medium_first`, `utm_campaign_first`, `utm_term_first`, `utm_content_first` | TEXT | První dotyk zákazníka (UTM; `source`/`medium` malými písmeny). `''` = neznámý nebo objednávka před migrací 042 |
+| `click_id_kind_first`, `click_id_first` | TEXT | Druh (`gclid`, `gbraid`, `wbraid`, `fbclid`, `sznclid`, `sznaiid`, `hgtid`, `aku`) a hodnota click-id prvního dotyku; jen s marketingovým souhlasem, hodnota se po 90 dnech maže |
+| `referrer_host_first`, `landing_page_first` | TEXT | Hostitel odkazujícího webu bez `www.` a cesta vstupní stránky bez query stringu |
+| `touch_first_at` | TIMESTAMPTZ | Kdy první dotyk nastal; nepoužitelný čas z e-shopu (bez pásma, nečitelný, mimo ±1 rok) nahradí čas přijetí objednávky. NULL = e-shop první dotyk neposlal |
+| `*_last`, `touch_last_at` | | Totéž pro poslední dotyk před objednávkou — z něj se počítá kanál objednávky. `touch_last_at IS NULL` = e-shop atribuci neposlal → kanál „neznámý“ (dotyk, který něco nese, má čas vždy — viz `touch_first_at`) |
+| `attribution_consent` | TEXT | Kategorie souhlasu z lišty e-shopu: `none` / `analytics` / `marketing` / `all`; `''` = před nasazením (CHECK) |
 | `created_at`, `modified_at` | TIMESTAMPTZ | |
 
 ### `shop_order_items`
@@ -239,6 +247,8 @@ Položky objednávek.
 | `price` | NUMERIC | Cena za kus |
 | `product_id` | TEXT | ID produktu v e-shopu |
 | `supplier_code` | TEXT | Kód dodavatele pro sklad (Airtable „ID Dodavatele"). **Není to `sku`** — to je interní kód Toneráčku. Prázdné = neznámý |
+| `cost_price` | NUMERIC(10,2) | Nákupní cena za kus v okamžiku objednávky, na haléře (ne celé koruny jako `price`). NULL = e-shop ji neposlal (pseudo-položky, starší e-shop). **E-shopu se nikdy nevrací** — API vybírá sloupce položek výslovně (migrace 042) |
+| `cost_price_vat_included` | BOOLEAN | `TRUE` = `cost_price` s DPH, `FALSE` = bez DPH (Toneráček), NULL = neznámo |
 
 ### `warehouse_dispatches`
 Jeden běh ranní expedice do skladu. Zároveň zámek — řádek vzniká před prací.
@@ -261,6 +271,111 @@ Jeden běh ranní expedice do skladu. Zároveň zámek — řádek vzniká před
 Dva částečné unikátní indexy: `(shop_id, run_date) WHERE kind='auto'` (jeden
 automatický běh na den) a `(shop_id) WHERE status='probiha'` (nejvýš jeden
 rozběhnutý běh, i kdyby klikli dva operátoři naráz).
+
+---
+
+## Marketing
+
+Data pro sekci Marketing (migrace 042): napojení e-shopů na reklamní
+platformy, běhy nočního stahování, denní statistiky a ručně zadané náklady.
+Všechno **per e-shop** (`shop_id`), nic se mezi e-shopy nemíchá. Tržby,
+marže a kanál objednávky se počítají ze `shop_orders` / `shop_order_items`
+(atribuce a `cost_price` výš), tabulky tady nesou jen to, co přijde
+z platforem nebo z ručního zadání.
+
+### `marketing_sources`
+Napojení e-shopu na platformu, jeden řádek na `(shop_id, platform)`
+(UNIQUE). Google (`ga4`, `google_ads`, `search_console`, `merchant`) jede
+přes firemní service account z `GOOGLE_SERVICE_ACCOUNT_JSON`, tady je jen
+ID; Sklik, Heureka a Meta mají tajemství šifrované v databázi.
+
+| Sloupec | Typ | Popis |
+|---|---|---|
+| `id` | SERIAL PK | |
+| `shop_id` | INT → shops (CASCADE) | |
+| `platform` | TEXT | `ga4` / `google_ads` / `search_console` / `merchant` / `sklik` / `heureka` / `meta` / `eshop` (CHECK). Zboží.cz vlastní zdroj nemá — jeho statistiky jsou od října 2026 jen ve Skliku, zapisuje je adaptér `sklik` |
+| `active` | BOOL | Vypnutý zdroj sync přeskočí |
+| `external_id` | TEXT | ID na straně platformy (property GA4, zákaznické číslo Ads, web v Search Console, účet Merchant, účet Sklik, `act_…` Meta); u `eshop` prázdné (bere se `shops.url`) |
+| `parent_external_id` | TEXT | Nadřazené ID: `premiseId` provozovny pro Seznam Nákupy, MCC u Google Ads |
+| `secret_enc` | TEXT | Token / API klíč platformy šifrovaný AES-256-GCM klíčem `MARKETING_SECRETS_KEY`; prázdné u Googlu |
+| `secret_fingerprint`, `secret_set_at` | TEXT, TIMESTAMPTZ | Otisk tajemství pro nastavení (prvních 8 znaků SHA-256) a kdy bylo uloženo |
+| `since` | DATE | Od kdy stahovat při prvním běhu (strop 400 dní); NULL = jen okno 14 dnů |
+| `last_run_at`, `last_ok_at`, `last_error` | TIMESTAMPTZ, TIMESTAMPTZ, TEXT | Poslední pokus, poslední úspěch, text poslední chyby |
+| `created_at`, `modified_at` | TIMESTAMPTZ | |
+
+### `marketing_sync_runs`
+Jeden běh stažení statistik ze zdroje. Zároveň zámek (vzor
+`warehouse_dispatches`): řádek vzniká před prací, opakování po chybě je
+`attempt + 1` na témže řádku.
+
+| Sloupec | Typ | Popis |
+|---|---|---|
+| `id` | SERIAL PK | |
+| `source_id` | INT → marketing_sources (CASCADE) | |
+| `shop_id`, `platform` | INT → shops, TEXT | Zkopírované ze zdroje kvůli výpisům bez JOINu |
+| `kind` | TEXT | `auto` (noční scheduler) / `rucni` |
+| `run_date` | DATE | Pražské datum běhu |
+| `status` | TEXT | `probiha` / `hotovo` / `chyba`; `probiha` déle než 30 minut = přerušený běh |
+| `attempt` | INT | Kolikátý pokus (backoff 10, 20, 30 minut, nejvýš 6) |
+| `permanent` | BOOL | Chyba, kterou opakování nespraví (401, 403, špatné ID) — čeká na obsluhu |
+| `from_date`, `to_date` | DATE | Stahované okno (zpravidla posledních 14 dnů do včerejška) |
+| `rows_saved` | INT | Zapsané řádky `marketing_daily_stats` |
+| `error` | TEXT | Text chyby posledního pokusu (do 500 znaků) |
+| `started_by` | INT → users | U ručního spuštění |
+| `started_at`, `finished_at` | TIMESTAMPTZ | |
+
+Dva částečné unikátní indexy: `(source_id, run_date) WHERE kind = 'auto'`
+(jeden automatický běh na zdroj a den) a `(source_id) WHERE status =
+'probiha'` (nejvýš jeden rozběhnutý běh na zdroj).
+
+### `marketing_daily_stats`
+Denní statistiky platforem; jeden řádek na `(shop_id, platform, date,
+segment_kind, segment)` (UNIQUE). **`segment_kind = ''` je denní součet
+platformy a jen ten vstupuje do KPI** (PNO, ROAS); rozpady jsou doplňkové
+a sčítat je s celkem by náklady zdvojilo. Typované metriky, ne JSONB —
+každá platforma vyplní svou část, zbytek nechá `0`. Sync přepisuje okno
+14 dnů (`DELETE` okna + `INSERT` v jedné transakci).
+
+| Sloupec | Typ | Popis |
+|---|---|---|
+| `id` | BIGSERIAL PK | |
+| `shop_id` | INT → shops (CASCADE) | |
+| `platform` | TEXT | `ga4` / `google_ads` / `search_console` / `merchant` / `sklik` / `zbozi` / `heureka` / `meta` / `eshop` (CHECK) |
+| `date` | DATE | Den v pásmu účtu platformy, u e-shopu a objednávek pražský |
+| `segment_kind` | TEXT | `''` / `campaign` / `channel` / `query` / `page` / `country` / `product` (CHECK) |
+| `segment` | TEXT | Hodnota segmentu (název kampaně, kanál, dotaz, cesta, země, SKU); u součtu prázdné |
+| `cost`, `cost_with_vat` | NUMERIC(12,2) | Náklady v CZK **bez DPH**; s DPH jen tam, kde je platforma posílá (Heureka) |
+| `impressions`, `clicks` | INT | Zobrazení (Heureka je neposílá) a kliknutí |
+| `conversions`, `conversion_value` | NUMERIC(12,2) | Konverze a jejich hodnota podle platformy — jen pro porovnání, zdroj pravdy jsou objednávky |
+| `sessions`, `total_users`, `view_item`, `add_to_cart`, `begin_checkout`, `purchase`, `purchase_revenue` | INT / NUMERIC | GA4: relace, uživatelé a trychtýř; nákupy jen pro porovnání (bez souhlasu je GA4 nevidí) |
+| `position_sum` | NUMERIC(14,2) | Search Console: Σ pozice × zobrazení; průměrná pozice = `position_sum / impressions` |
+| `approved_items`, `disapproved_items` | INT | Merchant Center: schválené a zamítnuté položky feedu ke dni |
+| `searches`, `searches_no_result` | INT | E-shop: hledání a hledání bez výsledku za den (z `GET /api/marketing/statistika`) |
+| `carts_abandoned`, `carts_value` | INT, NUMERIC(12,2) | E-shop: opuštěné košíky za den a jejich hodnota v CZK s DPH |
+| `run_id` | INT → marketing_sync_runs (SET NULL) | Běh, který řádek zapsal |
+| `created_at` | TIMESTAMPTZ | Čas posledního přepisu |
+
+Index `(shop_id, date)` pro součty za období.
+
+### `marketing_manual_costs`
+Ručně zadané náklady za období (před napojením API, při výpadku). Do KPI
+se rozpočítají rovnoměrně po dnech; když pro tutéž platformu a den existují
+i řádky z API, přehled varuje. Heureka tu je jen jako záloha — má API
+s náklady (napojuje se až ve 4. kroku nasazení), ručně se zadává jen do
+jeho napojení nebo při výpadku a při překryvu s API platí totéž varování.
+
+| Sloupec | Typ | Popis |
+|---|---|---|
+| `id` | SERIAL PK | |
+| `shop_id` | INT → shops (CASCADE) | |
+| `platform` | TEXT | `google_ads` / `sklik` / `zbozi` / `heureka` / `meta` / `ostatni` (CHECK) |
+| `date_from`, `date_to` | DATE | Období včetně obou dnů; CHECK `date_to >= date_from` |
+| `amount` | NUMERIC(12,2) | Částka za celé období v CZK bez DPH; CHECK `>= 0` |
+| `note` | TEXT | |
+| `invoice_id` | TEXT → accounting_invoices (SET NULL) | Přijatá faktura, ze které náklad je (`accounting_invoices.id` je TEXT) |
+| `receipt_id` | INT → receipts (SET NULL) | Účtenka |
+| `created_by` | INT → users | |
+| `created_at` | TIMESTAMPTZ | |
 
 ---
 

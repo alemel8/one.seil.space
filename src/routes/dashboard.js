@@ -135,6 +135,7 @@ export default async function dashboardRoutes(fastify) {
 <script>
 const history = ${JSON.stringify(history)};
 const labels = history.map(h => new Date(h.collected_at).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' }));
+// Barvy jen jako hex: Chart.js kreslí do canvasu a CSS proměnné (var(--primary)) nerozumí.
 const mkChart = (id, label, data, color, max) => {
   const el = document.getElementById(id);
   if (!el) return;
@@ -144,7 +145,7 @@ const mkChart = (id, label, data, color, max) => {
     options: { responsive: true, plugins: { legend: { position: 'top' } }, scales: { y: max ? { max, beginAtZero: true } : { beginAtZero: true } } }
   });
 };
-mkChart('chart-ram', 'RAM použito (MB)', history.map(h => h.ram_used_mb), 'var(--primary)');
+mkChart('chart-ram', 'RAM použito (MB)', history.map(h => h.ram_used_mb), '#14E6E6');
 mkChart('chart-disk', 'Disk použito (GB)', history.map(h => h.disk_used_gb), '#10b981');
 mkChart('chart-cpu', 'CPU load (%)', history.map(h => h.cpu_load_1m), '#f59e0b', 100);
 </script>` : '';

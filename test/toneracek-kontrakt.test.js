@@ -12,6 +12,12 @@
 //
 // (v režimu zápisu běží jen část Toneráčku — main /api/eshop nemá).
 //
+// Vzor byl znovu zapsaný 29. 10. 2026 po migraci 042: objednávka v odpovědi
+// nese i 21 sloupců atribuce (*_first, *_last, attribution_consent), u
+// objednávky bez `marketing` v těle prázdné a NULL. Jiný rozdíl proti
+// původnímu vzoru není (ověřeno diffem obou souborů); položky by-number
+// cost_price schválně nenesou.
+//
 // Jede proti běžícímu serveru a testovací databázi. Zakládá si vlastní e-shop
 // s klíčem a řadami a vlastní objednávky a kontakty, po sobě je uklidí.
 //

@@ -94,6 +94,19 @@ e-shop nemá vyplněnou identitu, API objednávky odmítá (`503`).
    6:00) začne Dílnu posílat sám, vždy až po Toneráčku. Při zapnutí nastavte
    *Posílat objednávky přijaté od* na den spuštění.
 
+### Marketing (volitelné)
+
+Sekce Marketing počítá PNO a marži pro každý e-shop zvlášť. V detailu e-shopu
+(karta **Marketing**) se nastaví odhad hrubé marže v % z ceny bez DPH (pro
+položky, u kterých e-shop neposlal nákupní cenu) a práh PNO pro upozornění,
+a napojí se platformy: u Googlu stačí ID (GA4 property, zákazník Google Ads,
+property Search Console, účet Merchant Center) a přidat e-mail firemního
+service accountu jako čtenáře; Sklik, Heureka a Meta potřebují token, který se
+uloží šifrovaný (`MARKETING_SECRETS_KEY` v prostředí). Platforma „E-shop“ čte
+`{url}/api/marketing/statistika` s tajemstvím e-shopu — e-shop ji musí mít
+(kopie z Toneráčku ji má). Bez napojení přehled ukazuje jen objednávky a ruční
+náklady.
+
 ### Co potřebuje e-shop (kopie e-shopu Toneráčku)
 
 | Proměnná | Hodnota |
@@ -152,7 +165,10 @@ zkontrolovat Toneráček.
    `CREATE … IF NOT EXISTS` a `ADD COLUMN IF NOT EXISTS` s konstantní výchozí
    hodnotou (bez přepisu tabulek), jedna transakce, `lock_timeout` 2 s,
    tabulka `shops` (čte ji každý požadavek Toneráčku) se zamyká až posledním
-   příkazem.
+   příkazem. Totéž platí pro každou další migraci nasazovanou tímhle
+   postupem: `042_marketing.sql` přidává nové tabulky `marketing_*` a sloupce
+   do `shop_order_items` (nákupní cena), `shop_orders` (21 sloupců atribuce)
+   a nakonec `shops` (marže, práh PNO).
 3. Domluvit, kdo hlídá Toneráček, a mít po ruce přístup do Coolify a na VPS
    (`psql` do produkční databáze pro kontroly v okně).
 4. V Coolify ověřit, že nový kontejner nahradí starý až po úspěšném
@@ -169,8 +185,10 @@ zkontrolovat Toneráček.
    Zálohu zkopírovat i mimo VPS.
 2. **Kontroly těsně před pushem** (`psql` do produkční databáze, jen čtení):
    ```sql
-   -- a) Poslední migrace musí být 039 — jinak se nasazuje na jiný stav, než se testoval.
-   SELECT max(filename) FROM schema_migrations;          -- 039_den_prijeti_uhrady.sql
+   -- a) Poslední aplikovaná migrace musí být ta, nad kterou se větev testovala
+   --    (poslední v migrations/ na main před mergem; při nasazení 042 je to 041)
+   --    — jinak se nasazuje na jiný stav, než se testoval.
+   SELECT max(filename) FROM schema_migrations;          -- 041_dilna_cislo_faktury_a_identita.sql
 
    -- b) crm_contact_shops musí být prázdná. Výchozí is_registered je TRUE,
    --    takže cizí řádky by /api/eshop bral jako hotové účty.

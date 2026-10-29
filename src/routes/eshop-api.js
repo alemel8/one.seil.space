@@ -31,6 +31,7 @@ import { renderSeriesNumber } from '../series-format.js';
 import { okamzikPlatbySql } from '../danovy-doklad.js';
 import { ceskeDatum } from '../prazsky-cas.js';
 import { eshopPodleKlice, zaznamenejPouziti } from '../eshop-klice.js';
+import { atribuceZTela, nakupniCenaZPolozky } from '../atribuce-objednavky.js';
 
 // Tytéž popisky, jaké ukládá Toneráček — admin, faktury (danovy-doklad.js),
 // expedice i párování plateb podle nich rozhodují.
@@ -496,7 +497,12 @@ export default async function eshopApiRoutes(fastify) {
     if (!row) return reply.code(404).send({ error: 'Not found' });
     const order = objednavkaProEshop(row);
     if (email && order.email.toLowerCase() !== email) return reply.code(403).send({ error: 'Forbidden' });
-    const items = await sql`SELECT * FROM shop_order_items WHERE order_id = ${order.id}`;
+    // Výslovné sloupce, ne SELECT *: nákupní cena položky (cost_price,
+    // migrace 042) e-shopu nepatří a ven jít nesmí.
+    const items = await sql`
+      SELECT id, order_id, sku, name, quantity, price, product_id, multipack_id, supplier_code
+      FROM shop_order_items WHERE order_id = ${order.id}
+    `;
     return reply.send({ order: { ...order, items } });
   });
 
@@ -544,6 +550,11 @@ export default async function eshopApiRoutes(fastify) {
     const totalPrice = Math.round(Number(b.totalPrice));
     const items = (b.items || []).map((i) => ({ ...i, price: Math.round(Number(i.price)) }));
 
+    // Zdroj objednávky (UTM, click-id, referrer, vstupní stránka) a nákupní
+    // cena položek — volitelné; bez nich dosadí výchozí hodnoty sloupců,
+    // viz src/atribuce-objednavky.js a kontrakt v docs/api.md.
+    const atribuce = atribuceZTela(b.marketing);
+
     const orderNumber = await prideleneCisloObjednavky(sql, shop.id);
 
     // Číslo faktury vzniká až při vyřízení — viz POST /api/toneracek/orders.
@@ -560,7 +571,12 @@ export default async function eshopApiRoutes(fastify) {
         shipping_first_name, shipping_last_name, shipping_company,
         shipping_phone, shipping_address, shipping_city, shipping_zip,
         pickup_point_id, pickup_point_name,
-        total_price, invoice_number, ip_address, paid_at
+        total_price, invoice_number, ip_address, paid_at,
+        utm_source_first, utm_medium_first, utm_campaign_first, utm_term_first, utm_content_first,
+        click_id_kind_first, click_id_first, referrer_host_first, landing_page_first, touch_first_at,
+        utm_source_last, utm_medium_last, utm_campaign_last, utm_term_last, utm_content_last,
+        click_id_kind_last, click_id_last, referrer_host_last, landing_page_last, touch_last_at,
+        attribution_consent
       ) VALUES (
         ${orderId}, ${shop.id}, ${orderNumber}, ${initialStatus},
         ${PAYMENT_LABELS[paymentMethod] ?? paymentMethod ?? ''},
@@ -579,15 +595,27 @@ export default async function eshopApiRoutes(fastify) {
         ${customer.shippingZip      ??customer.zip      ??''},
         ${shipping?.pickupPointId   ??''},
         ${shipping?.pickupPointName ??''},
-        ${totalPrice}, ${invoiceNumber}, ${ipAddress??''}, ${paidAt}
+        ${totalPrice}, ${invoiceNumber}, ${ipAddress??''}, ${paidAt},
+        ${atribuce.utm_source_first}, ${atribuce.utm_medium_first}, ${atribuce.utm_campaign_first},
+        ${atribuce.utm_term_first}, ${atribuce.utm_content_first},
+        ${atribuce.click_id_kind_first}, ${atribuce.click_id_first}, ${atribuce.referrer_host_first},
+        ${atribuce.landing_page_first}, ${atribuce.touch_first_at},
+        ${atribuce.utm_source_last}, ${atribuce.utm_medium_last}, ${atribuce.utm_campaign_last},
+        ${atribuce.utm_term_last}, ${atribuce.utm_content_last},
+        ${atribuce.click_id_kind_last}, ${atribuce.click_id_last}, ${atribuce.referrer_host_last},
+        ${atribuce.landing_page_last}, ${atribuce.touch_last_at},
+        ${atribuce.attribution_consent}
       )
     `;
 
     for (const item of items) {
+      const nakup = nakupniCenaZPolozky(item);
       await sql`
-        INSERT INTO shop_order_items (order_id, sku, supplier_code, name, quantity, price, product_id)
+        INSERT INTO shop_order_items (order_id, sku, supplier_code, name, quantity, price, product_id,
+                                      cost_price, cost_price_vat_included)
         VALUES (${orderId}, ${item.sku??''}, ${String(item.supplierCode ?? '').trim()},
-                ${item.name}, ${item.quantity}, ${item.price}, ${item.productId??null})
+                ${item.name}, ${item.quantity}, ${item.price}, ${item.productId??null},
+                ${nakup.cost_price}, ${nakup.cost_price_vat_included})
       `;
     }
 

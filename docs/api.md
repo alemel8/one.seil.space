@@ -73,9 +73,24 @@ Příjem objednávky.
       "name": "Toner HP 12A",
       "quantity": 2,
       "price": 745.00,
-      "productId": "prod-001"
+      "productId": "prod-001",
+      "costPrice": 210.5,
+      "costPriceVatIncluded": false
     }
-  ]
+  ],
+  "marketing": {
+    "consent": "all",
+    "first": {
+      "source": "google", "medium": "cpc", "campaign": "tonery-hp", "term": "hp 12a", "content": "",
+      "clickIdKind": "gclid", "clickId": "Cj0KCQ…", "referrerHost": "google.com",
+      "landingPage": "/produkty/hp-12a", "at": "2026-10-20T09:15:00.000Z"
+    },
+    "last": {
+      "source": "seznam", "medium": "cpc", "campaign": "sklik-tonery",
+      "clickIdKind": "sznclid", "clickId": "…", "referrerHost": "seznam.cz",
+      "landingPage": "/", "at": "2026-10-28T18:02:11.000Z"
+    }
+  }
 }
 ```
 
@@ -105,6 +120,53 @@ bez ní prázdné, i u starších objednávek, které mají v databázi uložen�
 (v Toneráčku Airtable pole „ID Dodavatele"). Ranní expedice ho tiskne do
 seznamu pro sklad; když chybí, vytiskne se místo něj `sku` s poznámkou.
 **`sku` kód dodavatele není** — je to interní kód e-shopu.
+
+### Zdroj objednávky a nákupní cena (od migrace 042)
+
+`marketing` i `items[].costPrice` jsou **nepovinné** — e-shop, který je
+neposílá, projde beze změny a objednávka dostane výchozí hodnoty (prázdné
+texty, `NULL`). Kontrakt je společný pro všechny e-shopy a platí doslova
+na obou stranách:
+
+```
+marketing: { consent: "none"|"analytics"|"marketing"|"all", first?: Dotyk, last?: Dotyk }
+Dotyk = { source, medium, campaign?, term?, content?, clickIdKind?, clickId?,
+          referrerHost?, landingPage?, at }
+items[]: { …, costPrice: number|null, costPriceVatIncluded: boolean|null }
+```
+
+| Pole | Pravidlo | Sloupec v One SEIL |
+|---|---|---|
+| `consent` | kategorie souhlasu z lišty e-shopu při objednávce | `shop_orders.attribution_consent` (`''` = objednávka před nasazením) |
+| `first` / `last` | první dotyk (paměť 90 dní, jen s marketingovým souhlasem) a poslední dotyk před objednávkou; kanál objednávky se počítá z posledního | sloupce s příponou `_first` / `_last` |
+| `source`, `medium` | malými písmeny, max 120 znaků | `utm_source_*`, `utm_medium_*` |
+| `campaign`, `term`, `content` | max 120 znaků | `utm_campaign_*`, `utm_term_*`, `utm_content_*` |
+| `clickIdKind` | jen `gclid`, `gbraid`, `wbraid`, `fbclid`, `sznclid`, `sznaiid`, `hgtid`, `aku` | `click_id_kind_*` |
+| `clickId` | max 200 znaků; One SEIL ho uloží jen s `consent` `marketing` nebo `all`, jinak zahodí i druh | `click_id_*` |
+| `referrerHost` | jen hostitel bez `www.`, max 100 znaků | `referrer_host_*` |
+| `landingPage` | jen cesta bez query stringu, max 200 znaků | `landing_page_*` |
+| `at` | ISO 8601 **s pásmem** (`Z` nebo `±HH:MM`; e-shop posílá `toISOString()`); bez pásma, nečitelný nebo mimo ±1 rok od přijetí → čas přijetí objednávky (dotyk bez jediného údaje → `NULL`) | `touch_first_at` / `touch_last_at` |
+| `costPrice` | nákupní cena za kus, `0 ≤ n < 1 000 000`, **na haléře** (ne celé koruny jako `price`); pseudo-položky `SLEVA-REG`, `DOPRAVA`, `DOBIRKA` posílají `null` | `shop_order_items.cost_price` |
+| `costPriceVatIncluded` | `true` / `false`, jinak `NULL` (neznámo) | `shop_order_items.cost_price_vat_included` |
+
+Všechny texty One SEIL ořízne, zbaví řídicích znaků (C0 i C1), neviditelných
+formátovacích znaků Unicode (nulová šířka, bidi, BOM) a ``<>"'`\`` a nikdy
+kvůli nim objednávku neodmítne — e-shop má vlastní validaci (400), One SEIL
+jen čistí (`src/atribuce-objednavky.js`, společné pro obě API). Neznámá
+hodnota `consent` nebo `clickIdKind` se uloží jako prázdná.
+
+**Nákupní cena se nikdy nevrací.** `GET …/orders` ani `…/by-number`
+`cost_price` a `cost_price_vat_included` neposílají (položky se vybírají po
+sloupcích, ne `SELECT *`): je to interní údaj pro marži v sekci Marketing
+a do prohlížeče zákazníka nepatří. Atribuční sloupce `by-number` vrací
+spolu s ostatními sloupci objednávky.
+
+Opačným směrem bude One SEIL (sekce Marketing, další krok) číst
+`GET {shops.url}/api/marketing/statistika?dni=30` s hlavičkou
+`x-webhook-secret` (tatáž jako u podání balíku): `{ od, do, hledani: { celkem,
+bezVysledku, nejcastejsi }, kosiky: { pocet, hodnota, dokonceno, pripomenuto, top },
+poDnech: [{ datum, hledani, hledaniBezVysledku, kosiky, kosikyHodnota }] }`,
+data pražská, částky v CZK s DPH; `401` při špatném tajemství, `503` bez něj.
 
 ---
 
