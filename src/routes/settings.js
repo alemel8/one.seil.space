@@ -477,6 +477,24 @@ export default async function settingsRoutes(fastify) {
         };
       }
     }
+    // Úspěšné ověření aktivního zdroje rovnou spustí stažení dat na pozadí:
+    // obsluha právě opravila přístup a čeká na čísla. Bez toho by trvalá chyba
+    // dnešního automatického běhu (sync-pravidla.js) čekala na ruční spuštění
+    // v /marketing/sync a červený text u zdroje by visel dál.
+    if (overeni.ok && zdroj?.active) {
+      try {
+        const sync = await import('../marketing/sync.js');
+        sync.spustSyncRucne({ sql, log: request.log, shopId, platform, userId: request.user?.id ?? null })
+          .then(behy => request.log.info({ shopId, platform, stavy: behy.map(b => b.status) }, 'Marketing: stažení po ověření doběhlo'))
+          .catch(err => {
+            if (err instanceof sync.SyncBeziError) return;
+            request.log.error({ err, shopId, platform }, 'Marketing: stažení po ověření selhalo');
+          });
+        overeni.zprava = `${overeni.zprava} Stahování dat běží na pozadí — průběh v Marketing › Synchronizace.`;
+      } catch (err) {
+        request.log.warn({ err, shopId, platform }, 'Marketing sync není k dispozici');
+      }
+    }
     return vykresliDetail(request, reply, shopId, { overeni });
   });
 

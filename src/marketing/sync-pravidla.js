@@ -31,7 +31,12 @@
  * a čeká na obsluhu; přechodné (timeout, 429, 5xx) dostanou lineární
  * backoff 10/20/30… minut od zápisu chyby (`finished_at`), nejvýš 6 pokusů.
  * Běh visící v `probiha` déle než 30 minut spadl i s procesem a označí se
- * jako chyba, aby se mohl zopakovat.
+ * jako chyba, aby se mohl zopakovat. Restart aplikace (redeploy) je
+ * nejčastější oprava chyb z prostředí (chybějící GOOGLE_SERVICE_ACCOUNT_JSON
+ * nebo MARKETING_SECRETS_KEY): každý dnešní neúspěšný běh zapsaný před
+ * startem procesu (`procesOd`) proto dostane jeden pokus navíc, ať byl
+ * trvalý, nebo měl vyčerpané pokusy — bez toho by po redeployi čekal na
+ * ruční spuštění až do druhého dne.
  *
  * Meze oken procházejí `jenDatum()`: `rozdelOkno()` na neplatné datum vrátí
  * [], místo aby se řetězcové porovnání točilo do přetečení Date.
@@ -72,10 +77,12 @@ export function jeTrvalaChyba(err) {
  * `marketing_sync_runs` (kind='auto', run_date=dnes) nebo null; čte se
  * z něj `status`, `attempt`, `permanent`, `started_at` a `finished_at`
  * (sync.js při zápisu chyby nastaví `finished_at = NOW()`, jako oznacChybu
- * v expedici — bez něj se backoff měří od startu).
+ * v expedici — bez něj se backoff měří od startu). `procesOd` je start
+ * běžícího procesu (Date nebo ISO řetězec): chyba zapsaná před ním dostane
+ * jeden pokus navíc; bez něj (testy čistých pravidel) se restart nebere v úvahu.
  * Vrací `{ akce: 'zalozit'|'nic'|'opakovat'|'oznacit-chybu', duvod }`.
  */
-export function rozhodniBehSyncu({ dnesni, now = new Date(), bezi = false }) {
+export function rozhodniBehSyncu({ dnesni, now = new Date(), bezi = false, procesOd = null }) {
   if (!dnesni) return { akce: 'zalozit', duvod: 'dnes ještě neběželo' };
   if (dnesni.status === 'hotovo') return { akce: 'nic', duvod: 'dnes už doběhlo' };
 
@@ -88,12 +95,17 @@ export function rozhodniBehSyncu({ dnesni, now = new Date(), bezi = false }) {
   }
 
   if (dnesni.status === 'chyba') {
-    if (dnesni.permanent) return { akce: 'nic', duvod: 'trvalá chyba (token, oprávnění), čeká se na obsluhu' };
-    const pokus = Number(dnesni.attempt) || 1;
-    if (pokus >= KONSTANTY.maxPokusu) return { akce: 'nic', duvod: 'vyčerpané pokusy, čeká se na obsluhu' };
     // Backoff se počítá od chvíle, kdy se chyba zapsala — běh po kusech mohl
     // trvat dvacet minut a od startu by se opakoval skoro hned.
     const chybaOd = dnesni.finished_at ? new Date(dnesni.finished_at).getTime() : zacatek;
+    // Chyba starší než start procesu: aplikace se mezitím restartovala
+    // (typicky redeploy s doplněným klíčem v env) — jeden pokus navíc má
+    // přednost před trvalostí i vyčerpanými pokusy.
+    const startProcesu = procesOd ? new Date(procesOd).getTime() : NaN;
+    if (Number.isFinite(startProcesu) && chybaOd < startProcesu) return { akce: 'opakovat', duvod: 'nový start aplikace po chybě' };
+    if (dnesni.permanent) return { akce: 'nic', duvod: 'trvalá chyba (token, oprávnění), čeká se na obsluhu' };
+    const pokus = Number(dnesni.attempt) || 1;
+    if (pokus >= KONSTANTY.maxPokusu) return { akce: 'nic', duvod: 'vyčerpané pokusy, čeká se na obsluhu' };
     if (now.getTime() - chybaOd < pokus * KONSTANTY.krokBackoffMin * 60_000) {
       return { akce: 'nic', duvod: 'čeká se na další pokus' };
     }

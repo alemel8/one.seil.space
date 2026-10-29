@@ -5,8 +5,9 @@
 // nahradí staré řádky a nedotkne se řádků mimo okno; rozběhnutý zdroj druhý
 // ruční běh odmítne; trvalá chyba adaptéru skončí během `chyba` s `permanent`,
 // zapíše se ke zdroji a vyvolá upozornění (řádek v notification_log);
-// po smyčce se maže click-id starší 90 dní a PNO nad prahem se hlásí jednou
-// za den.
+// po restartu procesu zkusí tik dnešní trvale neúspěšný automatický běh
+// znovu a úspěch smaže chybu u zdroje; po smyčce se maže click-id starší
+// 90 dní a PNO nad prahem se hlásí jednou za den.
 //
 //   DATABASE_URL=postgresql://…@127.0.0.1/… node --test test/marketing-sync-db.test.js
 
@@ -18,7 +19,7 @@ import { prazskyCas, pridejDny } from '../src/prazsky-cas.js';
 // sync.js (přes alerty.js a healthcheck-worker.js) otevírá databázi už při
 // importu — bez DATABASE_URL se moduly načtou až v before(), ať soubor
 // přeskočí místo pádu.
-let SyncBeziError, poSmycce, spustSyncRucne, ulozOkno, UDALOST_PNO, UDALOST_SYNC;
+let SyncBeziError, poSmycce, spustSyncRucne, tikMarketing, ulozOkno, UDALOST_PNO, UDALOST_SYNC;
 
 const DATABASE_URL = process.env.DATABASE_URL || '';
 const r = crypto.randomBytes(4).toString('hex');
@@ -53,7 +54,7 @@ function falesnyAdapter({ radky = [], chyba = null, zapisujePlatformy = ['ga4'] 
 describe('marketing sync proti databázi', { skip: !DATABASE_URL && 'bez DATABASE_URL' }, () => {
   before(async () => {
     sql = postgres(lokalniDatabaze(), { max: 3, onnotice: () => {} });
-    ({ SyncBeziError, poSmycce, spustSyncRucne, ulozOkno } = await import('../src/marketing/sync.js'));
+    ({ SyncBeziError, poSmycce, spustSyncRucne, tikMarketing, ulozOkno } = await import('../src/marketing/sync.js'));
     ({ UDALOST_PNO, UDALOST_SYNC } = await import('../src/marketing/alerty.js'));
     const [u] = await sql`
       INSERT INTO users (email, password_hash, first_name, last_name, is_admin)
@@ -142,6 +143,42 @@ describe('marketing sync proti databázi', { skip: !DATABASE_URL && 'bez DATABAS
     await spustSyncRucne({ sql, log, shopId: ctx.shop.id, platform: 'ga4', adaptery: { ga4: adapter } });
     const log2 = await sql`SELECT * FROM notification_log WHERE event_type = ${UDALOST_SYNC} AND event_key LIKE ${ctx.zdroj.id + ':%'}`;
     assert.equal(log2.length, 1);
+  });
+
+  test('po restartu procesu zkusí tik dnešní trvale neúspěšný automatický běh znovu', async () => {
+    await sql`DELETE FROM marketing_sync_runs WHERE source_id = ${ctx.zdroj.id}`;
+    await sql`UPDATE marketing_sources SET last_error = 'GA4: GOOGLE_SERVICE_ACCOUNT_JSON není nastavena', last_ok_at = NULL WHERE id = ${ctx.zdroj.id}`;
+    const [stary] = await sql`
+      INSERT INTO marketing_sync_runs (source_id, shop_id, platform, kind, run_date, status, attempt, permanent, error, from_date, to_date, started_at, finished_at)
+      VALUES (${ctx.zdroj.id}, ${ctx.shop.id}, 'ga4', 'auto', ${ctx.dnes}, 'chyba', 1, TRUE, 'GA4: GOOGLE_SERVICE_ACCOUNT_JSON není nastavena',
+              ${ctx.vcera}, ${ctx.vcera}, NOW() - interval '2 hours', NOW() - interval '2 hours')
+      RETURNING *`;
+    const adapter = falesnyAdapter({ radky: [{ platform: 'ga4', date: ctx.vcera, segment_kind: '', segment: '', sessions: 3 }] });
+    const now = new Date(`${ctx.dnes}T12:00:00+01:00`);  // v okně syncu, dnešní pražské datum
+    const procesOd = new Date(Date.now() - 3600_000);     // proces „startoval" před hodinou, chyba je starší
+
+    await tikMarketing(log, { adaptery: { ga4: adapter }, now, procesOd });
+    const [beh] = await sql`SELECT * FROM marketing_sync_runs WHERE id = ${stary.id}`;
+    assert.equal(beh.status, 'hotovo', 'týž řádek běhu se převzal a doběhl');
+    assert.equal(beh.attempt, 2);
+    assert.equal(beh.permanent, false);
+    assert.equal(beh.error, '');
+    const [z] = await sql`SELECT last_error, last_ok_at FROM marketing_sources WHERE id = ${ctx.zdroj.id}`;
+    assert.equal(z.last_error, '', 'úspěch smazal chybu u zdroje');
+    assert.ok(z.last_ok_at);
+
+    // další tik v témže procesu: dnes už hotovo, adaptér se nevolá
+    const pred = adapter.volani.length;
+    await tikMarketing(log, { adaptery: { ga4: adapter }, now, procesOd });
+    assert.equal(adapter.volani.length, pred);
+
+    // chyba zapsaná až po startu procesu zůstává čekat na obsluhu
+    await sql`UPDATE marketing_sync_runs SET status = 'chyba', permanent = TRUE, error = '403', finished_at = NOW() WHERE id = ${stary.id}`;
+    await tikMarketing(log, { adaptery: { ga4: adapter }, now, procesOd });
+    assert.equal(adapter.volani.length, pred);
+    const [beh2] = await sql`SELECT status, permanent FROM marketing_sync_runs WHERE id = ${stary.id}`;
+    assert.deepEqual([beh2.status, beh2.permanent], ['chyba', true]);
+    await sql`DELETE FROM marketing_sync_runs WHERE id = ${stary.id}`;
   });
 
   test('rozběhnutý zdroj odmítne další ruční běh', async () => {

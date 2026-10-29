@@ -15,7 +15,10 @@ leží v databázi šifrované klíčem `MARKETING_SECRETS_KEY` z prostředí
 (AES-256-GCM, `src/marketing/tajemstvi.js`), v administraci je vidět jen
 otisk. Tlačítko **Ověřit připojení** zavolá `overit()` adaptéru a bez
 ukládání řekne, zda přístup funguje a co platforma o účtu říká (název,
-pásmo, měna).
+pásmo, měna); u aktivního zdroje úspěch rovnou spustí stažení dat na pozadí
+(průběh v Marketing › Synchronizace), takže po opravě přístupu není třeba
+chodit na ruční spuštění. Chyba u zdroje v kartě nese čas posledního běhu;
+po restartu aplikace (redeploy) se dnešní neúspěšný běh zkusí sám znovu.
 
 ---
 

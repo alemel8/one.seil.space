@@ -25,6 +25,10 @@
  * s `permanent`, upozornění hned a žádné opakování, dokud někdo nezmění
  * nastavení. Přechodná (timeout, 429, 5xx) → `chyba` a backoff 10/20/30 min
  * (sync-pravidla.js), po šestém pokusu upozornění. Text chyby do 500 znaků.
+ * Dvě cesty zpět bez čekání na druhý den: po restartu procesu
+ * (`START_PROCESU`, typicky redeploy s doplněným klíčem v env) dostane každý
+ * dnešní neúspěšný běh jeden pokus navíc, a úspěšné „Ověřit připojení"
+ * v nastavení e-shopu spustí ruční běh té platformy (routes/settings.js).
  *
  * Adaptéry se načítají líně z ./adapters/index.js: server musí nastartovat
  * i bez nich (jen pak nic nestahuje a ruční běh to řekne).
@@ -57,6 +61,9 @@ export const HODINA_PNO = 7;
 export const RETENCE_CLICK_ID_DNI = 90;
 
 const DAVKA_INSERTU = 500;
+
+/** Start tohoto procesu — dnešní chyby zapsané před ním dostanou po restartu jeden pokus navíc (sync-pravidla.js). */
+export const START_PROCESU = new Date();
 
 let adapteryCache = null;
 
@@ -222,13 +229,14 @@ async function provedBeh(sql, log, { zdroj, adapter, beh, od, do: do_, fetchImpl
 
 // ── Automatický běh ────────────────────────────────────────────
 
-async function zpracujZdrojAuto(sql, log, { zdroj, adapter, prazsky, now, fetchImpl }) {
+async function zpracujZdrojAuto(sql, log, { zdroj, adapter, prazsky, now, fetchImpl, procesOd }) {
   const [dnesni] = await sql`
     SELECT * FROM marketing_sync_runs
     WHERE source_id = ${zdroj.id} AND kind = 'auto' AND run_date = ${prazsky.datum}
     LIMIT 1`;
-  const { akce, duvod } = rozhodniBehSyncu({ dnesni, now });
+  const { akce, duvod } = rozhodniBehSyncu({ dnesni, now, procesOd });
   if (akce === 'nic') return null;
+  if (akce === 'opakovat') log?.info?.({ runId: dnesni.id, platform: zdroj.platform, shop: zdroj.slug }, `Marketing sync: ${duvod}`);
 
   if (akce === 'oznacit-chybu') {
     await oznacChybuBehu(sql, dnesni, duvod, false);
@@ -283,10 +291,11 @@ export async function poSmycce(sql, log, prazsky) {
 let bezi = false;
 
 /**
- * Jeden tik plánovače. `adaptery`, `now` a `fetchImpl` jsou pro testy;
- * v provozu se adaptéry načtou z ./adapters/index.js.
+ * Jeden tik plánovače. `adaptery`, `now`, `fetchImpl` a `procesOd` jsou pro
+ * testy; v provozu se adaptéry načtou z ./adapters/index.js a `procesOd`
+ * je start tohoto procesu.
  */
-export async function tikMarketing(log, { adaptery, now = new Date(), fetchImpl } = {}) {
+export async function tikMarketing(log, { adaptery, now = new Date(), fetchImpl, procesOd = START_PROCESU } = {}) {
   if (bezi) return;
   bezi = true;
   try {
@@ -299,7 +308,7 @@ export async function tikMarketing(log, { adaptery, now = new Date(), fetchImpl 
       const adapter = registr[zdroj.platform];
       if (!adapter) continue;  // např. zbozi — plní ho adaptér Skliku
       try {
-        await zpracujZdrojAuto(sql, log, { zdroj, adapter, prazsky, now, fetchImpl });
+        await zpracujZdrojAuto(sql, log, { zdroj, adapter, prazsky, now, fetchImpl, procesOd });
       } catch (err) {
         log?.error?.({ err, platform: zdroj.platform, shop: zdroj.slug }, 'Marketing sync: zpracování zdroje selhalo');
       }

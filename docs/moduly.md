@@ -824,7 +824,9 @@ dopočítávají zpětně), při prvním běhu od „stahovat od“ (nejvýš 40
 podle adaptéru. Zápis je jedna transakce DELETE okna + INSERT. Trvalá chyba
 (401/403/400, nerozšifrovatelný token) → běh `chyba` s `permanent`, hned
 upozornění a žádné opakování; přechodná → backoff 10/20/30 min, po šestém pokusu
-upozornění. Po smyčce se mažou click-id objednávek starších 90 dní a po sedmé
+upozornění. Dvě zkratky zpět: po restartu procesu (redeploy, typicky s doplněným
+klíčem v env) dostane každý dnešní neúspěšný běh jeden pokus navíc a úspěšné
+„Ověřit připojení" v nastavení e-shopu rovnou spustí ruční běh té platformy. Po smyčce se mažou click-id objednávek starších 90 dní a po sedmé
 hodině se jednou za den hlásí PNO měsíce nad prahem e-shopu
 (`shops.marketing_pno_alert_pct`). Upozornění (`src/marketing/alerty.js`) jdou přes
 pravidla notifikací (typy `marketing_sync_failed`, `marketing_pno_high`), bez

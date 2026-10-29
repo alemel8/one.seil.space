@@ -5,7 +5,7 @@
 //
 // Hlídá matici obnovy po pádu (hotovo → nic, zaseklý běh → chyba, trvalá
 // chyba → čeká na obsluhu, backoff 10/20/30 min od zápisu chyby, nejvýš
-// 6 pokusů), okno dat (14 dní zpět po včerejšek, první běh 400 dní zpět nebo
+// 6 pokusů, po restartu procesu jeden pokus navíc), okno dat (14 dní zpět po včerejšek, první běh 400 dní zpět nebo
 // od `since`, nikdy před `since`), dělení okna po kusech i na neplatnou mez
 // a práh upozornění na PNO. Když je v repozitáři migrace 042, ověřuje se,
 // že sloupce, ze kterých se rozhoduje (`started_at`, `finished_at`, `since`,
@@ -86,6 +86,26 @@ describe('rozhodniBehSyncu', () => {
   test('trvalá chyba čeká na obsluhu, i kdyby backoff dávno uplynul', () => {
     const r = rozhodniBehSyncu({ dnesni: { status: 'chyba', permanent: true, attempt: 1, started_at: minutZpet(600), finished_at: minutZpet(599) }, now: NYNI });
     assert.deepEqual(r, { akce: 'nic', duvod: 'trvalá chyba (token, oprávnění), čeká se na obsluhu' });
+  });
+
+  test('po restartu aplikace dostane dnešní chyba zapsaná před startem procesu jeden pokus navíc', () => {
+    const chyba = (extra = {}) => ({ status: 'chyba', permanent: true, attempt: 1, started_at: minutZpet(60), finished_at: minutZpet(59), ...extra });
+    const opak = { akce: 'opakovat', duvod: 'nový start aplikace po chybě' };
+    // proces startoval před 5 minutami, chyba je z doby před ním → i trvalá chyba a vyčerpané pokusy se zkusí znovu
+    assert.deepEqual(rozhodniBehSyncu({ dnesni: chyba(), now: NYNI, procesOd: minutZpet(5) }), opak);
+    assert.deepEqual(rozhodniBehSyncu({ dnesni: chyba({ permanent: false, attempt: 6 }), now: NYNI, procesOd: minutZpet(5) }), opak);
+    assert.deepEqual(rozhodniBehSyncu({ dnesni: chyba({ permanent: false, attempt: 1, finished_at: minutZpet(6) }), now: NYNI, procesOd: minutZpet(5) }), opak);
+    // bez finished_at rozhoduje started_at; procesOd může být i ISO řetězec
+    assert.deepEqual(rozhodniBehSyncu({ dnesni: { status: 'chyba', permanent: true, attempt: 1, started_at: minutZpet(60) }, now: NYNI, procesOd: minutZpet(5).toISOString() }), opak);
+    // chyba zapsaná až v tomhle procesu → běžná pravidla
+    assert.equal(rozhodniBehSyncu({ dnesni: chyba(), now: NYNI, procesOd: minutZpet(120) }).duvod, 'trvalá chyba (token, oprávnění), čeká se na obsluhu');
+    assert.equal(rozhodniBehSyncu({ dnesni: chyba({ permanent: false, attempt: 1, finished_at: minutZpet(3) }), now: NYNI, procesOd: minutZpet(120) }).duvod, 'čeká se na další pokus');
+    // bez procesOd (čistá pravidla) a s neplatnou hodnotou se restart nebere v úvahu
+    assert.equal(rozhodniBehSyncu({ dnesni: chyba(), now: NYNI }).akce, 'nic');
+    assert.equal(rozhodniBehSyncu({ dnesni: chyba(), now: NYNI, procesOd: 'včera' }).akce, 'nic');
+    // hotovo a probíhající běh restart nemění
+    assert.equal(rozhodniBehSyncu({ dnesni: { status: 'hotovo', started_at: minutZpet(120) }, now: NYNI, procesOd: minutZpet(5) }).akce, 'nic');
+    assert.equal(rozhodniBehSyncu({ dnesni: { status: 'probiha', started_at: minutZpet(10) }, now: NYNI, procesOd: minutZpet(5) }).akce, 'nic');
   });
 
   test('po šestém pokusu se čeká na obsluhu', () => {
