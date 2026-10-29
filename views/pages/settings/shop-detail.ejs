@@ -52,6 +52,37 @@
 </div>
 <% } %>
 
+<% if (typeof error !== 'undefined' && error === 'marketing-klic') { %>
+<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+  Token nejde uložit: v prostředí One SEIL chybí <code>MARKETING_SECRETS_KEY</code> (64 hex znaků), kterým se tokeny šifrují.
+</div>
+<% } %>
+<% if (typeof error !== 'undefined' && error === 'marketing-hodnota') { %>
+<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+  ID nebo token má nepovolený tvar (mezery, řídicí znaky, přes 200 znaků).
+</div>
+<% } %>
+<% if (typeof error !== 'undefined' && error === 'marketing-datum') { %>
+<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+  Datum „stahovat od“ musí být ve tvaru RRRR-MM-DD.
+</div>
+<% } %>
+<% if (typeof error !== 'undefined' && error === 'marketing-platforma') { %>
+<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+  Neznámá platforma.
+</div>
+<% } %>
+<% if (typeof error !== 'undefined' && error === 'marketing-procenta') { %>
+<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+  Marže i práh PNO musí být procenta 0–100.
+</div>
+<% } %>
+<% if (typeof overeni !== 'undefined' && overeni) { %>
+<div style="background:<%= overeni.ok ? '#dcfce7' : '#fef2f2' %>;border:1px solid <%= overeni.ok ? '#bbf7d0' : '#fecaca' %>;color:<%= overeni.ok ? '#166534' : '#b91c1c' %>;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+  <strong>Ověření napojení (<%= overeni.platform %>):</strong> <%= overeni.zprava %><%= overeni.radku != null ? ' · ' + overeni.radku + ' řádků' : '' %>
+</div>
+<% } %>
+
 <% if (novyEshopKlic) { %>
 <div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:16px;margin-bottom:20px;">
   <strong>Nový klíč pro <code>/api/eshop</code><%= novyEshopKlic.label ? ' — ' + novyEshopKlic.label : '' %> (zobrazí se pouze jednou!):</strong><br>
@@ -350,6 +381,121 @@
               <% }) %>
             </tbody>
           </table>
+        </div>
+        <% } %>
+      </div>
+    </div>
+
+    <!-- Marketing: marže, práh PNO a napojení platforem -->
+    <div class="card" id="marketing">
+      <div class="card-header">Marketing</div>
+      <div class="card-body">
+        <p style="font-size:13px;color:var(--text-muted);margin:0 0 16px;">
+          Sekce <a href="/marketing<%= shop.slug !== 'toneracek' ? '?eshop=' + encodeURIComponent(shop.slug) : '' %>">Marketing</a>
+          počítá PNO, ROAS a ROI z objednávek tohoto e-shopu a z nákladů stažených
+          z reklamních platforem. Tady se nastavuje, odkud se stahuje a s jakou marží se počítá.
+        </p>
+
+        <form method="post" action="/nastaveni/eshopy/<%= shop.id %>/marketing" style="margin-bottom:20px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+            <div class="form-group">
+              <label class="form-label">Odhad hrubé marže (% z ceny bez DPH)</label>
+              <input type="number" name="marketing_margin_pct" class="form-control" step="0.01" min="0" max="100" value="<%= Number(shop.marketing_margin_pct) || 0 %>">
+              <small style="color:var(--text-muted);">Pro položky bez nákupní ceny z e-shopu. Toneráček ≈ 33 (prodejní cena = nákupní × 1,8, obě bez DPH). 0 = marže se neodhaduje.</small>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Upozornit, když PNO přesáhne (%)</label>
+              <input type="number" name="marketing_pno_alert_pct" class="form-control" step="0.01" min="0" max="100" value="<%= Number(shop.marketing_pno_alert_pct) || 0 %>">
+              <small style="color:var(--text-muted);">Bod zvratu Toneráčku ≈ 28 %. 0 = upozornění vypnuté.</small>
+            </div>
+          </div>
+          <div style="margin-top:10px;"><button type="submit" class="btn btn-primary">Uložit</button></div>
+        </form>
+
+        <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Google</div>
+        <% if (maGoogleSa) { %>
+        <p style="font-size:13px;margin:0 0 16px;">Service account <code style="background:var(--gray-100);padding:2px 6px;border-radius:4px;font-size:12px;"><%= serviceAccountEmail %></code> — přidejte ho jako Čtenáře do GA4, Jen pro čtení do Google Ads, uživatele do Search Console a Merchant Center (Výkon a statistiky).</p>
+        <% } else { %>
+        <p style="font-size:13px;color:#b91c1c;margin:0 0 16px;"><code>GOOGLE_SERVICE_ACCOUNT_JSON</code> není v prostředí One SEIL — GA4, Google Ads, Search Console ani Merchant Center se nestáhnou.</p>
+        <% } %>
+        <% if (!maSecretsKey) { %>
+        <p style="font-size:13px;color:#854d0e;background:#fef9c3;border:1px solid #fde047;padding:10px 12px;border-radius:8px;margin:0 0 16px;"><code>MARKETING_SECRETS_KEY</code> není nastavený — tokeny Skliku, Heureky a Mety nejde uložit (<code>node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"</code>).</p>
+        <% } %>
+
+        <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Napojené platformy</div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <% marketingZdroje.forEach(z => { %>
+          <div style="border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
+              <div><strong><%= z.popis %></strong>
+                <% if (!z.zdroj) { %><span class="badge" style="background:var(--gray-100);color:var(--gray-500);margin-left:6px;">nenastaveno</span>
+                <% } else if (z.zdroj.active) { %><span class="badge" style="background:#dcfce7;color:#166534;margin-left:6px;">aktivní</span>
+                <% } else { %><span class="badge" style="background:var(--gray-100);color:var(--gray-500);margin-left:6px;">vypnuto</span><% } %>
+              </div>
+              <div style="font-size:12px;color:var(--text-muted);">
+                <% if (z.zdroj?.last_ok_at) { %>poslední data <%= new Date(z.zdroj.last_ok_at).toLocaleString('cs-CZ') %><% } %>
+                <% if (z.zdroj?.last_error) { %><span style="color:#b91c1c;" title="<%= z.zdroj.last_error %>"> · chyba: <%= String(z.zdroj.last_error).slice(0, 60) %></span><% } %>
+              </div>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;"><%= z.napoveda %></div>
+            <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+              <form method="post" action="/nastaveni/eshopy/<%= shop.id %>/marketing/zdroj" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;flex:1;">
+                <input type="hidden" name="platform" value="<%= z.platform %>">
+                <label style="display:flex;align-items:center;gap:6px;font-size:13px;padding-bottom:8px;"><input type="checkbox" name="active" value="1" <%= z.zdroj?.active ? 'checked' : '' %>> aktivní</label>
+                <% if (z.popisExternalId) { %>
+                <div class="form-group" style="margin:0;min-width:200px;flex:1;">
+                  <label class="form-label" style="font-size:12px;"><%= z.popisExternalId %></label>
+                  <input type="text" name="external_id" class="form-control" value="<%= z.zdroj?.external_id || '' %>" maxlength="200" autocomplete="off">
+                </div>
+                <% } %>
+                <% if (z.popisParentId) { %>
+                <div class="form-group" style="margin:0;min-width:180px;">
+                  <label class="form-label" style="font-size:12px;"><%= z.popisParentId %></label>
+                  <input type="text" name="parent_external_id" class="form-control" value="<%= z.zdroj?.parent_external_id || '' %>" maxlength="200" autocomplete="off">
+                </div>
+                <% } %>
+                <div class="form-group" style="margin:0;">
+                  <label class="form-label" style="font-size:12px;">Stahovat od</label>
+                  <input type="date" name="since" class="form-control" value="<%= z.zdroj?.since || '' %>">
+                </div>
+                <% if (z.potrebujeTajemstvi) { %>
+                <div class="form-group" style="margin:0;min-width:220px;">
+                  <label class="form-label" style="font-size:12px;"><%= z.popisTajemstvi %></label>
+                  <input type="password" name="secret" class="form-control" autocomplete="off" placeholder="<%= z.maTajemstvi ? 'nastaveno, otisk ' + z.otisk + ' — vložením přepíšete' : 'vložit token' %>">
+                </div>
+                <% } %>
+                <button type="submit" name="akce" value="ulozit" class="btn btn-outline btn-sm">Uložit</button>
+                <% if (z.potrebujeTajemstvi && z.maTajemstvi) { %>
+                <button type="submit" name="akce" value="vymazat-tajemstvi" class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="return confirm('Smazat token? Platforma se přestane stahovat.')">Smazat token</button>
+                <% } %>
+              </form>
+              <% if (z.zdroj) { %>
+              <form method="post" action="/nastaveni/eshopy/<%= shop.id %>/marketing/zdroj/<%= z.platform %>/overit" style="margin:0;">
+                <button type="submit" class="btn btn-ghost btn-sm">Ověřit připojení</button>
+              </form>
+              <% } %>
+            </div>
+          </div>
+          <% }) %>
+        </div>
+
+        <% if (marketingBehy && marketingBehy.length) { %>
+        <div style="margin-top:20px;">
+          <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Poslední stažení</div>
+          <table class="data-table" style="font-size:13px;">
+            <thead><tr><th>Kdy</th><th>Platforma</th><th>Stav</th><th style="text-align:right;">Řádků</th></tr></thead>
+            <tbody>
+              <% marketingBehy.forEach(b => { %>
+              <tr>
+                <td style="color:var(--text-muted);"><%= new Date(b.started_at).toLocaleString('cs-CZ') %></td>
+                <td><%= b.platform %></td>
+                <td><span class="badge" style="<%- ({ hotovo: 'background:#dcfce7;color:#166534', chyba: 'background:#fee2e2;color:#991b1b', probiha: 'background:#dbeafe;color:#1e40af' })[b.status] || '' %>" title="<%= b.error || '' %>"><%= b.status %></span></td>
+                <td style="text-align:right;"><%= b.rows_saved %></td>
+              </tr>
+              <% }) %>
+            </tbody>
+          </table>
+          <a href="/marketing/sync<%= shop.slug !== 'toneracek' ? '?eshop=' + encodeURIComponent(shop.slug) : '' %>" style="font-size:12px;">Všechny běhy a ruční spuštění →</a>
         </div>
         <% } %>
       </div>

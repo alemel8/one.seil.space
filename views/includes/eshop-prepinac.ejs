@@ -1,0 +1,23 @@
+<%
+  // Pilulkový přepínač e-shopů — stejný tvar jako u objednávek
+  // (views/pages/toneracek/orders.ejs). Ukazuje se jen při dvou a víc
+  // e-shopech; výchozí e-shop jde bez parametru, ostatní s ?eshop=<slug>.
+  // Parametry: eshopy, shop, basePath, qs (ostatní parametry dotazu), vychoziEshop.
+  const dalsiParametry = typeof qs === 'string' ? qs : '';
+%>
+<% if (eshopy && eshopy.length > 1) { %>
+<nav aria-label="E-shop" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;">
+  <% eshopy.forEach(e => {
+       const aktivni = shop && e.id === shop.id;
+       const params = new URLSearchParams(dalsiParametry);
+       if (e.slug !== vychoziEshop) params.set('eshop', e.slug); else params.delete('eshop');
+       const href = basePath + (params.toString() ? '?' + params.toString() : '');
+  %>
+    <a href="<%= href %>"
+       <%- aktivni ? 'aria-current="page"' : '' %>
+       style="padding:6px 14px;border-radius:999px;font-size:13px;font-weight:500;text-decoration:none;border:1px solid <%= aktivni ? 'var(--primary)' : 'var(--border)' %>;background:<%= aktivni ? 'var(--primary)' : 'transparent' %>;color:<%= aktivni ? '#fff' : 'var(--text-secondary)' %>;">
+      <%= e.name %>
+    </a>
+  <% }) %>
+</nav>
+<% } %>

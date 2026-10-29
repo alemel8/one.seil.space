@@ -1,0 +1,76 @@
+<%
+  // Ruční náklady na reklamu: pro platformy bez napojeného API a za období
+  // před napojením. Částka bez DPH se rozpočítá rovnoměrně po dnech období.
+  const kc = v => v == null ? '—' : Number(v).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Kč';
+  const ceskeDatum = d => { const [r, m, den] = String(d).slice(0, 10).split('-'); return `${Number(den)}. ${Number(m)}. ${r}`; };
+%>
+<div class="page-header">
+  <div class="page-header-left">
+    <h1><a href="/marketing<%- dotaz(shop) %>" style="color:var(--text-muted);text-decoration:none;">Marketing</a> / Ruční náklady</h1>
+    <p><%= shop ? shop.name : '' %> · náklady bez DPH za období, které nejsou v API platforem</p>
+  </div>
+</div>
+
+<%- include('../../includes/eshop-prepinac', { eshopy, shop, basePath: '/marketing/naklady', qs: '', vychoziEshop }) %>
+
+<% if (saved) { %>
+<div style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:12px 16px;border-radius:8px;margin-bottom:20px;">✓ Uloženo</div>
+<% } %>
+<% if (error === 'obdobi') { %><div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">Období musí mít datum od i do ve tvaru RRRR-MM-DD a „od“ nesmí být po „do“.</div><% } %>
+<% if (error === 'castka') { %><div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">Částka musí být číslo od 0 do 10 000 000 Kč.</div><% } %>
+<% if (error === 'platforma') { %><div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">Neznámá platforma.</div><% } %>
+
+<% if (!shop) { %>
+<div class="card"><div class="card-body" style="color:var(--text-muted);">Žádný aktivní e-shop.</div></div>
+<% } else { %>
+
+<div class="card" style="margin-bottom:24px;">
+  <div class="card-header">Přidat náklad</div>
+  <div class="card-body">
+    <form method="post" action="/marketing/naklady/vytvorit" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;align-items:end;">
+      <input type="hidden" name="eshop" value="<%= shop.slug %>">
+      <div class="form-group" style="margin:0;">
+        <label class="form-label required">Platforma</label>
+        <select name="platform" class="form-select" required>
+          <% platformy.forEach(pl => { %><option value="<%= pl %>"><%= platformaPopis[pl] || pl %></option><% }) %>
+        </select>
+      </div>
+      <div class="form-group" style="margin:0;"><label class="form-label required">Od</label><input type="date" name="date_from" class="form-control" required value="<%= dnes.slice(0, 7) %>-01"></div>
+      <div class="form-group" style="margin:0;"><label class="form-label required">Do</label><input type="date" name="date_to" class="form-control" required value="<%= dnes %>"></div>
+      <div class="form-group" style="margin:0;"><label class="form-label required">Částka bez DPH (Kč)</label><input type="number" name="amount" class="form-control" step="0.01" min="0" required placeholder="2000"></div>
+      <div class="form-group" style="margin:0;grid-column:span 2;"><label class="form-label">Poznámka</label><input type="text" name="note" class="form-control" maxlength="300" placeholder="kredit Heureka, faktura 2026-10-…"></div>
+      <div><button type="submit" class="btn btn-primary">Přidat</button></div>
+    </form>
+    <p style="font-size:12px;color:var(--text-muted);margin:12px 0 0;">Částka se v přehledu rozpočítá rovnoměrně na dny období. Když má platforma za tytéž dny i data z API, přehled na překryv upozorní — náklad pak smažte, ať se nepočítá dvakrát.</p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">Zadané náklady</div>
+  <div class="table-wrapper" style="border:none;border-radius:0;">
+    <table class="data-table">
+      <thead><tr><th>Platforma</th><th>Období</th><th style="text-align:right;">Částka bez DPH</th><th>Poznámka</th><th>Zadal</th><th></th></tr></thead>
+      <tbody>
+        <% if (!naklady.length) { %>
+        <tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">Zatím žádný ruční náklad.</td></tr>
+        <% } %>
+        <% naklady.forEach(n => { %>
+        <tr>
+          <td style="font-weight:600;"><%= platformaPopis[n.platform] || n.platform %></td>
+          <td><%= ceskeDatum(n.date_from) %><%= n.date_from !== n.date_to ? ' – ' + ceskeDatum(n.date_to) : '' %></td>
+          <td style="text-align:right;"><%= kc(n.amount) %></td>
+          <td style="color:var(--text-muted);"><%= n.note || '' %></td>
+          <td style="color:var(--text-muted);font-size:12px;"><%= n.zadal || '—' %></td>
+          <td>
+            <form method="post" action="/marketing/naklady/<%= n.id %>/smazat" style="display:inline;" onsubmit="return confirm('Smazat náklad?')">
+              <input type="hidden" name="eshop" value="<%= shop.slug %>">
+              <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger);">Smazat</button>
+            </form>
+          </td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<% } %>

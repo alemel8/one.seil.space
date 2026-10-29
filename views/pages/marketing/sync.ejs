@@ -1,0 +1,90 @@
+<%
+  // Stav napojených platforem a běhy nočního stahování (src/marketing/sync.js).
+  const kdy = d => d ? new Date(d).toLocaleString('cs-CZ') : '—';
+  const den = d => d ? String(d instanceof Date ? d.toISOString().slice(0, 10) : d).slice(0, 10) : '';
+  const stavStyl = { hotovo: 'background:#dcfce7;color:#166534', chyba: 'background:#fee2e2;color:#991b1b', probiha: 'background:#dbeafe;color:#1e40af' };
+  const stavText = { hotovo: 'hotovo', chyba: 'chyba', probiha: 'běží…' };
+%>
+<div class="page-header">
+  <div class="page-header-left">
+    <h1><a href="/marketing<%- dotaz(shop) %>" style="color:var(--text-muted);text-decoration:none;">Marketing</a> / Synchronizace</h1>
+    <p><%= shop ? shop.name : '' %> · noční stahování statistik platforem (po 5:00 pražského času, posledních 14–30 dní se přepisuje)</p>
+  </div>
+</div>
+
+<%- include('../../includes/eshop-prepinac', { eshopy, shop, basePath: '/marketing/sync', qs: '', vychoziEshop }) %>
+
+<% if (saved) { %><div style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:12px 16px;border-radius:8px;margin-bottom:20px;">✓ Stažení proběhlo — výsledek je v tabulce běhů.</div><% } %>
+<% if (error === 'sync-nedostupny') { %><div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">Stahování ještě není nasazené (chybí src/marketing/sync.js).</div><% } %>
+<% if (error === 'sync-bezi') { %><div style="background:#fef9c3;border:1px solid #fde047;color:#854d0e;padding:12px 16px;border-radius:8px;margin-bottom:20px;">Běh pro tento zdroj právě probíhá — počkejte, až skončí.</div><% } %>
+<% if (error === 'sync-chyba') { %><div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">Stažení selhalo — podrobnosti jsou u běhu v tabulce a v logu serveru.</div><% } %>
+
+<% if (!maGoogleSa) { %><div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:12px;font-size:13px;"><code>GOOGLE_SERVICE_ACCOUNT_JSON</code> není nastavený — GA4, Google Ads, Search Console ani Merchant Center se nestáhnou.</div><% } %>
+<% if (!maSecretsKey) { %><div style="background:#fef9c3;border:1px solid #fde047;color:#854d0e;padding:12px 16px;border-radius:8px;margin-bottom:20px;font-size:13px;"><code>MARKETING_SECRETS_KEY</code> není nastavený — tokeny Skliku, Heureky a Mety nejde uložit ani použít.</div><% } %>
+
+<% if (!shop) { %>
+<div class="card"><div class="card-body" style="color:var(--text-muted);">Žádný aktivní e-shop.</div></div>
+<% } else { %>
+
+<div class="card" style="margin-bottom:24px;">
+  <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+    <span>Napojené platformy</span>
+    <% if (jeAdmin) { %>
+    <form method="post" action="/marketing/sync/spustit" style="margin:0;" onsubmit="return confirm('Stáhnout teď statistiky všech aktivních platforem? Čerpá to kvóty API.')">
+      <input type="hidden" name="eshop" value="<%= shop.slug %>"><input type="hidden" name="platform" value="vse">
+      <button type="submit" class="btn btn-outline btn-sm">Stáhnout vše teď</button>
+    </form>
+    <% } %>
+  </div>
+  <div class="table-wrapper" style="border:none;border-radius:0;">
+    <table class="data-table" style="font-size:13px;">
+      <thead><tr><th>Platforma</th><th>Stav</th><th>ID</th><th>Token</th><th>Poslední úspěch</th><th>Poslední chyba</th><th></th></tr></thead>
+      <tbody>
+        <% zdroje.forEach(z => { %>
+        <tr>
+          <td style="font-weight:600;"><%= z.popis %></td>
+          <td><% if (!z.zdroj) { %><span class="badge" style="background:var(--gray-100);color:var(--gray-500);">nenastaveno</span><% } else if (z.zdroj.active) { %><span class="badge" style="background:#dcfce7;color:#166534;">aktivní</span><% } else { %><span class="badge" style="background:var(--gray-100);color:var(--gray-500);">vypnuto</span><% } %></td>
+          <td style="font-family:var(--font-mono);font-size:12px;color:var(--text-muted);"><%= z.zdroj?.external_id || '' %><%= z.zdroj?.parent_external_id ? ' / ' + z.zdroj.parent_external_id : '' %></td>
+          <td style="font-size:12px;color:var(--text-muted);"><% if (!z.potrebujeTajemstvi) { %>service account<% } else if (z.maTajemstvi) { %>otisk <code><%= z.otisk %></code><% } else { %><span style="color:#b91c1c;">chybí</span><% } %></td>
+          <td style="color:var(--text-muted);"><%= kdy(z.zdroj?.last_ok_at) %></td>
+          <td style="font-size:12px;color:<%= z.zdroj?.last_error ? '#b91c1c' : 'var(--text-muted)' %>;" title="<%= z.zdroj?.last_error || '' %>"><%= z.zdroj?.last_error ? String(z.zdroj.last_error).slice(0, 80) : '—' %></td>
+          <td>
+            <% if (jeAdmin && z.zdroj && z.zdroj.active) { %>
+            <form method="post" action="/marketing/sync/spustit" style="display:inline;">
+              <input type="hidden" name="eshop" value="<%= shop.slug %>"><input type="hidden" name="platform" value="<%= z.platform %>">
+              <button type="submit" class="btn btn-ghost btn-sm">Spustit teď</button>
+            </form>
+            <% } %>
+          </td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <div class="card-body" style="font-size:12px;color:var(--text-muted);">Napojení (ID, tokeny, od kdy stahovat) se nastavuje v <% if (jeAdmin) { %><a href="/nastaveni/eshopy/<%= shop.id %>">Nastavení → Eshopy → <%= shop.name %> → Marketing</a><% } else { %>Nastavení → Eshopy (správce)<% } %>.</div>
+</div>
+
+<div class="card">
+  <div class="card-header">Poslední běhy</div>
+  <div class="table-wrapper" style="border:none;border-radius:0;">
+    <table class="data-table" style="font-size:13px;">
+      <thead><tr><th>Kdy</th><th>Platforma</th><th>Spuštění</th><th>Stav</th><th>Okno</th><th style="text-align:right;">Řádků</th><th style="text-align:right;">Pokus</th><th>Chyba</th></tr></thead>
+      <tbody>
+        <% if (!behy.length) { %><tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">Zatím žádný běh.</td></tr><% } %>
+        <% behy.forEach(b => { %>
+        <tr>
+          <td style="color:var(--text-muted);"><%= kdy(b.started_at) %></td>
+          <td><%= b.platform %></td>
+          <td style="color:var(--text-muted);"><%= b.kind === 'auto' ? 'automat' : 'ručně' + (b.spustil ? ' · ' + b.spustil : '') %></td>
+          <td><span class="badge" style="<%- stavStyl[b.status] || '' %>"><%= stavText[b.status] || b.status %><%= b.permanent ? ' (trvalá)' : '' %></span></td>
+          <td style="color:var(--text-muted);font-size:12px;"><%= den(b.from_date) %><%= b.to_date ? ' – ' + den(b.to_date) : '' %></td>
+          <td style="text-align:right;"><%= b.rows_saved %></td>
+          <td style="text-align:right;color:var(--text-muted);"><%= b.attempt %></td>
+          <td style="font-size:12px;color:#b91c1c;" title="<%= b.error || '' %>"><%= b.error ? String(b.error).slice(0, 100) : '' %></td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<% } %>

@@ -3,6 +3,9 @@ import { getDb, generateId } from '../db.js';
 import { renderSeriesNumber } from '../series-format.js';
 import { invalidateBrandCache, shopBrand } from '../brand.js';
 import { hashKlice, otiskKlice, vygenerujKlic } from '../eshop-klice.js';
+import { behySyncu, nactiZdroje, nastavMarketingEshopu, tajemstviZdroje, ulozZdroj, ZdrojError } from '../marketing/zdroje.js';
+import { maKlic } from '../marketing/tajemstvi.js';
+import { isConfigured as maGoogleServiceAccount, serviceAccountEmail } from '../google-auth.js';
 
 /**
  * Toneráček jede přes /api/toneracek s klíčem z TONERACEK_API_KEY a jeho
@@ -210,6 +213,10 @@ export default async function settingsRoutes(fastify) {
       ORDER BY started_at DESC LIMIT 5
     `;
 
+    // Karta Marketing: napojení platforem a poslední běhy nočního stahování
+    // (src/marketing/zdroje.js). Tokeny se neukazují, jen otisk.
+    const [marketingZdroje, marketingBehy] = await Promise.all([nactiZdroje(sql, shop.id), behySyncu(sql, shop.id, 5)]);
+
     if (extra.novyEshopKlic || extra.novyWebhookSecret) {
       reply.header('Cache-Control', 'no-store');
     }
@@ -230,6 +237,11 @@ export default async function settingsRoutes(fastify) {
       vydavaEshopKlice: !toneracek,
       novyEshopKlic: extra.novyEshopKlic || null,
       novyWebhookSecret: extra.novyWebhookSecret || null,
+      marketingZdroje, marketingBehy,
+      serviceAccountEmail: serviceAccountEmail(),
+      maGoogleSa: maGoogleServiceAccount(),
+      maSecretsKey: maKlic(),
+      overeni: extra.overeni || null,
       saved: request.query.saved === '1',
       error: extra.error || request.query.error || null,
     }, { layout: 'layouts/base.ejs' });
@@ -392,6 +404,80 @@ export default async function settingsRoutes(fastify) {
       WHERE id = ${shopId}
     `;
     return reply.redirect(`/nastaveni/eshopy/${shopId}?saved=1`);
+  });
+
+  // ── Marketing: marže, práh PNO a napojení platforem ──────────
+  //
+  // Odkud sekce Marketing bere náklady a návštěvnost. Google platformy jedou
+  // přes firemní service account (jen ID), Sklik, Heureka a Meta mají token,
+  // který se ukládá šifrovaný (src/marketing/tajemstvi.js) a ukazuje jen otiskem.
+
+  fastify.post('/nastaveni/eshopy/:id/marketing', async (request, reply) => {
+    const shopId = parseInt(request.params.id, 10);
+    if (!shopId) return reply.code(400).send('Neplatný eshop');
+    const b = request.body || {};
+    try {
+      await nastavMarketingEshopu(sql, shopId, { marzePct: b.marketing_margin_pct, pnoAlertPct: b.marketing_pno_alert_pct });
+    } catch (err) {
+      if (err instanceof ZdrojError) return reply.redirect(`/nastaveni/eshopy/${shopId}?error=${err.kod}`);
+      throw err;
+    }
+    return reply.redirect(`/nastaveni/eshopy/${shopId}?saved=1`);
+  });
+
+  fastify.post('/nastaveni/eshopy/:id/marketing/zdroj', async (request, reply) => {
+    const shopId = parseInt(request.params.id, 10);
+    if (!shopId) return reply.code(400).send('Neplatný eshop');
+    const [shop] = await sql`SELECT id FROM shops WHERE id = ${shopId}`;
+    if (!shop) return reply.code(404).send('Eshop nenalezen');
+    const b = request.body || {};
+    try {
+      await ulozZdroj(sql, {
+        shopId, platform: String(b.platform || ''), active: b.active,
+        externalId: b.external_id, parentExternalId: b.parent_external_id, since: b.since,
+        secret: b.secret, akce: String(b.akce || 'ulozit'),
+      });
+    } catch (err) {
+      if (err instanceof ZdrojError) return reply.redirect(`/nastaveni/eshopy/${shopId}?error=${err.kod}`);
+      throw err;
+    }
+    request.log.info({ shopId, platform: b.platform }, 'Uloženo napojení marketingové platformy');
+    return reply.redirect(`/nastaveni/eshopy/${shopId}?saved=1`);
+  });
+
+  // Zkusí platformu zavolat (adaptér overit()) a výsledek vykreslí rovnou
+  // v detailu — bez uložení, bez redirectu (zpráva by se do URL nevešla).
+  fastify.post('/nastaveni/eshopy/:id/marketing/zdroj/:platform/overit', async (request, reply) => {
+    const shopId = parseInt(request.params.id, 10);
+    if (!shopId) return reply.code(400).send('Neplatný eshop');
+    const platform = String(request.params.platform || '');
+    const [shop] = await sql`SELECT * FROM shops WHERE id = ${shopId}`;
+    if (!shop) return reply.code(404).send('Eshop nenalezen');
+    const [zdroj] = await sql`SELECT * FROM marketing_sources WHERE shop_id = ${shopId} AND platform = ${platform}`;
+
+    let overeni;
+    if (!zdroj) {
+      overeni = { platform, ok: false, zprava: 'Napojení není uložené — nejdřív ho uložte.' };
+    } else {
+      try {
+        const { ADAPTERS } = await import('../marketing/adapters/index.js');
+        const adapter = ADAPTERS?.[platform];
+        if (!adapter?.overit) {
+          overeni = { platform, ok: false, zprava: 'Adaptér pro tuhle platformu není k dispozici.' };
+        } else {
+          overeni = { platform, ...(await adapter.overit({ shop, source: zdroj, tajemstvi: tajemstviZdroje(zdroj, shop) })) };
+        }
+      } catch (err) {
+        request.log.warn({ err, shopId, platform }, 'Ověření napojení marketingové platformy selhalo');
+        overeni = {
+          platform, ok: false,
+          zprava: err?.code === 'ERR_MODULE_NOT_FOUND'
+            ? 'Adaptéry platforem ještě nejsou nasazené.'
+            : `Ověření selhalo: ${String(err?.message || err).slice(0, 200)}`,
+        };
+      }
+    }
+    return vykresliDetail(request, reply, shopId, { overeni });
   });
 
   // Náhled bez odesílání — ať se barvy a loga dají zkontrolovat v prohlížeči

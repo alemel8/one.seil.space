@@ -232,6 +232,50 @@
     </div>
     <% } %>
 
+    <!-- MARKETING -->
+    <% if (canS('marketing')) { %>
+    <div class="nav-section">
+      <div class="nav-section-label">Marketing</div>
+
+      <div class="nav-item <%= currentPath && currentPath.startsWith('/marketing') ? 'open' : '' %>">
+        <button class="nav-link" data-toggle="sub">
+          <span class="nav-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
+            </svg>
+          </span>
+          <span class="nav-label">Marketing</span>
+          <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </button>
+        <ul class="nav-sub">
+          <% if (can('marketing.prehled')) { %>
+          <li>
+            <a href="/marketing" class="nav-sub-link <%= currentPath === '/marketing' ? 'active' : '' %>">
+              Přehled
+            </a>
+          </li>
+          <% } %>
+          <% if (can('marketing.naklady')) { %>
+          <li>
+            <a href="/marketing/naklady" class="nav-sub-link <%= currentPath && currentPath.startsWith('/marketing/naklady') ? 'active' : '' %>">
+              Ruční náklady
+            </a>
+          </li>
+          <% } %>
+          <% if (can('marketing.sync')) { %>
+          <li>
+            <a href="/marketing/sync" class="nav-sub-link <%= currentPath && currentPath.startsWith('/marketing/sync') ? 'active' : '' %>">
+              Synchronizace
+            </a>
+          </li>
+          <% } %>
+        </ul>
+      </div>
+    </div>
+    <% } %>
+
     <!-- NASTAVENÍ (pouze admin) -->
     <% if (user && user.is_admin && canS('nastaveni')) { %>
     <div class="nav-section">

@@ -59,6 +59,15 @@ export const ACCESS_SECTIONS = [
     ],
   },
   {
+    key: 'marketing',
+    label: 'Marketing',
+    items: [
+      { key: 'marketing.prehled', label: 'Přehled',       path: '/marketing' },
+      { key: 'marketing.naklady', label: 'Ruční náklady', path: '/marketing/naklady' },
+      { key: 'marketing.sync',    label: 'Synchronizace', path: '/marketing/sync' },
+    ],
+  },
+  {
     key: 'trade',
     label: 'Trade SEIL',
     items: [

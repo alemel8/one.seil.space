@@ -432,6 +432,17 @@ faktura v tu chvíli neexistuje, číslo se do objednávky zapíše až při vys
 `GET /api/toneracek/orders` a `…/by-number` vrací v `invoice_number` číslo
 vydané faktury, bez ní prázdné.
 
+Od migrace 042 nese objednávka i **zdroj** (první a poslední dotyk: UTM,
+druh a hodnota click-id, hostitel referreru, vstupní stránka, čas, kategorie
+souhlasu — sloupce `*_first`, `*_last`, `attribution_consent`) a položka
+**nákupní cenu** (`cost_price`, `cost_price_vat_included`). Obojí přichází
+v těle `POST …/orders` jako nepovinné `marketing` a `items[].costPrice`
+(kontrakt v [api.md](api.md)); čistí je sdílený `src/atribuce-objednavky.js`
+(bez nich výchozí `''` a `NULL`, nikdy 400) a obě order API ho používají
+stejně. Nákupní cena se e-shopu nikdy nevrací — `by-number` vybírá sloupce
+položek výslovně. Na těchto datech staví sekce Marketing (PNO, ROAS, marže
+po kanálech); její tabulky popisuje [databaze.md](databaze.md#marketing).
+
 ### Ranní expedice do skladu
 
 Každý všední den po šesté hodině pražského času odejde skladu jeden e-mail se
@@ -467,6 +478,55 @@ objednávky (`supplierCode` → `shop_order_items.supplier_code`). Když chybí,
 řádek vytiskne interní SKU s poznámkou — `sku` **není** kód dodavatele.
 
 ---
+
+## Marketing (`src/routes/marketing.js`, `src/marketing/`)
+
+Přehled účinnosti reklamy po e-shopech: tržby bez DPH z vlastních objednávek
+(zdroj pravdy), náklady stažené z reklamních platforem nebo zadané ručně,
+PNO, ROAS, cena za objednávku, marže a zisk po reklamě, kanály podle zdroje
+objednávky, cesta zákazníka z GA4, organika ze Search Console, stav položek
+v Merchant Center a statistiky e-shopu (hledání bez výsledku, opuštěné košíky).
+Všechno per e-shop (`?eshop=<slug>`, výchozí Toneráček), nikdy se nemíchá.
+
+| Route | Popis |
+|---|---|
+| `GET /marketing` | Přehled za období (`?obdobi=tento-mesic\|minuly-mesic\|30-dni\|vlastni&od=&do=`) |
+| `GET /marketing/naklady` | Ruční náklady e-shopu (platformy bez API, období před napojením) |
+| `POST /marketing/naklady/vytvorit` | Založí ruční náklad (bez DPH, rozpočítá se po dnech) |
+| `POST /marketing/naklady/:id/smazat` | Smaže ruční náklad — jen vlastního e-shopu |
+| `GET /marketing/sync` | Napojené platformy, poslední úspěch, chyby, posledních 50 běhů |
+| `POST /marketing/sync/spustit` | Ruční stažení (jen správce — čerpá kvóty API); `platform=vse` nebo jedna |
+| `POST /nastaveni/eshopy/:id/marketing` | Odhad marže a práh PNO e-shopu (jen správce) |
+| `POST /nastaveni/eshopy/:id/marketing/zdroj` | Napojení platformy: aktivní, ID, od kdy, token (jen správce) |
+| `POST /nastaveni/eshopy/:id/marketing/zdroj/:platform/overit` | Zkusí platformu zavolat a výsledek ukáže v detailu |
+
+**Definice čísel** jsou na jednom místě, v hlavičce `src/marketing/kpi.js`:
+tržby = Σ `total_price` / 1,21 bez stavů Stornována a Platba se nezdařila
+(Čeká na platbu se počítá, storno ji zpětně vyřadí; vedle toho „z toho
+zaplaceno“); náklady bez DPH = denní součty `marketing_daily_stats`
+(`segment_kind = ''`) + ruční náklady rozpočítané na překryv s obdobím;
+PNO = náklady / tržby × 100; ROAS = tržby / náklady; CPA = náklady / objednávky;
+marže z `shop_order_items.cost_price`, bez ní odhadem `shops.marketing_margin_pct`;
+zisk = marže − náklady; ROI = zisk / náklady. Kanál objednávky je poslední
+dotyk (`kanalObjednavky`: click-id → placené médium → zdroj → referrer →
+přímý; bez `touch_last_at` „neznámý“). Konverze hlášené platformou se
+ukazují jen k porovnání — do ±10 % sedí, do ±25 % varování, dál chyba.
+
+Období se počítá řetězcově v pražském čase (`src/marketing/obdobi.js`) —
+`new Date(y, m, 0).toISOString()` pod `TZ=Europe/Prague` vrací o den míň.
+
+**Napojení platforem** (`src/marketing/zdroje.js`, tabulka `marketing_sources`):
+Google (GA4, Google Ads, Search Console, Merchant Center) přes firemní service
+account z `GOOGLE_SERVICE_ACCOUNT_JSON` — e-shop si uloží jen ID a jeho e-mail
+přidá jako čtenáře; Sklik (API Fénix, zapisuje i Zboží.cz), Heureka a Meta mají
+token, který leží v databázi šifrovaný AES-256-GCM klíčem `MARKETING_SECRETS_KEY`
+(`src/marketing/tajemstvi.js`) a ukazuje se jen otiskem; platforma `eshop`
+čte `{url}/api/marketing/statistika` s `x-webhook-secret` (Toneráček
+`SHOP_WEBHOOK_SECRET`, ostatní `shops.webhook_secret`). Čisté moduly
+(`obdobi`, `normalizace`, `http`, `tajemstvi`, `sync-pravidla`, `kpi`,
+`prehled`) mají testy bez databáze (`test/marketing-*.test.js`); stránky
+testují `test/marketing-route.test.js` a `test/marketing-nastaveni.test.js`
+proti lokální databázi.
 
 ## API e-shopů
 
@@ -752,6 +812,26 @@ balíky u e-shopu, stáhne štítky z Packety a odešle jeden e-mail. Po přecho
 chybě opakuje s lineárním odstupem (10, 20, 30… minut, nejvýš šestkrát), pak
 si řekne o obsluhu pushem a tlačítkem „Odeslat expedici teď". Pražský čas
 počítá přes `Intl` — kontejner nemá nastavené `TZ`.
+
+### Marketing — noční stahování statistik (`src/marketing/sync.js`)
+Tiká každých 10 minut (poprvé 45 s po startu). Po páté hodině pražského času
+projde aktivní zdroje aktivních e-shopů (`marketing_sources`) a za každý zajistí
+jeden automatický běh denně: řádek `marketing_sync_runs` vzniká před prací a je
+zámkem (částečné unikátní indexy — jeden auto běh na zdroj a den, nejvýš jeden
+rozběhnutý), takže se dva kontejnery při nasazení nepotkají. Stahuje se okno
+`[dnes − prepisDni, včera]` (14 dní, u konverzí Skliku, Heureky a Mety 30 — platformy
+dopočítávají zpětně), při prvním běhu od „stahovat od“ (nejvýš 400 dní), po kusech
+podle adaptéru. Zápis je jedna transakce DELETE okna + INSERT. Trvalá chyba
+(401/403/400, nerozšifrovatelný token) → běh `chyba` s `permanent`, hned
+upozornění a žádné opakování; přechodná → backoff 10/20/30 min, po šestém pokusu
+upozornění. Po smyčce se mažou click-id objednávek starších 90 dní a po sedmé
+hodině se jednou za den hlásí PNO měsíce nad prahem e-shopu
+(`shops.marketing_pno_alert_pct`). Upozornění (`src/marketing/alerty.js`) jdou přes
+pravidla notifikací (typy `marketing_sync_failed`, `marketing_pno_high`), bez
+pravidla pushem všem; dedupe v `notification_log`. Ruční běh z /marketing/sync je
+jen pro správce (čerpá kvóty API). Adaptéry platforem leží v
+`src/marketing/adapters/` (rozhraní `fetchDaily`, `parsuj`, `overit`) a načítají se
+líně — server startuje i bez nich.
 
 ### VPS kolektor (`src/collector.js`)
 Běží jako cron přímo na VPS hostu (ne v Dockeru). Sbírá: RAM, CPU, disk, swap, uptime, PostgreSQL stats, Docker kontejnery, SSL certifikáty, stáří záloh. Výstup: `latest.json` + append do `history.sqlite`.
