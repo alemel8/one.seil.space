@@ -220,8 +220,8 @@ Objednávky z e-shopů.
 | `paid_at` | TIMESTAMPTZ | Kdy e-shop poprvé ohlásil zaplacení kartou (stav „Zaplaceno“ při založení, v payment-status nebo payment-method); další potvrzení ho nepřepíší. Z něj je den přijetí úplaty karty (DUZP) na faktuře a od něj běží hlídaná lhůta 15 dnů. NULL = převod, dobírka, starší objednávky (migrace 039); zaplacená karta bez něj bere pražský den `created_at` — dopočítá se, nedopisuje (`denPlatbyKartou()`) |
 | `tracking_number`, `label_url` | TEXT | Sledování zásilky |
 | `ip_address`, `notes` | TEXT | |
-| `crm_contact_id` | INT → crm_contacts | Automaticky linkovaný kontakt |
-| `crm_company_id` | INT → crm_companies | |
+| `crm_contact_id` | TEXT → crm_contacts | Automaticky linkovaný kontakt |
+| `crm_company_id` | TEXT → crm_companies | |
 | `warehouse_sent_at` | TIMESTAMPTZ | Kdy objednávka odešla skladu; NULL = ještě ne (migrace 037) |
 | `warehouse_dispatch_id` | INT → warehouse_dispatches | Který běh ji poslal; NULL u ručního označení |
 | `warehouse_sent_by` | INT → users | Kdo ji označil ručně |
@@ -386,12 +386,12 @@ Firmy (zákazníci, dodavatelé, …).
 
 | Sloupec | Typ | Popis |
 |---|---|---|
-| `id` | SERIAL PK | |
+| `id` | TEXT PK | `generateId()` |
 | `name` | TEXT | |
-| `type` | TEXT | Zákazník / Dodavatel / Partner / Jiný |
+| `company_type` | TEXT | Zákazník / Dodavatel / Partner / Jiný |
 | `ico`, `dic` | TEXT | |
 | `address`, `city`, `zip`, `country` | TEXT | |
-| `phone`, `email`, `web` | TEXT | |
+| `phone`, `email`, `website` | TEXT | |
 | `notes` | TEXT | |
 | `created_at` | TIMESTAMPTZ | |
 
@@ -400,11 +400,11 @@ Fyzické osoby.
 
 | Sloupec | Typ | Popis |
 |---|---|---|
-| `id` | SERIAL PK | |
+| `id` | TEXT PK | `generateId()` |
 | `first_name`, `last_name` | TEXT | |
-| `email` | TEXT | |
+| `email` | TEXT | UNIQUE |
 | `phone` | TEXT | |
-| `company_id` | INT → crm_companies | Volitelné |
+| `company_id` | TEXT → crm_companies | Volitelné |
 | `address`, `city`, `zip`, `country` | TEXT | |
 | `notes` | TEXT | |
 | `created_at` | TIMESTAMPTZ | |
@@ -439,16 +439,17 @@ Vydané i přijaté faktury.
 
 | Sloupec | Typ | Popis |
 |---|---|---|
-| `id` | SERIAL PK | |
-| `type` | TEXT | `issued` / `received` |
+| `id` | TEXT PK | `generateId()` |
+| `type` | TEXT | `issued` / `received` / `proforma` (zálohová faktura, migrace 015) |
 | `number` | TEXT | Číslo faktury |
 | `status` | TEXT | Nezaplacena / Zaplacena / Po splatnosti / Storno (`STATUSES_ISSUED`) |
 | `issue_date`, `due_date` | DATE | |
 | `paid_date` | DATE | Den úhrady — den pohybu na účtu (párování s bankou) nebo den zadaný při ruční změně stavu, ne den kliknutí. U faktury k objednávce den přijetí úplaty (karta, převod), u dobírky NULL do spárování |
 | `taxable_date` | DATE | DUZP vydané faktury: u karty a převodu den přijetí úplaty, u dobírky den vystavení. NULL = shodné s `issue_date` (starší a ruční doklady). Tiskne ho PDF, je v CSV exportu a jde do POHODY jako `dateTax`; opravuje se v úpravě faktury (migrace 039) |
-| `customer_*` | TEXT | Fakturační údaje odběratele |
+| `client_name`, `client_ico`, `client_dic` | TEXT | Odběratel (vydané a zálohové faktury) |
+| `supplier` | TEXT | Dodavatel (přijaté faktury) |
 | `supplier_ico` | TEXT | IČO dodavatele (přijaté faktury) |
-| `items_total`, `vat_total`, `total` | NUMERIC | Součty |
+| `amount`, `vat_amount`, `total_amount` | NUMERIC | Základ, DPH, celkem |
 | `vat_rate` | NUMERIC | Sazba DPH |
 | `payment_method` | TEXT | |
 | `series_id` | INT → invoice_number_series | |
