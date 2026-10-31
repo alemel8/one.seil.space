@@ -52,6 +52,7 @@ one.seil.space/
 │   ├── atribuce-objednavky.js # Zdroj objednávky a nákupní cena z těla POST …/orders
 │   ├── hledani.js          # Globální hledání: skupiny výsledků podle přístupové matice (routa v routes/hledani.js)
 │   ├── upravy.js           # Režim úprav na detailech (tužka → Uložit): kdy je otevřený (?upravit=1)
+│   ├── prijata-faktura.js  # Kontroly čísla přijaté faktury, které index neumí (stejný název bez IČO, stejné číslo, datum a částka)
 │   ├── prazsky-cas.js      # Pražský čas a kalendářní data nezávislá na TZ procesu (ceskeDatum, jenDatum)
 │   └── routes/             # Fastify route pluginy (viz moduly.md)
 ├── views/                  # EJS šablony

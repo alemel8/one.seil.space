@@ -13,6 +13,7 @@ import { denUhradyZFormulare, uhradaFakturyObjednavky, zobrazeniUhrady } from '.
 import { ceskeDatum, jenDatum, prazskeDatum, pridejDny } from '../prazsky-cas.js';
 import { rezimUprav } from '../upravy.js';
 import { extractInvoiceData, importujSoubor } from '../gdrive-import.js';
+import { shodaBezIco } from '../prijata-faktura.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '../..');
@@ -34,26 +35,6 @@ const CHYBY_PRIJATE = {
   duplicita: 'Faktura s tímto číslem už v systému je, a to od stejného dodavatele. Zkontrolujte číslo a IČO nebo název dodavatele.',
   datum: 'Vyplňte platné datum přijetí a splatnosti.',
 };
-
-/**
- * Přijatá faktura se stejným číslem i názvem dodavatele, kde jedna kopie nemá IČO.
- * Tuhle shodu index z migrace 044 neumí, stejnou fakturu zadanou dvakrát hlídá tady.
- * Obě IČO vyplněná a různá jsou různí dodavatelé, stejná IČO řeší index.
- */
-async function shodaBezIco(sql, { number, supplier, ico, krome = '' }) {
-  if (!number || !supplier) return null;
-  const [shoda] = await sql`
-    SELECT id FROM accounting_invoices
-    WHERE type = 'received' AND number = ${number} AND id <> ${krome}
-      AND lower(btrim(supplier)) = lower(btrim(${supplier}))
-      AND (
-        NULLIF(ltrim(regexp_replace(supplier_ico, '[^0-9A-Za-z]', '', 'g'), '0'), '') IS NULL
-        OR NULLIF(ltrim(regexp_replace(${ico}, '[^0-9A-Za-z]', '', 'g'), '0'), '') IS NULL
-      )
-    LIMIT 1
-  `;
-  return shoda ?? null;
-}
 
 const FORM_ERRORS = {
   klient:    'Vyplňte klienta.',
@@ -912,7 +893,10 @@ export default async function invoicesRoutes(fastify) {
     const cislo = (b.number || '').trim();
     const dodavatel = (b.supplier || '').trim();
     const ico = (b.supplier_ico || '').trim();
-    if (await shodaBezIco(sql, { number: cislo, supplier: dodavatel, ico, krome: request.params.id })) return zpetSChybou('duplicita');
+    // Jen při změně klíče: dvojice vzniklá dřív by jinak zablokovala každé uložení obou řádků.
+    const [pred] = await sql`SELECT number, supplier, supplier_ico FROM accounting_invoices WHERE id = ${request.params.id} AND type = 'received'`;
+    const stejnyKlic = pred && pred.number === cislo && pred.supplier.trim() === dodavatel && (pred.supplier_ico || '').trim() === ico;
+    if (!stejnyKlic && await shodaBezIco(sql, { number: cislo, supplier: dodavatel, ico, krome: request.params.id })) return zpetSChybou('duplicita');
     try {
       await sql`
         UPDATE accounting_invoices SET
@@ -938,7 +922,7 @@ export default async function invoicesRoutes(fastify) {
         WHERE id = ${request.params.id} AND type = 'received'
       `;
     } catch (err) {
-      if (err.code === '23505') return zpetSChybou('duplicita'); // unique_violation: číslo a dodavatel, migrace 044
+      if (err.code === '23505') return zpetSChybou('duplicita'); // unique_violation: číslo a dodavatel, migrace 045
       throw err;
     }
     return reply.redirect(`/ucetnictvi/prijate-faktury/${request.params.id}?saved=1`);
@@ -1039,7 +1023,8 @@ export default async function invoicesRoutes(fastify) {
         )
       `;
     } catch (err) {
-      if (err.code === '23505') return duplicita(); // unique_violation: číslo a dodavatel, migrace 044
+      if (err.code === '23505') return duplicita(); // unique_violation: číslo a dodavatel, migrace 045
+      if (attachmentPath) await deleteAttachment(attachmentPath);
       throw err;
     }
     // Odpovídáme JSON (front-end přesměruje)

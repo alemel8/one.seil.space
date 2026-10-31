@@ -53,9 +53,7 @@ i `Červenec` fungují, u podsložky stačí, že název obsahuje „přijaté�
 
 Každý soubor se páruje přes Drive file ID (`accounting_invoices.gdrive_file_id`,
 unikátní index), takže opakovaný import nic nezduplikuje – ani po přejmenování
-nebo přesunu souboru na Disku. Druhý soubor se stejným číslem od stejného dodavatele
-skončí stavem `chyba` s hláškou a pokusy se opakují po hodině až do stropu; stejné
-číslo od jiného dodavatele je nová faktura.
+nebo přesunu souboru na Disku. Stejné číslo od jiného dodavatele je nová faktura.
 
 **Automatika** (`src/gdrive-import.js`) kontroluje každých 5 minut letošní
 a loňský rok. První úspěšná kontrola jen zapíše, co ve složce je (stav `vychozi`
@@ -63,10 +61,29 @@ v `gdrive_soubory`), a nic neimportuje: ty doklady jsou v systému z POHODY a na
 stránce nejsou předvybrané. Importuje se až to, co přibude později. Po změně ID
 složky se výchozí stav zapíše znovu.
 
-Před založením se hledá stejná faktura bez vazby na Disk: stejné IČO a k tomu
-číslo dokladu, nebo datum vystavení a částka. Shoda s jedinou fakturou se k ní
-připojí (doplní se vazba a chybějící příloha, číslo a stav zůstávají). Bez IČO
-se neslučuje. Číslo samo nestačí, u faktur z POHODY je v `number` její interní číslo.
+Před založením se hledá stejná faktura bez vazby na Disk: stejné IČO a číslo dokladu
+a k tomu datum nebo částka, nebo stejné IČO, datum a částka; když jedna strana IČO nemá,
+stejné číslo a název a k tomu datum nebo částka. Shoda s jedinou fakturou se k ní
+připojí (doplní se vazba a chybějící příloha, číslo a stav zůstávají). Číslo samo
+nestačí, u faktur z POHODY je v `number` její interní číslo.
+
+Když se nepřipojí a v systému je faktura se stejným číslem i dodavatelem, se stejným
+číslem (bez ohledu na mezery a pomlčky), datem a částkou, nebo u dokladu bez čísla se
+stejným dodavatelem, datem a částkou, soubor skončí stavem `chyba`, nic se nezaloží
+a rozhodne člověk. Datum v jiném tvaru než RRRR-MM-DD je taky chyba, jinak by se uložilo
+posunuté. Doklad bez vytěženého čísla dostane jako číslo název souboru.
+
+Známé meze, které se neřeší, protože v řádku není uložený jeho původ:
+
+- Dva doklady téhož dodavatele se stejným dnem a částkou a jiným číslem (dvě obnovy
+  domén): když je jeden zadaný ručně nebo z POHODY, druhý se k němu připojí a číslo
+  se nezapíše. Stejná shoda je jediná cesta k faktuře z POHODY s interním číslem.
+- Když takové řádky bez vazby na Disk existují dva a doklad má jiné číslo, připojení
+  je nejasné, takže vznikne třetí řádek.
+- Dva různí dodavatelé se stejným číslem, datem a částkou skončí chybou, faktura se
+  založí ručně.
+- Kopie téhož dokladu vytěžená nejdřív bez čísla (číslem je název souboru) a pak s číslem
+  založí dva řádky. Opačné pořadí skončí chybou.
 
 Nevytěžený doklad fakturu nezaloží. Zkusí se znovu po hodině, nejvýš 5×, pak
 přijde push a zbývá ruční import ze stránky. Za jednu kontrolu se zpracuje nejvýš

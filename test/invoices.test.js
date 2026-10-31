@@ -187,6 +187,7 @@ describe('nová přijatá faktura', () => {
     try {
       const pripady = [
         { supplier: 'Kdokoli', supplier_ico: ' 111 111 11 ' },   // stejné IČO v jiném zápisu
+        { supplier: 'Kdokoli', supplier_ico: 'cz11111111' },     // DIČ místo IČO
         { supplier: 'alfa ', supplier_ico: '' },                 // bez IČO, stejný název
       ];
       for (const pole of pripady) {

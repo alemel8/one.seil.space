@@ -437,9 +437,12 @@ hosta z objednávky (`is_registered = FALSE`). Primární klíč
 ### `accounting_invoices`
 Vydané i přijaté faktury.
 
-Jedinečnost čísla (migrace 044): vydané a zálohové `(type, number)`, přijaté
-`(number, dodavatel)`, kde dodavatel je IČO bez mezer a úvodních nul, a když chybí,
-`lower(btrim(supplier))`. Prázdné číslo se nehlídá. Shodu řádku s IČO a řádku bez
+Jedinečnost čísla (migrace 044 a 045): vydané a zálohové `(type, number)`, přijaté
+`(number, dodavatel)`, kde dodavatel je `ico_klic(supplier_ico)` (IČO bez mezer,
+úvodních nul a předpony CZ, velkými písmeny), a když chybí, `lower(btrim(supplier))`.
+Kdyby při nasazení 045 existovala dvojice lišící se jen zápisem IČO, zůstane index z 044
+a v logu serveru je `[postgres] Migrace 045: …`. Po vyřešení dvojice se index přestaví
+ručně příkazy z migrace, sama se znovu nespustí. Prázdné číslo se nehlídá. Shodu řádku s IČO a řádku bez
 IČO index nezná, hlídá ji aplikace, viz `docs/moduly.md`.
 
 | Sloupec | Typ | Popis |

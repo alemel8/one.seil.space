@@ -211,12 +211,113 @@ describe('automatický import', { skip: PRESKOCIT }, () => {
     const s = await stav('kopie-2');
     assert.equal(s.stav, 'chyba');
     assert.equal(s.pokusy, 1);
-    assert.match(s.chyba, /FA-77 od tohoto dodavatele už v systému je/);
+    assert.match(s.chyba, /FA-77 už v systému je/);
     assert.ok(!/index|constraint|unique/i.test(s.chyba), 'bez technického textu');
     assert.equal(await faktura('kopie-2'), undefined);
 
     await tikGdrive(null, { sql, now: NOW, extract: pocitej, notify });
     assert.equal(vytezeni, 2, 'hned znovu se Claude nevolá');
+  });
+
+  test('dvě kopie téhož dokladu, jedna vytěžená bez IČO: druhá se nezaloží, v obou pořadích', async () => {
+    const bezIco = async () => ({ ...VYTEZENO, supplier_ico: null });
+    for (const [prvni, druha] of [[extract, bezIco], [bezIco, extract]]) {
+      await uklid();
+      assert.equal((await importujSoubor(sql, null, 'kopie-a', { extract: prvni })).vysledek, 'imported');
+      await assert.rejects(importujSoubor(sql, null, 'kopie-b', { extract: druha }), /FA-77 už v systému je/);
+      assert.equal((await stav('kopie-b')).stav, 'chyba');
+      const [{ n }] = await sql`SELECT count(*)::int n FROM accounting_invoices WHERE number = 'FA-77'`;
+      assert.equal(n, 1);
+    }
+  });
+
+  test('dvě kopie s jinak vytěženým dodavatelem: stejné číslo, datum a částka se nezaloží', async () => {
+    assert.equal((await importujSoubor(sql, null, 'jina-a', { extract: async () => ({ ...VYTEZENO, supplier_ico: null }) })).vysledek, 'imported');
+    const jinakPsany = async () => ({ ...VYTEZENO, supplier: 'WEDOS Internet a.s.', supplier_ico: null });
+    await assert.rejects(importujSoubor(sql, null, 'jina-b', { extract: jinakPsany }), /FA-77 už v systému je/);
+    const [{ n }] = await sql`SELECT count(*)::int n FROM accounting_invoices WHERE number = 'FA-77'`;
+    assert.equal(n, 1);
+  });
+
+  test('stejné číslo a název, ale jiné datum i částka: nepřipojí se a skončí chybou', async () => {
+    for (const icoRadku of [null, '28115708']) {
+      await uklid();
+      await sql`
+        INSERT INTO accounting_invoices (id, type, number, supplier, supplier_ico, amount, vat_amount, total_amount, status, issue_date)
+        VALUES ('inv_stara', 'received', 'FA-77', ${VYTEZENO.supplier}, ${icoRadku}, 1000, 0, 1000, 'Zaplacena', '2025-01-10')
+      `;
+      const dalsi = async () => ({ ...VYTEZENO, supplier_ico: icoRadku ? null : '28115708', total_amount: 5000, issue_date: '2026-10-01' });
+      await assert.rejects(importujSoubor(sql, null, 'jiny-doklad', { extract: dalsi }), /FA-77 už v systému je/);
+      const [r] = await sql`SELECT total_amount, gdrive_file_id, attachment_path FROM accounting_invoices WHERE id = 'inv_stara'`;
+      assert.equal(Number(r.total_amount), 1000);
+      assert.equal(r.gdrive_file_id, null, 'cizí řádek zůstal bez vazby');
+      assert.equal(r.attachment_path, null, 'a bez cizí přílohy');
+      await sql`DELETE FROM accounting_invoices WHERE id = 'inv_stara'`;
+    }
+  });
+
+  test('stejné IČO a číslo, ale jiné datum i částka: nepřipojí se k cizímu řádku', async () => {
+    await sql`
+      INSERT INTO accounting_invoices (id, type, number, supplier, supplier_ico, amount, vat_amount, total_amount, status, issue_date)
+      VALUES ('inv_lonska', 'received', 'FA-77', 'WEDOS', '28115708', 1000, 0, 1000, 'Zaplacena', '2025-01-10')
+    `;
+    const letos = async () => ({ ...VYTEZENO, total_amount: 5000, issue_date: '2026-10-01' });
+    await assert.rejects(importujSoubor(sql, null, 'letos', { extract: letos }), /FA-77 už v systému je/);
+    const [r] = await sql`SELECT total_amount, gdrive_file_id, attachment_path FROM accounting_invoices WHERE id = 'inv_lonska'`;
+    assert.deepEqual([Number(r.total_amount), r.gdrive_file_id, r.attachment_path], [1000, null, null]);
+    await sql`DELETE FROM accounting_invoices WHERE id = 'inv_lonska'`;
+  });
+
+  test('kopie s jinak zapsaným číslem nebo bez čísla se nezdvojí', async () => {
+    assert.equal((await importujSoubor(sql, null, 'zapis-a', { extract })).vysledek, 'imported');
+    const jinakCislo = async () => ({ ...VYTEZENO, number: 'fa 77' });
+    await assert.rejects(importujSoubor(sql, null, 'zapis-b', { extract: jinakCislo }), /už v systému je/);
+    const bezCisla = async () => ({ ...VYTEZENO, number: null });
+    await assert.rejects(importujSoubor(sql, null, 'zapis-c', { extract: bezCisla }), /už v systému je/);
+    const [{ n }] = await sql`SELECT count(*)::int n FROM accounting_invoices WHERE supplier_ico = '28115708'`;
+    assert.equal(n, 1);
+  });
+
+  test('doklad bez čísla: součet bez celkové částky se zaokrouhlí a kopii pozná', async () => {
+    const bezCisla = async () => ({ ...VYTEZENO, number: null, amount: 10.1, vat_amount: 2.12, total_amount: null });
+    assert.equal((await importujSoubor(sql, null, 'soucet-a', { extract: bezCisla })).vysledek, 'imported');
+    assert.equal(Number((await faktura('soucet-a')).total_amount), 12.22);
+    await assert.rejects(importujSoubor(sql, null, 'soucet-b', { extract: bezCisla }), /už v systému je/);
+  });
+
+  test('doklad bez čísla od jiného IČO se stejným názvem, datem a částkou je další faktura', async () => {
+    const jineCislo = async () => ({ ...VYTEZENO, number: 'FA-90' });
+    assert.equal((await importujSoubor(sql, null, 'nazev-a', { extract: jineCislo })).vysledek, 'imported');
+    const jineIco = async () => ({ ...VYTEZENO, number: null, supplier_ico: '12345678' });
+    assert.equal((await importujSoubor(sql, null, 'nazev-b', { extract: jineIco })).vysledek, 'imported');
+  });
+
+  test('různá čísla téhož dodavatele se stejným datem a částkou jsou dvě faktury', async () => {
+    const druha = async () => ({ ...VYTEZENO, number: 'FA-78' });
+    assert.equal((await importujSoubor(sql, null, 'cislo-77', { extract })).vysledek, 'imported');
+    assert.equal((await importujSoubor(sql, null, 'cislo-78', { extract: druha })).vysledek, 'imported');
+  });
+
+  test('datum v jiném tvaru se neuloží posunuté, doklad skončí chybou', async () => {
+    const ceskeDatum = async () => ({ ...VYTEZENO, issue_date: '1. 10. 2026' });
+    await assert.rejects(importujSoubor(sql, null, 'datum-cesky', { extract: ceskeDatum }), /datum vystavení/);
+    assert.equal(await faktura('datum-cesky'), undefined);
+    const neexistujici = async () => ({ ...VYTEZENO, issue_date: '2026-02-30' });
+    await assert.rejects(importujSoubor(sql, null, 'datum-30-2', { extract: neexistujici }), /datum vystavení/);
+    const spatnaSplatnost = async () => ({ ...VYTEZENO, due_date: '30. 2.' });
+    assert.equal((await importujSoubor(sql, null, 'splatnost', { extract: spatnaSplatnost })).vysledek, 'imported');
+    assert.equal((await faktura('splatnost')).due_date, null, 'nepoužitelná splatnost se nevymýšlí');
+  });
+
+  test('IČO s předponou CZ je týž dodavatel: připojí se k faktuře z POHODY a nezdvojí se', async () => {
+    await sql`
+      INSERT INTO accounting_invoices (id, type, number, supplier, supplier_ico, amount, vat_amount, total_amount, status, issue_date)
+      VALUES ('inv_pohoda_cz', 'received', 'POHODA-261100097', 'WEDOS', '28115708', 100, 21, 121, 'Zaplacena', '2026-11-01')
+    `;
+    const sDic = async () => ({ ...VYTEZENO, supplier_ico: 'cz 28115708' });
+    assert.equal((await importujSoubor(sql, null, 'dic-a', { extract: sDic })).vysledek, 'merged');
+    const [{ n }] = await sql`SELECT count(*)::int n FROM accounting_invoices WHERE supplier_ico = '28115708'`;
+    assert.equal(n, 1);
   });
 
   test('souběh na stejném souboru se tiše přeskočí', async () => {

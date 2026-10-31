@@ -11,7 +11,8 @@
 // v6: pomlčky v textech skriptů a komentářích stylů (U+2014 → U+2013)
 // v7: pojistka proti dvojkliku, návrat po uložení, rozepsané hodnoty po chybě (upravy.js, app.js)
 // v8: kontrola při Uložit, cizí změna se nepřepíše (upravy.js)
-const CACHE_NAME = 'one-seil-v8';
+// v9: statika beze změny, podle verze je zvenku vidět nasazení migrace 045
+const CACHE_NAME = 'one-seil-v9';
 
 // Při instalaci – předcache jen statické assets
 self.addEventListener('install', event => {

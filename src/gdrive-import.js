@@ -6,18 +6,22 @@
 // v systému z POHODY s jejím interním číslem. Importuje se až to, co přibude.
 //
 // Duplicity: soubor se páruje přes gdrive_file_id. Než se založí nová faktura,
-// hledá se stejná bez vazby na Disk – stejné IČO a k tomu číslo dokladu, nebo
-// datum vystavení a částka; když jedna strana IČO nemá, stejné číslo a název.
-// Číslo samo nestačí: u faktur z POHODY je v `number` její interní číslo, ne číslo
-// dodavatele, a dva dodavatelé můžou mít stejné číslo (migrace 044). Shoda
-// s jedinou fakturou se k ní připojí, nic nového nevzniká.
+// hledá se stejná bez vazby na Disk – stejné IČO a číslo dokladu a k tomu datum
+// nebo částka, nebo stejné IČO, datum a částka; když jedna strana IČO nemá, stejné
+// číslo a název a k tomu datum nebo částka. Číslo samo nestačí: u faktur z POHODY
+// je v `number` její interní číslo, ne číslo dodavatele, a dva dodavatelé můžou mít
+// stejné číslo (migrace 044). Shoda s jedinou fakturou se k ní připojí, nic nového
+// nevzniká. Když se nepřipojí a v systému je faktura se stejným číslem i dodavatelem,
+// se stejným číslem, datem a částkou, nebo u dokladu bez čísla se stejným dodavatelem,
+// datem a částkou, soubor skončí chybou: rozhodne člověk.
 
 import Anthropic from '@anthropic-ai/sdk';
 import { getDb, generateId } from './db.js';
 import { saveAttachment, deleteAttachment } from './attachments.js';
 import { sendPushToAll } from './push.js';
-import { prazskeDatum } from './prazsky-cas.js';
+import { jenDatum, prazskeDatum } from './prazsky-cas.js';
 import { downloadFile, findReceivedInvoices, getFile, isConfigured, ROK_CHYBI } from './gdrive.js';
+import { shodaBezCisla, shodaBezIco, shodaCislaDataCastky } from './prijata-faktura.js';
 
 /** Po tolika neúspěšných pokusech se soubor nechá být, dál jen ručně ze stránky. */
 export const MAX_POKUSU = 5;
@@ -68,20 +72,18 @@ async function najdiStejnou(sql, { ico, dodavatel, cisloDokladu, datum, celkem }
     SELECT id, attachment_path FROM accounting_invoices
     WHERE type = 'received' AND gdrive_file_id IS NULL AND (
       (
-        NULLIF(ltrim(regexp_replace(supplier_ico, '[^0-9A-Za-z]', '', 'g'), '0'), '')
-          = NULLIF(ltrim(regexp_replace(${ico}, '[^0-9A-Za-z]', '', 'g'), '0'), '')
+        ico_klic(supplier_ico) = ico_klic(${ico})
         AND (
-          (${cisloDokladu} <> '' AND number = ${cisloDokladu})
+          (${cisloDokladu} <> '' AND number = ${cisloDokladu}
+            AND (issue_date = ${datum}::date OR total_amount = ${celkem}::numeric))
           OR (issue_date = ${datum}::date AND total_amount = ${celkem}::numeric)
         )
       )
       OR (
         ${cisloDokladu} <> '' AND number = ${cisloDokladu}
         AND lower(btrim(supplier)) = lower(btrim(${dodavatel}))
-        AND (
-          NULLIF(ltrim(regexp_replace(supplier_ico, '[^0-9A-Za-z]', '', 'g'), '0'), '') IS NULL
-          OR NULLIF(ltrim(regexp_replace(${ico}, '[^0-9A-Za-z]', '', 'g'), '0'), '') IS NULL
-        )
+        AND (ico_klic(supplier_ico) IS NULL OR ico_klic(${ico}) IS NULL)
+        AND (issue_date = ${datum}::date OR total_amount = ${celkem}::numeric)
       )
     )
     LIMIT 2
@@ -119,7 +121,7 @@ export async function importujSoubor(sql, log, fileId, { extract = extractInvoic
 
     const amount      = cislo(d.amount);
     const vatAmount   = cislo(d.vat_amount);
-    const totalAmount = d.total_amount ? cislo(d.total_amount) : amount + vatAmount;
+    const totalAmount = d.total_amount ? cislo(d.total_amount) : Math.round((amount + vatAmount) * 100) / 100;
     const supplier    = String(d.supplier || '').trim();
 
     // Prázdná faktura by se tvářila jako hotová a soubor by se už nezkusil znovu.
@@ -127,12 +129,26 @@ export async function importujSoubor(sql, log, fileId, { extract = extractInvoic
       throw new Error('Z dokladu se nepodařilo vytěžit dodavatele a částku.');
     }
 
+    // Jiný tvar by postgres.js přes JS Date tiše posunul: 1. 10. 2026 na 9. 1. 2026.
+    const datum = jenDatum(d.issue_date);
+    if (d.issue_date && !datum) {
+      throw new Error(`Z dokladu se nepodařilo vytěžit datum vystavení (${String(d.issue_date).slice(0, 30)}).`);
+    }
+
     const ico          = String(d.supplier_ico || '').trim();
     const cisloDokladu = String(d.number || '').trim().slice(0, 60);
     const cisloFaktury = cisloDokladu || String(meta.name || '').slice(0, 60);
     const stejna = await najdiStejnou(sql, {
-      ico, dodavatel: supplier, cisloDokladu, datum: d.issue_date || null, celkem: totalAmount,
+      ico, dodavatel: supplier, cisloDokladu, datum, celkem: totalAmount,
     });
+
+    const duplicita = () => new Error(`Faktura ${cisloFaktury} už v systému je: shoduje se dodavatel a číslo, nebo datum a částka. Zkontrolujte ji ručně.`);
+    // Index tyhle dvojice nepozná: založil by se druhý řádek téhož dokladu.
+    if (!stejna && (
+      await shodaBezIco(sql, { number: cisloFaktury, supplier, ico })
+      || await shodaCislaDataCastky(sql, { number: cisloFaktury, datum, celkem: totalAmount })
+      || (!cisloDokladu && await shodaBezCisla(sql, { supplier, ico, datum, celkem: totalAmount }))
+    )) throw duplicita();
 
     // Příloha se nepřepisuje, když ji stejná faktura už má.
     const saved = stejna?.attachment_path
@@ -167,8 +183,8 @@ export async function importujSoubor(sql, log, fileId, { extract = extractInvoic
           ${ico || null},
           ${amount}, ${vatAmount}, ${totalAmount},
           ${d.currency || 'CZK'}, 'Nezaplacena',
-          ${d.issue_date || new Date().toISOString().split('T')[0]},
-          ${d.due_date || null},
+          ${datum || new Date().toISOString().split('T')[0]},
+          ${jenDatum(d.due_date)},
           ${(d.notes || '').trim() || meta.name},
           ${saved.filename}, ${saved.mime}, ${saved.size}, ${fileId}
         )
@@ -184,7 +200,7 @@ export async function importujSoubor(sql, log, fileId, { extract = extractInvoic
       }
       // Stejné číslo od stejného dodavatele je duplicita, ne souběh. Bez chyby by
       // soubor zůstal 'cekajici' a každá kontrola by ho znovu vytěžovala.
-      if (err.code === '23505') throw new Error(`Faktura ${cisloFaktury} od tohoto dodavatele už v systému je.`);
+      if (err.code === '23505') throw duplicita();
       throw err;
     }
   } catch (err) {

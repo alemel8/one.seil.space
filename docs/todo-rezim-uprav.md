@@ -27,6 +27,9 @@ co čeká na rozhodnutí nebo se vědomě neřešilo.
 - Našeptávač účtů skládá `innerHTML` z názvů v účetní osnově (čtyři šablony). Osnovu
   píše jen správce. Nesprávce dostane z `/api/accounting-chart` 403, takže má
   našeptávač tiše prázdný.
+- `views/pages/receipts/list.ejs` volá `rcOpen` dřív, než vznikne (ř. 389), takže skript
+  seznamu účtenek při načtení spadne a „Zadat ručně“ končí chybou `rcOpenManual is not
+  defined`. Je to od 19. 8. 2026, mimo režim úprav. Oprava je `() => window.rcOpen()`.
 - Výchozí stát „Česká republika“ se při prvním uložení zapíše i do prázdného sloupce.
   Stejně to dělal dřívější modal.
 - Povinné textové pole ze samých mezer hlídá prohlížeč (`pattern`), server ho při

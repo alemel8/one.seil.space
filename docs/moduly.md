@@ -140,11 +140,15 @@ dodavatele, viz níže).
 
 Číslo přijaté faktury přiděluje dodavatel, takže stejné číslo od dvou dodavatelů
 je v pořádku (migrace 044). Stejný dodavatel znamená stejné IČO po odstranění
-mezer a úvodních nul, a když IČO chybí, stejný název bez ohledu na velikost písmen
-a okrajové mezery. Různá IČO jsou různí dodavatelé i se stejným názvem. Index neumí
-shodu řádku s IČO a řádku bez IČO, tu hlídá aplikace (`shodaBezIco`
-v `src/routes/invoices.js`, `najdiStejnou` v `src/gdrive-import.js`): stejné číslo
-a název, jedna kopie bez IČO. Tohle hlídání je dotaz před zápisem, ne atomické.
+mezer, úvodních nul a předpony CZ, bez ohledu na velikost písmen (`ico_klic`
+z migrace 045, stejně `scripts/lib/dodavatel.js`), a když IČO chybí, stejný název
+bez ohledu na velikost písmen a okrajové mezery. Různá IČO jsou různí dodavatelé
+i se stejným názvem. Index neumí shodu řádku s IČO a řádku bez IČO, tu hlídá aplikace
+(`src/prijata-faktura.js`): stejné číslo a název, jedna kopie bez IČO. Import z Disku
+navíc odmítne stejné číslo, datum a částku, i když se dodavatel vytěžil jinak, a doklad
+bez čísla se stejným dodavatelem, datem a částkou.
+Tohle hlídání je dotaz před zápisem, ne atomické, a při úpravě faktury běží jen
+při změně čísla nebo dodavatele, aby dvojice vzniklá dřív nezablokovala uložení.
 
 ### Faktura k objednávce e-shopu
 
@@ -1101,12 +1105,17 @@ node --env-file=.env scripts/import-faktury-xlsx.js --sync-status # + srovnání
 **Hlídání duplicit** (skript je idempotentní, lze spouštět opakovaně):
 
 1. podle čísla dokladu (POHODA `Číslo`) a dodavatele proti `number`
-   a dodavateli; stejné číslo od jiného dodavatele je jiná faktura,
+   a dodavateli; `number` je tu interní číslo POHODY, takže jiná faktura se založí,
+   jen když se liší IČO, název a k tomu datum nebo částka, a skript na ni upozorní;
+   jinak jde nejspíš o opravené IČO nebo název: nic nezaloží a jen varuje, u rozdílu
+   v úhradě i s tím, jaký stav je v POHODĚ a jaký tady,
 2. podle variabilního symbolu a dodavatele proti `number` a dodavateli –
    zachytí faktury, které do systému přitekly importem z Disku a jsou vedené
-   pod číslem dodavatele; ty se sloučí do existujícího záznamu (zůstane `id`
-   i příloha), s `--no-merge` se jen přeskočí; když jedna strana nemá IČO a názvy
-   se liší, skript nic nepřepíše ani nezaloží a jen varuje,
+   pod číslem dodavatele; ty se při shodě data nebo částky sloučí do existujícího
+   záznamu (zůstane `id`, příloha a stav potvrzený bankovním pohybem), s `--no-merge`
+   se jen přeskočí; když to poznat nejde, skript nic nepřepíše ani nezaloží a jen
+   varuje; VS rovný číslu jiného dokladu v tomtéž exportu se neslučuje, je to samostatný
+   doklad POHODY; řádek bez data se přeskočí s varováním,
 3. kontrolní shoda dodavatel + datum + částka → jen varování do logu.
 
 **Mapování částek:** `amount` je součet všech sazeb (`Kč 0`, `Kč snížená`,

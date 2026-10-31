@@ -25,16 +25,19 @@
  * Hlídání duplicit:
  *   1. Číslo dokladu (POHODA "Číslo") a dodavatel proti number a dodavateli
  *      v DB – hlavní klíč. Stejné číslo od jiného dodavatele je jiná faktura
- *      (migrace 044), bez IČO a s jiným názvem se to poznat nedá: jen varování.
+ *      (migrace 044), ale jen když se liší IČO i název. Jinak, nebo když sedí datum
+ *      a částka, jde nejspíš o opravené IČO nebo název: přeskočí se s varováním.
  *   2. Variabilní symbol a dodavatel proti number a dodavateli v DB – zachytí
  *      faktury, které do systému přitekly jinou cestou (import z Disku) a jsou
  *      vedené pod číslem dodavatele. Ty se ve výchozím stavu sloučí do
  *      existujícího záznamu (zůstane id i příloha), s --no-merge se jen přeskočí.
+ *      Slučuje se jen při shodě data nebo částky. Když to poznat nejde, přeskočí
+ *      se s varováním.
  *   3. Kontrolně dodavatel+datum+částka – jen varování do logu.
  */
 
 import './lib/load-env.js';   // musí být první – plní process.env z .env
-import { porovnejDodavatele } from './lib/dodavatel.js';
+import { posudCislo, posudVs } from './lib/dodavatel.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -340,13 +343,8 @@ async function importReceived(icoToCompany, today) {
   const byNumber = new Map();
   const pridej = (cislo, r) => byNumber.set(cislo, [...(byNumber.get(cislo) ?? []), r]);
   for (const r of dbRows) pridej(r.number, r);
-  const kandidati = (cislo, f) => {
-    const radky = byNumber.get(cislo) ?? [];
-    return {
-      stejne: radky.filter(r => porovnejDodavatele(r, f) === 'stejny'),
-      nejiste: radky.filter(r => porovnejDodavatele(r, f) === 'nejisty'),
-    };
-  };
+  const seznam = (radky) => radky.map(r => r.supplier).join(', ');
+  const cislaVExportu = new Set(rows.map(row => mapRow(row, today).number));
   // Kontrolní index pro fuzzy shodu (jiné číslo, ale stejné datum i částka)
   const byDateAmount = new Map();
   for (const r of dbRows) {
@@ -358,47 +356,67 @@ async function importReceived(icoToCompany, today) {
     const f = mapRow(row, today);
 
     // 1) duplicita podle čísla dokladu
-    const podleCisla = kandidati(f.number, f);
-    if (podleCisla.stejne.length > 1 || (!podleCisla.stejne.length && podleCisla.nejiste.length)) {
+    const podleCisla = posudCislo(byNumber.get(f.number) ?? [], f);
+    if (podleCisla.akce === 'nejiste') {
       stats.receivedSkip++;
-      warnings.push(`${f.number} (${f.name}): stejné číslo má ${[...podleCisla.stejne, ...podleCisla.nejiste].map(r => r.supplier).join(', ')}, dodavatele nejde rozlišit – přeskočeno, zkontrolovat ručně`);
+      // Stav se tu nesrovnává, řádek může být cizí. Rozdíl v úhradě ale musí být vidět.
+      const jinyStav = podleCisla.radky.filter(r => r.status !== f.status);
+      if (jinyStav.length) stats.statusDrift++;
+      warnings.push(
+        `${f.number} (${f.name}): stejné číslo má ${seznam(podleCisla.radky)}, dodavatele nejde rozlišit – přeskočeno, zkontrolovat ručně` +
+        (jinyStav.length ? `; v POHODĚ je stav "${f.status}", tady ${jinyStav.map(r => `"${r.status}"`).join(', ')}` : '')
+      );
       continue;
     }
-    if (podleCisla.stejne.length) {
+    if (podleCisla.akce === 'existuje') {
       stats.receivedSkip++;
-      await syncStatus(podleCisla.stejne[0], f);
+      await syncStatus(podleCisla.radek, f);
+      continue;
+    }
+
+    // Bez data se řádek nedá založit ani sloučit, sloupec je NOT NULL.
+    if (!f.issueDate) {
+      stats.receivedSkip++;
+      warnings.push(`${f.number} (${f.name}): v POHODĚ chybí datum – přeskočeno, zkontrolovat ručně`);
       continue;
     }
 
     // 2) duplicita pod variabilním symbolem (faktura přišla jinou cestou)
-    const podleVs = f.varsym ? kandidati(f.varsym, f) : { stejne: [], nejiste: [] };
-    if (podleVs.stejne.length > 1 || (!podleVs.stejne.length && podleVs.nejiste.length)) {
+    // Číslo z tohoto exportu je samostatný doklad POHODY, ne faktura z Disku pod číslem dodavatele.
+    const podleVs = f.varsym && !cislaVExportu.has(f.varsym) ? posudVs(byNumber.get(f.varsym) ?? [], f) : { akce: 'zadna' };
+    if (podleVs.akce === 'nejiste') {
       stats.receivedSkip++;
-      warnings.push(`${f.number} (${f.name}): VS ${f.varsym} má ${[...podleVs.stejne, ...podleVs.nejiste].map(r => r.supplier).join(', ')}, dodavatele nejde rozlišit – přeskočeno, zkontrolovat ručně`);
+      warnings.push(`${f.number} (${f.name}): VS ${f.varsym} má ${seznam(podleVs.radky)}, dodavatele nejde rozlišit – přeskočeno, zkontrolovat ručně`);
       continue;
     }
-    const underVs = podleVs.stejne[0];
+    const underVs = podleVs.radek;
     if (underVs) {
       if (NO_MERGE) {
         stats.receivedSkip++;
         warnings.push(`${f.number}: již v DB pod VS ${f.varsym} (id ${underVs.id}) – přeskočeno`);
         continue;
       }
+      // Navázaný bankovní pohyb je tvrdší důkaz než POHODA, viz syncStatus.
+      const zaplaceno = underVs.status === 'Zaplacena' && f.status !== 'Zaplacena' && underVs.bank_transaction_id;
+      if (zaplaceno) {
+        stats.statusProtected++;
+        warnings.push(`${f.number}: v POHODĚ "${f.status}", ale úhradu potvrzuje bankovní pohyb – ponecháno "Zaplacena"`);
+      }
       if (!DRY_RUN) {
         await sql`
           UPDATE accounting_invoices SET
-            number = ${f.number}, status = ${f.status},
+            number = ${f.number}, status = ${zaplaceno ? underVs.status : f.status}, currency = 'CZK',
             supplier = ${f.name}, supplier_ico = ${f.ico}, supplier_dic = ${f.dic},
             supplier_address = ${f.street}, supplier_city = ${f.city}, supplier_zip = ${f.zip},
             crm_company_id = COALESCE(crm_company_id, ${f.ico ? icoToCompany.get(f.ico) ?? null : null}),
-            issue_date = ${f.issueDate}, due_date = ${f.dueDate}, paid_date = ${f.paidDate},
+            issue_date = ${f.issueDate}, due_date = ${f.dueDate}, paid_date = ${zaplaceno ? underVs.paid_date : f.paidDate},
             amount = ${f.amount}, vat_amount = ${f.vat}, total_amount = ${f.total},
             notes = ${f.notes}, modified_at = NOW()
           WHERE id = ${underVs.id}
         `;
       }
       byNumber.set(f.varsym, byNumber.get(f.varsym).filter(r => r !== underVs));
-      pridej(f.number, { ...underVs, number: f.number, supplier: f.name, supplier_ico: f.ico });
+      pridej(f.number, { ...underVs, number: f.number, supplier: f.name, supplier_ico: f.ico, issue_date: f.issueDate, total_amount: f.total });
       stats.receivedMerged++;
       warnings.push(
         `${f.number}: sloučeno s existujícím záznamem "${underVs.number}" ` +
@@ -415,6 +433,10 @@ async function importReceived(icoToCompany, today) {
         `${f.number} (${f.name}, ${f.issueDate}, ${f.total} Kč): stejné datum i částka jako ` +
         fuzzy.map(r => `${r.number} (${r.supplier})`).join(', ') + ' – zkontrolovat ručně'
       );
+    }
+
+    if (podleCisla.radky.length) {
+      warnings.push(`${f.number} (${f.name}): stejné číslo má i ${seznam(podleCisla.radky)}, jiné IČO, název i údaje – založeno zvlášť`);
     }
 
     const companyId = f.ico ? icoToCompany.get(f.ico) ?? null : null;

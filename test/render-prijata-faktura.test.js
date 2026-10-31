@@ -207,6 +207,28 @@ describe('proti serveru', { skip: PRESKOCIT }, () => {
     }
   });
 
+  test('dvojice vzniklá dřív neblokuje uložení, změna na obsazený klíč ano', async () => {
+    const druha = `tpf4${r}`;
+    const cislo = `PF4-${r}`;
+    await sql`UPDATE accounting_invoices SET number = ${cislo}, supplier = 'Dvojice s.r.o.', supplier_ico = '55555555' WHERE id = ${id}`;
+    await sql`INSERT INTO accounting_invoices (id, type, number, supplier, supplier_ico, amount, vat_amount, total_amount, currency, issue_date, status)
+      VALUES (${druha}, 'received', ${cislo}, 'Dvojice s.r.o.', NULL, 1, 0, 1, 'CZK', '2026-02-02', 'Nezaplacena')`;
+    try {
+      const uloz = (radek, telo) => req.post(`/ucetnictvi/prijate-faktury/${radek}/upravit`, { number: cislo, supplier: 'Dvojice s.r.o.', issue_date: '2026-02-02', ...telo });
+      let res = await uloz(id, { supplier_ico: '55555555', notes: 'jen poznámka' });
+      assert.equal(res.headers.get('location'), `/ucetnictvi/prijate-faktury/${id}?saved=1`, 'řádek s IČO');
+      res = await uloz(druha, { notes: 'jen poznámka' });
+      assert.equal(res.headers.get('location'), `/ucetnictvi/prijate-faktury/${druha}?saved=1`, 'řádek bez IČO');
+      res = await uloz(druha, { supplier: ' DVOJICE s.r.o. ' });
+      assert.equal(res.headers.get('location'), `/ucetnictvi/prijate-faktury/${druha}?error=duplicita&upravit=1`, 'změna klíče se hlídá');
+      res = await uloz(druha, { supplier_ico: 'cz 55555555' });
+      assert.equal(res.headers.get('location'), `/ucetnictvi/prijate-faktury/${druha}?error=duplicita&upravit=1`, 'předpona CZ je totéž IČO');
+    } finally {
+      await sql`UPDATE accounting_invoices SET number = ${`PF-${r}`} WHERE id = ${id}`;
+      await sql`DELETE FROM accounting_invoices WHERE id = ${druha}`;
+    }
+  });
+
   test('stejné číslo od jiného dodavatele uložit jde, zpět na stejného ne', async () => {
     const druha = `tpf3${r}`;
     const cislo = `PF3-${r}`;

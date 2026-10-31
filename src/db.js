@@ -23,7 +23,8 @@ export function getDb() {
     idle_timeout: 20,
     connect_timeout: 10,
     ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false,
-    onnotice: () => {},
+    // NOTICE je šum (IF NOT EXISTS), WARNING musí být v logu: migrace 045 tak hlásí kolizi.
+    onnotice: (n) => { if (n.severity === 'WARNING') console.warn(`[postgres] ${n.message}`); },
   });
 
   return _sql;
