@@ -41,6 +41,9 @@
   const zaskrtavaci = typ === 'toggle' || typ === 'checkbox';
 
   const moznosti = (p.moznosti || []).map(m => Array.isArray(m) ? [String(m[0]), String(m[1])] : [String(m), String(m)]);
+  // Hodnota mimo nabídku (starší data, kontakt z jiné firmy) zůstane vybraná —
+  // jinak by uložení formuláře potichu přepsalo sloupec první volbou.
+  if (typ === 'select' && maHodnotu && !moznosti.some(([v]) => v === String(hodnota))) moznosti.unshift([String(hodnota), String(hodnota)]);
   const vybrana = maHodnotu ? moznosti.find(([v]) => v === String(hodnota)) : undefined;
 
   let text;

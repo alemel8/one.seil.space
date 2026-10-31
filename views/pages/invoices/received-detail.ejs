@@ -84,7 +84,7 @@
         <% if (invoice.paid_date) { %>
         <div class="form-group pole pole-stale">
           <span class="form-label">Zaplaceno</span>
-          <div class="pole-hodnota" style="color:#166534;"><%= ceskeDatum(invoice.paid_date) %></div>
+          <div class="pole-hodnota pole-uspech"><%= ceskeDatum(invoice.paid_date) %></div>
         </div>
         <% } %>
         <%- include('../../includes/pole', { pole: { label: 'Měna', name: 'currency', typ: 'select', value: invoice.currency || 'CZK', moznosti: ['CZK', 'EUR', 'USD'], form: formular } }) %>

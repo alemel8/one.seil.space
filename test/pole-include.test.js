@@ -112,3 +112,10 @@ test('výchozí hodnota jen pro vstup, třídy hodnoty a skrytý popisek', async
   html = await vykresli({ label: 'Poznámky', name: 'notes', typ: 'textarea', value: 'x', skrytyPopisek: true });
   assert.match(html, /<label class="form-label sr-only" for="pole-notes">Poznámky<\/label>/, 'popisek zůstává pro čtečku');
 });
+
+test('select: hodnota mimo nabídku zůstane vybraná, aby ji uložení nepřepsalo', async () => {
+  const html = await vykresli({ label: 'Stav', name: 'status', typ: 'select', value: 'V přípravě', moznosti: ['Aktivní', 'Pozastaveno'] });
+  assert.match(html, /<div class="pole-hodnota">V přípravě<\/div>/);
+  assert.match(html, /<option value="V přípravě" selected>V přípravě<\/option>/);
+  assert.match(html, /<option value="Aktivní">Aktivní<\/option>/, 'první volba nabídky vybraná není');
+});

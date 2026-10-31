@@ -74,6 +74,14 @@ test('projekt, záložka podprojekty: bez tužky a ?upravit=1 úpravy neotevře'
   assert.ok(upravy.includes('id="modalAddItem"'), 'modal pro přidání podprojektu zůstává');
 });
 
+test('projekt: neznámá záložka nemá tužku a kontakt mimo firmu se neukáže jako surové id', async () => {
+  zkontrolujDetail(await vykresliProjekt('constructor', { rezimUprav: true }), { formular: null, rezim: 'zobrazeni' });
+
+  const html = await vykresliProjekt('prehled', { project: { ...project, primary_contact_id: 'cizi-kontakt' } });
+  assert.match(html, /<label class="form-label" for="pole-primary_contact_id">Kontaktní osoba<\/label>\s*<div class="pole-hodnota"><span class="pole-prazdne">/, 'v zobrazení pomlčka, ne id');
+  assert.match(html, /<option value="cizi-kontakt" selected>/, 'v úpravách zůstane vybraný, uložení ho nesmaže');
+});
+
 test('projekt: hodnoty jako text, vzorek barvy jen u platného hexu, modal úprav je pryč', async () => {
   const html = await vykresliProjekt('prehled', { saved: true });
   assert.ok(html.includes('Web &lt;Vlněnka&gt;'), 'název se escapuje');

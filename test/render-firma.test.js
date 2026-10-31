@@ -99,6 +99,13 @@ test('záložka poznámky: vlastní routa, jen textarea, žádná hidden pole', 
   assert.ok(!html.includes('Uložit poznámky'), 'staré tlačítko v patičce je pryč');
 });
 
+test('neznámá záložka z URL nenajde formulář ani v prototypu objektu', async () => {
+  for (const tab of ['constructor', '__proto__', 'toString']) {
+    const html = await vykresli(tab, { rezimUprav: true });
+    zkontrolujDetail(html, { formular: null, rezim: 'zobrazeni' });
+  }
+});
+
 test('bez IČO a bez formuláře záznamu nejsou v hlavičce žádné akce', async () => {
   const html = await vykresli('kontakty', { company: { ...company, ico: '' } });
   assert.ok(!html.includes('page-header-akce') && !html.includes('syncAres()"'), 'prázdný obal akcí se nevykreslí');

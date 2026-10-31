@@ -107,7 +107,7 @@ test('bez nároku na odpočet: žlutý box jen v zobrazení; zaplaceno jen pro �
   assert.match(html, /<div class="jen-zobrazeni" style="background:#fef3c7[^"]*">\s*<strong>Bez nároku na odpočet DPH\.<\/strong>/, 'žlutý box má jen-zobrazeni');
   assert.match(html, /<div class="pole-hodnota">Bez nároku<\/div>/, 'odpočet jako text');
   assert.match(html, /<input type="checkbox" value="on" id="pole-vat_deductible" name="vat_deductible" form="formFaktura">/, 'checkbox nezaškrtnutý, hodnota on jako v routě');
-  assert.match(html, /<div class="form-group pole pole-stale">\s*<span class="form-label">Zaplaceno<\/span>\s*<div class="pole-hodnota" style="color:#166534;">20\. 2\. 2026<\/div>/, 'zaplaceno zůstává vidět i v úpravách, není to pole formuláře');
+  assert.match(html, /<div class="form-group pole pole-stale">\s*<span class="form-label">Zaplaceno<\/span>\s*<div class="pole-hodnota pole-uspech">20\. 2\. 2026<\/div>/, 'zaplaceno zůstává vidět i v úpravách, není to pole formuláře');
   assert.ok(!/name="paid_date"/.test(html), 'paid_date formulář neposílá');
   assert.match(html, /<div class="jen-zobrazeni" style="background:#dcfce7[^"]*">✓ Uloženo<\/div>/, 'banner Uloženo jen pro zobrazení');
   assert.ok(!html.includes('⚠'), 'zaplacená faktura není po splatnosti');

@@ -22,7 +22,7 @@
       <% } else { %>
         <span class="badge" style="background:var(--gray-100);color:var(--gray-500);">Neaktivní</span>
       <% } %>
-      <code style="background:var(--gray-100);padding:2px 6px;border-radius:4px;font-size:12px;"><%= shop.slug %></code>
+      <code class="kod"><%= shop.slug %></code>
       <% if (shop.url) { %>
         <a href="<%= shop.url %>" target="_blank" rel="noopener" style="font-size:13px;color:var(--primary-dark);"><%= shop.url %></a>
       <% } %>
@@ -155,7 +155,7 @@
           hint: 'Přes ni One SEIL podává balíky (/api/orders/podat-balik) a stahuje statistiku e-shopu pro Marketing.' } }) %>
         <div class="form-group pole pole-stale">
           <span class="form-label">Slug (ID)</span>
-          <div class="pole-hodnota"><code style="background:var(--gray-100);padding:2px 6px;border-radius:4px;font-size:12px;"><%= shop.slug %></code></div>
+          <div class="pole-hodnota"><code class="kod"><%= shop.slug %></code></div>
           <small class="form-hint jen-upravy">Identifikátor v adresách (<code>?eshop=<%= shop.slug %></code>) i v API. Nejde změnit — pod jiným slugem by vznikl jiný e-shop.</small>
         </div>
         <%- include('../../includes/pole', { pole: { label: 'Stav', name: 'active', typ: 'toggle', value: shop.active, popisek: 'Aktivní e-shop',
@@ -164,7 +164,7 @@
             ? 'Toneráček se vypnout nedá — jeho API klíč z prostředí stav nečte, ale expedice a noční stahování ano, vypnutí by ho rozpůlilo.'
             : 'Neaktivní e-shop přeskočí ranní expedice i noční stahování marketingu a jeho klíče pro /api/eshop přestanou platit.' } }) %>
       </div>
-      <div style="display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:18px;">
+      <div class="upravit-radek">
         <span style="font-size:12px;color:var(--text-muted);">Založen <%= shop.created_at ? ceskeDatum(shop.created_at) : '—' %></span>
         <%- include('../../includes/upravit', { paticka: true, formular: 'formZakladni', urlZpet: urlZalozky }) %>
       </div>
@@ -215,7 +215,7 @@
             </div>
             <% }) %>
           </div>
-          <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:14px;">
+          <div class="upravit-radek">
             <a href="/nastaveni/eshopy/<%= shop.id %>/nahled-emailu" target="_blank" class="btn btn-outline btn-sm">Náhled e-mailu</a>
             <%- include('../../includes/upravit', { paticka: true, formular: 'formIdentita', urlZpet: urlZalozky }) %>
           </div>
@@ -243,7 +243,7 @@
             <% eshopKlice.forEach(k => { %>
             <tr>
               <td><%= k.label || '—' %><% if (k.vytvoril) { %><br><span style="font-size:11px;color:var(--text-muted);"><%= k.vytvoril %></span><% } %></td>
-              <td><code style="background:var(--gray-100);padding:2px 6px;border-radius:4px;font-size:12px;"><%= k.otisk %></code></td>
+              <td><code class="kod"><%= k.otisk %></code></td>
               <td style="color:var(--text-muted);"><%= new Date(k.created_at).toLocaleString('cs-CZ') %></td>
               <td style="color:var(--text-muted);"><%= k.last_used_at ? new Date(k.last_used_at).toLocaleString('cs-CZ') : 'nikdy' %></td>
               <td>
@@ -310,7 +310,7 @@
         <p style="font-size:13px;margin:0 0 12px;">
           <% if (otiskWebhookSecret) { %>
             Tajemství e-shopu: <strong>nastaveno</strong>, otisk
-            <code style="background:var(--gray-100);padding:2px 6px;border-radius:4px;font-size:12px;"><%= otiskWebhookSecret %></code>
+            <code class="kod"><%= otiskWebhookSecret %></code>
             <span style="color:var(--text-muted);">(prvních 8 znaků SHA-256)</span>
           <% } else { %>
             <span style="color:#b91c1c;"><strong>Chybí tajemství — balíky se u převodu nepodají.</strong> Vygenerujte ho a vložte do e-shopu jako <code>WEBHOOK_SECRET</code>.</span>
@@ -450,7 +450,7 @@
 
         <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Google</div>
         <% if (maGoogleSa) { %>
-        <p style="font-size:13px;margin:0 0 16px;">Service account <code style="background:var(--gray-100);padding:2px 6px;border-radius:4px;font-size:12px;"><%= serviceAccountEmail %></code> — přidejte ho jako Čtenáře do GA4, Jen pro čtení do Google Ads, uživatele do Search Console a Merchant Center (Výkon a statistiky).</p>
+        <p style="font-size:13px;margin:0 0 16px;">Service account <code class="kod"><%= serviceAccountEmail %></code> — přidejte ho jako Čtenáře do GA4, Jen pro čtení do Google Ads, uživatele do Search Console a Merchant Center (Výkon a statistiky).</p>
         <% } else { %>
         <p style="font-size:13px;color:#b91c1c;margin:0 0 16px;"><code>GOOGLE_SERVICE_ACCOUNT_JSON</code> není v prostředí One SEIL — GA4, Google Ads, Search Console ani Merchant Center se nestáhnou.</p>
         <% } %>

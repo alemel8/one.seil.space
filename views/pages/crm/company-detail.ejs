@@ -5,7 +5,7 @@
   // Režim úprav (src/upravy.js): tužka v hlavičce jen u záložky s formulářem
   // záznamu; bez JS otevře úpravy ?upravit=1. Poznámky mají vlastní routu,
   // aby formulář jen s textarea nepřepisoval zbytek řádku firmy.
-  const FORMULARE = { zakladni: 'formFirma', poznamky: 'formPoznamky' };
+  const FORMULARE = { __proto__: null, zakladni: 'formFirma', poznamky: 'formPoznamky' }; // tab z URL: bez prototypu ?tab=constructor nic nenajde
   const formular = FORMULARE[currentTab] || null;
   const rezim = formular && rezimUprav ? 'upravy' : 'zobrazeni';
   const urlZalozky = `?tab=${currentTab}`;

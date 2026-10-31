@@ -13,6 +13,8 @@
   // Snímek formuláře při otevření — porovnáním poznáme neuložené změny.
   const snimky = new WeakMap();
   let odesilam = false;
+  // Hláška z načtení stránky (Uloženo, chyba) se po zrušení úprav nemá vrátit.
+  const maHlasku = /[?&](saved|error)=/.test(location.search);
 
   // Formulář, který ovládání ukládá: ten, na který míří Uložit (form=).
   function formular(obal) {
@@ -58,6 +60,7 @@
     obal.dataset.rezim = 'zobrazeni';
     snimky.delete(obal);
     upravUrl(false);
+    if (maHlasku) { location.reload(); return; } // URL už je bez saved/error, načte se čistá stránka
     ohlas(obal, 'Režim úprav vypnut');
     obal.querySelector('.upravit-otevrit')?.focus();
   }
@@ -84,21 +87,27 @@
   });
 
   // Esc = Zrušit, ale ne tam, kde Esc patří prvku samotnému (rozbalený
-  // select, kalendář, našeptávač datalistu) a ne přes otevřený modal — ten
-  // zavírá app.js. Bez capture, aby náhled dokladu (doklad-nahled.js) mohl
-  // Esc dál zastavit u sebe.
+  // select, kalendář, našeptávač datalistu), ne přes otevřený modal — ten
+  // zavírá app.js — a ne mimo upravovaný obal (hledání v liště, heslo vedle
+  // karty na profilu). Bez capture, aby náhled dokladu (doklad-nahled.js)
+  // mohl Esc dál zastavit u sebe. Posluchač vzniká dřív než ten v app.js
+  // (ten až po DOMContentLoaded), takže otevřený modal je tu ještě otevřený.
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape' || e.isComposing) return;
     if (document.querySelector('.modal-backdrop.open')) return;
     const t = e.target;
     if (t && (t.tagName === 'SELECT' || (t.tagName === 'INPUT' && (t.type === 'date' || t.hasAttribute('list'))))) return;
     const obal = vUpravach();
-    if (obal) zavri(obal);
+    if (obal && (t === document.body || obal.contains(t))) zavri(obal);
   });
 
   document.addEventListener('submit', e => {
     if (e.target.classList?.contains('upravitelne')) odesilam = true;
   });
+
+  // Návrat tlačítkem Zpět ze zásobníku stránek (bfcache): stránka žije dál,
+  // ale žádné odesílání už neběží a hlídání změn musí znovu platit.
+  window.addEventListener('pageshow', () => { odesilam = false; });
 
   // Klik na záložku nebo zpět s rozepsaným formulářem — prohlížeč se zeptá.
   window.addEventListener('beforeunload', e => {

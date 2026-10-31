@@ -606,7 +606,7 @@ table.data-table {
    public/js/upravy.js, bez JS server podle ?upravit=1. Pole vykresluje
    views/includes/pole.ejs (hodnota + vstup), ovládání views/includes/upravit.ejs:
    tužka se na tomtéž místě změní v Uložit. Popis v docs/moduly.md. */
-.btn-ikona { width: 36px; height: 36px; padding: 0; flex: 0 0 auto; }
+.btn-ikona { width: 37px; height: 37px; padding: 0; flex: 0 0 auto; } /* stejně vysoké jako Uložit, přepnutí neposkočí */
 .btn-ikona svg { width: 16px; height: 16px; }
 .btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
@@ -616,10 +616,10 @@ table.data-table {
 }
 
 .page-header-akce { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.page-header-akce > form { display: contents; } /* Smazat ve vlastním formuláři se chová jako sourozenec */
+.page-header-akce .btn { height: 37px; } /* emoji v popisku by tlačítko jinak o pár px zvětšilo */
 /* Ovládání v hlavičce karty (Můj profil): tlačítka jsou vyšší než řádek
    textu, záporný okraj drží hlavičku stejně vysokou jako sousední karty. */
-.card-header-akce { display: flex; align-items: center; gap: 8px; margin: -10px 0; }
+.card-header-akce { display: flex; align-items: center; gap: 8px; margin: -13px 0; }
 
 [data-rezim="zobrazeni"] .upravit-zrusit,
 [data-rezim="zobrazeni"] .upravit-ulozit,
@@ -638,11 +638,11 @@ table.data-table {
    jen k úpravám. */
 [data-rezim="zobrazeni"] .pole .form-label.required::after { content: none; }
 
-/* Stejná výška jako .form-control (9 px + 13,5 px řádek + 9 px), aby přepnutí
-   neposkočilo; text je zarovnaný s popiskem, ne s textem inputu (ten má
-   vnitřní odsazení 12 px) — vědomě, hodnoty se čtou jako seznam pod popisky. */
+/* Stejná výška jako textový .form-control, aby přepnutí neposkočilo; text je
+   zarovnaný s popiskem, ne s textem inputu (ten má vnitřní odsazení 12 px) —
+   vědomě, hodnoty se čtou jako seznam pod popisky. */
 .pole-hodnota {
-  min-height: 38px;
+  min-height: 37px;
   padding: 9px 0;
   font-size: 13.5px;
   color: var(--text-primary);
@@ -656,11 +656,20 @@ table.data-table {
 [data-theme="dark"] .pole-hodnota a { color: var(--primary); }
 .pole-prazdne { color: var(--text-secondary); } /* --text-muted má na bílé jen 2,5:1 */
 .pole-mono { font-family: var(--font-mono); }
-.pole-varovani { color: var(--danger); font-weight: 500; }
+.pole-varovani { color: #b91c1c; font-weight: 500; } /* --danger má na bílé jen 3,8:1 */
 .pole-uspech { color: #166534; font-weight: 500; }
-.form-hint { font-size: 12px; color: var(--text-muted); }
+[data-theme="dark"] .pole-varovani { color: var(--danger); }
+[data-theme="dark"] .pole-uspech { color: var(--success); }
+.form-hint { font-size: 12px; color: var(--text-secondary); } /* --text-muted má na bílé jen 2,5:1 */
+.upravit-zrusit { color: var(--text-primary); } /* ghost text na pozadí stránky má jen 4,3:1 */
+.kod { background: var(--gray-100); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+[data-theme="dark"] .kod { background: var(--sidebar-hover); } /* --gray-100 se v tmavém režimu nepřepisuje */
 .pole-zaskrtavaci { display: flex; align-items: center; gap: 8px; font-size: 13.5px; padding: 9px 0; cursor: pointer; }
 .upravit-paticka { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+/* Patička vedle jiného obsahu (Založen, Náhled e-mailu) v jedné lince. */
+.upravit-radek { display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 18px; }
+.upravit-radek > .upravit-paticka,
+[style*="flex-direction:column"] > .upravit-paticka { margin-top: 0; } /* mezeru dává rodič */
 .barva-vzorek { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--border); display: inline-block; flex-shrink: 0; }
 
 /* ============================================================
@@ -681,7 +690,7 @@ table.data-table {
   /* Akce hlavičky zůstávají v řádku: textová tlačítka si rozdělí šířku,
      tužka má dotykových 44 px. Specificita (0,3,0) jako pravidlo nad tím. */
   .page-header > .page-header-akce { display: flex; justify-content: flex-end; gap: 8px; }
-  .page-header > .page-header-akce .btn { width: auto; flex: 1 1 auto; }
+  .page-header > .page-header-akce .btn { width: auto; flex: 1 1 auto; height: 44px; }
   .page-header > .page-header-akce .btn-ikona { flex: 0 0 44px; width: 44px; height: 44px; min-height: 44px; }
   .pole-hodnota { min-height: 44px; } /* .form-control má na mobilu 44 px */
   .card-header-akce .btn-ikona { width: 40px; height: 40px; min-height: 40px; }

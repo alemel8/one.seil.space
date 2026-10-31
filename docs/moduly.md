@@ -874,11 +874,14 @@ Jak to drží pohromadě:
 - **Ovládání** je `views/includes/upravit.ejs`: bez JavaScriptu je tužka
   odkaz na `?…&upravit=1`, Zrušit odkaz zpět, Uložit submit.
   `public/js/upravy.js` přepíná atribut bez načtení stránky, drží URL
-  pravdivou (`upravit=1` přidá, `saved`/`error` odebere) a hlídá rozepsané
-  změny: Zrušit, Esc i odchod ze stránky se při změněném formuláři zeptají;
-  Esc se ignoruje v selectu, kalendáři a poli s našeptávačem a přes otevřený
-  modal. Zrušení volá `form.reset()` — stránka, která něco z polí odvozuje
-  (účtenka: zámek odpočtu DPH), si to přepočítá v události `reset`.
+  pravdivou (`upravit=1` přidá a odebere, `saved` zmizí při otevření) a hlídá
+  rozepsané změny: Zrušit, Esc i odchod ze stránky se při změněném formuláři
+  zeptají. Esc se ignoruje v selectu, kalendáři a poli s našeptávačem, přes
+  otevřený modal a mimo upravovaný obal (hledání v liště, heslo vedle karty na
+  profilu). Zrušení volá `form.reset()` — stránka, která něco z polí odvozuje
+  (účtenka: zámek odpočtu DPH), si to přepočítá v události `reset`. Nesla-li
+  stránka při načtení hlášku (`saved`, `error`), po zrušení se načte znovu,
+  aby se hláška nevrátila.
 - **Server** čte režim jen z `?upravit=1` (`rezimUprav()` v `src/upravy.js`),
   nikdy z `error=` — chyba může přijít z jiného formuláře na téže stránce
   (heslo na profilu, fotka člena, token platformy). POST upravitelného
@@ -888,8 +891,11 @@ Jak to drží pohromadě:
 - **Routy přepisují celý řádek** (`UPDATE … SET` všech sloupců), formulář
   proto musí poslat všechna pole — i hidden pro druhou záložku (člen týmu).
   Render testy (`test/render-*.test.js`, pomocník `test/pomocnici/render.js`)
-  pro každou stránku hlídají, že každý zapisovaný sloupec má ve formuláři
-  `name=`, že se formuláře nevnořují a že tužka míří na formulář záznamu.
+  pro každou stránku hlídají, že každý zapisovaný sloupec patří formuláři
+  záznamu (leží v něm, nebo na něj míří `form=`; stejně pojmenované pole
+  v modalu se nepočítá), že se formuláře nevnořují a že tužka míří na formulář
+  záznamu. Chování v prohlížeči (změny, Esc, `form=`, zámek odpočtu DPH, provoz
+  bez JavaScriptu) hlídá `test/rezim-uprav-prohlizec.test.js` přes Puppeteer.
 
 Kde režim je: detail e-shopu (čtyři záložky), firma (základní informace
 a poznámky — ty mají vlastní `POST /crm/firmy/:id/poznamky`, aby formulář
@@ -928,7 +934,9 @@ Zvláštnosti jednotlivých stránek:
   sloupec prázdný — Stát „Česká republika“; zobrazení ukáže „—“),
   `tridaHodnoty` (`pole-mono` pro IČO/DIČ/předkontace, `pole-varovani` pro
   splatnost po termínu) a `skrytyPopisek` (karta s jediným polem, kde se
-  nadpis karty rovná popisku — popisek zůstává jen pro čtečku).
+  nadpis karty rovná popisku — popisek zůstává jen pro čtečku). Hodnota
+  selectu mimo nabídku (starší data, kontakt z jiné firmy) zůstane vybraná,
+  aby ji uložení formuláře potichu nepřepsalo první volbou.
 
 ### Identita e-shopu v e-mailech
 

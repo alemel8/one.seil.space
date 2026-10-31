@@ -11,7 +11,7 @@
   const sc = statusColor(project.status);
   // Režim úprav (src/upravy.js): tužka v hlavičce jen na záložce s formulářem
   // záznamu; bez JS otevře úpravy ?upravit=1.
-  const FORMULARE = { prehled: 'formProjekt' };
+  const FORMULARE = { __proto__: null, prehled: 'formProjekt' }; // tab z URL: bez prototypu ?tab=constructor nic nenajde
   const formular = FORMULARE[currentTab] || null;
   const rezim = formular && rezimUprav ? 'upravy' : 'zobrazeni';
   const urlZalozky = `?tab=${currentTab}`;
@@ -62,6 +62,7 @@
         <%- include('../../includes/pole', { pole: { label: 'Název projektu', name: 'name', value: project.name, required: true, trida: 'jen-upravy' } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Stav', name: 'status', typ: 'select', value: project.status, moznosti: PROJECT_STATUSES, trida: 'jen-upravy' } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Kontaktní osoba', name: 'primary_contact_id', typ: 'select', value: project.primary_contact_id,
+          zobraz: (function () { const k = contacts.find(c => c.id === project.primary_contact_id); return k ? [k.first_name, k.last_name].filter(Boolean).join(' ') : ''; })(),
           moznosti: contacts.map(c => [c.id, [c.first_name, c.last_name].filter(Boolean).join(' ')]), prazdna: '— nevybráno —' } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Datum zahájení', name: 'start_date', typ: 'date', value: project.start_date } }) %>
       </div>
