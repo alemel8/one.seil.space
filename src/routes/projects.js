@@ -85,6 +85,13 @@ export default async function projectsRoutes(fastify) {
       sql`SELECT id, name FROM shops ORDER BY name`,
     ]);
 
+    // Kontakt mohl přejít k jiné firmě (POST /crm/kontakty/:id mění company_id).
+    // Výběr ho musí nabídnout se jménem, jinak by ukazoval interní ID.
+    if (project.primary_contact_id && !contacts.some(c => c.id === project.primary_contact_id)) {
+      const [cizi] = await sql`SELECT id, first_name, last_name FROM crm_contacts WHERE id = ${project.primary_contact_id}`;
+      if (cizi) contacts.push({ ...cizi, last_name: `${cizi.last_name || ''} (jiná firma)`.trim() });
+    }
+
     return reply.view('pages/projects/detail.ejs', {
       pageTitle: project.name, currentPath: '/projekty', user: request.user,
       project, contacts, items, healthchecks, shops,

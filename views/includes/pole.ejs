@@ -12,6 +12,7 @@
     id         výchozí 'pole-' + name (pro label for= a pro skripty stránky)
     form       atribut form= – vstup může ležet mimo <form> (formulář přes víc karet bez vnořování)
     placeholder, required, disabled, readonly, maxlength, min, max, step, autocomplete, list
+               required u textového pole odmítne i samé mezery (pattern), routa by je po trim() uložila prázdné
     rows       textarea, výchozí 3
     moznosti   select: [[hodnota, popisek], …] nebo ['A', 'B']; porovnává se jako řetězec
     prazdna    select: popisek prázdné volby (value=""), bez něj prázdná volba není
@@ -19,7 +20,7 @@
     hodnotaVstupu  toggle/checkbox: odesílaná value, výchozí '1' (routy berou '1' i 'on')
     zobraz     text pro režim zobrazení místo výchozího (např. „33 %“, „Expedice vypnutá“)
     hint       nápověda pod vstupem, jen v úpravách
-    stale      true → jen hodnota bez vstupu, zůstává vidět i v úpravách (slug, e-mail v profilu)
+    stale      true → jen hodnota bez vstupu, zůstává vidět i v úpravách (e-mail a role v profilu)
     vychozi    hodnota jen pro vstup, když je value prázdné („Česká republika“) – zobrazení ukáže „–“
     tridaHodnoty  další třídy .pole-hodnota: 'pole-mono' (IČO, předkontace), 'pole-varovani', 'pole-uspech'
     skrytyPopisek true → popisek jen pro čtečku (karta s jediným polem, kde se nadpis karty rovná popisku)
@@ -59,7 +60,8 @@
   if (maHodnotu && (p.zobraz === undefined || p.zobraz === null)) {
     const s = String(hodnota).trim();
     if (typ === 'url' && /^https?:\/\//i.test(s)) href = s;
-    else if (typ === 'email' && s.includes('@')) href = 'mailto:' + s;
+    // Bez ?, &, čárky a podobných: mailto by z nich udělal skrytou kopii nebo předvyplněný text.
+    else if (typ === 'email' && /^[^\s@?&#%,;]+@[^\s@?&#%,;]+$/.test(s)) href = 'mailto:' + s;
     else if (typ === 'tel') href = 'tel:' + s.replace(/\s+/g, '');
   }
 
@@ -82,6 +84,7 @@
     p.max != null ? ` max="${esc(p.max)}"` : '',
     p.step != null ? ` step="${esc(p.step)}"` : '',
     p.list ? ` list="${esc(p.list)}"` : '',
+    p.required && typ === 'text' ? ' pattern=".*\\S.*" title="Pole nesmí být prázdné"' : '',
   ].join('');
 %>
 <div class="form-group pole<%= stale ? ' pole-stale' : '' %><%= p.trida ? ' ' + p.trida : '' %>"<% if (p.styl) { %> style="<%= p.styl %>"<% } %>>

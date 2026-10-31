@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import ejs from 'ejs';
-import { jenDatum, ceskeDatum } from '../../src/prazsky-cas.js';
+import { jenDatum, ceskeDatum, prazskeDatum } from '../../src/prazsky-cas.js';
 
 const views = fileURLToPath(new URL('../../views/', import.meta.url));
 
@@ -23,11 +23,11 @@ export function uzivatel(prepis = {}) {
 
 /**
  * Vykreslí stránku `pages/<cesta>.ejs` s danými locals (bez layoutu).
- * `rezimUprav` je v locals jako v routě; jenDatum/ceskeDatum dodává
+ * `rezimUprav` je v locals jako v routě; pomocníky s datem dodává
  * server.js přes defaultContext, tady se přidávají stejně.
  */
 export function vykresliStranku(cesta, locals) {
-  return ejs.renderFile(`${views}pages/${cesta}.ejs`, { jenDatum, ceskeDatum, user: uzivatel(), ...locals });
+  return ejs.renderFile(`${views}pages/${cesta}.ejs`, { jenDatum, ceskeDatum, prazskeDatum, user: uzivatel(), ...locals });
 }
 
 /**
@@ -70,4 +70,37 @@ function poleFormulare(html, formular) {
     if (cil ? cil === formular : (m.index > zacatek && m.index < konec)) pole.add(name);
   }
   return pole;
+}
+
+/**
+ * name → hodnota, kterou prohlížeč odešle s formulářem (leží v něm, nebo míří
+ * form=). Nezaškrtnutý checkbox a vypnuté pole se neodešlou, select pošle
+ * vybranou volbu, bez selected první. Hlídá vazbu pole na sloupec: hodnota
+ * z jiného sloupce nebo překlep v názvu by uložení potichu přepsalo data.
+ */
+export function hodnotyFormulare(html, formular) {
+  const dekoduj = (s) => s.replace(/&(amp|lt|gt|quot|#34|#39);/g, (_, e) => ({ amp: '&', lt: '<', gt: '>', quot: '"', '#34': '"', '#39': "'" }[e]));
+  const zacatek = html.search(new RegExp(`<form\\b[^>]*\\bid="${formular}"`));
+  const konec = html.indexOf('</form>', zacatek);
+  const hodnoty = {};
+  for (const m of html.matchAll(/<(input|select|textarea)\b([^>]*)>(?:([\s\S]*?)<\/\1>)?/g)) {
+    const [, znacka, attr] = m;
+    const vnitrek = znacka === 'input' ? '' : m[3] ?? '';
+    const name = /\bname="([^"]*)"/.exec(attr)?.[1];
+    if (!name) continue;
+    const cil = /\bform="([^"]*)"/.exec(attr)?.[1];
+    if (!(cil ? cil === formular : (m.index > zacatek && m.index < konec))) continue;
+    if (/\bdisabled\b/.test(attr)) continue;
+    if (znacka === 'textarea') { hodnoty[name] = dekoduj(vnitrek); continue; }
+    if (znacka === 'select') {
+      const volby = [...vnitrek.matchAll(/<option\b([^>]*)>/g)].map(o => o[1]);
+      const vybrana = volby.find(o => /\bselected\b/.test(o)) ?? volby[0] ?? '';
+      hodnoty[name] = dekoduj(/\bvalue="([^"]*)"/.exec(vybrana)?.[1] ?? '');
+      continue;
+    }
+    const typ = /\btype="([^"]*)"/.exec(attr)?.[1] ?? 'text';
+    if ((typ === 'checkbox' || typ === 'radio') && !/\bchecked\b/.test(attr)) continue;
+    hodnoty[name] = dekoduj(/\bvalue="([^"]*)"/.exec(attr)?.[1] ?? (typ === 'checkbox' ? 'on' : ''));
+  }
+  return hodnoty;
 }

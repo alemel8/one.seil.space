@@ -134,10 +134,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Některé šablony zavírají modal inline onclick (classList.remove('open')),
   // který overflow těla nevrátí – stránka pak po zavření křížkem nejde
-  // scrollovat. Inline obsluha proběhne dřív než tenhle posluchač na
-  // dokumentu, takže stačí po každém kliku ověřit, že žádný modal není otevřený.
-  document.addEventListener('click', () => {
-    if (document.body.style.overflow === 'hidden' && !document.querySelector('.modal-backdrop.open')) {
+  // scrollovat. Inline obsluha proběhne dřív než tenhle posluchač na dokumentu.
+  // Hlídá se jen klik uvnitř modalu: tělo zamyká i otevřené menu na mobilu
+  // a náhled dokladu, ty se klikem jinam odemknout nesmí.
+  document.addEventListener('click', (e) => {
+    if (e.target.closest?.('.modal-backdrop') && !document.querySelector('.modal-backdrop.open')) {
       document.body.style.overflow = '';
     }
   });

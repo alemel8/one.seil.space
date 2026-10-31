@@ -28,6 +28,13 @@ function vatDeductibleFrom(body) {
   return ['on', '1', 'true'].includes(String(body.vat_deductible ?? ''));
 }
 
+// Hlášky detailu přijaté faktury podle ?error=. Text nikdy nejde z adresy.
+const CHYBY_PRIJATE = {
+  __proto__: null,
+  duplicita: 'Přijatá faktura s tímto číslem už v systému je, i kdyby byla od jiného dodavatele. Zkontrolujte číslo.',
+  datum: 'Vyplňte platné datum přijetí a splatnosti.',
+};
+
 const FORM_ERRORS = {
   klient:    'Vyplňte klienta.',
   polozky:   'Faktura musí mít alespoň jednu položku s popisem.',
@@ -867,6 +874,7 @@ export default async function invoicesRoutes(fastify) {
       pageTitle: `Přijatá ${invoice.number}`, currentPath: '/ucetnictvi/prijate-faktury',
       user: request.user, invoice, bankTx, STATUSES_RECEIVED,
       saved: request.query.saved === '1',
+      error: CHYBY_PRIJATE[request.query.error] || null,
       rezimUprav: rezimUprav(request.query),
     }, { layout: 'layouts/base.ejs' });
   });
@@ -876,29 +884,39 @@ export default async function invoicesRoutes(fastify) {
     const amount      = parseFloat(b.amount     || 0);
     const vatAmount   = parseFloat(b.vat_amount || 0);
     const totalAmount = b.total_amount ? parseFloat(b.total_amount) : (amount + vatAmount);
-    await sql`
-      UPDATE accounting_invoices SET
-        number           = ${b.number || ''},
-        supplier         = ${(b.supplier||'').trim()},
-        supplier_ico     = ${(b.supplier_ico||'').trim() || null},
-        supplier_dic     = ${(b.supplier_dic||'').trim()},
-        supplier_address = ${(b.supplier_address||'').trim()},
-        supplier_city    = ${(b.supplier_city||'').trim()},
-        supplier_zip     = ${(b.supplier_zip||'').trim()},
-        supplier_country = ${(b.supplier_country||'Česká republika').trim()},
-        amount           = ${amount},
-        vat_amount       = ${vatAmount},
-        total_amount     = ${totalAmount},
-        currency         = ${b.currency || 'CZK'},
-        issue_date       = ${b.issue_date || new Date().toISOString().split('T')[0]},
-        due_date         = ${b.due_date || null},
-        notes            = ${(b.notes||'').trim()},
-        account_debit    = ${(b.account_debit||'').trim()},
-        account_credit   = ${(b.account_credit||'').trim()},
-        vat_deductible   = ${vatDeductibleFrom(b)},
-        modified_at      = NOW()
-      WHERE id = ${request.params.id} AND type = 'received'
-    `;
+    const zpetSChybou = (kod) => reply.redirect(`/ucetnictvi/prijate-faktury/${request.params.id}?error=${kod}&upravit=1`);
+    // Prázdné nebo s překlepem v roce by postgres.js odmítl chybou 500 a tichá
+    // náhrada dneškem by zkreslila účetní datum. jenDatum odmítne i 30. 2.
+    const issueDate = jenDatum(b.issue_date);
+    if (!issueDate || (b.due_date && !jenDatum(b.due_date))) return zpetSChybou('datum');
+    try {
+      await sql`
+        UPDATE accounting_invoices SET
+          number           = ${b.number || ''},
+          supplier         = ${(b.supplier||'').trim()},
+          supplier_ico     = ${(b.supplier_ico||'').trim() || null},
+          supplier_dic     = ${(b.supplier_dic||'').trim()},
+          supplier_address = ${(b.supplier_address||'').trim()},
+          supplier_city    = ${(b.supplier_city||'').trim()},
+          supplier_zip     = ${(b.supplier_zip||'').trim()},
+          supplier_country = ${(b.supplier_country||'Česká republika').trim()},
+          amount           = ${amount},
+          vat_amount       = ${vatAmount},
+          total_amount     = ${totalAmount},
+          currency         = ${b.currency || 'CZK'},
+          issue_date       = ${issueDate},
+          due_date         = ${b.due_date || null},
+          notes            = ${(b.notes||'').trim()},
+          account_debit    = ${(b.account_debit||'').trim()},
+          account_credit   = ${(b.account_credit||'').trim()},
+          vat_deductible   = ${vatDeductibleFrom(b)},
+          modified_at      = NOW()
+        WHERE id = ${request.params.id} AND type = 'received'
+      `;
+    } catch (err) {
+      if (err.code === '23505') return zpetSChybou('duplicita'); // unique_violation: index (type, number)
+      throw err;
+    }
     return reply.redirect(`/ucetnictvi/prijate-faktury/${request.params.id}?saved=1`);
   });
 

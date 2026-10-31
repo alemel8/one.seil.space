@@ -9,6 +9,7 @@
   formular    id formuláře, který Uložit odešle (form=) – může ležet kdekoli na stránce
   urlUpravit  odkaz tužky bez JavaScriptu (…&upravit=1)
   urlZpet     odkaz Zrušit bez JavaScriptu (bez upravit, error i saved)
+              Oba odkazy bere i upravy.js jako adresu stránky po přepnutí režimu.
   paticka     true → jen Zrušit a Uložit pod dlouhý formulář (.jen-upravy), bez tužky a hlášky pro čtečku
 %>
 <% if (locals.paticka) { %>

@@ -72,7 +72,7 @@ test('základní informace: hodnoty jako text a odkaz, datum nezávisle na pásm
   assert.match(html, /<option value="Zákazník" selected>Zákazník<\/option>/, 'typ má předvybranou hodnotu');
   assert.ok(html.includes('href="?tab=zakladni&amp;upravit=1"'), 'tužka bez JS otevře úpravy na téže záložce');
   assert.ok(html.includes('href="?tab=zakladni" class="btn btn-ghost upravit-zrusit"'), 'Zrušit vede zpět bez upravit');
-  assert.match(html, /<button type="button" class="btn btn-outline" onclick="syncAres\(\)">/, 'Sync ARES v plné velikosti vedle tužky');
+  assert.match(html, /<button type="button" class="btn btn-outline jen-zobrazeni" onclick="syncAres\(\)">/, 'Sync ARES v plné velikosti vedle tužky');
   assert.ok(!html.includes('modalEdit') && !html.includes('✏️ Upravit'), 'modal úprav i jeho tlačítko jsou pryč');
   assert.ok(html.includes('<div class="upravit-paticka jen-upravy">'), 'dlouhý formulář má patičku');
   // první </form> patří skrytému aresForm v hlavičce – hledá se až od formuláře záznamu
@@ -114,6 +114,14 @@ test('bez IČO a bez formuláře záznamu nejsou v hlavičce žádné akce', asy
 });
 
 // ── B) proti serveru a lokální databázi ─────────────────────
+
+test('Sync ARES: jen v zobrazení, před přepisem se zeptá a IČO z formuláře skript nerozbije', async () => {
+  const html = await vykresli('zakladni', { company: { ...company, ico: "12\\34'</script>" }, aresUpdated: true });
+  assert.match(html, /<button type="button" class="btn btn-outline jen-zobrazeni" onclick="syncAres\(\)">/);
+  assert.ok(html.includes("if (!confirm('Přepsat název"), 'přepis údajů nejde spustit bez dotazu');
+  assert.ok(html.includes(`var ico = "12\\\\34'\\u003c/script>";`), 'IČO je v inline skriptu jako bezpečný řetězec');
+  assert.match(html, /<div data-hlaska style="[^"]*">✓ Data aktualizována z ARES/, 'hláška zmizí po přepnutí režimu');
+});
 
 describe('proti serveru', { skip: PRESKOCIT }, () => {
   let sql;
@@ -185,6 +193,15 @@ describe('proti serveru', { skip: PRESKOCIT }, () => {
     assert.equal(f.modified_by, ctx.userId);
     const html = await detail('?tab=poznamky&saved=1');
     assert.ok(html.includes(`Nová poznámka ${r}`) && /class="jen-zobrazeni"[^>]*>✓ Uloženo/.test(html), 'detail ukáže novou poznámku a hlášku');
+  });
+
+  test('POST /crm/firmy/:id/poznamky bez pole notes poznámky nesmaže', async () => {
+    const [pred] = await sql`SELECT notes FROM crm_companies WHERE id = ${ctx.firmaId}`;
+    assert.ok(pred.notes, 'fixtura má poznámku z předchozího testu');
+    const res = await ctx.api.post(`/crm/firmy/${ctx.firmaId}/poznamky`, {});
+    assert.equal(res.status, 400);
+    const [po] = await sql`SELECT notes FROM crm_companies WHERE id = ${ctx.firmaId}`;
+    assert.equal(po.notes, pred.notes);
   });
 
   test('POST /crm/firmy/:id uloží základní informace a přesměruje do zobrazení', async () => {

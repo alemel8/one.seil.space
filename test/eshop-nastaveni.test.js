@@ -254,7 +254,7 @@ describe('detail e-shopu po záložkách', () => {
   test('režim úprav: tužka jen u záložek s formulářem, ?upravit=1 otevře pole, chyba cizího formuláře ne', async () => {
     let html = await detail('?tab=zakladni');
     assert.ok(html.includes('data-rezim="zobrazeni"'), 'výchozí je zobrazení');
-    assert.ok(html.includes('href="?tab=zakladni&amp;upravit=1" class="btn btn-outline btn-ikona upravit-otevrit"'), 'tužka vede bez JS na ?upravit=1');
+    assert.ok(html.includes(`href="/nastaveni/eshopy/${ctx.shop.id}?tab=zakladni&amp;upravit=1" class="btn btn-outline btn-ikona upravit-otevrit"`), 'tužka vede bez JS na ?upravit=1');
     assert.ok(html.includes('form="formZakladni" class="btn btn-primary upravit-ulozit"'), 'Uložit míří na formulář záznamu');
     assert.ok(html.includes('id="formZakladni" class="upravitelne"'), 'formulář záznamu je označený');
 
@@ -296,6 +296,37 @@ describe('detail e-shopu po záložkách', () => {
     }
     [s] = await sql`SELECT name, url, active FROM shops WHERE id = ${ctx.shop.id}`;
     assert.deepEqual([s.name, s.url, s.active], [ctx.shop.name, ctx.shop.url, true], 'neplatná data nic nezapsala');
+  });
+
+  test('chyby identity a expedice vrací otevřený formulář, neplatné hodnoty nic nezapíšou', async () => {
+    const id = ctx.shop.id;
+    const [pred] = await sql`SELECT email_from_address, color_primary, warehouse_email, warehouse_email_bcc FROM shops WHERE id = ${id}`;
+    const pripady = [
+      ['identita', { email_from_address: 'x@seil.cz' }, 'firemni-adresa'],
+      ['identita', { email_from_address: 'x@example.invalid', color_primary: '#fff"><img src=x>' }, 'identita-barva'],
+      ['identita', { email_from_address: 'x@example.invalid', color_on_primary_soft: 'modrá' }, 'identita-barva'],
+      ['expedice', { warehouse_email: 'bez-zavinace' }, 'sklad-email'],
+      ['expedice', { warehouse_email: 'a@example.invalid', warehouse_email_bcc: 'bez-zavinace' }, 'sklad-kopie'],
+      ['expedice', { warehouse_email: 'a@example.invalid', warehouse_dispatch_since: '1.1.2026' }, 'sklad-datum'],
+      ['expedice', { warehouse_email: 'a@example.invalid', warehouse_dispatch_since: '2026-02-30' }, 'sklad-datum'],
+    ];
+    for (const [zalozka, telo, kod] of pripady) {
+      const res = await post(`/nastaveni/eshopy/${id}/${zalozka}`, telo);
+      assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${id}?tab=${zalozka}&error=${kod}&upravit=1`, kod);
+    }
+    const [po] = await sql`SELECT email_from_address, color_primary, warehouse_email, warehouse_email_bcc FROM shops WHERE id = ${id}`;
+    assert.deepEqual(po, pred);
+  });
+
+  test('URL s HTML znaky nebo cizím schématem neprojde ani při založení e-shopu', async () => {
+    const slug = `url-${crypto.randomBytes(3).toString('hex')}`;
+    for (const url of ['javascript:alert(1)', 'https://x.example.invalid/"<img>']) {
+      const res = await post('/nastaveni/eshopy/vytvorit', { name: 'Zlá URL', slug, url });
+      assert.equal(res.headers.get('location'), '/nastaveni/eshopy?error=url', url);
+    }
+    const res = await post(`/nastaveni/eshopy/${ctx.shop.id}/zakladni`, { name: ctx.shop.name, url: 'https://x.example.invalid/"<img>', active: '1' });
+    assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?tab=zakladni&error=zakladni-url&upravit=1`);
+    assert.equal((await sql`SELECT 1 FROM shops WHERE slug = ${slug}`).length, 0);
   });
 
   test('Toneráček zůstane aktivní, i když formulář active nepošle', async () => {

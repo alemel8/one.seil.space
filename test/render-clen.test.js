@@ -1,9 +1,9 @@
 // Detail člena týmu (views/pages/people/member-detail.ejs) vykreslený bez
 // serveru a databáze: režim úprav na záložkách Detail a Bankovní účet, tužka
-// jen tam, a každý sloupec, který POST /lide/tym/:id zapisuje, má v obou
-// formulářích pole – routa přepisuje všech šestnáct sloupců naráz, druhá
-// záložka je posílá skrytě. Serverová část jede proti běžícímu serveru
-// a lokální testovací databázi (test/pomocnici/server.js).
+// jen tam, a každý sloupec, který POST /lide/tym/:id podle záložky zapisuje, má
+// ve formuláři pole se správnou hodnotou. Sloupce druhé záložky formulář nenese,
+// hidden pole by přenesla stav z načtení stránky. Serverová část jede proti
+// běžícímu serveru a lokální testovací databázi (test/pomocnici/server.js).
 //
 //   node --test test/render-clen.test.js
 //   DATABASE_URL=postgresql://…@127.0.0.1/… TEST_BASE_URL=http://127.0.0.1:3999 \
@@ -13,7 +13,7 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import postgres from 'postgres';
-import { vykresliStranku, zkontrolujDetail } from './pomocnici/render.js';
+import { vykresliStranku, zkontrolujDetail, hodnotyFormulare } from './pomocnici/render.js';
 import { lokalniDatabaze, serverBezi, prihlas, pozadavky, PRESKOCIT } from './pomocnici/server.js';
 import { ACCESS_SECTIONS, isAllowed } from '../src/access.js';
 import { PLATBA_DRUHY, PODKLAD_STAVY } from '../src/hr.js';
@@ -43,16 +43,25 @@ function vykresli(currentTab, prepis = {}) {
   });
 }
 
-// Sloupce z UPDATE users v POST /lide/tym/:id – oba formuláře posílají všech šestnáct (+ tab).
-const SLOUPCE = ['tab', 'email', 'first_name', 'last_name', 'title', 'phone', 'position', 'bio', 'address', 'city', 'zip', 'country',
-  'bank_account', 'bank_name', 'iban', 'is_admin', 'is_active'];
+// Sloupce, které POST /lide/tym/:id zapisuje podle tab=. Formulář nesmí nést
+// sloupce druhé záložky: hidden pole by přenesla stav z načtení stránky.
+const SLOUPCE = {
+  formDetail: ['tab', 'email', 'first_name', 'last_name', 'title', 'phone', 'position', 'bio', 'address', 'city', 'zip', 'country', 'is_admin', 'is_active'],
+  formBanka: ['tab', 'bank_account', 'bank_name', 'iban'],
+};
 
 for (const [tab, formular] of ZALOZKY) {
-  test(`záložka ${tab}: ${formular ? 'tužka, formulář a všech 16 sloupců' : 'bez tužky'} v obou režimech`, async () => {
+  test(`záložka ${tab}: ${formular ? 'tužka, formulář a jen vlastní sloupce' : 'bez tužky'} v obou režimech`, async () => {
     const zobrazeni = await vykresli(tab);
-    zkontrolujDetail(zobrazeni, { formular, sloupce: formular ? SLOUPCE : [], rezim: 'zobrazeni' });
+    zkontrolujDetail(zobrazeni, { formular, sloupce: formular ? SLOUPCE[formular] : [], rezim: 'zobrazeni' });
     const upravy = await vykresli(tab, { rezimUprav: true });
-    zkontrolujDetail(upravy, { formular, sloupce: formular ? SLOUPCE : [], rezim: formular ? 'upravy' : 'zobrazeni' });
+    zkontrolujDetail(upravy, { formular, sloupce: formular ? SLOUPCE[formular] : [], rezim: formular ? 'upravy' : 'zobrazeni' });
+    if (formular) {
+      const cizi = formular === 'formDetail' ? SLOUPCE.formBanka : SLOUPCE.formDetail;
+      for (const name of cizi.filter(n => n !== 'tab')) {
+        assert.ok(!upravy.includes(`name="${name}"`), `${formular} nenese sloupec druhé záložky: ${name}`);
+      }
+    }
   });
 }
 
@@ -81,7 +90,7 @@ test('hlavička: Zpět na tým v plné velikosti vedle tužky, tužka a Zrušit 
   const detail = await vykresli('detail', { saved: true });
   assert.match(detail, /<div class="page-header-akce">\s*<a href="\/lide\/tym" class="btn btn-outline">← Zpět na tým<\/a>\s*<a href="\?tab=detail&amp;upravit=1" class="btn btn-outline btn-ikona upravit-otevrit"/, 'Zpět na tým bez btn-sm, tužka hned za ním');
   assert.ok(detail.includes('href="?tab=detail" class="btn btn-ghost upravit-zrusit"'), 'Zrušit vede zpět bez upravit');
-  assert.match(detail, /<div class="jen-zobrazeni" style="[^"]*">\s*Změny byly uloženy\./, 'banner Uloženo se v úpravách skryje');
+  assert.match(detail, /<div data-hlaska class="jen-zobrazeni" style="[^"]*">\s*Změny byly uloženy\./, 'banner Uloženo se v úpravách skryje');
   assert.ok(detail.includes('class="upravit-paticka jen-upravy"'), 'dlouhý formulář detailu má patičku');
   assert.ok(!detail.includes('Uložit změny'), 'staré tlačítko je pryč');
 
@@ -89,10 +98,33 @@ test('hlavička: Zpět na tým v plné velikosti vedle tužky, tužka a Zrušit 
   assert.ok(banka.includes('href="?tab=banka&amp;upravit=1"'), 'tužka na záložce banky vede na ni');
   assert.ok(!banka.includes('upravit-paticka'), 'tři pole patičku nepotřebují');
   assert.ok(!banka.includes('Uložit bankovní účet'), 'staré tlačítko je pryč');
-  assert.match(banka, /<input type="hidden" name="first_name" value="Jana">/, 'osobní údaje jdou skrytě');
-  assert.match(banka, /<input type="hidden" name="is_admin" value="">/, 'nesprávce posílá prázdné is_admin (routa čte jen 1/on)');
-  assert.match(banka, /<input type="hidden" name="is_active" value="1">/);
+  assert.ok(!/name="(first_name|is_admin|is_active)"/.test(banka), 'banka neposílá osobní údaje ani přepínače');
   assert.match(banka, /<div class="pole-hodnota">123456789\/0100<\/div>/, 'číslo účtu jako text');
+});
+
+// Každé pole nese hodnotu svého sloupce. Záměna nebo překlep by při uložení potichu přepsaly data.
+const UNIKATNI = { ...member, email: 'jm1@example.invalid', first_name: 'Jm2', last_name: 'Pr3', title: 'Ti4', phone: '+420 5', position: 'Po6', bio: 'Bi7 <b>',
+  address: 'Ad8', city: 'Me9', zip: 'Ps10', country: 'St11', bank_account: 'Uc12', bank_name: 'Ba13', iban: 'Ib14' };
+for (const [tab, formular] of [['detail', 'formDetail'], ['banka', 'formBanka']]) {
+  test(`${tab}: formulář odešle ke každému sloupci jeho hodnotu`, async () => {
+    const zapnuto = hodnotyFormulare(await vykresli(tab, { rezimUprav: true, member: { ...UNIKATNI, is_admin: true, is_active: true } }), formular);
+    assert.equal(zapnuto.tab, tab);
+    for (const k of SLOUPCE[formular].filter(n => !['tab', 'is_admin', 'is_active'].includes(n))) {
+      assert.equal(zapnuto[k], String(UNIKATNI[k]), `${tab}: ${k}`);
+    }
+    if (tab !== 'detail') return;
+    assert.deepEqual([zapnuto.is_admin, zapnuto.is_active], ['1', '1']);
+    const vypnuto = hodnotyFormulare(await vykresli(tab, { rezimUprav: true, member: { ...UNIKATNI, is_admin: false, is_active: false } }), formular);
+    assert.deepEqual([vypnuto.is_admin, vypnuto.is_active], [undefined, undefined], 'vypnuté přepínače se neodešlou');
+    const prazdny = hodnotyFormulare(await vykresli(tab, { rezimUprav: true, member: { ...UNIKATNI, country: '' } }), formular);
+    assert.equal(prazdny.country, 'Česká republika', 'výchozí stát');
+  });
+}
+
+test('chyba z routy se vypíše nad stránkou a jde odstranit přepnutím režimu', async () => {
+  const html = await vykresli('detail', { error: 'Tento <e-mail>', rezimUprav: true });
+  assert.match(html, /<div data-hlaska [^>]*>⚠ Tento &lt;e-mail&gt;<\/div>/);
+  assert.ok(!(await vykresli('detail')).includes('⚠'), 'bez chyby hláška není');
 });
 
 test('záložka bez formuláře zůstává v zobrazení i s ?upravit=1 a fotka má vlastní formulář mimo režim', async () => {
@@ -120,8 +152,8 @@ describe('proti serveru', { skip: PRESKOCIT }, () => {
       VALUES (${`clen-admin-${r}@example.invalid`}, 'x', 'Test', 'Správce', TRUE) RETURNING id`;
     uklid.users.push(admin.id);
     const [clen] = await sql`
-      INSERT INTO users (email, password_hash, first_name, last_name, is_admin, position, bank_account)
-      VALUES (${`clen-${r}@example.invalid`}, 'x', 'Jana', ${`Nováková ${r}`}, FALSE, 'Účetní', '123456789/0100')
+      INSERT INTO users (email, password_hash, first_name, last_name, is_admin, position, bank_account, bank_name, iban)
+      VALUES (${`clen-${r}@example.invalid`}, 'x', 'Jana', ${`Nováková ${r}`}, FALSE, 'Účetní', '123456789/0100', 'Komerční banka', 'CZ65')
       RETURNING id, public_id`;
     uklid.users.push(clen.id);
     ctx.clen = clen;
@@ -162,31 +194,50 @@ describe('proti serveru', { skip: PRESKOCIT }, () => {
     assert.ok(!/<form\b[^>]*>(?:(?!<\/form>)[\s\S])*<form\b/.test(html), 'žádný vnořený formulář');
   });
 
-  test('POST uloží jméno a skrytý bankovní účet zůstane, přesměruje na záložku bez upravit', async () => {
+  test('POST uloží jméno a bankovní účet nechá být, přesměruje na záložku bez upravit', async () => {
     const c = ctx.clen;
-    let res = await req.post(`/lide/tym/${c.public_id}`, {
-      tab: 'detail', email: `clen-${r}@example.invalid`, first_name: 'Jana Marie', last_name: `Nováková ${r}`, title: 'Ing.',
-      phone: '', position: 'Hlavní účetní', bio: '', address: '', city: 'Brno', zip: '', country: 'Česká republika',
-      bank_account: '123456789/0100', bank_name: '', iban: '', is_active: '1',
-    });
+    // Tělo z opravdového formuláře: ručně psané by neověřilo, co stránka posílá.
+    const teloDetailu = hodnotyFormulare(await detail('?tab=detail&upravit=1'), 'formDetail');
+    let res = await req.post(`/lide/tym/${c.public_id}`, { ...teloDetailu, first_name: 'Jana Marie', position: 'Hlavní účetní', city: 'Brno' });
     assert.equal(res.status, 302);
     assert.equal(res.headers.get('location'), `/lide/tym/${c.public_id}?tab=detail&saved=1`);
-    let [u] = await sql`SELECT first_name, position, city, bank_account, is_admin, is_active FROM users WHERE id = ${c.id}`;
-    assert.deepEqual([u.first_name, u.position, u.city, u.bank_account, u.is_admin, u.is_active],
-      ['Jana Marie', 'Hlavní účetní', 'Brno', '123456789/0100', false, true]);
+    let [u] = await sql`SELECT first_name, position, city, bank_account, bank_name, iban, is_admin, is_active FROM users WHERE id = ${c.id}`;
+    assert.deepEqual([u.first_name, u.position, u.city, u.bank_account, u.bank_name, u.iban, u.is_admin, u.is_active],
+      ['Jana Marie', 'Hlavní účetní', 'Brno', '123456789/0100', 'Komerční banka', 'CZ65', false, true]);
 
-    // Banka: prázdné is_admin ze skrytého pole = dál nesprávce, účet se změní
-    res = await req.post(`/lide/tym/${c.public_id}`, {
-      tab: 'banka', email: `clen-${r}@example.invalid`, first_name: 'Jana Marie', last_name: `Nováková ${r}`, title: 'Ing.',
-      phone: '', position: 'Hlavní účetní', bio: '', address: '', city: 'Brno', zip: '', country: 'Česká republika',
-      bank_account: '987654321/0300', bank_name: 'ČSOB', iban: '', is_admin: '', is_active: '1',
-    });
+    // Banka: změní se jen účet, osobní údaje a přepínače zůstanou
+    const teloBanky = hodnotyFormulare(await detail('?tab=banka&upravit=1'), 'formBanka');
+    res = await req.post(`/lide/tym/${c.public_id}`, { ...teloBanky, bank_account: '987654321/0300', bank_name: 'ČSOB' });
     assert.equal(res.headers.get('location'), `/lide/tym/${c.public_id}?tab=banka&saved=1`);
-    [u] = await sql`SELECT first_name, bank_account, bank_name, is_admin FROM users WHERE id = ${c.id}`;
-    assert.deepEqual([u.first_name, u.bank_account, u.bank_name, u.is_admin], ['Jana Marie', '987654321/0300', 'ČSOB', false]);
+    [u] = await sql`SELECT first_name, bank_account, bank_name, is_admin, is_active FROM users WHERE id = ${c.id}`;
+    assert.deepEqual([u.first_name, u.bank_account, u.bank_name, u.is_admin, u.is_active], ['Jana Marie', '987654321/0300', 'ČSOB', false, true]);
 
     const html = await detail('?tab=banka&saved=1');
-    assert.match(html, /<div class="jen-zobrazeni" style="[^"]*">\s*Změny byly uloženy\./, 'hláška po uložení jen v zobrazení');
+    assert.match(html, /<div data-hlaska class="jen-zobrazeni" style="[^"]*">\s*Změny byly uloženy\./, 'hláška po uložení jen v zobrazení');
     assert.match(html, /<div class="pole-hodnota">987654321\/0300<\/div>/, 'nová hodnota je vidět jako text');
+  });
+
+  test('POST zapisuje jen sloupce své záložky, starší hodnoty druhé záložky ignoruje', async () => {
+    const c = ctx.clen;
+    await sql`UPDATE users SET is_admin = FALSE, is_active = FALSE, phone = 'novy', iban = 'CZ-NOVY' WHERE id = ${c.id}`;
+    await req.post(`/lide/tym/${c.public_id}`, { tab: 'banka', bank_account: '2/0300', bank_name: '', iban: 'CZ-NOVY', email: 'stary@example.invalid', phone: 'stary', is_admin: '1', is_active: '1' });
+    let [u] = await sql`SELECT email, phone, bank_account, is_admin, is_active FROM users WHERE id = ${c.id}`;
+    assert.deepEqual([u.email, u.phone, u.bank_account, u.is_admin, u.is_active], [`clen-${r}@example.invalid`, 'novy', '2/0300', false, false]);
+    await req.post(`/lide/tym/${c.public_id}`, { tab: 'detail', email: `clen-${r}@example.invalid`, first_name: 'Jana', last_name: `Nováková ${r}`, is_active: '1', bank_account: '1/0100', iban: 'CZ-STARY' });
+    [u] = await sql`SELECT bank_account, iban, is_active FROM users WHERE id = ${c.id}`;
+    assert.deepEqual([u.bank_account, u.iban, u.is_active], ['2/0300', 'CZ-NOVY', true]);
+  });
+
+  test('e-mail jiného člena: návrat do otevřeného formuláře s hláškou, řádek beze změny', async () => {
+    const c = ctx.clen;
+    const [pred] = await sql`SELECT email, first_name FROM users WHERE id = ${c.id}`;
+    const res = await req.post(`/lide/tym/${c.public_id}`, { tab: 'detail', email: `clen-admin-${r}@example.invalid`, first_name: 'Jiná', is_active: '1' });
+    assert.equal(res.status, 302);
+    assert.equal(res.headers.get('location'), `/lide/tym/${c.public_id}?tab=detail&error=duplicitni-email&upravit=1`);
+    const [po] = await sql`SELECT email, first_name FROM users WHERE id = ${c.id}`;
+    assert.deepEqual(po, pred);
+    const html = await detail('?tab=detail&error=duplicitni-email&upravit=1');
+    assert.ok(html.includes('data-rezim="upravy"') && html.includes('Tento e-mail už používá jiný člen týmu.'));
+    assert.ok(!(await detail('?tab=detail&error=%3Cvymysleno%3E')).includes('vymysleno'), 'text z adresy se nevypíše');
   });
 });

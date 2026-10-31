@@ -61,8 +61,9 @@ test('základní informace: hodnoty jako text, slug jen pro čtení, vzorek barv
   assert.match(html, /<a href="https:\/\/dilna\.example\.invalid" target="_blank" rel="noopener noreferrer">/, 'URL jako odkaz');
   assert.match(html, /<div class="form-group pole pole-stale">\s*<span class="form-label">Slug \(ID\)<\/span>/, 'slug zůstává vidět i v úpravách');
   assert.ok(html.includes('Založen 5. 3. 2025'), 'datum založení nezávisle na časovém pásmu');
-  assert.ok(html.includes('href="?tab=zakladni&amp;upravit=1"'), 'tužka bez JS otevře úpravy na téže záložce');
-  assert.ok(html.includes('href="?tab=zakladni" class="btn btn-ghost upravit-zrusit"'), 'Zrušit vede zpět bez upravit');
+  assert.ok(html.includes('href="/nastaveni/eshopy/7?tab=zakladni&amp;upravit=1"'), 'tužka bez JS otevře úpravy na téže záložce');
+  assert.ok(html.includes('href="/nastaveni/eshopy/7?tab=zakladni" class="btn btn-ghost upravit-zrusit"'), 'Zrušit vede zpět bez upravit');
+  assert.ok(html.includes('href="/nastaveni/eshopy/7?tab=marketing"'), 'záložky platí i na stránce vykreslené z POSTu na jiné adrese');
 
   const identita = await vykresli('identita');
   assert.match(identita, /<span class="barva-vzorek" style="background:#0891b2;"><\/span><code>#0891b2<\/code>/, 'platný hex má vzorek');
@@ -70,10 +71,30 @@ test('základní informace: hodnoty jako text, slug jen pro čtení, vzorek barv
   assert.ok(identita.includes('>modrá<'), 'ale je vidět jako text');
 });
 
+test('Založen: den podle Prahy, sloupec nese čas', async () => {
+  const html = await vykresli('zakladni', { shop: { ...shop, created_at: new Date('2026-03-04T23:30:00Z') } });
+  assert.ok(html.includes('Založen 5. 3. 2026'), 'půlnoc v Praze je už další den');
+});
+
+test('URL e-shopu bez http(s) není odkaz v hlavičce detailu ani v seznamu', async () => {
+  const zla = 'javascript:alert(1)';
+  const detail = await vykresli('identita', { shop: { ...shop, url: zla } });
+  assert.ok(!detail.includes(`href="${zla}"`), 'detail');
+  assert.ok(detail.includes(zla), 'hodnota zůstane vidět');
+  const radek = { id: 1, slug: 'x', name: 'X', url: 'https://x.example.invalid/"<img src=x>', active: true, key_count: 0 };
+  const seznam = await vykresliStranku('settings/shops', { pageTitle: 'Eshopy', currentPath: '/nastaveni/eshopy', shops: [radek, { ...radek, url: zla }, { ...radek, url: '' }],
+    eshopSVlastnimApi: 'toneracek', saved: false, error: 'url' });
+  assert.ok(!seznam.includes('<img src=x>'), 'URL se v seznamu escapuje');
+  assert.ok(!seznam.includes(`href="${zla}"`), 'nebezpečné schéma není odkaz');
+  assert.ok(seznam.includes('URL e-shopu musí začínat http'), 'hláška o neplatné URL');
+});
+
 test('Toneráček má přepínač stavu zašedlý, hláška Uloženo se v úpravách skryje', async () => {
   const html = await vykresli('zakladni', { tajemstviZProstredi: true, saved: true });
   assert.match(html, /name="active"[^>]*disabled/, 'přepínač je disabled');
-  assert.match(html, /class="alert alert-success jen-zobrazeni"/, 'banner Uloženo je jen pro režim zobrazení');
+  assert.match(html, /<div data-hlaska class="alert alert-success jen-zobrazeni"/, 'banner Uloženo je jen pro režim zobrazení');
+  const chyba = await vykresli('identita', { error: 'identita-barva', rezimUprav: true });
+  assert.match(chyba, /<div data-hlaska [^>]*>\s*Barva musí být hexadecimální kód/, 'chyba barvy nad otevřeným formulářem');
 });
 
 test('marketing: marže a práh PNO v samostatné kartě, platformy mimo dosah tužky', async () => {

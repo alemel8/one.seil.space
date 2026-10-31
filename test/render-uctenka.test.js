@@ -51,7 +51,7 @@ test('hodnoty jako text: escapované, částky s měnou, datum, odpočet DPH; od
   assert.ok(!html.includes('<b>Kudrna'), 'surové HTML z hodnoty se nevykreslí');
   assert.match(html, /<div class="pole-hodnota">121,00 CZK<\/div>/, 'částka s měnou v dosavadním formátu');
   assert.match(html, /<div class="pole-hodnota">2\. 2\. 2026<\/div>/, 'datum dokladu česky, nezávisle na časovém pásmu');
-  assert.match(html, /<input type="date" class="form-control" value="2026-02-02" id="pole-receipt_date" name="receipt_date">/, 'vstup data dostane YYYY-MM-DD');
+  assert.match(html, /<input type="date" class="form-control" value="2026-02-02" id="pole-receipt_date" name="receipt_date" required>/, 'vstup data dostane YYYY-MM-DD');
   assert.match(html, /<div class="pole-hodnota">Uplatněn odpočet<\/div>/, 'odpočet DPH jako text');
   assert.ok(html.includes('id="rdVatDeductible" name="vat_deductible" checked'), 'uplatněný odpočet je zaškrtnutý');
   assert.match(html, /<option value="Karta" selected>Karta<\/option>/, 'forma úhrady vybraná');
@@ -61,7 +61,7 @@ test('hodnoty jako text: escapované, částky s měnou, datum, odpočet DPH; od
   const bez = await vykresli({ receipt: { ...receipt, vat_deductible: false }, saved: true });
   assert.match(bez, /<div class="pole-hodnota">Bez odpočtu DPH<\/div>/, 'bez odpočtu jako text');
   assert.ok(!/id="rdVatDeductible"[^>]*checked/.test(bez), 'checkbox bez odpočtu není zaškrtnutý');
-  assert.match(bez, /<div class="jen-zobrazeni"[^>]*>✓ Uloženo<\/div>/, 'banner Uloženo je jen pro režim zobrazení');
+  assert.match(bez, /<div data-hlaska class="jen-zobrazeni"[^>]*>✓ Uloženo<\/div>/, 'banner Uloženo je jen pro režim zobrazení');
 });
 
 test('skript stránky: pole mají id pro rdUhrada, žádný inline onchange, hinty a přepočet po reset', async () => {
@@ -144,5 +144,29 @@ describe('proti serveru', { skip: PRESKOCIT }, () => {
     assert.equal(u.payment_method, 'Karta');
     assert.equal(u.vat_deductible, true);
     assert.equal(Number(u.total_amount), 242);
+  });
+
+  test('neplatné datum: formulář se vrátí s hláškou, fetch dostane 400, řádek se nezmění', async () => {
+    const [pred] = await sql`SELECT vendor, receipt_date::text AS d FROM receipts WHERE id = ${ctx.id}`;
+    for (const receipt_date of ['', '20266-02-02', '2026-02-30']) {
+      const telo = new URLSearchParams({ receipt_date, vendor: `Jiný ${r}`, amount: '1', vat_amount: '0', total_amount: '1', category: 'Kancelář', status: 'Nezaúčtována' });
+      const res = await postHtml(`/ucetnictvi/uctenky/${ctx.id}/upravit`, telo);
+      assert.equal(res.status, 302, receipt_date);
+      assert.equal(res.headers.get('location'), `/ucetnictvi/uctenky/${ctx.id}?error=datum&upravit=1`, receipt_date);
+      const json = await postHtml(`/ucetnictvi/uctenky/${ctx.id}/upravit`, telo, { accept: 'application/json' });
+      assert.equal(json.status, 400, receipt_date);
+    }
+    const [po] = await sql`SELECT vendor, receipt_date::text AS d FROM receipts WHERE id = ${ctx.id}`;
+    assert.deepEqual(po, pred);
+    const html = await (await ctx.req.get(`/ucetnictvi/uctenky/${ctx.id}?error=datum&upravit=1`)).text();
+    assert.ok(html.includes('data-rezim="upravy"') && html.includes('Vyplňte platné datum dokladu.'));
+  });
+
+  test('text hlášky nejde podstrčit adresou', async () => {
+    const html = await (await ctx.req.get(`/ucetnictvi/uctenky/${ctx.id}?error=Vymy%C5%A1len%C3%A1%20zpr%C3%A1va`)).text();
+    assert.ok(!html.includes('Vymyšlená zpráva'));
+    const proto = await ctx.req.get(`/ucetnictvi/uctenky/${ctx.id}?error=constructor`);
+    assert.equal(proto.status, 200);
+    assert.ok(!(await proto.text()).includes('<div data-hlaska style="background:var(--danger-bg)'));
   });
 });

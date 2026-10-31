@@ -21,9 +21,13 @@
 </div>
 
 <% if (saved) { %>
-<div class="jen-zobrazeni" style="background:var(--success-bg);color:#15803D;border:1px solid #bbf7d0;border-radius:8px;padding:10px 16px;margin-bottom:20px;font-size:14px;">
+<div data-hlaska class="jen-zobrazeni" style="background:var(--success-bg);color:#15803D;border:1px solid #bbf7d0;border-radius:8px;padding:10px 16px;margin-bottom:20px;font-size:14px;">
   Změny byly uloženy.
 </div>
+<% } %>
+
+<% if (locals.error) { %>
+<div data-hlaska style="background:var(--danger-bg);color:var(--danger);padding:10px 16px;border-radius:8px;margin-bottom:20px;font-size:14px;">⚠ <%= error %></div>
 <% } %>
 
 <!-- Záhlaví profilu -->
@@ -138,11 +142,6 @@
             zobraz: member.is_active ? 'Aktivní' : 'Neaktivní' } }) %>
         </div>
 
-        <!-- Skrytá pole pro bankovní účet – aby nepřepsala data při uložení detailu -->
-        <input type="hidden" name="bank_account" value="<%= member.bank_account || '' %>">
-        <input type="hidden" name="bank_name" value="<%= member.bank_name || '' %>">
-        <input type="hidden" name="iban" value="<%= member.iban || '' %>">
-
         <%- include('../../includes/upravit', { paticka: true, formular: 'formDetail', urlZpet: urlZalozky }) %>
       </form>
     </div>
@@ -162,21 +161,6 @@
           <%- include('../../includes/pole', { pole: { label: 'Název banky', name: 'bank_name', value: member.bank_name, placeholder: 'Komerční banka' } }) %>
           <%- include('../../includes/pole', { pole: { label: 'IBAN', name: 'iban', value: member.iban, placeholder: 'CZ65 …' } }) %>
         </div>
-
-        <!-- Skrytá pole – osobní údaje (routa přepisuje celý řádek; prázdná hodnota u přepínačů = vypnuto) -->
-        <input type="hidden" name="email" value="<%= member.email || '' %>">
-        <input type="hidden" name="first_name" value="<%= member.first_name || '' %>">
-        <input type="hidden" name="last_name" value="<%= member.last_name || '' %>">
-        <input type="hidden" name="title" value="<%= member.title || '' %>">
-        <input type="hidden" name="phone" value="<%= member.phone || '' %>">
-        <input type="hidden" name="position" value="<%= member.position || '' %>">
-        <input type="hidden" name="bio" value="<%= member.bio || '' %>">
-        <input type="hidden" name="address" value="<%= member.address || '' %>">
-        <input type="hidden" name="city" value="<%= member.city || '' %>">
-        <input type="hidden" name="zip" value="<%= member.zip || '' %>">
-        <input type="hidden" name="country" value="<%= member.country || 'Česká republika' %>">
-        <input type="hidden" name="is_admin" value="<%= member.is_admin ? '1' : '' %>">
-        <input type="hidden" name="is_active" value="<%= member.is_active ? '1' : '' %>">
       </form>
     </div>
   </div>

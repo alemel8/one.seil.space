@@ -117,9 +117,10 @@ export default async function crmRoutes(fastify) {
   // se některé zapomnělo (web), každé uložení poznámek ho firmě smazalo.
   fastify.post('/crm/firmy/:id/poznamky', async (request, reply) => {
     const b = request.body || {};
+    if (b.notes === undefined) return reply.code(400).send('Chybí pole notes'); // nesmí poznámky smazat
     await sql`
       UPDATE crm_companies SET
-        notes       = ${(b.notes || '').trim()},
+        notes       = ${b.notes.trim()},
         modified_by = ${request.user?.id || null},
         modified_at = NOW()
       WHERE id = ${request.params.id}

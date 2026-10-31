@@ -2,6 +2,7 @@ import { getDb } from '../db.js';
 import { buildPohodaXml, PAYMENT_METHODS, isCashReceipt } from '../pohoda.js';
 import { saveAttachment, deleteAttachment, isSupportedMime, markMissingAttachments } from '../attachments.js';
 import { rezimUprav } from '../upravy.js';
+import { jenDatum } from '../prazsky-cas.js';
 import Anthropic from '@anthropic-ai/sdk';
 
 export const STATUSES = ['Nezaúčtována', 'Zaúčtována', 'Storno'];
@@ -11,6 +12,13 @@ export const CATEGORIES = ['Kancelář', 'Cestovné', 'PHM', 'Stravné', 'Reprez
 // Kategorie, u kterých zákon nárok na odpočet DPH nepřipouští
 // (§ 72 odst. 4 ZDPH – náklady na reprezentaci, pohoštění, dary).
 export const NO_VAT_CATEGORIES = ['Reprezentace'];
+
+// Hlášky detailu účtenky podle ?error=. Text nikdy nejde z adresy,
+// odkaz by jinak přihlášenému mohl podstrčit vymyšlenou systémovou zprávu.
+const CHYBY_DETAILU = {
+  __proto__: null,
+  datum: 'Vyplňte platné datum dokladu.',
+};
 
 // Nárok na odpočet: u reprezentace ho nelze uplatnit, jinak rozhoduje uživatel.
 // Checkbox se z prohlížeče posílá jen když je zaškrtnutý, proto 'on'/'1'/'true'.
@@ -93,7 +101,7 @@ export default async function receiptsRoutes(fastify) {
       user: request.user, receipt, STATUSES, CATEGORIES, PAYMENT_METHODS,
       NO_VAT_CATEGORIES,
       saved: request.query.saved === '1',
-      error: request.query.error || null,
+      error: CHYBY_DETAILU[request.query.error] || null,
       rezimUprav: rezimUprav(request.query),
     }, { layout: 'layouts/base.ejs' });
   });
@@ -200,15 +208,20 @@ Kategorie PHM použij u nákupu pohonných hmot, Reprezentace u pohoštění, ob
     try {
       form = await parseReceiptForm(request);
     } catch (err) {
-      // Detail posílá klasický formulář (Accept: text/html) a chybu ukáže nad
-      // otevřenými poli (upravit=1); modal v seznamu volá fetch a čeká JSON.
-      if ((request.headers.accept || '').includes('text/html')) {
-        return reply.redirect(`/ucetnictvi/uctenky/${request.params.id}?error=${encodeURIComponent(err.message)}&upravit=1`);
-      }
       return reply.code(400).send({ error: err.message });
     }
 
     const b = form.fields;
+    // Sloupec je NOT NULL a postgres.js datum převádí přes Date: prázdné nebo
+    // s překlepem v roce by skončilo chybou 500. jenDatum odmítne i 30. 2.
+    const datum = jenDatum(b.receipt_date);
+    if (!datum) {
+      if (form.attachment) await deleteAttachment(form.attachment.filename);
+      if ((request.headers.accept || '').includes('text/html')) {
+        return reply.redirect(`/ucetnictvi/uctenky/${request.params.id}?error=datum&upravit=1`);
+      }
+      return reply.code(400).send({ error: CHYBY_DETAILU.datum });
+    }
     const amount      = parseFloat(b.amount      || 0);
     const vatAmount   = parseFloat(b.vat_amount  || 0);
     const totalAmount = b.total_amount ? parseFloat(b.total_amount) : (amount + vatAmount);
@@ -236,7 +249,7 @@ Kategorie PHM použij u nákupu pohonných hmot, Reprezentace u pohoštění, ob
         vat_amount     = ${vatAmount},
         total_amount   = ${totalAmount},
         currency       = ${b.currency || 'CZK'},
-        receipt_date   = ${b.receipt_date},
+        receipt_date   = ${datum},
         category       = ${b.category || 'Ostatní'},
         notes          = ${(b.notes || '').trim() || null},
         status         = ${b.status || 'Nezaúčtována'},
@@ -251,7 +264,7 @@ Kategorie PHM použij u nákupu pohonných hmot, Reprezentace u pohoštění, ob
     if (replaced) await deleteAttachment(replaced);
 
     // Detail posílá klasický formulář (Accept: text/html) a čeká přesměrování,
-    // modal v seznamu volá fetch a zpracuje JSON.
+    // ostatní klienti dostanou JSON.
     if ((request.headers.accept || '').includes('text/html')) {
       return reply.redirect(`/ucetnictvi/uctenky/${request.params.id}?saved=1`);
     }

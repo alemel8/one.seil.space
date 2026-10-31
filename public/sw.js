@@ -6,10 +6,11 @@
 // PWA držela první stažené CSS napořád a nové styly se k ní nikdy nedostaly.
 // v3: public/chart.umd.min.js je skutečný Chart.js 4.4.7 místo 431B stubu.
 // v4: téma před vykreslením, sbalitelné menu, záložky detailů, hledání
-// v5: režim úprav na detailech (components.css, upravy.js)
 //     (layout.css, components.css, variables.css, app.js).
+// v5: režim úprav na detailech (components.css, upravy.js, app.js)
 // v6: pomlčky v textech skriptů a komentářích stylů (U+2014 → U+2013)
-const CACHE_NAME = 'one-seil-v6';
+// v7: pojistka proti dvojkliku, návrat po uložení, rozepsané hodnoty po chybě (upravy.js, app.js)
+const CACHE_NAME = 'one-seil-v7';
 
 // Při instalaci – předcache jen statické assets
 self.addEventListener('install', event => {

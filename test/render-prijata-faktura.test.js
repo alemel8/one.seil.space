@@ -97,7 +97,7 @@ test('rekapitulace zůstává v zobrazení, v úpravách ji nahradí vstupy čá
   assert.ok(rekapitulace.includes('<div class="jen-zobrazeni">'), 'řádky rekapitulace jen v zobrazení');
   assert.match(rekapitulace, /K úhradě<\/span>\s*<span>1\s210,00 CZK<\/span>/, 'K úhradě s dosavadním formátem');
   assert.match(rekapitulace, /<div class="jen-upravy">\s*<div style="display:grid;gap:14px;">\s*<div class="form-group pole">/, 'vstupy částek v bloku jen-upravy bez inline display, aby ho CSS mohlo skrýt');
-  assert.match(rekapitulace, /<input type="number" class="form-control" value="1000\.00" id="pole-amount" name="amount" form="formFaktura" step="0\.01">/, 'základ jako číselný vstup');
+  assert.match(rekapitulace, /<input type="number" class="form-control" value="1000\.00" id="pole-amount" name="amount" form="formFaktura" max="9999999999\.99" step="0\.01">/, 'základ jako číselný vstup');
   assert.match(html, /<div class="form-group pole jen-upravy" style="grid-column:1\/-1">\s*<label class="form-label required" for="pole-number">Číslo faktury<\/label>/, 'číslo faktury je v zobrazení v nadpisu, pole jen v úpravách');
   assert.ok(html.includes('<h1>Přijatá faktura PF-2026-001</h1>'), 'nadpis s číslem zůstal');
 });
@@ -109,7 +109,7 @@ test('bez nároku na odpočet: žlutý box jen v zobrazení; zaplaceno jen pro �
   assert.match(html, /<input type="checkbox" value="on" id="pole-vat_deductible" name="vat_deductible" form="formFaktura">/, 'checkbox nezaškrtnutý, hodnota on jako v routě');
   assert.match(html, /<div class="form-group pole pole-stale">\s*<span class="form-label">Zaplaceno<\/span>\s*<div class="pole-hodnota pole-uspech">20\. 2\. 2026<\/div>/, 'zaplaceno zůstává vidět i v úpravách, není to pole formuláře');
   assert.ok(!/name="paid_date"/.test(html), 'paid_date formulář neposílá');
-  assert.match(html, /<div class="jen-zobrazeni" style="background:#dcfce7[^"]*">✓ Uloženo<\/div>/, 'banner Uloženo jen pro zobrazení');
+  assert.match(html, /<div data-hlaska class="jen-zobrazeni" style="background:#dcfce7[^"]*">✓ Uloženo<\/div>/, 'banner Uloženo jen pro zobrazení');
   assert.ok(!html.includes('⚠'), 'zaplacená faktura není po splatnosti');
 
   const bez = await vykresli({ invoice: { ...invoice, notes: '', account_debit: '', account_credit: '', supplier_dic: '' } });
@@ -180,7 +180,30 @@ describe('proti serveru', { skip: PRESKOCIT }, () => {
 
     const html = await (await req.get(`/ucetnictvi/prijate-faktury/${id}?saved=1`)).text();
     assert.ok(html.includes('data-rezim="zobrazeni"'), 'po uložení je zpět zobrazení');
-    assert.match(html, /<div class="jen-zobrazeni" style="background:#dcfce7[^"]*">✓ Uloženo<\/div>/, 'hláška Uloženo nad zobrazením');
+    assert.match(html, /<div data-hlaska class="jen-zobrazeni" style="background:#dcfce7[^"]*">✓ Uloženo<\/div>/, 'hláška Uloženo nad zobrazením');
     assert.ok(html.includes(`<div class="pole-hodnota">Nový dodavatel ${r}</div>`), 'nový dodavatel jako text pole');
+  });
+
+  test('duplicitní číslo a neplatné datum: návrat do otevřeného formuláře s hláškou, řádek beze změny', async () => {
+    const druha = `tpf2${r}`;
+    await sql`INSERT INTO accounting_invoices (id, type, number, supplier, amount, vat_amount, total_amount, currency, issue_date, status)
+      VALUES (${druha}, 'received', ${`PF2-${r}`}, 'Jiný', 1, 0, 1, 'CZK', '2026-02-02', 'Nezaplacena')`;
+    try {
+      const [pred] = await sql`SELECT number, notes, issue_date::text AS d FROM accounting_invoices WHERE id = ${id}`;
+      let res = await req.post(`/ucetnictvi/prijate-faktury/${id}/upravit`, { number: `PF2-${r}`, supplier: 'X', issue_date: '2026-02-02', notes: 'jiné' });
+      assert.equal(res.status, 302);
+      assert.equal(res.headers.get('location'), `/ucetnictvi/prijate-faktury/${id}?error=duplicita&upravit=1`);
+      for (const zmena of [{ issue_date: '' }, { issue_date: '20266-02-02' }, { issue_date: '2026-02-02', due_date: '2026-02-30' }]) {
+        res = await req.post(`/ucetnictvi/prijate-faktury/${id}/upravit`, { number: `PF-${r}`, supplier: 'X', notes: 'jiné', ...zmena });
+        assert.equal(res.headers.get('location'), `/ucetnictvi/prijate-faktury/${id}?error=datum&upravit=1`, JSON.stringify(zmena));
+      }
+      const [po] = await sql`SELECT number, notes, issue_date::text AS d FROM accounting_invoices WHERE id = ${id}`;
+      assert.deepEqual(po, pred);
+      const html = await (await req.get(`/ucetnictvi/prijate-faktury/${id}?error=duplicita&upravit=1`)).text();
+      assert.ok(html.includes('data-rezim="upravy"') && html.includes('s tímto číslem už v systému je'));
+      assert.ok(!(await (await req.get(`/ucetnictvi/prijate-faktury/${id}?error=vymysleno`)).text()).includes('<div data-hlaska style="background:var(--danger-bg)'), 'neznámý kód hlášku neukáže');
+    } finally {
+      await sql`DELETE FROM accounting_invoices WHERE id = ${druha}`;
+    }
   });
 });

@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { getDb, generateId } from '../db.js';
 import { rezimUprav } from '../upravy.js';
+import { jenDatum } from '../prazsky-cas.js';
 import { renderSeriesNumber } from '../series-format.js';
 import { invalidateBrandCache, shopBrand } from '../brand.js';
 import { hashKlice, otiskKlice, vygenerujKlic } from '../eshop-klice.js';
@@ -186,15 +187,20 @@ export default async function settingsRoutes(fastify) {
   // šablon – hlídá se serverově stejně jako klientský pattern v shops.ejs
   // (ten jde obejít): malá písmena, číslice, pomlčky.
   const SLUG_ESHOPU = /^[a-z0-9][a-z0-9-]{0,39}$/;
+// Jen http(s) a bez znaků, které by rozbily HTML: hodnota jde do odkazů i do e-mailů.
+const URL_ESHOPU = /^https?:\/\/[^\s<>"']+$/;
+const BARVA_ESHOPU = /^#[0-9a-fA-F]{3,8}$/;
 
   fastify.post('/nastaveni/eshopy/vytvorit', async (request, reply) => {
     const b = request.body || {};
     const name = String(b.name || '').trim();
     const slug = String(b.slug || '').trim().toLowerCase();
     if (!name || !SLUG_ESHOPU.test(slug)) return reply.redirect('/nastaveni/eshopy?error=missing');
+    const url = String(b.url || '').trim();
+    if (url && !URL_ESHOPU.test(url)) return reply.redirect('/nastaveni/eshopy?error=url');
     await sql`
       INSERT INTO shops (slug, name, url, active)
-      VALUES (${slug}, ${name}, ${String(b.url || '').trim()}, TRUE)
+      VALUES (${slug}, ${name}, ${url}, TRUE)
       ON CONFLICT (slug) DO NOTHING
     `;
     return reply.redirect('/nastaveni/eshopy?saved=1');
@@ -309,7 +315,7 @@ export default async function settingsRoutes(fastify) {
     if (!name) return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=zakladni&error=zakladni-nazev&upravit=1`);
 
     const url = String(b.url || '').trim();
-    if (url && !/^https?:\/\/\S+$/.test(url)) {
+    if (url && !URL_ESHOPU.test(url)) {
       return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=zakladni&error=zakladni-url&upravit=1`);
     }
 
@@ -420,6 +426,11 @@ export default async function settingsRoutes(fastify) {
     if (from.endsWith('@seil.cz')) {
       return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=identita&error=firemni-adresa&upravit=1`);
     }
+    // Barvy jdou do style= zákaznických e-mailů neescapované (src/email-templates.js).
+    const barvy = [b.color_primary, b.color_primary_dark, b.color_primary_light, b.color_on_primary_soft];
+    if (barvy.some(v => (v || '').trim() && !BARVA_ESHOPU.test((v || '').trim()))) {
+      return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=identita&error=identita-barva&upravit=1`);
+    }
 
     await sql`
       UPDATE shops SET
@@ -465,7 +476,7 @@ export default async function settingsRoutes(fastify) {
     }
 
     const since = (b.warehouse_dispatch_since || '').trim();
-    if (since && !/^\d{4}-\d{2}-\d{2}$/.test(since)) {
+    if (since && !jenDatum(since)) { // jenDatum odmítne i 30. 2., postgres.js by ho přetočil na březen
       return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=expedice&error=sklad-datum&upravit=1`);
     }
 
@@ -595,7 +606,7 @@ export default async function settingsRoutes(fastify) {
         <p style="font-size:15px;color:#334155;margin:0 0 16px">Dobrý den,</p>
         <p style="font-size:14px;color:#475569;line-height:1.6;margin:0 0 20px">
           takhle vypadá e-mail, který zákazníkovi odešle One SEIL jménem e-shopu
-          <strong>${brand.name}</strong>.
+          <strong>${String(brand.name).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))}</strong>.
         </p>
         ${infoBlock('Faktura', infoRow('Číslo faktury', 'FV-2026-10001') + infoRow('Celkem k úhradě', '<strong>1 085,00 Kč</strong>'))}`,
     });

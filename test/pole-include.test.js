@@ -18,7 +18,7 @@ test('textové pole: popisek, hodnota i vstup, všechno escapované', async () =
   const html = await vykresli({ label: 'Název', name: 'name', value: 'Dílna <b>Vlněnka</b> & spol.', required: true, maxlength: 100, placeholder: 'x"y' });
   assert.match(html, /<label class="form-label required" for="pole-name">Název<\/label>/);
   assert.match(html, /<div class="pole-hodnota">Dílna &lt;b&gt;Vlněnka&lt;\/b&gt; &amp; spol\.<\/div>/);
-  assert.match(html, /<input type="text" class="form-control" value="Dílna &lt;b&gt;Vlněnka&lt;\/b&gt; &amp; spol\." id="pole-name" name="name" required placeholder="x&quot;y" maxlength="100">/);
+  assert.match(html, /<input type="text" class="form-control" value="Dílna &lt;b&gt;Vlněnka&lt;\/b&gt; &amp; spol\." id="pole-name" name="name" required placeholder="x&quot;y" maxlength="100" pattern="\.\*\\S\.\*" title="Pole nesmí být prázdné">/, 'povinné textové pole odmítne i samé mezery');
   assert.ok(!html.includes('<b>'), 'surové HTML z hodnoty se nevykreslí');
 });
 
@@ -38,6 +38,11 @@ test('url, e-mail a telefon jsou v zobrazení odkazy; url jen s http(s)', async 
   assert.ok(html.includes('javascript:alert(1)'), 'ale hodnota je vidět jako text');
   html = await vykresli({ label: 'E-mail', name: 'email', typ: 'email', value: 'ahoj@seil.cz' });
   assert.match(html, /<a href="mailto:ahoj@seil\.cz">ahoj@seil\.cz<\/a>/);
+  for (const nebezpecny of ['ahoj@seil.cz?bcc=x@y.cz', 'a@b.cz,c@d.cz', 'a@b.cz&subject=x', 'bez-zavinace']) {
+    html = await vykresli({ label: 'E-mail', name: 'email', typ: 'email', value: nebezpecny });
+    assert.ok(!html.includes('mailto:'), `${nebezpecny}: mailto by přidal příjemce nebo předvyplněný text`);
+    assert.ok(html.includes(nebezpecny.replace(/&/g, '&amp;')), 'hodnota zůstane vidět jako text');
+  }
   html = await vykresli({ label: 'Telefon', name: 'phone', typ: 'tel', value: '+420 728 749 931' });
   assert.match(html, /<a href="tel:\+420728749931">\+420 728 749 931<\/a>/);
 });

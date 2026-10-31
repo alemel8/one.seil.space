@@ -186,6 +186,22 @@ describe('proti serveru', { skip: PRESKOCIT }, () => {
     assert.ok(html.includes('data-rezim="upravy"'));
   });
 
+  test('kontakt, který přešel k jiné firmě, je ve výběru se jménem, ne s interním id', async () => {
+    const firma2 = `tprojg${r}`, kontakt = `tprojk${r}`;
+    await sql`INSERT INTO crm_companies (id, name, company_type) VALUES (${firma2}, ${`Jiná ${r}`}, 'Zákazník')`;
+    await sql`INSERT INTO crm_contacts (id, first_name, last_name, company_id) VALUES (${kontakt}, 'Cizí', 'Kontakt', ${firma2})`;
+    await sql`UPDATE projects SET primary_contact_id = ${kontakt} WHERE id = ${ids.projekt}`;
+    try {
+      const html = await (await http.get(`/projekty/${ids.projekt}?upravit=1`)).text();
+      assert.match(html, /<option value="[^"]+" selected>Cizí Kontakt \(jiná firma\)<\/option>/);
+      assert.match(html, /<div class="pole-hodnota">Cizí Kontakt \(jiná firma\)<\/div>/);
+    } finally {
+      await sql`UPDATE projects SET primary_contact_id = NULL WHERE id = ${ids.projekt}`;
+      await sql`DELETE FROM crm_contacts WHERE id = ${kontakt}`;
+      await sql`DELETE FROM crm_companies WHERE id = ${firma2}`;
+    }
+  });
+
   test('POST projektu uloží a vrátí na záložku bez upravit', async () => {
     const res = await http.post(`/projekty/${ids.projekt}`, {
       tab: 'prehled', name: `Projekt ${r} nový`, status: 'Pozastaveno', primary_contact_id: '', start_date: '2026-02-01',

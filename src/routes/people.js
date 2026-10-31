@@ -17,6 +17,16 @@ import { rezimUprav } from '../upravy.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MEDIA_DIR = path.resolve(__dirname, '../../data/media');
 
+// Hlášky detailu člena podle ?error=. Text nikdy nejde z adresy.
+const CHYBY_CLENA = {
+  __proto__: null,
+  'duplicitni-email': 'Tento e-mail už používá jiný člen týmu.',
+  castka: 'Částka musí být číslo a nesmí být záporná.',
+  nazev: 'Vyplňte název dokumentu.',
+  nofile: 'Vyberte soubor s fotkou.',
+  notimage: 'Fotka musí být obrázek.',
+};
+
 export default async function peopleRoutes(fastify) {
   const sql = getDb();
 
@@ -182,43 +192,60 @@ export default async function peopleRoutes(fastify) {
       maData: pocty.podklady + pocty.mzdy + pocty.platby > 0,
       PLATBA_DRUHY, PODKLAD_STAVY,
       saved: request.query.saved === '1',
+      error: CHYBY_CLENA[request.query.error] || null,
       rezimUprav: rezimUprav(request.query),
     }, { layout: 'layouts/base.ejs' });
   });
 
   // ── Uložit detail člena ──────────────────────────────────────
+  // Každá záložka zapisuje jen své sloupce. Skrytá pole druhé záložky by nesla
+  // stav z načtení stránky: uložení účtu ze starší stránky by vrátilo práva
+  // správce nebo aktivovalo účet, který mezitím někdo vypnul.
   fastify.post('/lide/tym/:id', async (request, reply) => {
     const { member } = await findMember(request.params.id);
     if (!member) return reply.code(404).send('Člen nenalezen');
     const b = request.body || {};
-    await sql`
-      UPDATE users SET
-        email        = ${(b.email||'').trim().toLowerCase()},
-        first_name   = ${(b.first_name||'').trim()},
-        last_name    = ${(b.last_name||'').trim()},
-        title        = ${(b.title||'').trim()},
-        phone        = ${(b.phone||'').trim()},
-        position     = ${(b.position||'').trim()},
-        bio          = ${(b.bio||'').trim()},
-        address      = ${(b.address||'').trim()},
-        city         = ${(b.city||'').trim()},
-        zip          = ${(b.zip||'').trim()},
-        country      = ${(b.country||'').trim()},
-        bank_account = ${(b.bank_account||'').trim()},
-        bank_name    = ${(b.bank_name||'').trim()},
-        iban         = ${(b.iban||'').trim()},
-        is_admin     = ${b.is_admin === 'on' || b.is_admin === '1'},
-        is_active    = ${b.is_active === '1' || b.is_active === 'on'},
-        updated_at   = NOW()
-      WHERE id = ${member.id}
-    `;
+    if (b.tab === 'banka') {
+      await sql`
+        UPDATE users SET
+          bank_account = ${(b.bank_account||'').trim()},
+          bank_name    = ${(b.bank_name||'').trim()},
+          iban         = ${(b.iban||'').trim()},
+          updated_at   = NOW()
+        WHERE id = ${member.id}
+      `;
+    } else {
+      try {
+        await sql`
+          UPDATE users SET
+            email        = ${(b.email||'').trim().toLowerCase()},
+            first_name   = ${(b.first_name||'').trim()},
+            last_name    = ${(b.last_name||'').trim()},
+            title        = ${(b.title||'').trim()},
+            phone        = ${(b.phone||'').trim()},
+            position     = ${(b.position||'').trim()},
+            bio          = ${(b.bio||'').trim()},
+            address      = ${(b.address||'').trim()},
+            city         = ${(b.city||'').trim()},
+            zip          = ${(b.zip||'').trim()},
+            country      = ${(b.country||'').trim()},
+            is_admin     = ${b.is_admin === 'on' || b.is_admin === '1'},
+            is_active    = ${b.is_active === '1' || b.is_active === 'on'},
+            updated_at   = NOW()
+          WHERE id = ${member.id}
+        `;
+      } catch (err) {
+        if (err.code !== '23505') throw err; // unique_violation: e-mail je jediný unikátní sloupec
+        return reply.redirect(`/lide/tym/${member.public_id}?tab=detail&error=duplicitni-email&upravit=1`);
+      }
+    }
     const tab = ZALOZKY.includes(b.tab) ? b.tab : 'detail';
     return reply.redirect(`/lide/tym/${member.public_id}?tab=${tab}&saved=1`);
   });
 
   // ── Platby mimo mzdu ─────────────────────────────────────────
-  // Vlastní routa, ne sdílený POST /lide/tym/:id – ten přepisuje všech
-  // šestnáct sloupců uživatele naráz a formulář odjinud by je vynuloval.
+  // Vlastní routa, ne sdílený POST /lide/tym/:id – ten přepisuje všechny
+  // sloupce záložky naráz a formulář odjinud by je vynuloval.
   fastify.post('/lide/tym/:id/platby/vytvorit', async (request, reply) => {
     const { member } = await findMember(request.params.id);
     if (!member) return reply.code(404).send('Člen nenalezen');

@@ -5,7 +5,9 @@
   // formulář záznamu (třetí prvek v zalozky); bez JS otevře úpravy ?upravit=1.
   const formular = (zalozky.find(([k]) => k === tab) || [])[2] || null;
   const rezim = formular && rezimUprav ? 'upravy' : 'zobrazeni';
-  const urlZalozky = `?tab=${tab}`;
+  // Absolutně: POST „Ověřit připojení“ vykreslí stránku na jiné adrese, relativní odkaz by z ní vedl do 404.
+  const urlDetailu = `/nastaveni/eshopy/${shop.id}`;
+  const urlZalozky = `${urlDetailu}?tab=${tab}`;
 %>
 <div class="detail" data-rezim="<%= rezim %>">
 <div class="page-header">
@@ -23,8 +25,10 @@
         <span class="badge" style="background:var(--gray-100);color:var(--gray-500);">Neaktivní</span>
       <% } %>
       <code class="kod"><%= shop.slug %></code>
-      <% if (shop.url) { %>
-        <a href="<%= shop.url %>" target="_blank" rel="noopener" style="font-size:13px;color:var(--primary-dark);"><%= shop.url %></a>
+      <% if (/^https?:\/\//i.test(shop.url || '')) { %>
+        <a href="<%= shop.url %>" target="_blank" rel="noopener noreferrer" style="font-size:13px;color:var(--primary-dark);"><%= shop.url %></a>
+      <% } else if (shop.url) { %>
+        <span style="font-size:13px;color:var(--text-muted);"><%= shop.url %></span>
       <% } %>
     </div>
   </div>
@@ -36,83 +40,89 @@
 </div>
 
 <% if (saved) { %>
-<div class="alert alert-success jen-zobrazeni" style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:12px 16px;border-radius:8px;margin-bottom:20px;">✓ Uloženo</div>
+<div data-hlaska class="alert alert-success jen-zobrazeni" style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:12px 16px;border-radius:8px;margin-bottom:20px;">✓ Uloženo</div>
+<% } %>
+
+<% if (typeof error !== 'undefined' && error === 'identita-barva') { %>
+<div data-hlaska style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+  Barva musí být hexadecimální kód, například <code>#0891b2</code>, nebo prázdné pole.
+</div>
 <% } %>
 
 <% if (typeof error !== 'undefined' && error === 'firemni-adresa') { %>
-<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+<div data-hlaska style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
   Odesílatel e-shopu nesmí být na doméně <code>seil.cz</code> – zákazník by dostal e-mail od firmy, kterou nezná.
 </div>
 <% } %>
 
 <% if (typeof error !== 'undefined' && error === 'sklad-email') { %>
-<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+<div data-hlaska style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
   Adresa skladu není platný e-mail.
 </div>
 <% } %>
 
 <% if (typeof error !== 'undefined' && error === 'sklad-kopie') { %>
-<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+<div data-hlaska style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
   Adresa pro skrytou kopii není platný e-mail.
 </div>
 <% } %>
 
 <% if (typeof error !== 'undefined' && error === 'sklad-datum') { %>
-<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+<div data-hlaska style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
   Datum „posílat objednávky přijaté od" musí být ve tvaru RRRR-MM-DD.
 </div>
 <% } %>
 
 <% if (typeof error !== 'undefined' && error === 'webhook-secret') { %>
-<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+<div data-hlaska style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
   Tajemství pro podání balíku musí mít aspoň 32 znaků a žádnou mezeru.
 </div>
 <% } %>
 
 <% if (typeof error !== 'undefined' && error === 'webhook-secret-toneracek') { %>
-<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+<div data-hlaska style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
   Toneráček podepisuje podání balíku proměnnou <code>SHOP_WEBHOOK_SECRET</code> z prostředí One SEIL – vlastní tajemství se mu tady nenastavuje.
 </div>
 <% } %>
 
 <% if (typeof error !== 'undefined' && error === 'eshop-klic-toneracek') { %>
-<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+<div data-hlaska style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
   Toneráček má vlastní API (<code>/api/toneracek</code>, klíč v <code>TONERACEK_API_KEY</code>) – klíč pro <code>/api/eshop</code> se mu nevydává.
 </div>
 <% } %>
 
 <% if (typeof error !== 'undefined' && error === 'marketing-klic') { %>
-<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+<div data-hlaska style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
   Token nejde uložit: v prostředí One SEIL chybí <code>MARKETING_SECRETS_KEY</code> (64 hex znaků), kterým se tokeny šifrují.
 </div>
 <% } %>
 <% if (typeof error !== 'undefined' && error === 'marketing-hodnota') { %>
-<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+<div data-hlaska style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
   ID nebo token má nepovolený tvar (mezery, řídicí znaky, přes 200 znaků).
 </div>
 <% } %>
 <% if (typeof error !== 'undefined' && error === 'marketing-datum') { %>
-<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+<div data-hlaska style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
   Datum „stahovat od“ musí být ve tvaru RRRR-MM-DD.
 </div>
 <% } %>
 <% if (typeof error !== 'undefined' && error === 'marketing-platforma') { %>
-<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+<div data-hlaska style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
   Neznámá platforma.
 </div>
 <% } %>
 <% if (typeof error !== 'undefined' && error === 'marketing-procenta') { %>
-<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+<div data-hlaska style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
   Marže i práh PNO musí být procenta 0–100.
 </div>
 <% } %>
 <% if (typeof error !== 'undefined' && error === 'zakladni-nazev') { %>
-<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+<div data-hlaska style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
   Název e-shopu nesmí být prázdný.
 </div>
 <% } %>
 <% if (typeof error !== 'undefined' && error === 'zakladni-url') { %>
-<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+<div data-hlaska style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
   URL e-shopu musí začínat <code>http://</code> nebo <code>https://</code> a být bez mezer.
 </div>
 <% } %>
@@ -140,7 +150,7 @@
 
 <nav class="tabs" aria-label="Sekce e-shopu">
   <% zalozky.forEach(([key, label]) => { %>
-  <a href="?tab=<%= key %>" class="tab<%= tab === key ? ' active' : '' %>"<%- tab === key ? ' aria-current="page"' : '' %>><%= label %></a>
+  <a href="<%= urlDetailu %>?tab=<%= key %>" class="tab<%= tab === key ? ' active' : '' %>"<%- tab === key ? ' aria-current="page"' : '' %>><%= label %></a>
   <% }) %>
 </nav>
 
@@ -165,7 +175,7 @@
             : 'Neaktivní e-shop přeskočí ranní expedice i noční stahování marketingu a jeho klíče pro /api/eshop přestanou platit.' } }) %>
       </div>
       <div class="upravit-radek">
-        <span style="font-size:12px;color:var(--text-muted);">Založen <%= shop.created_at ? ceskeDatum(shop.created_at) : '–' %></span>
+        <span style="font-size:12px;color:var(--text-muted);">Založen <%= shop.created_at ? ceskeDatum(prazskeDatum(shop.created_at)) : '–' %></span>
         <%- include('../../includes/upravit', { paticka: true, formular: 'formZakladni', urlZpet: urlZalozky }) %>
       </div>
     </form>
@@ -357,7 +367,7 @@
           <strong>Chybí přístupové údaje.</strong>
           <% if (!maPacketaHeslo) { %>Bez <code>PACKETA_API_PASSWORD</code> se nestáhnou štítky.<% } %>
           <% if (!maWebhookSecret && tajemstviZProstredi) { %>Bez <code>SHOP_WEBHOOK_SECRET</code> se u převodu nepodá balík.<% } %>
-          <% if (!maWebhookSecret && !tajemstviZProstredi) { %>Bez tajemství pro podání balíku (<a href="?tab=napojeni">Napojení e-shopu</a>) se u převodu nepodá balík.<% } %>
+          <% if (!maWebhookSecret && !tajemstviZProstredi) { %>Bez tajemství pro podání balíku (<a href="<%= urlDetailu %>?tab=napojeni">Napojení e-shopu</a>) se u převodu nepodá balík.<% } %>
           Objednávky se v takovém případě jen zadrží a čekají na další ráno.
         </div>
         <% } %>
@@ -369,7 +379,7 @@
             <%- include('../../includes/pole', { pole: { label: 'Skrytá kopie', name: 'warehouse_email_bcc', typ: 'email', value: shop.warehouse_email_bcc, placeholder: 'kontrola@seil.cz',
               zobraz: shop.warehouse_email_bcc ? undefined : 'Bez kopie', hint: 'Dostane tentýž e-mail i se štítky. Skrytě, ať sklad neodpovídá oběma. Prázdné = bez kopie.' } }) %>
             <%- include('../../includes/pole', { pole: { label: 'Posílat objednávky přijaté od', name: 'warehouse_dispatch_since', typ: 'date', value: shop.warehouse_dispatch_since,
-              hint: 'Starší objednávky vyřídil sklad ručně, automat je nikdy nepošle.' } }) %>
+              hint: 'Starší objednávky vyřídil sklad ručně, automat je nikdy nepošle. Prázdné pole datum nezmění.' } }) %>
           </div>
           <%- include('../../includes/upravit', { paticka: true, formular: 'formExpedice', urlZpet: urlZalozky }) %>
         </form>

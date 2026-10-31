@@ -1,6 +1,7 @@
 // Režim úprav v opravdovém prohlížeči (Puppeteer): chování public/js/upravy.js,
 // které render testy nevidí – hlídání rozepsaných změn, Esc vedle modalu
-// a hledání, návrat po chybě, pole přes form= a zámek odpočtu DPH po Zrušit.
+// a hledání, návrat po chybě, pole přes form=, zámek odpočtu DPH po Zrušit,
+// pojistka proti dvojkliku, návrat tlačítkem Zpět a rozepsané hodnoty po chybě.
 // Běží proti serveru a lokální databázi, fixtury si založí a uklidí.
 //
 //   DATABASE_URL=postgresql://…@127.0.0.1/… TEST_BASE_URL=http://127.0.0.1:3999 \
@@ -9,23 +10,34 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import postgres from 'postgres';
 import puppeteer from 'puppeteer';
 import { BASE, PRESKOCIT, lokalniDatabaze, serverBezi, prihlas } from './pomocnici/server.js';
 
 describe('režim úprav v prohlížeči', { skip: PRESKOCIT }, () => {
   const r = crypto.randomBytes(3).toString('hex');
-  let sql, browser, page, session, userId, shopId, fakturaId, uctenkaId, eshop, cookie;
+  let sql, browser, page, session, userId, shopId, fakturaId, faktura2Id, firmaId, uctenkaId, eshop, cookie;
   let dialogy = [];
   let odpoved = 'accept';
   const jsChyby = [];
 
   const pauza = (ms = 150) => new Promise(res => setTimeout(res, ms));
-  const jdi = async (cesta) => { dialogy = []; odpoved = 'accept'; await page.goto(BASE + cesta, { waitUntil: 'networkidle0' }); };
+  // Dialogy se nulují až po načtení: odchod z rozepsané stránky předchozího testu se taky zeptá.
+  const jdi = async (cesta) => { odpoved = 'accept'; await page.goto(BASE + cesta, { waitUntil: 'networkidle0' }); dialogy = []; };
   const rezim = () => page.$eval('[data-rezim]', el => el.dataset.rezim);
   const url = () => page.evaluate(() => location.pathname + location.search);
   const text = () => page.evaluate(() => document.querySelector('main').innerText);
-  const otevrit = async () => { await page.click('.page-header-akce .upravit-otevrit'); await pauza(); };
+  // Po otevření čeká déle než pojistka (upravy.js), která první půlsekundu nepustí Uložit.
+  const otevrit = async () => { await page.click('.page-header-akce .upravit-otevrit'); await pauza(600); };
+  const stred = async (sel) => {
+    const box = await (await page.$(sel)).boundingBox();
+    return [box.x + box.width / 2, box.y + box.height / 2];
+  };
+  const pocetPost = () => pozadavkyPost.length;
+  const pozadavkyPost = [];
   const klikANavigace = (sel) => Promise.all([page.waitForNavigation({ waitUntil: 'networkidle0' }), page.click(sel)]);
 
   before(async () => {
@@ -45,6 +57,11 @@ describe('režim úprav v prohlížeči', { skip: PRESKOCIT }, () => {
     const [uctenka] = await sql`INSERT INTO receipts (vendor, amount, vat_amount, total_amount, currency, receipt_date, category, status, vat_deductible)
       VALUES (${`Papírnictví ${r}`}, 100, 21, 121, 'CZK', '2026-02-02', 'Ostatní', 'Nezaúčtována', TRUE) RETURNING id`;
     uctenkaId = uctenka.id;
+    faktura2Id = `rezimfag${r}`;
+    await sql`INSERT INTO accounting_invoices (id, type, number, supplier, amount, vat_amount, total_amount, currency, issue_date, status)
+      VALUES (${faktura2Id}, 'received', ${`PG-${r}`}, 'Jiný dodavatel', 1, 0, 1, 'CZK', '2026-02-02', 'Nezaplacena')`;
+    firmaId = `rezimfir${r}`;
+    await sql`INSERT INTO crm_companies (id, name, company_type, ico, website) VALUES (${firmaId}, ${`Firma ${r}`}, 'Zákazník', '12345678', 'https://firma.example.invalid')`;
 
     browser = await puppeteer.launch({ headless: true });
     page = await browser.newPage();
@@ -52,6 +69,7 @@ describe('režim úprav v prohlížeči', { skip: PRESKOCIT }, () => {
     cookie = { name: 'sessionId', value: session.cookie.slice('sessionId='.length), domain: new URL(BASE).hostname, path: '/' };
     await page.setCookie(cookie);
     page.on('pageerror', e => jsChyby.push(e.message));
+    page.on('request', q => { if (q.method() === 'POST') pozadavkyPost.push(q.url()); });
     page.on('dialog', async d => { dialogy.push(d.type()); await (odpoved === 'accept' ? d.accept() : d.dismiss()); });
   });
 
@@ -59,7 +77,8 @@ describe('režim úprav v prohlížeči', { skip: PRESKOCIT }, () => {
     await browser?.close();
     if (!sql) return;
     await sql`DELETE FROM session WHERE sid = ${session?.sid ?? ''}`;
-    await sql`DELETE FROM accounting_invoices WHERE id = ${fakturaId ?? ''}`;
+    await sql`DELETE FROM accounting_invoices WHERE id = ANY(${[fakturaId ?? '', faktura2Id ?? '']})`;
+    await sql`DELETE FROM crm_companies WHERE id = ${firmaId ?? ''}`;
     if (uctenkaId) await sql`DELETE FROM receipts WHERE id = ${uctenkaId}`;
     if (shopId) await sql`DELETE FROM shops WHERE id = ${shopId}`;
     if (userId) await sql`DELETE FROM users WHERE id = ${userId}`;
@@ -80,11 +99,12 @@ describe('režim úprav v prohlížeči', { skip: PRESKOCIT }, () => {
     assert.ok(await page.evaluate(() => document.activeElement.classList.contains('upravit-otevrit')));
   });
 
-  test('po chybě formuláře jsou úpravy otevřené a Zrušit načte stránku bez hlášky', async () => {
+  test('po chybě formuláře jsou úpravy otevřené a Zrušit nechá stránku bez hlášky', async () => {
     await jdi(`${eshop}?tab=zakladni&error=zakladni-nazev&upravit=1`);
     assert.equal(await rezim(), 'upravy');
     assert.ok((await text()).includes('nesmí být prázdný'));
-    await klikANavigace('.page-header-akce .upravit-zrusit');
+    await page.click('.page-header-akce .upravit-zrusit');
+    await pauza();
     assert.equal(await url(), `${eshop}?tab=zakladni`);
     assert.equal(await rezim(), 'zobrazeni');
     assert.ok(!(await text()).includes('nesmí být prázdný'), 'chyba po zrušení nezůstane viset');
@@ -96,7 +116,8 @@ describe('režim úprav v prohlížeči', { skip: PRESKOCIT }, () => {
     await otevrit();
     assert.ok(!(await text()).includes('Uloženo'));
     assert.ok(!(await url()).includes('saved'), 'F5 nesmí nad rozepsaným formulářem hlásit Uloženo');
-    await klikANavigace('.page-header-akce .upravit-zrusit');
+    await page.click('.page-header-akce .upravit-zrusit');
+    await pauza();
     assert.ok(!(await text()).includes('Uloženo'));
   });
 
@@ -136,7 +157,7 @@ describe('režim úprav v prohlížeči', { skip: PRESKOCIT }, () => {
     assert.equal(await rezim(), 'upravy', 'odmítnutí nechá úpravy');
 
     dialogy = [];
-    await page.evaluate(() => document.querySelector('.tabs a[href="?tab=identita"]').click());
+    await page.evaluate(() => document.querySelector('.tabs a[href$="?tab=identita"]').click());
     await pauza(400);
     assert.deepEqual(dialogy, ['beforeunload']);
     assert.ok((await page.$eval('#pole-name', el => el.value)).includes('X'), 'text zůstal');
@@ -196,6 +217,257 @@ describe('režim úprav v prohlížeči', { skip: PRESKOCIT }, () => {
     const [u] = await sql`SELECT vat_deductible, category FROM receipts WHERE id = ${uctenkaId}`;
     assert.equal(u.vat_deductible, true, 'tiché vypnutí odpočtu by šlo do POHODY');
     assert.equal(u.category, 'Ostatní');
+  });
+
+  test('účtenka: Reprezentace a zpět vrátí volbu odpočtu, Zrušit vrátí uloženou', async () => {
+    await jdi(`/ucetnictvi/uctenky/${uctenkaId}`);
+    await otevrit();
+    await page.select('#rdCategory', 'Reprezentace');
+    await page.select('#rdCategory', 'Kancelář');
+    assert.ok(await page.$eval('#rdVatDeductible', el => !el.disabled && el.checked), 'odpočet se vrátil, jinak by potichu zmizel z POHODY');
+
+    await page.click('#rdVatDeductible'); // vypnout ručně
+    await page.select('#rdCategory', 'Reprezentace');
+    await page.select('#rdCategory', 'Kancelář');
+    assert.ok(await page.$eval('#rdVatDeductible', el => !el.disabled && !el.checked), 'ruční volba zůstala');
+
+    await page.select('#rdCategory', 'Reprezentace');
+    await page.keyboard.press('Escape'); // na selectu Esc nepatří úpravám
+    await page.focus('#pole-vendor');
+    await page.keyboard.press('Escape');
+    await pauza();
+    assert.deepEqual(dialogy, ['confirm']);
+    assert.ok(await page.$eval('#rdVatDeductible', el => !el.disabled && el.checked), 'po Zrušit platí uložená hodnota');
+  });
+
+  test('dvojklik na Zrušit nespustí tlačítko, které se pod kurzorem objeví', async () => {
+    await jdi(`/crm/firmy/${firmaId}?tab=zakladni`);
+    await otevrit();
+    assert.equal(await page.$eval('.page-header-akce button[onclick="syncAres()"]', el => el.offsetParent), null, 'v úpravách je Sync ARES skrytý');
+    odpoved = 'dismiss';
+    const [x, y] = await stred('.page-header-akce .upravit-zrusit');
+    await page.mouse.click(x, y, { count: 2 });
+    await pauza(400);
+    assert.equal(await rezim(), 'zobrazeni');
+    assert.deepEqual(dialogy, [], 'Sync ARES se ani nezeptal');
+    const [f] = await sql`SELECT ares_synced_at FROM crm_companies WHERE id = ${firmaId}`;
+    assert.equal(f.ares_synced_at, null);
+  });
+
+  test('Sync ARES se při kliknutí zeptá a odmítnutí nic nespustí', async () => {
+    await jdi(`/crm/firmy/${firmaId}?tab=zakladni`);
+    odpoved = 'dismiss';
+    const ares = [];
+    const hlidac = q => { if (q.url().includes('/ares')) ares.push(q.url()); };
+    page.on('request', hlidac);
+    await page.click('.page-header-akce button[onclick="syncAres()"]');
+    await pauza(300);
+    page.off('request', hlidac);
+    assert.deepEqual(dialogy, ['confirm']);
+    assert.deepEqual(ares, [], 'bez souhlasu nejde ani dotaz na ARES');
+  });
+
+  test('dvojklik na tužku otevře úpravy a nic neuloží, fokus zůstane v prvním poli', async () => {
+    await jdi(`/crm/firmy/${firmaId}?tab=zakladni`);
+    pozadavkyPost.length = 0;
+    const [x, y] = await stred('.page-header-akce .upravit-otevrit');
+    await page.mouse.click(x, y, { count: 2 });
+    await pauza(400);
+    assert.equal(await rezim(), 'upravy');
+    assert.equal(pocetPost(), 0, 'Uložit leží na místě tužky');
+    assert.equal(await page.evaluate(() => document.activeElement.name), 'name');
+  });
+
+  test('dvě samostatná klepnutí na tužku (telefon) nic neuloží', async () => {
+    await jdi(`/crm/firmy/${firmaId}?tab=zakladni`);
+    pozadavkyPost.length = 0;
+    const [x, y] = await stred('.page-header-akce .upravit-otevrit');
+    await page.mouse.click(x, y);
+    await pauza(120);
+    await page.mouse.click(x, y);
+    await pauza(400);
+    assert.equal(await rezim(), 'upravy');
+    assert.equal(pocetPost(), 0);
+  });
+
+  test('podržený Enter po otevření tužkou klávesnicí nic neuloží', async () => {
+    await jdi(`/crm/firmy/${firmaId}?tab=zakladni`);
+    pozadavkyPost.length = 0;
+    await page.focus('.page-header-akce .upravit-otevrit');
+    await page.keyboard.down('Enter');
+    await pauza(600);
+    assert.equal(await rezim(), 'upravy');
+    assert.equal(await page.evaluate(() => document.activeElement.name), 'name');
+    await page.keyboard.down('Enter'); // opakování z držené klávesy
+    await pauza(300);
+    await page.keyboard.up('Enter');
+    assert.equal(pocetPost(), 0, 'opakování nesmí odeslat formulář');
+    assert.equal(await rezim(), 'upravy');
+    await page.keyboard.press('Enter'); // nový stisk je vědomé odeslání
+    await pauza(600);
+    assert.equal(pocetPost(), 1);
+  });
+
+  test('Ctrl+klik na tužku přepnutí nechá na novém panelu', async () => {
+    await jdi(`${eshop}?tab=zakladni`);
+    const vychozi = await page.evaluate(() => {
+      window.addEventListener('click', e => e.preventDefault(), { once: true }); // panel se v testu neotevře
+      const odkaz = document.querySelector('.page-header-akce .upravit-otevrit');
+      odkaz.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true }));
+      return document.querySelector('[data-rezim]').dataset.rezim;
+    });
+    assert.equal(vychozi, 'zobrazeni');
+  });
+
+  test('Zpět po uložení ukáže uložený stav, další Uložit změnu nevrátí', async () => {
+    const [{ name: puvodni }] = await sql`SELECT name FROM shops WHERE id = ${shopId}`;
+    await jdi(`${eshop}?tab=zakladni`);
+    await otevrit();
+    await page.$eval('#pole-name', (el, v) => { el.value = v; }, `${puvodni} A`);
+    await klikANavigace('.page-header-akce .upravit-ulozit');
+    await page.goBack({ waitUntil: 'networkidle0' });
+    await pauza(600);
+    assert.deepEqual(dialogy, [], 'bez dotazu na neuložené změny');
+    const stav = await page.evaluate(() => ({
+      h1: document.querySelector('h1').textContent, vychozi: document.getElementById('pole-name').defaultValue,
+    }));
+    assert.equal(stav.h1, `${puvodni} A`, 'hlavička ukazuje uloženou hodnotu');
+    assert.equal(stav.vychozi, `${puvodni} A`, 'formulář nedrží starou hodnotu');
+
+    // Další uložení jiného pole první změnu nevrátí, ať je formulář otevřený, nebo ne.
+    if (await rezim() === 'zobrazeni') await otevrit();
+    await page.$eval('#pole-url', el => { el.value = 'https://druha.example.invalid'; });
+    await klikANavigace('.page-header-akce .upravit-ulozit');
+    const [shop] = await sql`SELECT name, url FROM shops WHERE id = ${shopId}`;
+    assert.deepEqual([shop.name, shop.url], [`${puvodni} A`, 'https://druha.example.invalid']);
+  });
+
+  test('chyba ze serveru: rozepsané hodnoty zůstanou, Esc se zeptá a vrátí uložený stav', async () => {
+    const [pred] = await sql`SELECT name, url FROM shops WHERE id = ${shopId}`;
+    await jdi(`${eshop}?tab=zakladni`);
+    await otevrit();
+    await page.$eval('#pole-name', el => { el.value = 'Rozepsaný název'; });
+    await page.$eval('#pole-url', el => { el.value = 'ftp://example.invalid'; });
+    await klikANavigace('.page-header-akce .upravit-ulozit');
+    assert.equal(await url(), `${eshop}?tab=zakladni&error=zakladni-url&upravit=1`);
+    assert.equal(await rezim(), 'upravy');
+    assert.equal(await page.$eval('#pole-name', el => el.value), 'Rozepsaný název', 'ostatní pole se neztratila');
+    assert.equal(await page.$eval('#pole-url', el => el.value), 'ftp://example.invalid');
+    assert.deepEqual(dialogy, []);
+
+    odpoved = 'dismiss';
+    await page.focus('#pole-name');
+    await page.keyboard.press('Escape');
+    await pauza();
+    assert.deepEqual(dialogy, ['confirm'], 'hodnoty se liší od uložených, Esc se ptá');
+    odpoved = 'accept';
+    await page.keyboard.press('Escape');
+    await pauza();
+    assert.equal(await rezim(), 'zobrazeni');
+    assert.equal(await page.$('[data-hlaska]'), null, 'hláška po zrušení nezůstane');
+    assert.equal(await url(), `${eshop}?tab=zakladni`);
+    assert.equal(await page.$eval('#pole-name', (el) => el.value), pred.name, 'Zrušit vrátí uložený stav');
+    const [po] = await sql`SELECT name, url FROM shops WHERE id = ${shopId}`;
+    assert.deepEqual(po, pred);
+    await page.reload({ waitUntil: 'networkidle0' });
+    assert.equal(await page.$eval('#pole-name', el => el.value), pred.name, 'záznam rozepsaných hodnot se nepoužije znovu');
+  });
+
+  test('duplicitní číslo faktury: hláška a všechna pole přes form= zůstanou rozepsaná', async () => {
+    await jdi(`/ucetnictvi/prijate-faktury/${fakturaId}`);
+    await otevrit();
+    await page.$eval('input[name="number"]', (el, v) => { el.value = v; }, `PG-${r}`);
+    await page.$eval('textarea[name="notes"]', el => { el.value = 'rozepsaná poznámka\ndruhý řádek'; });
+    await page.$eval('input[name="amount"]', el => { el.value = '555.5'; });
+    await klikANavigace('.page-header-akce .upravit-ulozit');
+    assert.equal(await url(), `/ucetnictvi/prijate-faktury/${fakturaId}?error=duplicita&upravit=1`);
+    assert.ok((await text()).includes('s tímto číslem už v systému je'));
+    assert.equal(await page.$eval('input[name="number"]', el => el.value), `PG-${r}`);
+    assert.equal(await page.$eval('textarea[name="notes"]', el => el.value), 'rozepsaná poznámka\ndruhý řádek');
+    assert.equal(await page.$eval('input[name="amount"]', el => el.value), '555.5');
+    await page.$eval('input[name="number"]', (el, v) => { el.value = v; }, `PF-${r}`);
+    await klikANavigace('.page-header-akce .upravit-ulozit');
+    assert.equal(await url(), `/ucetnictvi/prijate-faktury/${fakturaId}?saved=1`);
+    const [f] = await sql`SELECT notes, amount FROM accounting_invoices WHERE id = ${fakturaId}`;
+    assert.ok(f.notes.startsWith('rozepsaná poznámka'), f.notes);
+    assert.equal(Number(f.amount), 555.5);
+  });
+
+  test('povinné pole ze samých mezer a smazané datum účtenky prohlížeč neodešle', async () => {
+    await jdi(`/ucetnictvi/uctenky/${uctenkaId}`);
+    await otevrit();
+    pozadavkyPost.length = 0;
+    await page.$eval('#pole-vendor', el => { el.value = '   '; });
+    await page.click('.page-header-akce .upravit-ulozit');
+    await pauza(300);
+    assert.equal(pocetPost(), 0, 'dodavatel ze samých mezer');
+    await page.$eval('#pole-vendor', el => { el.value = el.defaultValue; });
+    await page.$eval('#pole-receipt_date', el => { el.value = ''; });
+    await page.click('.page-header-akce .upravit-ulozit');
+    await pauza(300);
+    assert.equal(pocetPost(), 0, 'prázdné datum dokladu');
+    assert.equal(await rezim(), 'upravy');
+  });
+
+  test('nahrání dokladu během úprav: bez dialogu, rozepsané údaje a odpočet přežijí načtení', async () => {
+    const soubor = path.join(await fs.mkdtemp(path.join(os.tmpdir(), 'rezim-')), 'doklad.png');
+    await fs.writeFile(soubor, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64'));
+    await jdi(`/ucetnictvi/uctenky/${uctenkaId}`);
+    await otevrit();
+    await page.$eval('#pole-vendor', el => { el.value = 'Rozepsaný dodavatel'; });
+    await page.select('#rdCategory', 'Reprezentace');
+
+    // POST přílohy je podvržený, ať test nezakládá soubory.
+    const podvrh = q => (q.method() === 'POST' && q.url().endsWith('/priloha')
+      ? q.respond({ status: 200, contentType: 'application/json', body: '{}' }) : q.continue());
+    await page.setRequestInterception(true);
+    page.on('request', podvrh);
+    try {
+      const vstup = await page.$('input[type="file"][name="file"]:not([capture])');
+      await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle0' }), vstup.uploadFile(soubor)]);
+    } finally {
+      page.off('request', podvrh);
+      await page.setRequestInterception(false);
+      await fs.rm(path.dirname(soubor), { recursive: true });
+    }
+    assert.deepEqual(dialogy, [], 'nahrání se na nic neptá');
+    assert.equal(await url(), `/ucetnictvi/uctenky/${uctenkaId}?upravit=1`);
+    assert.equal(await rezim(), 'upravy');
+    assert.equal(await page.$eval('#pole-vendor', el => el.value), 'Rozepsaný dodavatel');
+    assert.equal(await page.$eval('#rdCategory', el => el.value), 'Reprezentace');
+    assert.ok(await page.$eval('#rdVatDeductible', el => el.disabled && !el.checked), 'zámek odpočtu se přepočítal');
+
+    odpoved = 'dismiss';
+    await page.focus('#pole-vendor');
+    await page.keyboard.press('Escape');
+    await pauza();
+    assert.deepEqual(dialogy, ['confirm'], 'rozepsané se dál hlídá');
+    odpoved = 'accept';
+    await page.keyboard.press('Escape');
+    await pauza();
+    assert.ok((await page.$eval('#pole-vendor', el => el.value)).startsWith('Papírnictví'), 'Zrušit vrátí uložené údaje');
+  });
+
+  test('Esc v poli jiného formuláře úpravy nezavře', async () => {
+    await jdi(`${eshop}?tab=marketing`);
+    await otevrit();
+    await page.focus('form[action*="/marketing/zdroj"] input:not([type="hidden"]):not([type="checkbox"])');
+    await page.keyboard.press('Escape');
+    await pauza();
+    assert.equal(await rezim(), 'upravy');
+    assert.deepEqual(dialogy, []);
+  });
+
+  test('otevřené menu na mobilu zůstane zamčené i po dalším kliku', async () => {
+    await page.setViewport({ width: 390, height: 844 });
+    try {
+      await jdi(`${eshop}?tab=zakladni`);
+      await page.click('#sidebarToggle');
+      await pauza(300);
+      assert.equal(await page.evaluate(() => document.body.style.overflow), 'hidden', 'stránka pod menu se neposouvá');
+    } finally {
+      await page.setViewport({ width: 1366, height: 900 });
+    }
   });
 
   test('bez JavaScriptu: tužka je odkaz a Uložit uloží', async () => {
