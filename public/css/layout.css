@@ -29,7 +29,7 @@ body.app-body {
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: none;
-  transition: transform var(--transition-slow);
+  transition: transform var(--transition-slow), width var(--transition-base);
 }
 
 .sidebar::-webkit-scrollbar { display: none; }
@@ -48,6 +48,11 @@ body.app-body {
   height: 36px;
   width: auto;
 }
+
+/* Znak pro sbalený pruh — wordmark je při výšce 36 px 81 px široký. Obě
+   značky jsou v šabloně, CSS ukazuje vždy jen jednu (logo se nepřebarvuje
+   ani neořezává, viz design/DESIGN_SYSTEM.md). */
+.sidebar-logo-znak { display: none; }
 
 /* ── New Deal button ──────────────────────────────────────── */
 .sidebar-new-deal {
@@ -285,7 +290,7 @@ body.app-body {
   padding: 0 24px;
   z-index: 99;
   gap: 16px;
-  transition: background var(--transition-slow), border-color var(--transition-slow);
+  transition: background var(--transition-slow), border-color var(--transition-slow), left var(--transition-base);
 }
 
 .topbar-title {
@@ -492,6 +497,7 @@ body.app-body {
   margin-left: var(--sidebar-width);
   padding-top: var(--topbar-height);
   min-height: 100vh;
+  transition: margin-left var(--transition-base);
 }
 
 .page-content {
@@ -528,9 +534,9 @@ body.app-body {
 }
 .sidebar-overlay.visible { display: block; }
 
-/* ── Hamburger button (hidden on desktop) ─────────────────── */
+/* ── Přepínač menu (desktop sbalí pruh, mobil otevře drawer) ── */
 .topbar-hamburger {
-  display: none;
+  display: flex;
   width: 38px;
   height: 38px;
   border: none;
@@ -549,6 +555,14 @@ body.app-body {
   color: var(--text-primary);
 }
 [data-theme="dark"] .topbar-hamburger:hover { background: var(--sidebar-hover); }
+.topbar-hamburger .ikona-sipka { display: none; }
+
+.nav-link:focus-visible,
+.nav-sub-link:focus-visible,
+.topbar-hamburger:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
 
 /* ── Bottom navigation (hidden on desktop) ────────────────── */
 .bottom-nav {
@@ -611,6 +625,47 @@ body.app-body {
 .bottom-nav-fab:active { background: var(--primary-hover); }
 
 /* ============================================================
+   SBALENÝ SIDEBAR (jen desktop)
+   ============================================================ */
+/* Stav drží <html data-sidebar="collapsed"> — nastaví ho inline skript
+   v base.ejs z localStorage 'seil-sidebar' ještě před prvním vykreslením.
+   Blok je přesný doplněk mobilního @media (max-width: 768px): stejnou
+   hranici používá matchMedia v app.js, takže CSS i JS dělí svět shodně
+   i při neceločíselné šířce okna (zoom). Mimo media query by override
+   proměnné dal mobilnímu draweru 64 px. Sbalená skupina je jedna ikona
+   a vede na svou první podstránku (jako v GrapeNetu). */
+@media not all and (max-width: 768px) {
+  html[data-sidebar="collapsed"] { --sidebar-width: var(--sidebar-width-collapsed); }
+
+  html[data-sidebar="collapsed"] .nav-section-label,
+  html[data-sidebar="collapsed"] .nav-label,
+  html[data-sidebar="collapsed"] .nav-chevron,
+  html[data-sidebar="collapsed"] .sidebar-user-info,
+  html[data-sidebar="collapsed"] .nav-item > .nav-sub,
+  html[data-sidebar="collapsed"] .sidebar-logo-img { display: none; }
+
+  html[data-sidebar="collapsed"] .sidebar-logo { padding: 20px 8px 16px; }
+  html[data-sidebar="collapsed"] .sidebar-logo-znak { display: block; height: 36px; width: auto; }
+
+  html[data-sidebar="collapsed"] .nav-link { justify-content: center; padding: 12px 0; }
+  html[data-sidebar="collapsed"] .nav-section + .nav-section { border-top: 1px solid var(--sidebar-border); }
+  html[data-sidebar="collapsed"] .nav-item.open > .nav-link .nav-icon { color: var(--primary); }
+
+  html[data-sidebar="collapsed"] .sidebar-footer { padding: 16px 8px; }
+  html[data-sidebar="collapsed"] .sidebar-user { padding: 8px 0; justify-content: center; }
+
+  html[data-sidebar="collapsed"] .topbar-hamburger .ikona-menu { display: none; }
+  html[data-sidebar="collapsed"] .topbar-hamburger .ikona-sipka { display: block; }
+
+  /* Při rozbalování se popisky nesmí lámat, než pruh doroste. */
+  .nav-link, .nav-sub-link { white-space: nowrap; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar, .topbar, .main-wrapper { transition: none; }
+}
+
+/* ============================================================
    RESPONSIVE
    ============================================================ */
 @media (max-width: 768px) {
@@ -627,7 +682,6 @@ body.app-body {
   .main-wrapper {
     margin-left: 0;
   }
-  .topbar-hamburger { display: flex; }
   .bottom-nav { display: block; }
   .page-content {
     padding: 16px 16px 80px;

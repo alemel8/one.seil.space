@@ -1,10 +1,15 @@
 <header class="topbar">
 
-  <button class="topbar-hamburger" id="sidebarToggle" aria-label="Otevřít menu">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+  <%# Na desktopu sbalí menu do ikonového pruhu, na mobilu otevře drawer.
+      aria-label a aria-expanded doplní app.js podle skutečného stavu. %>
+  <button class="topbar-hamburger" id="sidebarToggle" aria-label="Menu" aria-controls="sidebar">
+    <svg class="ikona-menu" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
       <line x1="3" y1="6" x2="21" y2="6"/>
       <line x1="3" y1="12" x2="21" y2="12"/>
       <line x1="3" y1="18" x2="21" y2="18"/>
+    </svg>
+    <svg class="ikona-sipka" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="9 18 15 12 9 6"/>
     </svg>
   </button>
 

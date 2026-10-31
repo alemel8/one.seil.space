@@ -9,6 +9,7 @@
     (function () { try {
       var h = document.documentElement, s = window.localStorage;
       h.setAttribute('data-theme', s.getItem('seil-theme') || 'light');
+      if (s.getItem('seil-sidebar') === 'collapsed') h.setAttribute('data-sidebar', 'collapsed');
     } catch (e) {} })();
   </script>
   <title><%= pageTitle ? pageTitle + ' — ' : '' %>One SEIL</title>
