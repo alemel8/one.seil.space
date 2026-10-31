@@ -86,7 +86,7 @@ describe('nastavení: karta Marketing', { skip: !DATABASE_URL && 'bez DATABASE_U
   });
 
   test('detail e-shopu má kartu Marketing se všemi platformami', async () => {
-    const res = await get(`/nastaveni/eshopy/${ctx.shop.id}`);
+    const res = await get(`/nastaveni/eshopy/${ctx.shop.id}?tab=marketing`);
     assert.equal(res.status, 200);
     const html = await res.text();
     for (const text of ['Odhad hrubé marže', 'Napojené platformy', 'Google Analytics 4', 'Google Ads', 'Search Console', 'Merchant Center', 'Sklik', 'Heureka', 'Meta', 'E-shop (hledání bez výsledku']) {
@@ -97,20 +97,20 @@ describe('nastavení: karta Marketing', { skip: !DATABASE_URL && 'bez DATABASE_U
 
   test('marže a práh PNO se uloží, nesmysl se odmítne', async () => {
     let res = await post(`/nastaveni/eshopy/${ctx.shop.id}/marketing`, { marketing_margin_pct: '33', marketing_pno_alert_pct: '28,5' });
-    assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?saved=1`);
+    assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?tab=marketing&saved=1`);
     let [s] = await sql`SELECT marketing_margin_pct::float8 AS m, marketing_pno_alert_pct::float8 AS p FROM shops WHERE id = ${ctx.shop.id}`;
     assert.equal(s.m, 33);
     assert.equal(s.p, 28.5);
 
     res = await post(`/nastaveni/eshopy/${ctx.shop.id}/marketing`, { marketing_margin_pct: '150', marketing_pno_alert_pct: '0' });
-    assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?error=marketing-procenta`);
+    assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?tab=marketing&error=marketing-procenta`);
     [s] = await sql`SELECT marketing_margin_pct::float8 AS m FROM shops WHERE id = ${ctx.shop.id}`;
     assert.equal(s.m, 33, 'neplatná hodnota nic nepřepsala');
   });
 
   test('napojení bez tokenu (GA4): uložení, aktivní, od kdy; neznámá platforma a špatné datum se odmítnou', async () => {
     let res = await post(`/nastaveni/eshopy/${ctx.shop.id}/marketing/zdroj`, { platform: 'ga4', active: '1', external_id: ' 318467224 ', since: '2026-10-01', akce: 'ulozit' });
-    assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?saved=1`);
+    assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?tab=marketing&saved=1`);
     const [z] = await sql`SELECT *, since::text AS since_text FROM marketing_sources WHERE shop_id = ${ctx.shop.id} AND platform = 'ga4'`;
     assert.ok(z);
     assert.equal(z.active, true);
@@ -122,18 +122,18 @@ describe('nastavení: karta Marketing', { skip: !DATABASE_URL && 'bez DATABASE_U
     assert.equal(vyp.active, false, 'bez zaškrtnutí je zdroj vypnutý');
 
     res = await post(`/nastaveni/eshopy/${ctx.shop.id}/marketing/zdroj`, { platform: 'tiktok', external_id: '1', akce: 'ulozit' });
-    assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?error=marketing-platforma`);
+    assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?tab=marketing&error=marketing-platforma`);
     res = await post(`/nastaveni/eshopy/${ctx.shop.id}/marketing/zdroj`, { platform: 'ga4', external_id: '1', since: '1. 10. 2026', akce: 'ulozit' });
-    assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?error=marketing-datum`);
+    assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?tab=marketing&error=marketing-datum`);
 
-    const html = await (await get(`/nastaveni/eshopy/${ctx.shop.id}`)).text();
+    const html = await (await get(`/nastaveni/eshopy/${ctx.shop.id}?tab=marketing`)).text();
     assert.ok(html.includes('Ověřit připojení'), 'uložené napojení nabízí ověření');
   });
 
   test('token se uloží šifrovaný, ukazuje se otiskem, prázdné pole ho nechá, akce ho smaže', { skip: !MA_KLIC && 'chybí MARKETING_SECRETS_KEY (musí být i u serveru)' }, async () => {
     const token = `tajny-token-${r}`;
     let res = await post(`/nastaveni/eshopy/${ctx.shop.id}/marketing/zdroj`, { platform: 'sklik', active: '1', external_id: '555', secret: token, akce: 'ulozit' });
-    assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?saved=1`);
+    assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?tab=marketing&saved=1`);
     let [z] = await sql`SELECT secret_enc, secret_fingerprint, secret_set_at FROM marketing_sources WHERE shop_id = ${ctx.shop.id} AND platform = 'sklik'`;
     assert.match(z.secret_enc, /^v1:/, 'šifrovaný tvar');
     assert.ok(z.secret_set_at);
@@ -142,7 +142,7 @@ describe('nastavení: karta Marketing', { skip: !DATABASE_URL && 'bez DATABASE_U
     const vse = JSON.stringify(await sql`SELECT * FROM marketing_sources WHERE shop_id = ${ctx.shop.id}`);
     assert.ok(!vse.includes(token), 'token v databázi nikde není v čitelné podobě');
 
-    const html = await (await get(`/nastaveni/eshopy/${ctx.shop.id}`)).text();
+    const html = await (await get(`/nastaveni/eshopy/${ctx.shop.id}?tab=marketing`)).text();
     assert.ok(html.includes(otisk), 'detail ukazuje otisk');
     assert.ok(!html.includes(token), 'detail token neukazuje');
 
@@ -151,7 +151,7 @@ describe('nastavení: karta Marketing', { skip: !DATABASE_URL && 'bez DATABASE_U
     assert.equal(z2.secret_enc, z.secret_enc, 'prázdné pole token nechá');
 
     res = await post(`/nastaveni/eshopy/${ctx.shop.id}/marketing/zdroj`, { platform: 'sklik', active: '1', external_id: '555', secret: 'ma mezeru', akce: 'ulozit' });
-    assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?error=marketing-hodnota`);
+    assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?tab=marketing&error=marketing-hodnota`);
 
     res = await post(`/nastaveni/eshopy/${ctx.shop.id}/marketing/zdroj`, { platform: 'sklik', active: '1', external_id: '555', akce: 'vymazat-tajemstvi' });
     const [z3] = await sql`SELECT secret_enc, secret_fingerprint, secret_set_at FROM marketing_sources WHERE shop_id = ${ctx.shop.id} AND platform = 'sklik'`;
@@ -161,7 +161,9 @@ describe('nastavení: karta Marketing', { skip: !DATABASE_URL && 'bez DATABASE_U
   test('ověření napojení vrátí stránku s výsledkem i bez adaptéru', async () => {
     const res = await post(`/nastaveni/eshopy/${ctx.shop.id}/marketing/zdroj/ga4/overit`);
     assert.equal(res.status, 200);
-    assert.ok((await res.text()).includes('Ověření napojení (ga4)'));
+    const html = await res.text();
+    assert.ok(html.includes('Ověření napojení (ga4)'));
+    assert.ok(html.includes('name="marketing_margin_pct"'), 'výsledek ověření se ukáže na záložce Marketing');
     const bez = await post(`/nastaveni/eshopy/${ctx.shop.id}/marketing/zdroj/meta/overit`);
     assert.ok((await bez.text()).includes('Napojení není uložené'));
   });

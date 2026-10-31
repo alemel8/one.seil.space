@@ -37,7 +37,7 @@
 <% } %>
 
 <!-- Tabs -->
-<nav style="display:flex;gap:2px;border-bottom:2px solid var(--border);margin-bottom:24px;overflow-x:auto;">
+<nav class="tabs" aria-label="Sekce firmy">
   <% [
     ['zakladni',   'Základní informace'],
     ['kontakty',   'Kontakty (' + stats.totalContacts + ')'],
@@ -48,10 +48,7 @@
   ].forEach(function(item) {
     const key = item[0]; const label = item[1];
   %>
-  <a href="?tab=<%= key %>"
-     style="padding:10px 18px;font-size:13px;font-weight:500;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-2px;text-decoration:none;transition:color .15s,border-color .15s;color:<%= currentTab===key ? 'var(--primary)' : 'var(--text-muted)' %>;border-bottom-color:<%= currentTab===key ? 'var(--primary)' : 'transparent' %>;">
-    <%= label %>
-  </a>
+  <a href="?tab=<%= key %>" class="tab<%= currentTab===key ? ' active' : '' %>"<%- currentTab===key ? ' aria-current="page"' : '' %>><%= label %></a>
   <% }) %>
 </nav>
 

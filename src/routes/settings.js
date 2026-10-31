@@ -14,6 +14,21 @@ import { isConfigured as maGoogleServiceAccount, serviceAccountEmail } from '../
  */
 const ESHOP_S_VLASTNIM_API = 'toneracek';
 
+/**
+ * Záložky detailu e-shopu (?tab=). Jediný seznam klíčů i popisků — šablona
+ * dostává totéž pole, aby se nerozešly. Neznámý klíč (i pole z ?tab=a&tab=b)
+ * padá na první záložku.
+ */
+const ZALOZKY_ESHOPU = [
+  ['zakladni',     'Základní informace'],
+  ['identita',     'Identita e-mailů'],
+  ['napojeni',     'Napojení e-shopu'],
+  ['expedice',     'Expedice do skladu'],
+  ['marketing',    'Marketing'],
+  ['healthchecky', 'Healthchecky'],
+];
+const zalozka = (hodnota) => ZALOZKY_ESHOPU.some(([k]) => k === hodnota) ? hodnota : 'zakladni';
+
 export default async function settingsRoutes(fastify) {
   const sql = getDb();
 
@@ -185,37 +200,52 @@ export default async function settingsRoutes(fastify) {
     const [shop] = await sql`SELECT * FROM shops WHERE id = ${shopId}`;
     if (!shop) return reply.code(404).send('Eshop nenalezen');
 
-    const checks = await sql`
-      SELECT h.*, r.ok, r.status_code, r.latency_ms, r.checked_at, r.error
-      FROM healthchecks h
-      LEFT JOIN LATERAL (
-        SELECT ok, status_code, latency_ms, checked_at, error
-        FROM healthcheck_results WHERE check_id = h.id ORDER BY checked_at DESC LIMIT 1
-      ) r ON TRUE
-      WHERE h.shop_id = ${shop.id} ORDER BY h.name
-    `;
-    const eshopKlice = (await sql`
-      SELECT k.id, k.label, k.active, k.created_at, k.last_used_at, k.revoked_at, k.key_hash,
-             TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS vytvoril
-      FROM eshop_api_keys k LEFT JOIN users u ON u.id = k.created_by
-      WHERE k.shop_id = ${shop.id}
-      ORDER BY k.active DESC, k.created_at DESC
-    `).map(({ key_hash, ...k }) => ({ ...k, otisk: otiskKlice(key_hash) }));
-    const channels = await sql`SELECT * FROM notification_channels ORDER BY name`;
-    const rules = await sql`
-      SELECT r.*, c.name AS channel_name FROM notification_rules r
-      LEFT JOIN notification_channels c ON r.channel_id = c.id
-      WHERE r.event_type = 'app_down' ORDER BY r.id
-    `;
+    // Načítá se jen otevřená záložka (vzor detailu člena v people.js);
+    // ostatní klíče dostane šablona prázdné, aby EJS nepadalo na
+    // nedefinované proměnné. `extra.tab` dávají přímo renderující POSTy
+    // (nový klíč, tajemství, ověření), které nemají query string.
+    const tab = zalozka(extra.tab ?? request.query.tab);
+    const data = { checks: [], channels: [], rules: [], eshopKlice: [], expedice: [], marketingZdroje: [], marketingBehy: [] };
 
-    const expedice = await sql`
-      SELECT * FROM warehouse_dispatches WHERE shop_id = ${shop.id}
-      ORDER BY started_at DESC LIMIT 5
-    `;
-
-    // Karta Marketing: napojení platforem a poslední běhy nočního stahování
-    // (src/marketing/zdroje.js). Tokeny se neukazují, jen otisk.
-    const [marketingZdroje, marketingBehy] = await Promise.all([nactiZdroje(sql, shop.id), behySyncu(sql, shop.id, 5)]);
+    if (tab === 'healthchecky') {
+      [data.checks, data.channels, data.rules] = await Promise.all([
+        sql`
+          SELECT h.*, r.ok, r.status_code, r.latency_ms, r.checked_at, r.error
+          FROM healthchecks h
+          LEFT JOIN LATERAL (
+            SELECT ok, status_code, latency_ms, checked_at, error
+            FROM healthcheck_results WHERE check_id = h.id ORDER BY checked_at DESC LIMIT 1
+          ) r ON TRUE
+          WHERE h.shop_id = ${shop.id} ORDER BY h.name
+        `,
+        sql`SELECT * FROM notification_channels ORDER BY name`,
+        sql`
+          SELECT r.*, c.name AS channel_name FROM notification_rules r
+          LEFT JOIN notification_channels c ON r.channel_id = c.id
+          WHERE r.event_type = 'app_down' ORDER BY r.id
+        `,
+      ]);
+    }
+    if (tab === 'napojeni') {
+      data.eshopKlice = (await sql`
+        SELECT k.id, k.label, k.active, k.created_at, k.last_used_at, k.revoked_at, k.key_hash,
+               TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS vytvoril
+        FROM eshop_api_keys k LEFT JOIN users u ON u.id = k.created_by
+        WHERE k.shop_id = ${shop.id}
+        ORDER BY k.active DESC, k.created_at DESC
+      `).map(({ key_hash, ...k }) => ({ ...k, otisk: otiskKlice(key_hash) }));
+    }
+    if (tab === 'expedice') {
+      data.expedice = await sql`
+        SELECT * FROM warehouse_dispatches WHERE shop_id = ${shop.id}
+        ORDER BY started_at DESC LIMIT 5
+      `;
+    }
+    if (tab === 'marketing') {
+      // Napojení platforem a poslední běhy nočního stahování
+      // (src/marketing/zdroje.js). Tokeny se neukazují, jen otisk.
+      [data.marketingZdroje, data.marketingBehy] = await Promise.all([nactiZdroje(sql, shop.id), behySyncu(sql, shop.id, 5)]);
+    }
 
     if (extra.novyEshopKlic || extra.novyWebhookSecret) {
       reply.header('Cache-Control', 'no-store');
@@ -225,7 +255,7 @@ export default async function settingsRoutes(fastify) {
 
     return reply.view('pages/settings/shop-detail.ejs', {
       pageTitle: shop.name, currentPath: '/nastaveni/eshopy',
-      user: request.user, shop, checks, channels, rules, expedice, eshopKlice,
+      user: request.user, shop, tab, zalozky: ZALOZKY_ESHOPU, ...data,
       // Bez těchhle tajemství expedice objednávky jen zadrží — ať to admin
       // vidí tady, a ne až v pushi o zadržených objednávkách. Tajemství pro
       // podání balíku bere Toneráček jen z prostředí a ostatní e-shopy jen
@@ -237,7 +267,6 @@ export default async function settingsRoutes(fastify) {
       vydavaEshopKlice: !toneracek,
       novyEshopKlic: extra.novyEshopKlic || null,
       novyWebhookSecret: extra.novyWebhookSecret || null,
-      marketingZdroje, marketingBehy,
       serviceAccountEmail: serviceAccountEmail(),
       maGoogleSa: maGoogleServiceAccount(),
       maSecretsKey: maKlic(),
@@ -249,6 +278,37 @@ export default async function settingsRoutes(fastify) {
 
   fastify.get('/nastaveni/eshopy/:id', async (request, reply) => {
     return vykresliDetail(request, reply, request.params.id);
+  });
+
+  // ── Základní informace e-shopu ────────────────────────────────
+  //
+  // Název, URL a stav. Slug se nemění: je to identifikátor v adresách
+  // (?eshop=<slug>) i v API — pod jiným slugem by vznikl jiný e-shop, proto
+  // se z těla ani nečte. Toneráček se vypnout nedá: jeho API klíč z prostředí
+  // stav nečte, ale expedice a noční stahování ano — vypnutí by ho rozpůlilo.
+
+  fastify.post('/nastaveni/eshopy/:id/zakladni', async (request, reply) => {
+    const shopId = parseInt(request.params.id, 10);
+    if (!shopId) return reply.code(400).send('Neplatný eshop');
+    const b = request.body || {};
+
+    const name = String(b.name || '').trim();
+    if (!name) return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=zakladni&error=zakladni-nazev`);
+
+    const url = String(b.url || '').trim();
+    if (url && !/^https?:\/\/\S+$/.test(url)) {
+      return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=zakladni&error=zakladni-url`);
+    }
+
+    const [shop] = await sql`SELECT id, slug, active FROM shops WHERE id = ${shopId}`;
+    if (!shop) return reply.code(404).send('Eshop nenalezen');
+    const active = shop.slug === ESHOP_S_VLASTNIM_API
+      ? shop.active
+      : (b.active === '1' || b.active === 'on');
+
+    await sql`UPDATE shops SET name = ${name}, url = ${url}, active = ${active} WHERE id = ${shopId}`;
+    invalidateBrandCache(shopId); // brand.js drží name i url 60 s
+    return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=zakladni&saved=1`);
   });
 
   // ── Klíče pro /api/eshop ─────────────────────────────────────
@@ -263,7 +323,7 @@ export default async function settingsRoutes(fastify) {
     const [shop] = await sql`SELECT id, slug FROM shops WHERE id = ${shopId}`;
     if (!shop) return reply.code(404).send('Eshop nenalezen');
     if (shop.slug === ESHOP_S_VLASTNIM_API) {
-      return reply.redirect(`/nastaveni/eshopy/${shopId}?error=eshop-klic-toneracek`);
+      return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=napojeni&error=eshop-klic-toneracek`);
     }
 
     const label = String(request.body?.label || '').trim().slice(0, 100);
@@ -273,7 +333,7 @@ export default async function settingsRoutes(fastify) {
       VALUES (${shopId}, ${hash}, ${label}, TRUE, ${request.user.id})
     `;
     request.log.info({ shopId, otisk }, 'Vydán klíč pro /api/eshop');
-    return vykresliDetail(request, reply, shopId, { novyEshopKlic: { klic, otisk, label } });
+    return vykresliDetail(request, reply, shopId, { novyEshopKlic: { klic, otisk, label }, tab: 'napojeni' });
   });
 
   fastify.post('/nastaveni/eshopy/:id/eshop-klic/:keyId/zrusit', async (request, reply) => {
@@ -284,7 +344,7 @@ export default async function settingsRoutes(fastify) {
       UPDATE eshop_api_keys SET active = FALSE, revoked_at = COALESCE(revoked_at, NOW())
       WHERE id = ${parseInt(request.params.keyId, 10) || 0} AND shop_id = ${shopId}
     `;
-    return reply.redirect(`/nastaveni/eshopy/${shopId}?saved=1`);
+    return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=napojeni&saved=1`);
   });
 
   // ── Tajemství pro podání balíku (One SEIL → e-shop) ───────────
@@ -306,28 +366,28 @@ export default async function settingsRoutes(fastify) {
     // které e-shop Toneráčku nezná — podání balíku by pak vracelo 401
     // a převody by se vyřizovaly bez zásilky.
     if (shop.slug === ESHOP_S_VLASTNIM_API) {
-      return reply.redirect(`/nastaveni/eshopy/${shopId}?error=webhook-secret-toneracek`);
+      return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=napojeni&error=webhook-secret-toneracek`);
     }
 
     const akce = String(request.body?.akce || '');
     if (akce === 'vymazat') {
       await sql`UPDATE shops SET webhook_secret = '' WHERE id = ${shopId}`;
-      return reply.redirect(`/nastaveni/eshopy/${shopId}?saved=1`);
+      return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=napojeni&saved=1`);
     }
     if (akce === 'vygenerovat') {
       const secret = crypto.randomBytes(32).toString('hex');
       await sql`UPDATE shops SET webhook_secret = ${secret} WHERE id = ${shopId}`;
-      return vykresliDetail(request, reply, shopId, { novyWebhookSecret: secret });
+      return vykresliDetail(request, reply, shopId, { novyWebhookSecret: secret, tab: 'napojeni' });
     }
 
     const secret = String(request.body?.webhook_secret || '').trim();
     // Krátké nebo s mezerou je skoro jistě chyba při kopírování; tajemství
     // se navíc posílá v hlavičce, kde mezera nemá co dělat.
     if (secret.length < 32 || /\s/.test(secret)) {
-      return reply.redirect(`/nastaveni/eshopy/${shopId}?error=webhook-secret`);
+      return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=napojeni&error=webhook-secret`);
     }
     await sql`UPDATE shops SET webhook_secret = ${secret} WHERE id = ${shopId}`;
-    return reply.redirect(`/nastaveni/eshopy/${shopId}?saved=1`);
+    return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=napojeni&saved=1`);
   });
 
   // ── Identita e-mailů e-shopu ─────────────────────────────────
@@ -345,7 +405,7 @@ export default async function settingsRoutes(fastify) {
     // Stejná podmínka hlídá i CHECK constraint v migraci 030 — tohle jen
     // vrátí srozumitelnou chybu místo pádu na databázi.
     if (from.endsWith('@seil.cz')) {
-      return reply.redirect(`/nastaveni/eshopy/${shopId}?error=firemni-adresa`);
+      return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=identita&error=firemni-adresa`);
     }
 
     await sql`
@@ -367,7 +427,7 @@ export default async function settingsRoutes(fastify) {
       WHERE id = ${shopId}
     `;
     invalidateBrandCache(shopId);
-    return reply.redirect(`/nastaveni/eshopy/${shopId}?saved=1`);
+    return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=identita&saved=1`);
   });
 
   // ── Expedice do skladu ───────────────────────────────────────
@@ -383,17 +443,17 @@ export default async function settingsRoutes(fastify) {
 
     const email = (b.warehouse_email || '').trim().toLowerCase();
     if (email && !email.includes('@')) {
-      return reply.redirect(`/nastaveni/eshopy/${shopId}?error=sklad-email`);
+      return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=expedice&error=sklad-email`);
     }
 
     const bcc = (b.warehouse_email_bcc || '').trim().toLowerCase();
     if (bcc && !bcc.includes('@')) {
-      return reply.redirect(`/nastaveni/eshopy/${shopId}?error=sklad-kopie`);
+      return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=expedice&error=sklad-kopie`);
     }
 
     const since = (b.warehouse_dispatch_since || '').trim();
     if (since && !/^\d{4}-\d{2}-\d{2}$/.test(since)) {
-      return reply.redirect(`/nastaveni/eshopy/${shopId}?error=sklad-datum`);
+      return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=expedice&error=sklad-datum`);
     }
 
     await sql`
@@ -403,7 +463,7 @@ export default async function settingsRoutes(fastify) {
         warehouse_dispatch_since = COALESCE(${since || null}::date, warehouse_dispatch_since)
       WHERE id = ${shopId}
     `;
-    return reply.redirect(`/nastaveni/eshopy/${shopId}?saved=1`);
+    return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=expedice&saved=1`);
   });
 
   // ── Marketing: marže, práh PNO a napojení platforem ──────────
@@ -419,10 +479,10 @@ export default async function settingsRoutes(fastify) {
     try {
       await nastavMarketingEshopu(sql, shopId, { marzePct: b.marketing_margin_pct, pnoAlertPct: b.marketing_pno_alert_pct });
     } catch (err) {
-      if (err instanceof ZdrojError) return reply.redirect(`/nastaveni/eshopy/${shopId}?error=${err.kod}`);
+      if (err instanceof ZdrojError) return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=marketing&error=${err.kod}`);
       throw err;
     }
-    return reply.redirect(`/nastaveni/eshopy/${shopId}?saved=1`);
+    return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=marketing&saved=1`);
   });
 
   fastify.post('/nastaveni/eshopy/:id/marketing/zdroj', async (request, reply) => {
@@ -438,11 +498,11 @@ export default async function settingsRoutes(fastify) {
         secret: b.secret, akce: String(b.akce || 'ulozit'),
       });
     } catch (err) {
-      if (err instanceof ZdrojError) return reply.redirect(`/nastaveni/eshopy/${shopId}?error=${err.kod}`);
+      if (err instanceof ZdrojError) return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=marketing&error=${err.kod}`);
       throw err;
     }
     request.log.info({ shopId, platform: b.platform }, 'Uloženo napojení marketingové platformy');
-    return reply.redirect(`/nastaveni/eshopy/${shopId}?saved=1`);
+    return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=marketing&saved=1`);
   });
 
   // Zkusí platformu zavolat (adaptér overit()) a výsledek vykreslí rovnou
@@ -495,7 +555,7 @@ export default async function settingsRoutes(fastify) {
         request.log.warn({ err, shopId, platform }, 'Marketing sync není k dispozici');
       }
     }
-    return vykresliDetail(request, reply, shopId, { overeni });
+    return vykresliDetail(request, reply, shopId, { overeni, tab: 'marketing' });
   });
 
   // Náhled bez odesílání — ať se barvy a loga dají zkontrolovat v prohlížeči

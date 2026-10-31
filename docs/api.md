@@ -21,7 +21,7 @@ Hodnota z env proměnné `TONERACEK_API_KEY`.
 ```
 Authorization: Bearer <klíč e-shopu, 64 hex znaků>
 ```
-Klíč vydává Nastavení → Eshopy → detail e-shopu → *Napojení e-shopu* — jiné
+Klíč vydává Nastavení → Eshopy → detail e-shopu → záložka *Napojení e-shopu* — jiné
 místo pro klíče už není. Ukáže se jednou, v databázi (`eshop_api_keys`) je
 jen jeho SHA-256 otisk. Klíč **určuje e-shop** — viz
 [E-shop API](#e-shop-api-apieshop).

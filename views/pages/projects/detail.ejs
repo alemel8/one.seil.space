@@ -33,12 +33,9 @@
 <% } %>
 
 <!-- Tabs -->
-<nav style="display:flex;gap:2px;border-bottom:2px solid var(--border);margin-bottom:24px;overflow-x:auto;">
+<nav class="tabs" aria-label="Sekce projektu">
   <% [['prehled','Přehled'], ['podprojekty', 'Podprojekty (' + items.length + ')']].forEach(function(it) { %>
-  <a href="?tab=<%= it[0] %>"
-     style="padding:10px 18px;font-size:13px;font-weight:500;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-2px;text-decoration:none;transition:color .15s,border-color .15s;color:<%= currentTab===it[0] ? 'var(--primary)' : 'var(--text-muted)' %>;border-bottom-color:<%= currentTab===it[0] ? 'var(--primary)' : 'transparent' %>;">
-    <%= it[1] %>
-  </a>
+  <a href="?tab=<%= it[0] %>" class="tab<%= currentTab===it[0] ? ' active' : '' %>"<%- currentTab===it[0] ? ' aria-current="page"' : '' %>><%= it[1] %></a>
   <% }) %>
 </nav>
 

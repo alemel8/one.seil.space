@@ -449,7 +449,7 @@ Každý všední den po šesté hodině pražského času odejde skladu jeden e-
 zaplacenými objednávkami, které ještě nedostal, a se štítky Zásilkovny
 v příloze. Data žijí v migraci 037 (`shop_orders.warehouse_sent_at`,
 `warehouse_dispatches`, `shops.warehouse_email`), logiku má `src/expedice.js`,
-adresu skladu formulář v Nastavení → Eshopy. Tentýž formulář drží i adresu pro
+adresu skladu záložka *Expedice do skladu* v detailu e-shopu. Tentýž formulář drží i adresu pro
 skrytou kopii (`shops.warehouse_email_bcc`, migrace 038) — kopie chodí skrytě,
 aby sklad neodpovídal i tomu, kdo zásilky nevyřizuje, a s `EMAIL_BCC` nemá nic
 společného: to je kopie zákaznické pošty.
@@ -496,9 +496,9 @@ Všechno per e-shop (`?eshop=<slug>`, výchozí Toneráček), nikdy se nemíchá
 | `POST /marketing/naklady/:id/smazat` | Smaže ruční náklad — jen vlastního e-shopu |
 | `GET /marketing/sync` | Napojené platformy, poslední úspěch, chyby, posledních 50 běhů |
 | `POST /marketing/sync/spustit` | Ruční stažení (jen správce — čerpá kvóty API); `platform=vse` nebo jedna |
-| `POST /nastaveni/eshopy/:id/marketing` | Odhad marže a práh PNO e-shopu (jen správce) |
+| `POST /nastaveni/eshopy/:id/marketing` | Odhad marže a práh PNO e-shopu (jen správce; záložka *Marketing* v detailu e-shopu) |
 | `POST /nastaveni/eshopy/:id/marketing/zdroj` | Napojení platformy: aktivní, ID, od kdy, token (jen správce) |
-| `POST /nastaveni/eshopy/:id/marketing/zdroj/:platform/overit` | Zkusí platformu zavolat a výsledek ukáže v detailu |
+| `POST /nastaveni/eshopy/:id/marketing/zdroj/:platform/overit` | Zkusí platformu zavolat a výsledek ukáže na záložce *Marketing* |
 
 **Definice čísel** jsou na jednom místě, v hlavičce `src/marketing/kpi.js`:
 tržby = Σ `total_price` / 1,21 bez stavů Stornována a Platba se nezdařila
@@ -762,13 +762,40 @@ Vše admin-only.
 |---|---|
 | `GET/POST /nastaveni/firma` | Údaje firmy (ICO, DIČ, adresa, banka, fakturační poznámka) |
 | `GET/POST /nastaveni/ciselne-rady` | Číselné řady pro faktury (prefix, rok, padding) |
-| `GET/POST /nastaveni/eshopy` | E-shopy + správa API klíčů |
+| `GET/POST /nastaveni/eshopy` | Seznam e-shopů, založení nového |
+| `GET /nastaveni/eshopy/:id` | Detail e-shopu po záložkách (`?tab=zakladni\|identita\|napojeni\|expedice\|marketing\|healthchecky`) |
+| `POST /nastaveni/eshopy/:id/zakladni` | Název, URL a stav e-shopu; slug je neměnný |
 | `POST /nastaveni/eshopy/:id/identita` | Identita e-shopu v e-mailech |
+| `POST /nastaveni/eshopy/:id/eshop-klic/vytvorit`, `…/eshop-klic/:keyId/zrusit` | Klíče pro `/api/eshop` (ne pro Toneráček) |
+| `POST /nastaveni/eshopy/:id/webhook-secret` | Tajemství pro podání balíku (`akce=vygenerovat\|nastavit\|vymazat`; ne pro Toneráček) |
 | `POST /nastaveni/eshopy/:id/expedice` | Adresa skladu a datum, od kterého se posílá |
 | `GET /nastaveni/eshopy/:id/nahled-emailu` | Náhled šablony bez odeslání |
 | `GET/POST /nastaveni/ucetni-osnova` | Číselník účtů (MD/D pro předkontaci) |
 | `GET /api/accounting-chart` | API: účty pro autocomplete |
 | `POST /api/invoice-series/:id/next` | API: generování čísla faktury |
+
+### Detail e-shopu — serverové záložky
+
+Detail běží na `?tab=` se serverovým renderem (stejně jako detail člena
+a projektu) a načítá jen data otevřené záložky; ostatní dostává šablona
+prázdná. Záložky: `zakladni` (název, URL, stav; slug jen pro čtení),
+`identita`, `napojeni` (klíče `/api/eshop`, tajemství pro balík),
+`expedice` (adresa skladu, poslední běhy), `marketing` (marže, práh PNO,
+platformy, poslední stažení), `healthchecky` (healthchecky, alerty při
+výpadku, „+ Healthcheck“). Neznámý klíč otevře `zakladni`.
+
+Konvence: každý POST se vrací na svou záložku —
+`/nastaveni/eshopy/:id?tab=<záložka>&saved=1` nebo `…&error=<kód>`; POSTy,
+které vykreslují přímo (nový klíč, nové tajemství, ověření platformy),
+předávají `vykresliDetail()` záložku v `extra.tab`. Healthchecky a alerty
+jdou přes routy monitoringu a vrací se hodnotou `returnTo`
+(`…?tab=healthchecky`). Pruh záložek je sdílená CSS komponenta
+`.tabs`/`.tab` v `public/css/components.css` — používají ji i detail firmy,
+projektu a člena týmu.
+
+**Toneráček se nevypíná.** Jeho API klíč z prostředí stav `shops.active`
+nečte, ale expedice a noční stahování ano — přepínač je proto zašedlý
+a routa u něj `active` z těla ignoruje.
 
 ### Identita e-shopu v e-mailech
 

@@ -66,6 +66,12 @@ before(async () => {
   ctx.userId = u.id;
   ctx.cookie = await prihlas(u.id);
 
+  const [bezny] = await sql`
+    INSERT INTO users (email, password_hash, first_name, last_name, is_admin)
+    VALUES (${`nast-bezny-${r}@example.invalid`}, 'x', 'Test', 'Běžný', FALSE) RETURNING id`;
+  uklid.users.push(bezny.id);
+  ctx.beznyCookie = await prihlas(bezny.id);
+
   const [shop] = await sql`
     INSERT INTO shops (slug, name, url, active, email_from_name, email_from_address)
     VALUES (${`test-nast-${r}`}, ${`Dílna nastavení ${r}`}, 'https://example.invalid', TRUE,
@@ -108,23 +114,24 @@ describe('nastavení: klíče pro /api/eshop a tajemství pro balíky', () => {
     const api = await fetch(`${BASE}/api/eshop/orders?email=x@example.invalid`, { headers: { authorization: `Bearer ${klic}` } });
     assert.equal(api.status, 200);
 
-    const detail = await (await get(`/nastaveni/eshopy/${ctx.shop.id}`)).text();
+    const detail = await (await get(`/nastaveni/eshopy/${ctx.shop.id}?tab=napojeni`)).text();
     assert.ok(detail.includes(hash.slice(0, 8)), 'detail ukazuje otisk');
     assert.ok(!detail.includes(klic), 'detail klíč neukazuje');
 
     const zrus = await post(`/nastaveni/eshopy/${ctx.shop.id}/eshop-klic/${k.id}/zrusit`);
     assert.equal(zrus.status, 302);
+    assert.equal(zrus.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?tab=napojeni&saved=1`, 'vrátí na záložku Napojení');
     const po = await fetch(`${BASE}/api/eshop/orders?email=x@example.invalid`, { headers: { authorization: `Bearer ${klic}` } });
     assert.equal(po.status, 401);
   });
 
   test('Toneráčku se klíč pro /api/eshop nevydá', async () => {
     const res = await post(`/nastaveni/eshopy/${ctx.toneracek.id}/eshop-klic/vytvorit`, { label: 'nesmí' });
-    assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.toneracek.id}?error=eshop-klic-toneracek`);
+    assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.toneracek.id}?tab=napojeni&error=eshop-klic-toneracek`);
     const [{ n }] = await sql`SELECT COUNT(*)::int AS n FROM eshop_api_keys WHERE shop_id = ${ctx.toneracek.id}`;
     assert.equal(n, 0);
 
-    const detail = await get(`/nastaveni/eshopy/${ctx.toneracek.id}?error=eshop-klic-toneracek`);
+    const detail = await get(`/nastaveni/eshopy/${ctx.toneracek.id}?tab=napojeni&error=eshop-klic-toneracek`);
     assert.equal(detail.status, 200);
     const html = await detail.text();
     assert.ok(html.includes('klíč pro <code>/api/eshop</code> se mu nevydává'), 'vysvětlení místo formuláře');
@@ -138,7 +145,7 @@ describe('nastavení: klíče pro /api/eshop a tajemství pro balíky', () => {
     for (const telo of [{ akce: 'vygenerovat' }, { akce: 'nastavit', webhook_secret: vlastni }, { akce: 'vymazat' }]) {
       const res = await post(`/nastaveni/eshopy/${ctx.toneracek.id}/webhook-secret`, telo);
       assert.equal(res.status, 302, telo.akce);
-      assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.toneracek.id}?error=webhook-secret-toneracek`);
+      assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.toneracek.id}?tab=napojeni&error=webhook-secret-toneracek`);
     }
     // Ne „před = po“: test expedice si sloupec Toneráčku souběžně na chvíli
     // nastavuje, aby ověřil, že ho podání balíku ignoruje.
@@ -146,12 +153,12 @@ describe('nastavení: klíče pro /api/eshop a tajemství pro balíky', () => {
     assert.notEqual(po.webhook_secret, vlastni, 'vlastní tajemství se neuložilo');
     assert.doesNotMatch(po.webhook_secret, /^[0-9a-f]{64}$/, 'vygenerované tajemství se neuložilo');
 
-    const html = await (await get(`/nastaveni/eshopy/${ctx.toneracek.id}?error=webhook-secret-toneracek`)).text();
+    const html = await (await get(`/nastaveni/eshopy/${ctx.toneracek.id}?tab=napojeni&error=webhook-secret-toneracek`)).text();
     assert.ok(html.includes('vlastní tajemství se mu tady nenastavuje'));
   });
 
   test('tajemství pro podání balíku: vygenerovat, odmítnout krátké, smazat', async () => {
-    const bez = await (await get(`/nastaveni/eshopy/${ctx.shop.id}`)).text();
+    const bez = await (await get(`/nastaveni/eshopy/${ctx.shop.id}?tab=napojeni`)).text();
     assert.ok(bez.includes('Chybí tajemství — balíky se u převodu nepodají'), 'e-shop bez tajemství vidí varování');
     assert.ok(!bez.includes('Použít globální'), 'globální tajemství (Toneráčku) se jinému e-shopu nenabízí');
 
@@ -163,7 +170,7 @@ describe('nastavení: klíče pro /api/eshop a tajemství pro balíky', () => {
     assert.equal(s.webhook_secret, secret);
 
     const kratke = await post(`/nastaveni/eshopy/${ctx.shop.id}/webhook-secret`, { akce: 'nastavit', webhook_secret: 'kratke' });
-    assert.equal(kratke.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?error=webhook-secret`);
+    assert.equal(kratke.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?tab=napojeni&error=webhook-secret`);
     [s] = await sql`SELECT webhook_secret FROM shops WHERE id = ${ctx.shop.id}`;
     assert.equal(s.webhook_secret, secret, 'krátké tajemství se neuloží');
 
@@ -171,7 +178,7 @@ describe('nastavení: klíče pro /api/eshop a tajemství pro balíky', () => {
     await post(`/nastaveni/eshopy/${ctx.shop.id}/webhook-secret`, { akce: 'nastavit', webhook_secret: vlastni });
     [s] = await sql`SELECT webhook_secret FROM shops WHERE id = ${ctx.shop.id}`;
     assert.equal(s.webhook_secret, vlastni);
-    const detail = await (await get(`/nastaveni/eshopy/${ctx.shop.id}`)).text();
+    const detail = await (await get(`/nastaveni/eshopy/${ctx.shop.id}?tab=napojeni`)).text();
     assert.ok(!detail.includes(vlastni), 'tajemství se v administraci neukazuje');
     assert.ok(detail.includes(crypto.createHash('sha256').update(vlastni).digest('hex').slice(0, 8)), 'jen otisk');
     assert.ok(!detail.includes('Chybí tajemství'));
@@ -201,8 +208,89 @@ describe('nastavení: klíče pro /api/eshop a tajemství pro balíky', () => {
     const prehled = await (await get('/nastaveni/eshopy')).text();
     assert.ok(!prehled.includes('api-klic'), 'přehled bez starých klíčů');
     assert.ok(!prehled.includes('+ Nový klíč'));
-    const detail = await (await get(`/nastaveni/eshopy/${ctx.shop.id}`)).text();
+    const detail = await (await get(`/nastaveni/eshopy/${ctx.shop.id}?tab=napojeni`)).text();
     assert.ok(!detail.includes('api-klic') && !detail.includes('/api/v1'), 'detail bez starých klíčů');
     assert.ok(detail.includes(`/nastaveni/eshopy/${ctx.shop.id}/eshop-klic/vytvorit`), 'detail vydává klíč pro /api/eshop');
+  });
+});
+
+// ── Detail e-shopu po záložkách ────────────────────────────────
+
+describe('detail e-shopu po záložkách', () => {
+  const detail = async (q = '') => {
+    const res = await get(`/nastaveni/eshopy/${ctx.shop.id}${q}`);
+    assert.equal(res.status, 200, q);
+    return res.text();
+  };
+
+  test('bez ?tab= i s neznámým klíčem se otevřou Základní informace', async () => {
+    for (const q of ['', '?tab=nesmysl', '?tab=identita&tab=zakladni']) {
+      const html = await detail(q);
+      assert.ok(html.includes(`action="/nastaveni/eshopy/${ctx.shop.id}/zakladni"`), `${q}: formulář základních informací`);
+      assert.ok(/class="tab active" aria-current="page">Základní informace</.test(html), `${q}: aktivní záložka`);
+      assert.ok(html.includes('name="active" value="1" class="toggle-input" checked'), `${q}: přepínač je předvyplněný stavem e-shopu`);
+      assert.ok(!html.includes(`/nastaveni/eshopy/${ctx.shop.id}/identita"`), `${q}: identita je na jiné záložce`);
+    }
+  });
+
+  test('každá záložka ukazuje svůj obsah a vrací na sebe', async () => {
+    const markery = {
+      identita:     'name="email_from_name"',
+      napojeni:     `/nastaveni/eshopy/${ctx.shop.id}/eshop-klic/vytvorit`,
+      expedice:     'name="warehouse_email"',
+      marketing:    'name="marketing_margin_pct"',
+      healthchecky: 'id="modalAddCheck"',
+    };
+    for (const [tab, marker] of Object.entries(markery)) {
+      const html = await detail(`?tab=${tab}`);
+      assert.ok(html.includes(marker), `${tab} má svůj obsah`);
+      assert.ok(html.includes('class="tab active" aria-current="page">'), `${tab} má aktivní záložku`);
+      assert.ok(!html.includes(`action="/nastaveni/eshopy/${ctx.shop.id}/zakladni"`), `${tab} nemá formulář základních informací`);
+    }
+    const health = await detail('?tab=healthchecky');
+    assert.ok(health.includes(`value="/nastaveni/eshopy/${ctx.shop.id}?tab=healthchecky"`), 'healthchecky se vrací na svou záložku');
+  });
+
+  test('Základní informace: název, URL a stav se uloží, slug zůstane', async () => {
+    let res = await post(`/nastaveni/eshopy/${ctx.shop.id}/zakladni`, { name: `Nový název ${r}`, url: 'https://novy.example.invalid', slug: 'podvrzeny' });
+    assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?tab=zakladni&saved=1`);
+    let [s] = await sql`SELECT name, url, active, slug FROM shops WHERE id = ${ctx.shop.id}`;
+    assert.equal(s.name, `Nový název ${r}`);
+    assert.equal(s.url, 'https://novy.example.invalid');
+    assert.equal(s.active, false, 'bez pole active je e-shop vypnutý');
+    assert.equal(s.slug, ctx.shop.slug, 'slug se podvrženým polem nemění');
+
+    res = await post(`/nastaveni/eshopy/${ctx.shop.id}/zakladni`, { name: ctx.shop.name, url: ctx.shop.url, active: '1' });
+    assert.equal(res.status, 302);
+    [s] = await sql`SELECT name, url, active FROM shops WHERE id = ${ctx.shop.id}`;
+    assert.deepEqual([s.name, s.url, s.active], [ctx.shop.name, ctx.shop.url, true]);
+
+    res = await post(`/nastaveni/eshopy/${ctx.shop.id}/zakladni`, { name: '   ', active: '1' });
+    assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?tab=zakladni&error=zakladni-nazev`);
+    for (const url of ['example.invalid', 'ftp://example.invalid', 'https://a b']) {
+      res = await post(`/nastaveni/eshopy/${ctx.shop.id}/zakladni`, { name: 'x', url, active: '1' });
+      assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?tab=zakladni&error=zakladni-url`, url);
+    }
+    [s] = await sql`SELECT name, url, active FROM shops WHERE id = ${ctx.shop.id}`;
+    assert.deepEqual([s.name, s.url, s.active], [ctx.shop.name, ctx.shop.url, true], 'neplatná data nic nezapsala');
+  });
+
+  test('Toneráček zůstane aktivní, i když formulář active nepošle', async () => {
+    const [pred] = await sql`SELECT name, url, active FROM shops WHERE id = ${ctx.toneracek.id}`;
+    const res = await post(`/nastaveni/eshopy/${ctx.toneracek.id}/zakladni`, { name: pred.name, url: pred.url });
+    assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.toneracek.id}?tab=zakladni&saved=1`);
+    const [po] = await sql`SELECT active FROM shops WHERE id = ${ctx.toneracek.id}`;
+    assert.equal(po.active, pred.active);
+    const html = await (await get(`/nastaveni/eshopy/${ctx.toneracek.id}?tab=zakladni`)).text();
+    assert.ok(/name="active"[^>]*disabled/.test(html), 'přepínač Toneráčku je zašedlý');
+  });
+
+  test('nesprávce základní informace neuloží', async () => {
+    const res = await fetch(`${BASE}/nastaveni/eshopy/${ctx.shop.id}/zakladni`, {
+      method: 'POST', redirect: 'manual',
+      headers: { cookie: ctx.beznyCookie, 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ name: 'x', active: '1' }),
+    });
+    assert.equal(res.status, 403);
   });
 });

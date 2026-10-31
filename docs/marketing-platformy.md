@@ -8,7 +8,7 @@ a co a v jakých jednotkách se stahuje**. Kód adaptérů leží v
 `src/marketing/adapters/`, jeden soubor na platformu, všechny se stejným
 rozhraním (hlavička `src/marketing/adapters/index.js`).
 
-Napojení se zakládá v **Nastavení → Eshopy → detail e-shopu → Marketing**:
+Napojení se zakládá v **Nastavení → Eshopy → detail e-shopu → záložka Marketing**:
 platforma, ID na straně platformy (`external_id`), u Google Ads případně
 nadřazené ID (`parent_external_id`), u Skliku, Heureky a Mety token. Tokeny
 leží v databázi šifrované klíčem `MARKETING_SECRETS_KEY` z prostředí
@@ -186,7 +186,7 @@ dnů včetně dneška, s rozpadem po dnech.
 | | |
 |---|---|
 | U e-shopu | `WEBHOOK_SECRET` v prostředí e-shopu (totéž tajemství jako pro podání balíku). Endpoint `GET /api/marketing/statistika` musí být nasazený (Toneráček od říjnové verze; bez něj 404 = trvalá chyba s návodem). |
-| V One SEIL | nic navíc: adresa se bere z **URL e-shopu** v jeho nastavení; tajemství podle pravidla pro `x-webhook-secret` — **Toneráček jen `SHOP_WEBHOOK_SECRET` z prostředí One SEIL, ostatní e-shopy jen vlastní `shops.webhook_secret`** (Nastavení → Eshopy → Napojení e-shopu). Sync ho adaptéru předá v `tajemstvi`; bez něj platí totéž pravidlo nad záznamem e-shopu. |
+| V One SEIL | nic navíc: adresa se bere z **URL e-shopu** v jeho nastavení; tajemství podle pravidla pro `x-webhook-secret` — **Toneráček jen `SHOP_WEBHOOK_SECRET` z prostředí One SEIL, ostatní e-shopy jen vlastní `shops.webhook_secret`** (detail e-shopu → záložka *Napojení e-shopu*). Sync ho adaptéru předá v `tajemstvi`; bez něj platí totéž pravidlo nad záznamem e-shopu. |
 | Volání | `GET {url}/api/marketing/statistika?dni=N` s hlavičkou `x-webhook-secret`, `N = dnes − from + 1` (1–90). Odpověď `{od, do, hledani: {celkem, bezVysledku: [{dotaz, n, posledni}], nejcastejsi: [...]}, kosiky: {pocet, hodnota, dokonceno, pripomenuto, top: [...]}, poDnech: [{datum, hledani, hledaniBezVysledku, kosiky, kosikyHodnota}]}`. |
 | Co se ukládá | součet dne z `poDnech` jen pro dny v okně (dnešek je neúplný): `searches`, `searches_no_result`, `carts_abandoned`, `carts_value`; seznam `bezVysledku` jako rozpad `query` (segment = dotaz, `searches_no_result` = `n`) **na poslední den okna** — e-shop ho neumí rozložit do dnů a `n` je celkový počet hledání dotazu naposledy hledaného v okně. |
 | Jednotky, pásmo | `carts_value` v Kč **s DPH**, jak je měl košík; dny pražské. |

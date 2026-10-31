@@ -27,7 +27,7 @@ Viz `.env.example` pro kompletní přehled. Klíčové proměnné:
 | `VAPID_EMAIL` | Kontaktní e-mail pro VAPID (`mailto:info@seil.cz`) |
 | `TONERACEK_API_KEY` | Bearer token pro webhook z Toneráček.cz |
 | `PACKETA_API_PASSWORD` | Heslo k API Zásilkovny. Bez něj se nestáhnou štítky — ranní expedice objednávky jen zadrží |
-| `SHOP_WEBHOOK_SECRET` | Tajemství pro volání zpět do e-shopu **Toneráčku** (podání balíku), shodné s `WEBHOOK_SECRET` v jeho e-shopu. Bez něj se u převodu balík nepodá. Další e-shopy mají vlastní tajemství (Nastavení → Eshopy → *Napojení e-shopu*, `shops.webhook_secret`) a tohle nikdy nedostanou |
+| `SHOP_WEBHOOK_SECRET` | Tajemství pro volání zpět do e-shopu **Toneráčku** (podání balíku), shodné s `WEBHOOK_SECRET` v jeho e-shopu. Bez něj se u převodu balík nepodá. Další e-shopy mají vlastní tajemství (detail e-shopu → záložka *Napojení e-shopu*, `shops.webhook_secret`) a tohle nikdy nedostanou |
 | `STATS_DIR` | Adresář s VPS stats (`/var/lib/vps-stats`) |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Celý JSON klíč service accountu Googlu v jedné proměnné. Jeden účet pro import faktur z Google Disku i pro sekci Marketing (GA4, Google Ads, Search Console, Merchant); jeho e-mail se přidává jako čtenář tam, odkud má číst (`src/google-auth.js`) |
 | `MARKETING_SECRETS_KEY` | 64 hex znaků pro šifrování tokenů Sklik / Heureka / Meta v databázi (AES-256-GCM); bez něj nejde v nastavení e-shopu uložit token Skliku, Heureky ani Mety. Generuje se `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |

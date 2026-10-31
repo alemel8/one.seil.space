@@ -46,7 +46,7 @@ e-shop nemá vyplněnou identitu, API objednávky odmítá (`503`).
    `https://dilnavlnenka.cz` (bez lomítka na konci; One SEIL na ni volá
    `/api/orders/podat-balik` a e-maily odkazují na `/api/qr` a `/produkty`).
 
-2. **Identita e-mailů** — detail e-shopu → *Identita e-mailů*: odesílatel
+2. **Identita e-mailů** — detail e-shopu → záložka *Identita e-mailů*: odesílatel
    (`Dílna Vlněnka` / `noreply@dilnavlnenka.cz`), odpovědi na, kontaktní
    e-mail a telefon, podtitul, claim, URL log, čtyři barvy. Doména odesílatele
    musí být ověřená v **tomtéž** Resend účtu, který používá One SEIL. Náhled:
@@ -71,7 +71,7 @@ e-shop nemá vyplněnou identitu, API objednávky odmítá (`503`).
 
    Bez řady objednávek by se čísla počítala „poslední + 1“ od `10001`.
 
-4. **Klíč pro API** — detail e-shopu → *Napojení e-shopu* → popis
+4. **Klíč pro API** — detail e-shopu → záložka *Napojení e-shopu* → popis
    (např. `produkce (Coolify)`) → **Vygenerovat klíč**. Klíč se ukáže
    **jednou**; vložte ho do prostředí e-shopu jako `SEIL_API_KEY`. One SEIL
    si drží jen otisk (prvních 8 znaků SHA-256 je vidět v seznamu). Ztracený
@@ -86,7 +86,7 @@ e-shop nemá vyplněnou identitu, API objednávky odmítá (`503`).
    `SHOP_WEBHOOK_SECRET` je tajemství Toneráčku a Dílně se nikdy neposílá.
    Nevkládejte ho do `WEBHOOK_SECRET` Dílny, ani když e-shop podání odmítá.
 
-6. **Healthcheck** — detail e-shopu → **+ Healthcheck**, URL
+6. **Healthcheck** — detail e-shopu → záložka *Healthchecky* → **+ Healthcheck**, URL
    `https://dilnavlnenka.cz/api/health`.
 
 7. **Expedice do skladu** — adresu skladu nechte **prázdnou**, dokud není
@@ -97,7 +97,7 @@ e-shop nemá vyplněnou identitu, API objednávky odmítá (`503`).
 ### Marketing (volitelné)
 
 Sekce Marketing počítá PNO a marži pro každý e-shop zvlášť. V detailu e-shopu
-(karta **Marketing**) se nastaví odhad hrubé marže v % z ceny bez DPH (pro
+(záložka **Marketing**) se nastaví odhad hrubé marže v % z ceny bez DPH (pro
 položky, u kterých e-shop neposlal nákupní cenu) a práh PNO pro upozornění,
 a napojí se platformy: u Googlu stačí ID (GA4 property, zákazník Google Ads,
 property Search Console, účet Merchant Center) a přidat e-mail firemního

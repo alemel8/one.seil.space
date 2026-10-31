@@ -561,6 +561,43 @@ table.data-table {
   margin-top: 3px;
 }
 
+/* ── Záložky detailu (serverové ?tab=) ────────────────────── */
+/* Jeden vzhled pro detail e-shopu, firmy, projektu i člena týmu. Aktivní
+   záložka má tmavý text a cyan jen jako podtržení — cyan jako barva textu
+   na bílé není čitelná a brand manuál ho chce jen jako akcent. */
+.tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 20px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+
+.tab {
+  padding: 10px 18px;
+  margin-bottom: -2px;
+  border-bottom: 2px solid transparent;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  white-space: nowrap;
+  text-decoration: none;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+.tab:hover { color: var(--text-primary); }
+.tab.active {
+  color: var(--text-primary);
+  font-weight: 600;
+  border-bottom-color: var(--primary);
+}
+.tab:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+  border-radius: var(--radius-xs);
+}
+
 /* ============================================================
    RESPONSIVE — mobile overrides (≤ 768px)
    ============================================================ */
@@ -650,6 +687,10 @@ table.data-table {
 
   /* ── Compact badge spacing on mobile ──────────────────────── */
   .badge { font-size: 11px; padding: 3px 8px; }
+
+  /* ── Záložky — těsnější, posouvají se prstem ──────────────── */
+  .tabs { margin-bottom: 16px; }
+  .tab { padding: 10px 14px; font-size: 13px; }
 
   /* ── Bank transaction list: hide less important columns ───── */
   .data-table .hide-mobile { display: none !important; }

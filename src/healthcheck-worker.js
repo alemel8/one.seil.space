@@ -116,7 +116,7 @@ export async function runHealthchecks() {
         const msg = `🔴 **${check.name}** je nedostupný!\nURL: ${check.url}\nChyba: ${error || `HTTP ${statusCode}`}`;
         await dispatchAlert('app_down', check.id, msg, {
           title: `🔴 ${check.name} je nedostupný`,
-          url: check.shop_id ? `/nastaveni/eshopy/${check.shop_id}` : '/nastaveni/healthchecky',
+          url: check.shop_id ? `/nastaveni/eshopy/${check.shop_id}?tab=healthchecky` : '/nastaveni/healthchecky',
         });
       }
     }

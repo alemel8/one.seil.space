@@ -26,7 +26,7 @@
           <% if (sh.slug === eshopSVlastnimApi) { %>
             <span style="color:var(--text-muted);font-size:13px;">vlastní (<code>TONERACEK_API_KEY</code>)</span>
           <% } else { %>
-            <a href="/nastaveni/eshopy/<%= sh.id %>" style="color:var(--primary);"><%= sh.key_count %> aktivní</a>
+            <a href="/nastaveni/eshopy/<%= sh.id %>?tab=napojeni" style="color:var(--primary);"><%= sh.key_count %> aktivní</a>
           <% } %>
         </td>
         <td>
