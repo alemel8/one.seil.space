@@ -5,6 +5,7 @@ import formbody from '@fastify/formbody';
 import view from '@fastify/view';
 import staticPlugin from '@fastify/static';
 import ejs from 'ejs';
+import { jenDatum, ceskeDatum } from './prazsky-cas.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getDb, closeAll } from './db.js';
@@ -55,7 +56,8 @@ await fastify.register(view, {
   engine: { ejs },
   root: path.join(projectRoot, 'views'),
   layout: false,
-  defaultContext: { appName: 'one.seil.space' },
+  // jenDatum/ceskeDatum: pole.ejs vykresluje datum nezávisle na TZ procesu
+  defaultContext: { appName: 'one.seil.space', jenDatum, ceskeDatum },
   options: { views: path.join(projectRoot, 'views') },
 });
 

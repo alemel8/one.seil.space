@@ -601,6 +601,56 @@ table.data-table {
   border-radius: var(--radius-xs);
 }
 
+/* ── Režim úprav na detailech (zobrazení ↔ úpravy) ───────── */
+/* Obal stránky (nebo karty) nese data-rezim="zobrazeni|upravy"; přepíná ho
+   public/js/upravy.js, bez JS server podle ?upravit=1. Pole vykresluje
+   views/includes/pole.ejs (hodnota + vstup), ovládání views/includes/upravit.ejs:
+   tužka se na tomtéž místě změní v Uložit. Popis v docs/moduly.md. */
+.btn-ikona { width: 36px; height: 36px; padding: 0; flex: 0 0 auto; }
+.btn-ikona svg { width: 16px; height: 16px; }
+.btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+.page-header-akce { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+[data-rezim="zobrazeni"] .upravit-zrusit,
+[data-rezim="zobrazeni"] .upravit-ulozit,
+[data-rezim="upravy"] .upravit-otevrit { display: none; }
+
+/* V zobrazení zmizí vstupy upravitelného formuláře a vše .jen-upravy; v úpravách
+   hodnoty polí (kromě .pole-stale — slug, e-mail profilu) a vše .jen-zobrazeni.
+   Ostatní formuláře na stránce (heslo, klíče, platformy) režim nezná. */
+[data-rezim="zobrazeni"] .upravitelne :is(.form-control, .form-select, .toggle-label, .pole-zaskrtavaci),
+[data-rezim="zobrazeni"] .jen-upravy { display: none; }
+[data-rezim="upravy"] .upravitelne .pole:not(.pole-stale) .pole-hodnota,
+[data-rezim="upravy"] .jen-zobrazeni { display: none; }
+
+/* Stejná výška jako .form-control (9 px + 13,5 px řádek + 9 px), aby přepnutí
+   neposkočilo; text je zarovnaný s popiskem, ne s textem inputu (ten má
+   vnitřní odsazení 12 px) — vědomě, hodnoty se čtou jako seznam pod popisky. */
+.pole-hodnota {
+  min-height: 38px;
+  padding: 9px 0;
+  font-size: 13.5px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+.pole-hodnota-blok { display: block; white-space: pre-wrap; line-height: 1.55; }
+.pole-hodnota a { color: var(--primary-dark); }
+[data-theme="dark"] .pole-hodnota a { color: var(--primary); }
+.pole-prazdne { color: var(--text-secondary); } /* --text-muted má na bílé jen 2,5:1 */
+.form-hint { font-size: 12px; color: var(--text-muted); }
+.pole-zaskrtavaci { display: flex; align-items: center; gap: 8px; font-size: 13.5px; padding: 9px 0; cursor: pointer; }
+.upravit-paticka { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.barva-vzorek { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--border); display: inline-block; flex-shrink: 0; }
+
 /* ============================================================
    RESPONSIVE — mobile overrides (≤ 768px)
    ============================================================ */
@@ -616,6 +666,12 @@ table.data-table {
   .page-header > *:last-child { align-self: stretch; }
   .page-header > *:last-child .btn,
   .page-header > .btn { width: 100%; justify-content: center; }
+  /* Akce hlavičky zůstávají v řádku: textová tlačítka si rozdělí šířku,
+     tužka má dotykových 44 px. Specificita (0,3,0) jako pravidlo nad tím. */
+  .page-header > .page-header-akce { display: flex; justify-content: flex-end; gap: 8px; }
+  .page-header > .page-header-akce .btn { width: auto; flex: 1 1 auto; }
+  .page-header > .page-header-akce .btn-ikona { flex: 0 0 44px; width: 44px; height: 44px; min-height: 44px; }
+  .pole-hodnota { min-height: 44px; } /* .form-control má na mobilu 44 px */
 
   /* ── KPI grid — 2 × 2 ────────────────────────────────────── */
   .kpi-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 12px; }

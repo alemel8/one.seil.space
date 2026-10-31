@@ -103,7 +103,7 @@ describe('nastavení: záložka Marketing', { skip: !DATABASE_URL && 'bez DATABA
     assert.equal(s.p, 28.5);
 
     res = await post(`/nastaveni/eshopy/${ctx.shop.id}/marketing`, { marketing_margin_pct: '150', marketing_pno_alert_pct: '0' });
-    assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?tab=marketing&error=marketing-procenta`);
+    assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?tab=marketing&error=marketing-procenta&upravit=1`, 'chyba formuláře marže vrátí do otevřených úprav');
     [s] = await sql`SELECT marketing_margin_pct::float8 AS m FROM shops WHERE id = ${ctx.shop.id}`;
     assert.equal(s.m, 33, 'neplatná hodnota nic nepřepsala');
   });

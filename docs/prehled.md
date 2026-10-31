@@ -51,13 +51,18 @@ one.seil.space/
 │   ├── google-auth.js      # Service account Googlu (JWT → token), společný pro Disk i Marketing
 │   ├── atribuce-objednavky.js # Zdroj objednávky a nákupní cena z těla POST …/orders
 │   ├── hledani.js          # Globální hledání: skupiny výsledků podle přístupové matice (routa v routes/hledani.js)
+│   ├── upravy.js           # Režim úprav na detailech (tužka → Uložit): kdy je otevřený (?upravit=1)
+│   ├── prazsky-cas.js      # Pražský čas a kalendářní data nezávislá na TZ procesu (ceskeDatum, jenDatum)
 │   └── routes/             # Fastify route pluginy (viz moduly.md)
 ├── views/                  # EJS šablony
 │   ├── layouts/base.ejs    # Hlavní layout (navbar, sidebar)
 │   ├── pages/              # Stránky jednotlivých modulů
+│   ├── includes/           # Sdílené části: sidebar, topbar, pole.ejs + upravit.ejs (režim úprav), přílohy
 │   └── pdf/invoice.ejs     # Šablona pro PDF faktury
 ├── public/
 │   ├── sw.js               # Service Worker (PWA + push notifikace)
+│   ├── js/                 # app.js (menu, modaly, téma), hledani.js (našeptávač), upravy.js (režim úprav), stopky, doklady
+│   ├── css/                # variables, layout, components
 │   ├── chart.umd.min.js    # Chart.js 4.4.7 (UMD, MIT) pro grafy
 │   └── manifest.json       # PWA manifest
 ├── migrations/             # Číslované SQL migrace (001–010)

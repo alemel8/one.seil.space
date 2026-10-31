@@ -1,0 +1,26 @@
+<%#
+  Ovládání režimu úprav (docs/moduly.md → „Režim úprav na detailech“): tužka
+  jen s ikonou, která se po otevření polí na tomtéž místě změní v „Uložit“
+  (a vedle ní „Zrušit“). Co je vidět, řídí CSS podle data-rezim nejbližšího
+  obalu, přepíná public/js/upravy.js.
+
+    include('../../includes/upravit', { formular: 'formZakladni', urlUpravit: '?tab=zakladni&upravit=1', urlZpet: '?tab=zakladni' })
+
+  formular    id formuláře, který Uložit odešle (form=) — může ležet kdekoli na stránce
+  urlUpravit  odkaz tužky bez JavaScriptu (…&upravit=1)
+  urlZpet     odkaz Zrušit bez JavaScriptu (bez upravit, error i saved)
+  paticka     true → jen Zrušit a Uložit pod dlouhý formulář (.jen-upravy), bez tužky a hlášky pro čtečku
+%>
+<% if (locals.paticka) { %>
+<div class="upravit-paticka jen-upravy">
+  <a href="<%= urlZpet %>" class="btn btn-ghost upravit-zrusit" data-upravit-zrusit>Zrušit</a>
+  <button type="submit" form="<%= formular %>" class="btn btn-primary upravit-ulozit">Uložit</button>
+</div>
+<% } else { %>
+<a href="<%= urlUpravit %>" class="btn btn-outline btn-ikona upravit-otevrit" data-upravit-otevrit aria-label="Upravit" title="Upravit">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>
+</a>
+<a href="<%= urlZpet %>" class="btn btn-ghost upravit-zrusit" data-upravit-zrusit>Zrušit</a>
+<button type="submit" form="<%= formular %>" class="btn btn-primary upravit-ulozit">Uložit</button>
+<span class="upravit-stav sr-only" role="status" aria-live="polite"></span>
+<% } %>

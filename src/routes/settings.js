@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { getDb, generateId } from '../db.js';
+import { rezimUprav } from '../upravy.js';
 import { renderSeriesNumber } from '../series-format.js';
 import { invalidateBrandCache, shopBrand } from '../brand.js';
 import { hashKlice, otiskKlice, vygenerujKlic } from '../eshop-klice.js';
@@ -19,13 +20,15 @@ const ESHOP_S_VLASTNIM_API = 'toneracek';
  * dostává totéž pole, aby se nerozešly. Neznámý klíč (i pole z ?tab=a&tab=b)
  * padá na první záložku.
  */
+// Klíč, popisek a id upravitelného formuláře — tužka v hlavičce se ukáže
+// jen u záložek, které formulář záznamu mají (src/upravy.js).
 const ZALOZKY_ESHOPU = [
-  ['zakladni',     'Základní informace'],
-  ['identita',     'Identita e-mailů'],
-  ['napojeni',     'Napojení e-shopu'],
-  ['expedice',     'Expedice do skladu'],
-  ['marketing',    'Marketing'],
-  ['healthchecky', 'Healthchecky'],
+  ['zakladni',     'Základní informace', 'formZakladni'],
+  ['identita',     'Identita e-mailů',   'formIdentita'],
+  ['napojeni',     'Napojení e-shopu',   null],
+  ['expedice',     'Expedice do skladu', 'formExpedice'],
+  ['marketing',    'Marketing',          'formMarketing'],
+  ['healthchecky', 'Healthchecky',       null],
 ];
 const zalozka = (hodnota) => ZALOZKY_ESHOPU.some(([k]) => k === hodnota) ? hodnota : 'zakladni';
 
@@ -44,6 +47,7 @@ export default async function settingsRoutes(fastify) {
     return reply.view('pages/settings/company.ejs', {
       pageTitle: 'Nastavení firmy', currentPath: '/nastaveni/firma',
       user: request.user, company: company || {}, saved: request.query.saved === '1',
+      rezimUprav: rezimUprav(request.query),
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -280,6 +284,7 @@ export default async function settingsRoutes(fastify) {
       overeni: extra.overeni || null,
       saved: request.query.saved === '1',
       error: extra.error || request.query.error || null,
+      rezimUprav: rezimUprav(request.query),
     }, { layout: 'layouts/base.ejs' });
   }
 
@@ -300,11 +305,11 @@ export default async function settingsRoutes(fastify) {
     const b = request.body || {};
 
     const name = String(b.name || '').trim();
-    if (!name) return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=zakladni&error=zakladni-nazev`);
+    if (!name) return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=zakladni&error=zakladni-nazev&upravit=1`);
 
     const url = String(b.url || '').trim();
     if (url && !/^https?:\/\/\S+$/.test(url)) {
-      return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=zakladni&error=zakladni-url`);
+      return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=zakladni&error=zakladni-url&upravit=1`);
     }
 
     const [shop] = await sql`SELECT id, slug, active FROM shops WHERE id = ${shopId}`;
@@ -412,7 +417,7 @@ export default async function settingsRoutes(fastify) {
     // Stejná podmínka hlídá i CHECK constraint v migraci 030 — tohle jen
     // vrátí srozumitelnou chybu místo pádu na databázi.
     if (from.endsWith('@seil.cz')) {
-      return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=identita&error=firemni-adresa`);
+      return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=identita&error=firemni-adresa&upravit=1`);
     }
 
     await sql`
@@ -450,17 +455,17 @@ export default async function settingsRoutes(fastify) {
 
     const email = (b.warehouse_email || '').trim().toLowerCase();
     if (email && !email.includes('@')) {
-      return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=expedice&error=sklad-email`);
+      return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=expedice&error=sklad-email&upravit=1`);
     }
 
     const bcc = (b.warehouse_email_bcc || '').trim().toLowerCase();
     if (bcc && !bcc.includes('@')) {
-      return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=expedice&error=sklad-kopie`);
+      return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=expedice&error=sklad-kopie&upravit=1`);
     }
 
     const since = (b.warehouse_dispatch_since || '').trim();
     if (since && !/^\d{4}-\d{2}-\d{2}$/.test(since)) {
-      return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=expedice&error=sklad-datum`);
+      return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=expedice&error=sklad-datum&upravit=1`);
     }
 
     await sql`
@@ -486,7 +491,7 @@ export default async function settingsRoutes(fastify) {
     try {
       await nastavMarketingEshopu(sql, shopId, { marzePct: b.marketing_margin_pct, pnoAlertPct: b.marketing_pno_alert_pct });
     } catch (err) {
-      if (err instanceof ZdrojError) return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=marketing&error=${err.kod}`);
+      if (err instanceof ZdrojError) return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=marketing&error=${err.kod}&upravit=1`);
       throw err;
     }
     return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=marketing&saved=1`);

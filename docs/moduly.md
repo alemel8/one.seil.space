@@ -429,6 +429,8 @@ pod náhledem.
 | `GET /crm/firmy` | Seznam firem |
 | `GET /crm/firmy/:id` | Detail firmy (kontakty, objednávky, faktury) |
 | `POST /crm/firmy/vytvorit` | Nová firma |
+| `POST /crm/firmy/:id` | Úprava firmy (celý řádek, formulář záznamu na záložce Základní informace) |
+| `POST /crm/firmy/:id/poznamky` | Jen poznámky — formulář na záložce Poznámky, zbytek řádku nechává |
 | `POST /crm/firmy/:id/ares` | Sync dat z ARES (obchodní rejstřík) |
 | `GET /crm/kontakty` | Seznam kontaktů |
 | `GET /crm/kontakty/:id` | Detail kontaktu |
@@ -824,7 +826,10 @@ platformy, poslední stažení), `healthchecky` (healthchecky, alerty při
 výpadku, „+ Healthcheck“). Neznámý klíč otevře `zakladni`.
 
 Konvence: každý POST se vrací na svou záložku —
-`/nastaveni/eshopy/:id?tab=<záložka>&saved=1` nebo `…&error=<kód>`; POSTy,
+`/nastaveni/eshopy/:id?tab=<záložka>&saved=1` nebo `…&error=<kód>&upravit=1`
+(chyba vrátí uživatele do otevřeného formuláře, viz *Režim úprav na
+detailech* níž; chyby formulářů platforem na záložce Marketing `upravit=1`
+nenesou — netýkají se formuláře marže); POSTy,
 které vykreslují přímo (nový klíč, nové tajemství, ověření platformy),
 předávají `vykresliDetail()` záložku v `extra.tab`. Healthchecky a alerty
 jdou přes routy monitoringu a vrací se hodnotou `returnTo`
@@ -835,6 +840,63 @@ projektu a člena týmu.
 **Toneráček se nevypíná.** Jeho API klíč z prostředí stav `shops.active`
 nečte, ale expedice a noční stahování ano — přepínač je proto zašedlý
 a routa u něj `active` z těla ignoruje.
+
+Záložky `zakladni`, `identita`, `expedice` a `marketing` jsou formuláře
+záznamu v režimu úprav (třetí prvek `ZALOZKY_ESHOPU` je id formuláře,
+`napojeni` a `healthchecky` ho nemají, a tak tužku neukazují). Marketing má
+marži a práh PNO ve vlastní kartě; napojení platforem pod ní má dál své
+formuláře s vlastním Uložit a Ověřit připojení — tužka se jich netýká.
+
+### Režim úprav na detailech („tužka → Uložit“)
+
+Detail záznamu se vykresluje v režimu **zobrazení**: hodnoty jako text pod
+popisky, žádné vstupy. Vpravo v hlavičce je tužka (jen ikona, `aria-label`
+Upravit); po kliknutí se tatáž pole na stránce otevřou k úpravě a tužka se
+na tomtéž místě změní v **Uložit** (vedle ní nenápadné Zrušit); u delších
+formulářů je stejná dvojice ještě v patičce. Uložit odešle formulář
+(`<button form="…">`), server uloží a přesměruje na `?saved=1` — zpět do
+zobrazení.
+
+Jak to drží pohromadě:
+
+- **Stav** nese `data-rezim="zobrazeni|upravy"` na obalu stránky
+  (`<div class="detail">`), u Mého profilu na kartě. CSS v `components.css`
+  podle něj skryje vstupy upravitelného formuláře a `.jen-upravy`, nebo
+  hodnoty polí a `.jen-zobrazeni`. Formulář záznamu má třídu `upravitelne`
+  a `id`; ostatní formuláře na stránce (heslo, klíče, platformy, přílohy)
+  režim neznají a chovají se jako dřív.
+- **Pole** vykresluje `views/includes/pole.ejs` z jednoho popisu
+  (`{ label, name, value, typ, … }`) hodnotu i vstup — jediný zdroj pravdy
+  pro oba režimy; datum přes `prazsky-cas.js`, všechno escapované. Pole
+  s `form=` může ležet mimo `<form>`, takže formulář přes víc karet
+  nevnořuje jiné formuláře (přijatá faktura). Zvláštní pole (slug, vzorky
+  barev) se píší ručně týmiž třídami; `pole-stale` zůstává vidět i v úpravách.
+- **Ovládání** je `views/includes/upravit.ejs`: bez JavaScriptu je tužka
+  odkaz na `?…&upravit=1`, Zrušit odkaz zpět, Uložit submit.
+  `public/js/upravy.js` přepíná atribut bez načtení stránky, drží URL
+  pravdivou (`upravit=1` přidá, `saved`/`error` odebere) a hlídá rozepsané
+  změny: Zrušit, Esc i odchod ze stránky se při změněném formuláři zeptají;
+  Esc se ignoruje v selectu, kalendáři a poli s našeptávačem a přes otevřený
+  modal. Zrušení volá `form.reset()` — stránka, která něco z polí odvozuje
+  (účtenka: zámek odpočtu DPH), si to přepočítá v události `reset`.
+- **Server** čte režim jen z `?upravit=1` (`rezimUprav()` v `src/upravy.js`),
+  nikdy z `error=` — chyba může přijít z jiného formuláře na téže stránce
+  (heslo na profilu, fotka člena, token platformy). POST upravitelného
+  formuláře proto při chybě přidá `&upravit=1` do přesměrování sám. Na
+  stránkách se záložkami je tužka jen u záložek s formulářem záznamu
+  (mapa záložka → id formuláře v šabloně nebo v routě).
+- **Routy přepisují celý řádek** (`UPDATE … SET` všech sloupců), formulář
+  proto musí poslat všechna pole — i hidden pro druhou záložku (člen týmu).
+  Render testy (`test/render-*.test.js`, pomocník `test/pomocnici/render.js`)
+  pro každou stránku hlídají, že každý zapisovaný sloupec má ve formuláři
+  `name=`, že se formuláře nevnořují a že tužka míří na formulář záznamu.
+
+Kde režim je: detail e-shopu (čtyři záložky), firma (základní informace
+a poznámky — ty mají vlastní `POST /crm/firmy/:id/poznamky`, aby formulář
+jen s textarea nepřepisoval zbytek řádku), projekt, podprojekt, člen týmu
+(detail, bankovní účet), Můj profil (osobní údaje), Nastavení firmy,
+účtenka a přijatá faktura. **Vydaná faktura** zůstává u modalu — její úprava
+obsahuje editor položek, který do karet detailu nepatří.
 
 ### Identita e-shopu v e-mailech
 

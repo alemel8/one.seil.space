@@ -1,5 +1,13 @@
 <%# Záložky (?tab=) přepíná server — `tab` i `zalozky` dává routa
     (src/routes/settings.js), načtená jsou jen data otevřené záložky. %>
+<%
+  // Režim úprav (src/upravy.js): tužka v hlavičce jen u záložky, která má
+  // formulář záznamu (třetí prvek v zalozky); bez JS otevře úpravy ?upravit=1.
+  const formular = (zalozky.find(([k]) => k === tab) || [])[2] || null;
+  const rezim = formular && rezimUprav ? 'upravy' : 'zobrazeni';
+  const urlZalozky = `?tab=${tab}`;
+%>
+<div class="detail" data-rezim="<%= rezim %>">
 <div class="page-header">
   <div class="page-header-left">
     <nav aria-label="Drobečková navigace" style="font-size:13px;color:var(--text-muted);margin-bottom:6px;">
@@ -20,10 +28,15 @@
       <% } %>
     </div>
   </div>
+  <% if (formular) { %>
+  <div class="page-header-akce">
+    <%- include('../../includes/upravit', { formular, urlUpravit: `${urlZalozky}&upravit=1`, urlZpet: urlZalozky }) %>
+  </div>
+  <% } %>
 </div>
 
 <% if (saved) { %>
-<div class="alert alert-success" style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:12px 16px;border-radius:8px;margin-bottom:20px;">✓ Uloženo</div>
+<div class="alert alert-success jen-zobrazeni" style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:12px 16px;border-radius:8px;margin-bottom:20px;">✓ Uloženo</div>
 <% } %>
 
 <% if (typeof error !== 'undefined' && error === 'firemni-adresa') { %>
@@ -135,39 +148,25 @@
 <div class="card" style="max-width:820px;">
   <div class="card-header">Základní informace</div>
   <div class="card-body">
-    <form method="post" action="/nastaveni/eshopy/<%= shop.id %>/zakladni">
+    <form method="post" action="/nastaveni/eshopy/<%= shop.id %>/zakladni" id="formZakladni" class="upravitelne">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-group">
-          <label class="form-label required">Název</label>
-          <input type="text" name="name" class="form-control" value="<%= shop.name %>" maxlength="100" required>
+        <%- include('../../includes/pole', { pole: { label: 'Název', name: 'name', value: shop.name, required: true, maxlength: 100 } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'URL e-shopu', name: 'url', typ: 'url', value: shop.url, placeholder: 'https://toneracek.cz',
+          hint: 'Přes ni One SEIL podává balíky (/api/orders/podat-balik) a stahuje statistiku e-shopu pro Marketing.' } }) %>
+        <div class="form-group pole pole-stale">
+          <span class="form-label">Slug (ID)</span>
+          <div class="pole-hodnota"><code style="background:var(--gray-100);padding:2px 6px;border-radius:4px;font-size:12px;"><%= shop.slug %></code></div>
+          <small class="form-hint jen-upravy">Identifikátor v adresách (<code>?eshop=<%= shop.slug %></code>) i v API. Nejde změnit — pod jiným slugem by vznikl jiný e-shop.</small>
         </div>
-        <div class="form-group">
-          <label class="form-label">URL e-shopu</label>
-          <input type="url" name="url" class="form-control" value="<%= shop.url %>" placeholder="https://toneracek.cz">
-          <small style="color:var(--text-muted);">Přes ni One SEIL podává balíky (<code>/api/orders/podat-balik</code>) a stahuje statistiku e-shopu pro Marketing.</small>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Slug (ID)</label>
-          <div style="padding:9px 0;"><code style="background:var(--gray-100);padding:2px 6px;border-radius:4px;font-size:12px;"><%= shop.slug %></code></div>
-          <small style="color:var(--text-muted);">Identifikátor v adresách (<code>?eshop=<%= shop.slug %></code>) i v API. Nejde změnit — pod jiným slugem by vznikl jiný e-shop.</small>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Stav</label>
-          <label class="toggle-label" style="padding:7px 0;">
-            <input type="checkbox" name="active" value="1" class="toggle-input" <%= shop.active ? 'checked' : '' %> <%= tajemstviZProstredi ? 'disabled' : '' %>>
-            <span class="toggle-switch"></span>
-            <span class="toggle-text">Aktivní e-shop</span>
-          </label>
-          <% if (tajemstviZProstredi) { %>
-          <small style="color:var(--text-muted);">Toneráček se vypnout nedá — jeho API klíč z prostředí stav nečte, ale expedice a noční stahování ano, vypnutí by ho rozpůlilo.</small>
-          <% } else { %>
-          <small style="color:var(--text-muted);">Neaktivní e-shop přeskočí ranní expedice i noční stahování marketingu a jeho klíče pro <code>/api/eshop</code> přestanou platit.</small>
-          <% } %>
-        </div>
+        <%- include('../../includes/pole', { pole: { label: 'Stav', name: 'active', typ: 'toggle', value: shop.active, popisek: 'Aktivní e-shop',
+          zobraz: shop.active ? 'Aktivní' : 'Neaktivní', disabled: tajemstviZProstredi,
+          hint: tajemstviZProstredi
+            ? 'Toneráček se vypnout nedá — jeho API klíč z prostředí stav nečte, ale expedice a noční stahování ano, vypnutí by ho rozpůlilo.'
+            : 'Neaktivní e-shop přeskočí ranní expedice i noční stahování marketingu a jeho klíče pro /api/eshop přestanou platit.' } }) %>
       </div>
       <div style="display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:18px;">
-        <button type="submit" class="btn btn-primary">Uložit</button>
-        <span style="font-size:12px;color:var(--text-muted);">Založen <%= shop.created_at ? new Date(shop.created_at).toLocaleDateString('cs-CZ') : '—' %></span>
+        <span style="font-size:12px;color:var(--text-muted);">Založen <%= shop.created_at ? ceskeDatum(shop.created_at) : '—' %></span>
+        <%- include('../../includes/upravit', { paticka: true, formular: 'formZakladni', urlZpet: urlZalozky }) %>
       </div>
     </form>
   </div>
@@ -193,68 +192,32 @@
         </div>
         <% } %>
 
-        <form method="post" action="/nastaveni/eshopy/<%= shop.id %>/identita">
+        <form method="post" action="/nastaveni/eshopy/<%= shop.id %>/identita" id="formIdentita" class="upravitelne">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-            <div class="form-group">
-              <label class="form-label required">Odesílatel — jméno</label>
-              <input type="text" name="email_from_name" class="form-control" value="<%= shop.email_from_name %>" placeholder="Toneráček.cz" required>
+            <%- include('../../includes/pole', { pole: { label: 'Odesílatel — jméno', name: 'email_from_name', value: shop.email_from_name, required: true, placeholder: 'Toneráček.cz' } }) %>
+            <%- include('../../includes/pole', { pole: { label: 'Odesílatel — adresa', name: 'email_from_address', typ: 'email', value: shop.email_from_address, required: true, placeholder: 'noreply@toneracek.cz' } }) %>
+            <%- include('../../includes/pole', { pole: { label: 'Odpovědi na', name: 'email_reply_to', typ: 'email', value: shop.email_reply_to, placeholder: 'ahoj@toneracek.cz' } }) %>
+            <%- include('../../includes/pole', { pole: { label: 'Kontaktní e-mail', name: 'support_email', typ: 'email', value: shop.support_email, placeholder: 'ahoj@toneracek.cz' } }) %>
+            <%- include('../../includes/pole', { pole: { label: 'Telefon (zobrazený)', name: 'support_phone', value: shop.support_phone, placeholder: '728 749 931' } }) %>
+            <%- include('../../includes/pole', { pole: { label: 'Telefon (odkaz tel:)', name: 'support_phone_link', value: shop.support_phone_link, placeholder: '+420728749931' } }) %>
+            <%- include('../../includes/pole', { pole: { label: 'Podtitul v hlavičce', name: 'tagline', value: shop.tagline, placeholder: 'Správná náplň pro vaši tiskárnu' } }) %>
+            <%- include('../../includes/pole', { pole: { label: 'Claim v patičce', name: 'claim', value: shop.claim, placeholder: 'Nenechte tiskárnu žíznit' } }) %>
+            <%- include('../../includes/pole', { pole: { label: 'Logo v hlavičce (URL)', name: 'logo_mark_url', typ: 'url', value: shop.logo_mark_url, styl: 'grid-column:1 / -1' } }) %>
+            <%- include('../../includes/pole', { pole: { label: 'Logo v patičce (URL)', name: 'logo_wordmark_url', typ: 'url', value: shop.logo_wordmark_url, styl: 'grid-column:1 / -1' } }) %>
+            <%# Barvy ručně: v zobrazení vzorek barvy, jen když je hodnota platný hex. %>
+            <% [['Hlavní barva', 'color_primary', '#0891b2'], ['Přechod — tmavší', 'color_primary_dark', '#0e7490'],
+                ['Přechod — světlejší', 'color_primary_light', '#06b6d4'], ['Podtitul na barvě', 'color_on_primary_soft', '#cffafe']]
+               .forEach(([label, name, ph]) => { const v = shop[name] || ''; const hex = /^#[0-9a-fA-F]{3,8}$/.test(v) ? v : null; %>
+            <div class="form-group pole">
+              <label class="form-label" for="pole-<%= name %>"><%= label %></label>
+              <div class="pole-hodnota"><% if (hex) { %><span class="barva-vzorek" style="background:<%= hex %>;"></span><code><%= v %></code><% } else if (v) { %><%= v %><% } else { %><span class="pole-prazdne">—<span class="sr-only"> nevyplněno</span></span><% } %></div>
+              <input type="text" id="pole-<%= name %>" name="<%= name %>" class="form-control" value="<%= v %>" placeholder="<%= ph %>">
             </div>
-            <div class="form-group">
-              <label class="form-label required">Odesílatel — adresa</label>
-              <input type="email" name="email_from_address" class="form-control" value="<%= shop.email_from_address %>" placeholder="noreply@toneracek.cz" required>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Odpovědi na</label>
-              <input type="email" name="email_reply_to" class="form-control" value="<%= shop.email_reply_to %>" placeholder="ahoj@toneracek.cz">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Kontaktní e-mail</label>
-              <input type="email" name="support_email" class="form-control" value="<%= shop.support_email %>" placeholder="ahoj@toneracek.cz">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Telefon (zobrazený)</label>
-              <input type="text" name="support_phone" class="form-control" value="<%= shop.support_phone %>" placeholder="728 749 931">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Telefon (odkaz tel:)</label>
-              <input type="text" name="support_phone_link" class="form-control" value="<%= shop.support_phone_link %>" placeholder="+420728749931">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Podtitul v hlavičce</label>
-              <input type="text" name="tagline" class="form-control" value="<%= shop.tagline %>" placeholder="Správná náplň pro vaši tiskárnu">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Claim v patičce</label>
-              <input type="text" name="claim" class="form-control" value="<%= shop.claim %>" placeholder="Nenechte tiskárnu žíznit">
-            </div>
-            <div class="form-group" style="grid-column:1 / -1;">
-              <label class="form-label">Logo v hlavičce (URL)</label>
-              <input type="url" name="logo_mark_url" class="form-control" value="<%= shop.logo_mark_url %>">
-            </div>
-            <div class="form-group" style="grid-column:1 / -1;">
-              <label class="form-label">Logo v patičce (URL)</label>
-              <input type="url" name="logo_wordmark_url" class="form-control" value="<%= shop.logo_wordmark_url %>">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Hlavní barva</label>
-              <input type="text" name="color_primary" class="form-control" value="<%= shop.color_primary %>" placeholder="#0891b2">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Přechod — tmavší</label>
-              <input type="text" name="color_primary_dark" class="form-control" value="<%= shop.color_primary_dark %>" placeholder="#0e7490">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Přechod — světlejší</label>
-              <input type="text" name="color_primary_light" class="form-control" value="<%= shop.color_primary_light %>" placeholder="#06b6d4">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Podtitul na barvě</label>
-              <input type="text" name="color_on_primary_soft" class="form-control" value="<%= shop.color_on_primary_soft %>" placeholder="#cffafe">
-            </div>
+            <% }) %>
           </div>
-          <div style="display:flex;gap:10px;align-items:center;margin-top:14px;">
-            <button type="submit" class="btn btn-primary">Uložit identitu</button>
-            <a href="/nastaveni/eshopy/<%= shop.id %>/nahled-emailu" target="_blank" class="btn">Náhled e-mailu</a>
+          <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:14px;">
+            <a href="/nastaveni/eshopy/<%= shop.id %>/nahled-emailu" target="_blank" class="btn btn-outline btn-sm">Náhled e-mailu</a>
+            <%- include('../../includes/upravit', { paticka: true, formular: 'formIdentita', urlZpet: urlZalozky }) %>
           </div>
         </form>
       </div>
@@ -399,28 +362,16 @@
         </div>
         <% } %>
 
-        <form method="post" action="/nastaveni/eshopy/<%= shop.id %>/expedice">
+        <form method="post" action="/nastaveni/eshopy/<%= shop.id %>/expedice" id="formExpedice" class="upravitelne">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-            <div class="form-group">
-              <label class="form-label">E-mail skladu</label>
-              <input type="email" name="warehouse_email" class="form-control" value="<%= shop.warehouse_email %>" placeholder="sklad@dodavatel.cz">
-              <small style="color:var(--text-muted);">Prázdné = expedice vypnutá.</small>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Skrytá kopie</label>
-              <input type="email" name="warehouse_email_bcc" class="form-control" value="<%= shop.warehouse_email_bcc %>" placeholder="kontrola@seil.cz">
-              <small style="color:var(--text-muted);">Dostane tentýž e-mail i se štítky. Skrytě, ať sklad neodpovídá oběma. Prázdné = bez kopie.</small>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Posílat objednávky přijaté od</label>
-              <input type="date" name="warehouse_dispatch_since" class="form-control"
-                     value="<%= shop.warehouse_dispatch_since ? new Date(shop.warehouse_dispatch_since).toISOString().slice(0,10) : '' %>">
-              <small style="color:var(--text-muted);">Starší objednávky vyřídil sklad ručně, automat je nikdy nepošle.</small>
-            </div>
+            <%- include('../../includes/pole', { pole: { label: 'E-mail skladu', name: 'warehouse_email', typ: 'email', value: shop.warehouse_email, placeholder: 'sklad@dodavatel.cz',
+              zobraz: shop.warehouse_email ? undefined : 'Expedice vypnutá', hint: 'Prázdné = expedice vypnutá.' } }) %>
+            <%- include('../../includes/pole', { pole: { label: 'Skrytá kopie', name: 'warehouse_email_bcc', typ: 'email', value: shop.warehouse_email_bcc, placeholder: 'kontrola@seil.cz',
+              zobraz: shop.warehouse_email_bcc ? undefined : 'Bez kopie', hint: 'Dostane tentýž e-mail i se štítky. Skrytě, ať sklad neodpovídá oběma. Prázdné = bez kopie.' } }) %>
+            <%- include('../../includes/pole', { pole: { label: 'Posílat objednávky přijaté od', name: 'warehouse_dispatch_since', typ: 'date', value: shop.warehouse_dispatch_since,
+              hint: 'Starší objednávky vyřídil sklad ručně, automat je nikdy nepošle.' } }) %>
           </div>
-          <div style="margin-top:14px;">
-            <button type="submit" class="btn btn-primary">Uložit expedici</button>
-          </div>
+          <%- include('../../includes/upravit', { paticka: true, formular: 'formExpedice', urlZpet: urlZalozky }) %>
         </form>
 
         <% if (expedice && expedice.length) { %>
@@ -464,31 +415,38 @@
 <% } %>
 
 <% if (tab === 'marketing') { %>
-    <!-- Marketing: marže, práh PNO a napojení platforem -->
-    <div class="card">
+    <!-- Marketing: marže a práh PNO (upravitelné), napojení platforem zvlášť -->
+    <div class="card" style="margin-bottom:20px;">
       <div class="card-header">Marketing</div>
       <div class="card-body">
         <p style="font-size:13px;color:var(--text-muted);margin:0 0 16px;">
           Sekce <a href="/marketing<%= shop.slug !== 'toneracek' ? '?eshop=' + encodeURIComponent(shop.slug) : '' %>">Marketing</a>
           počítá PNO, ROAS a ROI z objednávek tohoto e-shopu a z nákladů stažených
-          z reklamních platforem. Tady se nastavuje, odkud se stahuje a s jakou marží se počítá.
+          z reklamních platforem. Tady se nastavuje, s jakou marží se počítá a kdy upozornit.
         </p>
 
-        <form method="post" action="/nastaveni/eshopy/<%= shop.id %>/marketing" style="margin-bottom:20px;">
+        <% const procenta = (n) => Number(n) ? Number(n).toLocaleString('cs-CZ', { maximumFractionDigits: 2 }) + ' %' : null; %>
+        <form method="post" action="/nastaveni/eshopy/<%= shop.id %>/marketing" id="formMarketing" class="upravitelne">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-            <div class="form-group">
-              <label class="form-label">Odhad hrubé marže (% z ceny bez DPH)</label>
-              <input type="number" name="marketing_margin_pct" class="form-control" step="0.01" min="0" max="100" value="<%= Number(shop.marketing_margin_pct) || 0 %>">
-              <small style="color:var(--text-muted);">Pro položky bez nákupní ceny z e-shopu. Toneráček ≈ 33 (prodejní cena = nákupní × 1,8, obě bez DPH). 0 = marže se neodhaduje.</small>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Upozornit, když PNO přesáhne (%)</label>
-              <input type="number" name="marketing_pno_alert_pct" class="form-control" step="0.01" min="0" max="100" value="<%= Number(shop.marketing_pno_alert_pct) || 0 %>">
-              <small style="color:var(--text-muted);">Bod zvratu Toneráčku ≈ 28 %. 0 = upozornění vypnuté.</small>
-            </div>
+            <%- include('../../includes/pole', { pole: { label: 'Odhad hrubé marže (% z ceny bez DPH)', name: 'marketing_margin_pct', typ: 'number', step: '0.01', min: 0, max: 100,
+              value: Number(shop.marketing_margin_pct) || 0, zobraz: procenta(shop.marketing_margin_pct) || 'Neodhaduje se',
+              hint: 'Pro položky bez nákupní ceny z e-shopu. Toneráček ≈ 33 (prodejní cena = nákupní × 1,8, obě bez DPH). 0 = marže se neodhaduje.' } }) %>
+            <%- include('../../includes/pole', { pole: { label: 'Upozornit, když PNO přesáhne (%)', name: 'marketing_pno_alert_pct', typ: 'number', step: '0.01', min: 0, max: 100,
+              value: Number(shop.marketing_pno_alert_pct) || 0, zobraz: procenta(shop.marketing_pno_alert_pct) || 'Upozornění vypnuté',
+              hint: 'Bod zvratu Toneráčku ≈ 28 %. 0 = upozornění vypnuté.' } }) %>
           </div>
-          <div style="margin-top:10px;"><button type="submit" class="btn btn-primary">Uložit</button></div>
+          <%- include('../../includes/upravit', { paticka: true, formular: 'formMarketing', urlZpet: urlZalozky }) %>
         </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Reklamní platformy</div>
+      <div class="card-body">
+        <p style="font-size:13px;color:var(--text-muted);margin:0 0 16px;">
+          Odkud se každou noc stahují náklady a statistiky. Každá platforma se ukládá
+          a ověřuje zvlášť — tužka nahoře se jich netýká.
+        </p>
 
         <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Google</div>
         <% if (maGoogleSa) { %>
@@ -750,4 +708,4 @@
   </div>
 </div>
 <% } %>
-
+</div>

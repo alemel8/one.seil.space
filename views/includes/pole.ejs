@@ -1,0 +1,112 @@
+<%#
+  Jedno pole detailu v režimu zobrazení i úprav (docs/moduly.md → „Režim úprav
+  na detailech“). Vykreslí popisek, hodnotu jako text (.pole-hodnota) a vstup;
+  CSS podle data-rezim obalu ukáže jen jedno z toho.
+
+    include('../../includes/pole', { pole: { label: 'Název', name: 'name', value: shop.name, required: true } })
+    (v šabloně uvnitř značky s pomlčkou — výstup includu se nesmí escapovat)
+
+  pole:
+    label, name, value
+    typ        'text' | 'email' | 'url' | 'tel' | 'number' | 'date' | 'textarea' | 'select' | 'toggle' | 'checkbox'
+    id         výchozí 'pole-' + name (pro label for= a pro skripty stránky)
+    form       atribut form= — vstup může ležet mimo <form> (formulář přes víc karet bez vnořování)
+    placeholder, required, disabled, readonly, maxlength, min, max, step, autocomplete, list
+    rows       textarea, výchozí 3
+    moznosti   select: [[hodnota, popisek], …] nebo ['A', 'B']; porovnává se jako řetězec
+    prazdna    select: popisek prázdné volby (value=""), bez něj prázdná volba není
+    popisek    toggle/checkbox: text vedle přepínače (výchozí label)
+    hodnotaVstupu  toggle/checkbox: odesílaná value, výchozí '1' (routy berou '1' i 'on')
+    zobraz     text pro režim zobrazení místo výchozího (např. „33 %“, „Expedice vypnutá“)
+    hint       nápověda pod vstupem, jen v úpravách
+    stale      true → jen hodnota bez vstupu, zůstává vidět i v úpravách (slug, e-mail v profilu)
+    trida      další třídy .form-group (např. 'col-span-2'); styl → inline style (např. 'grid-column:1/-1')
+
+  Zobrazení: date → „1. 10. 2026“ (prazsky-cas.js, nezávisle na TZ procesu; vstup dostane
+  YYYY-MM-DD), number → cs-CZ s nejvýš dvěma desetinnými místy, select → popisek vybrané
+  možnosti, toggle/checkbox → „Ano“/„Ne“, url/email/tel → odkaz (url jen s http(s)://),
+  prázdná hodnota → „—“. Všechno escapované; atributy skládá esc() níž.
+%>
+<%
+  const p = pole;
+  const typ = p.typ || 'text';
+  const stale = Boolean(p.stale);
+  const id = p.id || (p.name ? 'pole-' + p.name : null);
+  const hodnota = p.value;
+  const maHodnotu = hodnota !== null && hodnota !== undefined && hodnota !== ''
+    && !(typeof hodnota === 'number' && Number.isNaN(hodnota));
+  const zaskrtavaci = typ === 'toggle' || typ === 'checkbox';
+
+  const moznosti = (p.moznosti || []).map(m => Array.isArray(m) ? [String(m[0]), String(m[1])] : [String(m), String(m)]);
+  const vybrana = maHodnotu ? moznosti.find(([v]) => v === String(hodnota)) : undefined;
+
+  let text;
+  if (p.zobraz !== undefined && p.zobraz !== null) text = String(p.zobraz);
+  else if (zaskrtavaci) text = hodnota ? 'Ano' : 'Ne';
+  else if (typ === 'select') text = vybrana ? vybrana[1] : (maHodnotu ? String(hodnota) : '');
+  else if (typ === 'date') text = maHodnotu ? ceskeDatum(hodnota) : '';
+  else if (typ === 'number') text = maHodnotu ? Number(hodnota).toLocaleString('cs-CZ', { maximumFractionDigits: 2 }) : '';
+  else text = maHodnotu ? String(hodnota) : '';
+  const prazdne = text === '';
+
+  let href = null;
+  if (maHodnotu && (p.zobraz === undefined || p.zobraz === null)) {
+    const s = String(hodnota).trim();
+    if (typ === 'url' && /^https?:\/\//i.test(s)) href = s;
+    else if (typ === 'email' && s.includes('@')) href = 'mailto:' + s;
+    else if (typ === 'tel') href = 'tel:' + s.replace(/\s+/g, '');
+  }
+
+  const vstupniHodnota = typ === 'date' ? (jenDatum(hodnota) || '') : (maHodnotu ? String(hodnota) : '');
+
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const spolecne = [
+    id ? ` id="${esc(id)}"` : '',
+    ` name="${esc(p.name || '')}"`,
+    p.form ? ` form="${esc(p.form)}"` : '',
+    p.required ? ' required' : '',
+    p.disabled ? ' disabled' : '',
+    p.readonly ? ' readonly' : '',
+    p.autocomplete ? ` autocomplete="${esc(p.autocomplete)}"` : '',
+  ].join('');
+  const textove = [
+    p.placeholder ? ` placeholder="${esc(p.placeholder)}"` : '',
+    p.maxlength != null ? ` maxlength="${esc(p.maxlength)}"` : '',
+    p.min != null ? ` min="${esc(p.min)}"` : '',
+    p.max != null ? ` max="${esc(p.max)}"` : '',
+    p.step != null ? ` step="${esc(p.step)}"` : '',
+    p.list ? ` list="${esc(p.list)}"` : '',
+  ].join('');
+%>
+<div class="form-group pole<%= stale ? ' pole-stale' : '' %><%= p.trida ? ' ' + p.trida : '' %>"<% if (p.styl) { %> style="<%= p.styl %>"<% } %>>
+  <% if (id && !stale && !zaskrtavaci) { %>
+  <label class="form-label<%= p.required ? ' required' : '' %>" for="<%= id %>"><%= p.label %></label>
+  <% } else { %>
+  <span class="form-label<%= p.required ? ' required' : '' %>"><%= p.label %></span>
+  <% } %>
+  <div class="pole-hodnota<%= typ === 'textarea' ? ' pole-hodnota-blok' : '' %>"><% if (prazdne) { %><span class="pole-prazdne">—<span class="sr-only"> nevyplněno</span></span><% } else if (href) { %><a href="<%= href %>"<% if (typ === 'url') { %> target="_blank" rel="noopener noreferrer"<% } %>><%= text %></a><% } else { %><%= text %><% } %></div>
+  <% if (!stale) { %>
+    <% if (typ === 'textarea') { %>
+  <textarea class="form-control" rows="<%= p.rows || 3 %>"<%- spolecne %><%- textove %>><%= vstupniHodnota %></textarea>
+    <% } else if (typ === 'select') { %>
+  <select class="form-select"<%- spolecne %>>
+    <% if (p.prazdna !== undefined && p.prazdna !== null) { %><option value=""<%= !vybrana ? ' selected' : '' %>><%= p.prazdna %></option><% } %>
+    <% moznosti.forEach(([v, l]) => { %><option value="<%= v %>"<%= vybrana && vybrana[0] === v ? ' selected' : '' %>><%= l %></option><% }) %>
+  </select>
+    <% } else if (typ === 'toggle') { %>
+  <label class="toggle-label">
+    <input type="checkbox" class="toggle-input" value="<%= p.hodnotaVstupu ?? '1' %>"<%- spolecne %><%= hodnota ? ' checked' : '' %>>
+    <span class="toggle-switch"></span>
+    <span class="toggle-text"><%= p.popisek || p.label %></span>
+  </label>
+    <% } else if (typ === 'checkbox') { %>
+  <label class="pole-zaskrtavaci">
+    <input type="checkbox" value="<%= p.hodnotaVstupu ?? '1' %>"<%- spolecne %><%= hodnota ? ' checked' : '' %>>
+    <span><%= p.popisek || p.label %></span>
+  </label>
+    <% } else { %>
+  <input type="<%= typ %>" class="form-control" value="<%= vstupniHodnota %>"<%- spolecne %><%- textove %>>
+    <% } %>
+  <% } %>
+  <% if (p.hint) { %><small class="form-hint jen-upravy"><%= p.hint %></small><% } %>
+</div>

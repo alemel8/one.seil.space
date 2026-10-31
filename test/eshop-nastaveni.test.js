@@ -228,7 +228,7 @@ describe('detail e-shopu po záložkách', () => {
       const html = await detail(q);
       assert.ok(html.includes(`action="/nastaveni/eshopy/${ctx.shop.id}/zakladni"`), `${q}: formulář základních informací`);
       assert.ok(/class="tab active" aria-current="page">Základní informace</.test(html), `${q}: aktivní záložka`);
-      assert.ok(html.includes('name="active" value="1" class="toggle-input" checked'), `${q}: přepínač je předvyplněný stavem e-shopu`);
+      assert.match(html, /<input[^>]*name="active"[^>]*checked/, `${q}: přepínač je předvyplněný stavem e-shopu`);
       assert.ok(!html.includes(`/nastaveni/eshopy/${ctx.shop.id}/identita"`), `${q}: identita je na jiné záložce`);
     }
   });
@@ -251,6 +251,29 @@ describe('detail e-shopu po záložkách', () => {
     assert.ok(health.includes(`value="/nastaveni/eshopy/${ctx.shop.id}?tab=healthchecky"`), 'healthchecky se vrací na svou záložku');
   });
 
+  test('režim úprav: tužka jen u záložek s formulářem, ?upravit=1 otevře pole, chyba cizího formuláře ne', async () => {
+    let html = await detail('?tab=zakladni');
+    assert.ok(html.includes('data-rezim="zobrazeni"'), 'výchozí je zobrazení');
+    assert.ok(html.includes('href="?tab=zakladni&amp;upravit=1" class="btn btn-outline btn-ikona upravit-otevrit"'), 'tužka vede bez JS na ?upravit=1');
+    assert.ok(html.includes('form="formZakladni" class="btn btn-primary upravit-ulozit"'), 'Uložit míří na formulář záznamu');
+    assert.ok(html.includes('id="formZakladni" class="upravitelne"'), 'formulář záznamu je označený');
+
+    html = await detail('?tab=zakladni&upravit=1');
+    assert.ok(html.includes('data-rezim="upravy"'), '?upravit=1 otevře úpravy i bez JavaScriptu');
+
+    for (const tab of ['identita', 'expedice', 'marketing']) {
+      assert.ok((await detail(`?tab=${tab}`)).includes('upravit-otevrit'), `${tab} má tužku`);
+    }
+    for (const q of ['?tab=napojeni&upravit=1', '?tab=healthchecky&upravit=1']) {
+      html = await detail(q);
+      assert.ok(html.includes('data-rezim="zobrazeni"') && !html.includes('upravit-otevrit') && !html.includes('upravit-ulozit'), `${q}: bez formuláře záznamu není tužka ani úpravy`);
+    }
+
+    // chyba formuláře platformy nesmí otevřít formulář marže — režim se bere jen z upravit=1
+    html = await detail('?tab=marketing&error=marketing-platforma');
+    assert.ok(html.includes('data-rezim="zobrazeni"'), 'chyba cizího formuláře úpravy neotevře');
+  });
+
   test('Základní informace: název, URL a stav se uloží, slug zůstane', async () => {
     let res = await post(`/nastaveni/eshopy/${ctx.shop.id}/zakladni`, { name: `Nový název ${r}`, url: 'https://novy.example.invalid', slug: 'podvrzeny' });
     assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?tab=zakladni&saved=1`);
@@ -266,10 +289,10 @@ describe('detail e-shopu po záložkách', () => {
     assert.deepEqual([s.name, s.url, s.active], [ctx.shop.name, ctx.shop.url, true]);
 
     res = await post(`/nastaveni/eshopy/${ctx.shop.id}/zakladni`, { name: '   ', active: '1' });
-    assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?tab=zakladni&error=zakladni-nazev`);
+    assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?tab=zakladni&error=zakladni-nazev&upravit=1`);
     for (const url of ['example.invalid', 'ftp://example.invalid', 'https://a b']) {
       res = await post(`/nastaveni/eshopy/${ctx.shop.id}/zakladni`, { name: 'x', url, active: '1' });
-      assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?tab=zakladni&error=zakladni-url`, url);
+      assert.equal(res.headers.get('location'), `/nastaveni/eshopy/${ctx.shop.id}?tab=zakladni&error=zakladni-url&upravit=1`, url);
     }
     [s] = await sql`SELECT name, url, active FROM shops WHERE id = ${ctx.shop.id}`;
     assert.deepEqual([s.name, s.url, s.active], [ctx.shop.name, ctx.shop.url, true], 'neplatná data nic nezapsala');
