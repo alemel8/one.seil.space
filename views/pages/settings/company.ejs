@@ -1,114 +1,61 @@
+<%
+  // Režim úprav (src/upravy.js): jeden formulář přes všech pět karet, tužka
+  // v hlavičce je proto vždy; bez JS otevře úpravy ?upravit=1.
+  const formular = 'formNastaveniFirmy';
+  const rezim = rezimUprav ? 'upravy' : 'zobrazeni';
+  const urlZpet = '/nastaveni/firma';
+%>
+<div class="detail" data-rezim="<%= rezim %>">
 <div class="page-header">
   <div class="page-header-left">
     <h1>Nastavení firmy</h1>
     <p>Fakturační údaje zobrazované na vydaných fakturách</p>
   </div>
+  <div class="page-header-akce">
+    <%- include('../../includes/upravit', { formular, urlUpravit: `${urlZpet}?upravit=1`, urlZpet }) %>
+  </div>
 </div>
 
 <% if (saved) { %>
-<div class="alert alert-success" style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
+<div class="alert alert-success jen-zobrazeni" style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
   ✓ Nastavení uloženo
 </div>
 <% } %>
 
 <div style="max-width:720px;">
-<form method="post" action="/nastaveni/firma">
+<form method="post" action="/nastaveni/firma" id="<%= formular %>" class="upravitelne">
 
   <div class="card" style="margin-bottom:20px;">
     <div class="card-header"><strong>Základní údaje</strong></div>
     <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-
-      <div class="form-group" style="grid-column:1/-1;">
-        <label class="form-label">Název firmy *</label>
-        <input type="text" name="name" value="<%= company.name || '' %>" class="form-control" required>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">IČO</label>
-        <input type="text" name="ico" value="<%= company.ico || '' %>" class="form-control" maxlength="20">
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">DIČ</label>
-        <input type="text" name="dic" value="<%= company.dic || '' %>" class="form-control" maxlength="20">
-      </div>
-
-      <div class="form-group" style="grid-column:1/-1;">
-        <label class="form-label">Ulice a číslo popisné</label>
-        <input type="text" name="address" value="<%= company.address || '' %>" class="form-control">
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">Město</label>
-        <input type="text" name="city" value="<%= company.city || '' %>" class="form-control">
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">PSČ</label>
-        <input type="text" name="zip" value="<%= company.zip || '' %>" class="form-control">
-      </div>
-
-      <div class="form-group" style="grid-column:1/-1;">
-        <label class="form-label">Stát</label>
-        <input type="text" name="country" value="<%= company.country || 'Česká republika' %>" class="form-control">
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">Telefon</label>
-        <input type="text" name="phone" value="<%= company.phone || '' %>" class="form-control">
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">E-mail</label>
-        <input type="email" name="email" value="<%= company.email || '' %>" class="form-control">
-      </div>
-
+      <%- include('../../includes/pole', { pole: { label: 'Název firmy', name: 'name', value: company.name, required: true, styl: 'grid-column:1/-1' } }) %>
+      <%- include('../../includes/pole', { pole: { label: 'IČO', name: 'ico', value: company.ico, maxlength: 20 } }) %>
+      <%- include('../../includes/pole', { pole: { label: 'DIČ', name: 'dic', value: company.dic, maxlength: 20 } }) %>
+      <%- include('../../includes/pole', { pole: { label: 'Ulice a číslo popisné', name: 'address', value: company.address, styl: 'grid-column:1/-1' } }) %>
+      <%- include('../../includes/pole', { pole: { label: 'Město', name: 'city', value: company.city } }) %>
+      <%- include('../../includes/pole', { pole: { label: 'PSČ', name: 'zip', value: company.zip } }) %>
+      <%- include('../../includes/pole', { pole: { label: 'Stát', name: 'country', value: company.country || 'Česká republika', styl: 'grid-column:1/-1' } }) %>
+      <%- include('../../includes/pole', { pole: { label: 'Telefon', name: 'phone', typ: 'tel', value: company.phone } }) %>
+      <%- include('../../includes/pole', { pole: { label: 'E-mail', name: 'email', typ: 'email', value: company.email } }) %>
     </div>
   </div>
 
   <div class="card" style="margin-bottom:20px;">
     <div class="card-header"><strong>Bankovní spojení</strong></div>
     <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-
-      <div class="form-group">
-        <label class="form-label">Číslo účtu</label>
-        <input type="text" name="bank_account" value="<%= company.bank_account || '' %>" class="form-control" placeholder="2800828200/2010">
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">Název banky</label>
-        <input type="text" name="bank_name" value="<%= company.bank_name || '' %>" class="form-control" placeholder="Fio banka">
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">IBAN</label>
-        <input type="text" name="iban" value="<%= company.iban || '' %>" class="form-control" placeholder="CZ...">
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">SWIFT/BIC</label>
-        <input type="text" name="swift" value="<%= company.swift || '' %>" class="form-control" placeholder="FIOBCZPPXXX">
-      </div>
-
+      <%- include('../../includes/pole', { pole: { label: 'Číslo účtu', name: 'bank_account', value: company.bank_account, placeholder: '2800828200/2010' } }) %>
+      <%- include('../../includes/pole', { pole: { label: 'Název banky', name: 'bank_name', value: company.bank_name, placeholder: 'Fio banka' } }) %>
+      <%- include('../../includes/pole', { pole: { label: 'IBAN', name: 'iban', value: company.iban, placeholder: 'CZ...' } }) %>
+      <%- include('../../includes/pole', { pole: { label: 'SWIFT/BIC', name: 'swift', value: company.swift, placeholder: 'FIOBCZPPXXX' } }) %>
     </div>
   </div>
 
   <div class="card" style="margin-bottom:20px;">
     <div class="card-header"><strong>Fakturace</strong></div>
     <div class="card-body" style="display:grid;grid-template-columns:1fr;gap:16px;">
-
-      <div class="form-group">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-          <input type="checkbox" name="vat_payer" value="on" <%= company.vat_payer ? 'checked' : '' %>>
-          <span>Plátce DPH</span>
-        </label>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">Poznámka na faktuře</label>
-        <textarea name="invoice_note" class="form-control" rows="2" placeholder="Např. Nejsme plátci DPH."><%= company.invoice_note || '' %></textarea>
-      </div>
-
+      <%- include('../../includes/pole', { pole: { label: 'DPH', name: 'vat_payer', typ: 'checkbox', value: company.vat_payer, hodnotaVstupu: 'on',
+        popisek: 'Plátce DPH', zobraz: company.vat_payer ? 'Plátce DPH' : 'Neplátce DPH' } }) %>
+      <%- include('../../includes/pole', { pole: { label: 'Poznámka na faktuře', name: 'invoice_note', typ: 'textarea', rows: 2, value: company.invoice_note, placeholder: 'Např. Nejsme plátci DPH.' } }) %>
     </div>
   </div>
 
@@ -116,43 +63,21 @@
     <div class="card-header"><strong>Export do POHODY</strong></div>
     <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
 
-      <div class="form-group" style="grid-column:1/-1;">
+      <div class="form-group jen-upravy" style="grid-column:1/-1;">
         <p style="font-size:13px;color:var(--text-muted);margin:0;">
           Účetní jednotku určuje IČO výše — musí přesně odpovídat IČO účetní jednotky
           otevřené v POHODĚ, jinak import balíček odmítne.
         </p>
       </div>
 
-      <div class="form-group">
-        <label class="form-label">Pokladna v POHODĚ</label>
-        <input type="text" name="pohoda_cash_account" value="<%= company.pohoda_cash_account || 'Pokladna' %>" class="form-control" maxlength="20" placeholder="Pokladna">
-        <small style="color:var(--text-muted);">Přesný název pokladny z agendy Pokladna, kam se účtenky naimportují.</small>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">Předkontace účtenek v pokladně</label>
-        <input type="text" name="pohoda_predkontace" value="<%= company.pohoda_predkontace || '' %>" class="form-control" maxlength="20" placeholder="např. 3Vd">
-        <small style="color:var(--text-muted);">Volitelné. Prázdné = POHODA nastaví „Nevím“.</small>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">Předkontace přijatých faktur a závazků</label>
-        <input type="text" name="pohoda_predkontace_prijate" value="<%= company.pohoda_predkontace_prijate || '' %>" class="form-control" maxlength="20" placeholder="např. 1Pf">
-        <small style="color:var(--text-muted);">
-          Použije se u přijatých faktur a u účtenek placených kartou nebo převodem,
-          které jdou do agendy Ostatní závazky. Předkontace z dokladu má přednost.
-        </small>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">Předkontace bez nároku na odpočet DPH</label>
-        <input type="text" name="pohoda_predkontace_repre" value="<%= company.pohoda_predkontace_repre || '' %>" class="form-control" maxlength="20" placeholder="např. 513Repre">
-        <small style="color:var(--text-muted);">
-          Doklady na reprezentaci (§ 72 odst. 4 ZDPH) jdou do exportu s členěním DPH
-          „Nezahrnovat do DPH“ a v plné výši včetně DPH. Tahle předkontace je přebije,
-          typicky na 513.
-        </small>
-      </div>
+      <%- include('../../includes/pole', { pole: { label: 'Pokladna v POHODĚ', name: 'pohoda_cash_account', value: company.pohoda_cash_account || 'Pokladna', maxlength: 20, placeholder: 'Pokladna',
+        hint: 'Přesný název pokladny z agendy Pokladna, kam se účtenky naimportují.' } }) %>
+      <%- include('../../includes/pole', { pole: { label: 'Předkontace účtenek v pokladně', name: 'pohoda_predkontace', value: company.pohoda_predkontace, maxlength: 20, placeholder: 'např. 3Vd',
+        hint: 'Volitelné. Prázdné = POHODA nastaví „Nevím“.' } }) %>
+      <%- include('../../includes/pole', { pole: { label: 'Předkontace přijatých faktur a závazků', name: 'pohoda_predkontace_prijate', value: company.pohoda_predkontace_prijate, maxlength: 20, placeholder: 'např. 1Pf',
+        hint: 'Pro přijaté faktury a účtenky placené kartou nebo převodem (agenda Ostatní závazky). Předkontace z dokladu má přednost.' } }) %>
+      <%- include('../../includes/pole', { pole: { label: 'Předkontace bez nároku na odpočet DPH', name: 'pohoda_predkontace_repre', value: company.pohoda_predkontace_repre, maxlength: 20, placeholder: 'např. 513Repre',
+        hint: 'Doklady na reprezentaci (§ 72 odst. 4 ZDPH) jdou do exportu s členěním „Nezahrnovat do DPH“ v plné výši včetně DPH; tahle předkontace je přebije, typicky na 513.' } }) %>
 
       <div class="form-group" style="grid-column:1/-1;">
         <p style="font-size:13px;color:var(--text-muted);margin:0;padding:10px 12px;background:var(--bg-page);border-radius:var(--radius-sm);">
@@ -170,21 +95,13 @@
   <div class="card" style="margin-bottom:20px;">
     <div class="card-header"><strong>Google Disk — přijaté faktury</strong></div>
     <div class="card-body" style="display:grid;grid-template-columns:1fr;gap:16px;">
-
-      <div class="form-group">
-        <label class="form-label">ID složky „SEIL - účetnictví“</label>
-        <input type="text" name="gdrive_root_folder_id" value="<%= company.gdrive_root_folder_id || '' %>" class="form-control" placeholder="1AbCdEf…">
-        <small style="color:var(--text-muted);">
-          ID najdete v URL složky na Google Disku: <code>drive.google.com/drive/folders/<strong>ID</strong></code>.
-          Uvnitř se očekává struktura rok → měsíc → Přijaté faktury.
-          Složku nasdílejte service accountu (viz proměnná <code>GOOGLE_SERVICE_ACCOUNT_JSON</code>) s právem Čtenář.
-        </small>
-      </div>
-
+      <%- include('../../includes/pole', { pole: { label: 'ID složky „SEIL - účetnictví“', name: 'gdrive_root_folder_id', value: company.gdrive_root_folder_id, placeholder: '1AbCdEf…',
+        hint: 'ID je v adrese složky na Google Disku: drive.google.com/drive/folders/ID. Uvnitř se očekává struktura rok → měsíc → Přijaté faktury. Složku nasdílejte service accountu (proměnná GOOGLE_SERVICE_ACCOUNT_JSON) s právem Čtenář.' } }) %>
     </div>
   </div>
 
-  <button type="submit" class="btn btn-primary">Uložit nastavení</button>
+  <%- include('../../includes/upravit', { paticka: true, formular, urlZpet }) %>
 
 </form>
+</div>
 </div>

@@ -55,31 +55,24 @@
     </div>
   </div>
 
-  <!-- Osobní údaje -->
-  <div class="card">
-    <div class="card-header">Osobní údaje</div>
-    <form method="post" action="/profil">
-      <div class="card-body" style="display:flex;flex-direction:column;gap:14px;">
-        <div class="form-group">
-          <label class="form-label">Jméno</label>
-          <input type="text" name="first_name" class="form-control" value="<%= user.first_name || '' %>">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Příjmení</label>
-          <input type="text" name="last_name" class="form-control" value="<%= user.last_name || '' %>">
-        </div>
-        <div class="form-group">
-          <label class="form-label">E-mail</label>
-          <input type="email" class="form-control" value="<%= user.email %>" disabled style="opacity:0.6;">
-          <small style="color:var(--text-muted);font-size:12px;">E-mail nelze změnit</small>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Role</label>
-          <input type="text" class="form-control" value="<%= user.is_admin ? 'Správce' : 'Uživatel' %>" disabled style="opacity:0.6;">
-        </div>
+  <%# Osobní údaje: režim úprav (src/upravy.js) nese karta, ne stránka — fotka
+      a heslo vedle mají vlastní formuláře a režim neznají. Tužka je v hlavičce
+      karty; tlačítka jsou vyšší než řádek textu, záporný okraj je nechá
+      přesáhnout do odsazení hlavičky, aby zůstala stejně vysoká jako
+      hlavičky sousedních karet. %>
+  <div class="card" data-rezim="<%= rezimUprav ? 'upravy' : 'zobrazeni' %>">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <span>Osobní údaje</span>
+      <div style="display:flex;align-items:center;gap:8px;margin:-12px 0;">
+        <%- include('../includes/upravit', { formular: 'formProfil', urlUpravit: '/profil?upravit=1', urlZpet: '/profil' }) %>
       </div>
-      <div class="modal-footer" style="border-top:1px solid var(--border);padding:14px 20px;">
-        <button type="submit" class="btn btn-primary">Uložit</button>
+    </div>
+    <form method="post" action="/profil" id="formProfil" class="upravitelne">
+      <div class="card-body" style="display:flex;flex-direction:column;gap:14px;">
+        <%- include('../includes/pole', { pole: { label: 'Jméno', name: 'first_name', value: user.first_name } }) %>
+        <%- include('../includes/pole', { pole: { label: 'Příjmení', name: 'last_name', value: user.last_name } }) %>
+        <%- include('../includes/pole', { pole: { label: 'E-mail', value: user.email, stale: true, hint: 'E-mail nelze změnit' } }) %>
+        <%- include('../includes/pole', { pole: { label: 'Role', value: user.is_admin ? 'Správce' : 'Uživatel', stale: true } }) %>
       </div>
     </form>
   </div>
@@ -107,8 +100,6 @@
       </div>
     </form>
   </div>
-
-</div>
 
 </div>
 

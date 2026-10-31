@@ -1,13 +1,27 @@
+<%
+  // Režim úprav (src/upravy.js): tužka v hlavičce jen u záložek s formulářem
+  // záznamu (Detail, Bankovní účet); bez JS otevře úpravy ?upravit=1.
+  const FORMULARE = { detail: 'formDetail', banka: 'formBanka' };
+  const formular = FORMULARE[currentTab] || null;
+  const rezim = formular && rezimUprav ? 'upravy' : 'zobrazeni';
+  const urlZalozky = `?tab=${currentTab}`;
+%>
+<div class="detail" data-rezim="<%= rezim %>">
 <div class="page-header">
   <div class="page-header-left">
     <h1><%= ((member.first_name + ' ' + member.last_name).trim() || member.email) %></h1>
     <p><%= member.position || (member.is_admin ? 'Správce' : 'Uživatel') %> · <%= member.email %></p>
   </div>
-  <a href="/lide/tym" class="btn btn-outline">← Zpět na tým</a>
+  <div class="page-header-akce">
+    <a href="/lide/tym" class="btn btn-outline">← Zpět na tým</a>
+    <% if (formular) { %>
+    <%- include('../../includes/upravit', { formular, urlUpravit: `${urlZalozky}&upravit=1`, urlZpet: urlZalozky }) %>
+    <% } %>
+  </div>
 </div>
 
 <% if (saved) { %>
-<div style="background:var(--success-bg);color:#15803D;border:1px solid #bbf7d0;border-radius:8px;padding:10px 16px;margin-bottom:20px;font-size:14px;">
+<div class="jen-zobrazeni" style="background:var(--success-bg);color:#15803D;border:1px solid #bbf7d0;border-radius:8px;padding:10px 16px;margin-bottom:20px;font-size:14px;">
   Změny byly uloženy.
 </div>
 <% } %>
@@ -104,79 +118,24 @@
       <h2 style="font-size:15px;font-weight:600;margin:0;">Osobní údaje</h2>
     </div>
     <div class="card-body">
-      <form method="post" action="/lide/tym/<%= member.public_id %>">
+      <form method="post" action="/lide/tym/<%= member.public_id %>" id="formDetail" class="upravitelne">
         <input type="hidden" name="tab" value="<%= currentTab %>">
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-bottom:20px;">
-
-          <div class="form-group">
-            <label class="form-label">Titul</label>
-            <input type="text" name="title" class="form-control" value="<%= member.title || '' %>" placeholder="Ing., Mgr., …">
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Jméno</label>
-            <input type="text" name="first_name" class="form-control" value="<%= member.first_name || '' %>" required>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Příjmení</label>
-            <input type="text" name="last_name" class="form-control" value="<%= member.last_name || '' %>">
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">E-mail</label>
-            <input type="email" name="email" class="form-control" value="<%= member.email || '' %>" required>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Pozice ve firmě</label>
-            <input type="text" name="position" class="form-control" value="<%= member.position || '' %>" placeholder="Frontend Developer">
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Telefon</label>
-            <input type="tel" name="phone" class="form-control" value="<%= member.phone || '' %>" placeholder="+420 …">
-          </div>
-
-          <div class="form-group" style="grid-column:1/-1;">
-            <label class="form-label">Bio / Popis</label>
-            <textarea name="bio" class="form-control" rows="3" placeholder="Krátký popis…"><%= member.bio || '' %></textarea>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Adresa</label>
-            <input type="text" name="address" class="form-control" value="<%= member.address || '' %>" placeholder="Ulice a číslo popisné">
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Město</label>
-            <input type="text" name="city" class="form-control" value="<%= member.city || '' %>">
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">PSČ</label>
-            <input type="text" name="zip" class="form-control" value="<%= member.zip || '' %>">
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Stát</label>
-            <input type="text" name="country" class="form-control" value="<%= member.country || 'Česká republika' %>">
-          </div>
-
-        </div>
-
-        <!-- Role a přístup -->
-        <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:20px;padding:16px;background:var(--bg-secondary, #f9fafb);border-radius:8px;">
-          <label class="toggle-label" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
-            <input type="checkbox" name="is_admin" value="1" class="toggle-input" <%= member.is_admin ? 'checked' : '' %>>
-            <span class="toggle-switch"></span>
-            <span class="toggle-text" style="font-size:14px;">Správce</span>
-          </label>
-          <label class="toggle-label" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
-            <input type="checkbox" name="is_active" value="1" class="toggle-input" <%= member.is_active ? 'checked' : '' %>>
-            <span class="toggle-switch"></span>
-            <span class="toggle-text" style="font-size:14px;">Aktivní účet</span>
-          </label>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;">
+          <%- include('../../includes/pole', { pole: { label: 'Titul', name: 'title', value: member.title, placeholder: 'Ing., Mgr., …' } }) %>
+          <%- include('../../includes/pole', { pole: { label: 'Jméno', name: 'first_name', value: member.first_name, required: true } }) %>
+          <%- include('../../includes/pole', { pole: { label: 'Příjmení', name: 'last_name', value: member.last_name } }) %>
+          <%- include('../../includes/pole', { pole: { label: 'E-mail', name: 'email', typ: 'email', value: member.email, required: true } }) %>
+          <%- include('../../includes/pole', { pole: { label: 'Pozice ve firmě', name: 'position', value: member.position, placeholder: 'Frontend Developer' } }) %>
+          <%- include('../../includes/pole', { pole: { label: 'Telefon', name: 'phone', typ: 'tel', value: member.phone, placeholder: '+420 …' } }) %>
+          <%- include('../../includes/pole', { pole: { label: 'Bio / Popis', name: 'bio', typ: 'textarea', value: member.bio, placeholder: 'Krátký popis…', styl: 'grid-column:1/-1' } }) %>
+          <%- include('../../includes/pole', { pole: { label: 'Adresa', name: 'address', value: member.address, placeholder: 'Ulice a číslo popisné' } }) %>
+          <%- include('../../includes/pole', { pole: { label: 'Město', name: 'city', value: member.city } }) %>
+          <%- include('../../includes/pole', { pole: { label: 'PSČ', name: 'zip', value: member.zip } }) %>
+          <%- include('../../includes/pole', { pole: { label: 'Stát', name: 'country', value: member.country || 'Česká republika' } }) %>
+          <%- include('../../includes/pole', { pole: { label: 'Role', name: 'is_admin', typ: 'toggle', value: member.is_admin, popisek: 'Správce',
+            zobraz: member.is_admin ? 'Správce' : 'Uživatel' } }) %>
+          <%- include('../../includes/pole', { pole: { label: 'Stav účtu', name: 'is_active', typ: 'toggle', value: member.is_active, popisek: 'Aktivní účet',
+            zobraz: member.is_active ? 'Aktivní' : 'Neaktivní' } }) %>
         </div>
 
         <!-- Skrytá pole pro bankovní účet — aby nepřepsala data při uložení detailu -->
@@ -184,9 +143,7 @@
         <input type="hidden" name="bank_name" value="<%= member.bank_name || '' %>">
         <input type="hidden" name="iban" value="<%= member.iban || '' %>">
 
-        <div style="display:flex;justify-content:flex-end;">
-          <button type="submit" class="btn btn-primary">Uložit změny</button>
-        </div>
+        <%- include('../../includes/upravit', { paticka: true, formular: 'formDetail', urlZpet: urlZalozky }) %>
       </form>
     </div>
   </div>
@@ -198,28 +155,15 @@
       <h2 style="font-size:15px;font-weight:600;margin:0;">Bankovní účet</h2>
     </div>
     <div class="card-body">
-      <form method="post" action="/lide/tym/<%= member.public_id %>">
+      <form method="post" action="/lide/tym/<%= member.public_id %>" id="formBanka" class="upravitelne">
         <input type="hidden" name="tab" value="<%= currentTab %>">
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-bottom:20px;">
-
-          <div class="form-group">
-            <label class="form-label">Číslo účtu</label>
-            <input type="text" name="bank_account" class="form-control" value="<%= member.bank_account || '' %>" placeholder="123456789/0100">
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Název banky</label>
-            <input type="text" name="bank_name" class="form-control" value="<%= member.bank_name || '' %>" placeholder="Komerční banka">
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">IBAN</label>
-            <input type="text" name="iban" class="form-control" value="<%= member.iban || '' %>" placeholder="CZ65 …">
-          </div>
-
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;">
+          <%- include('../../includes/pole', { pole: { label: 'Číslo účtu', name: 'bank_account', value: member.bank_account, placeholder: '123456789/0100' } }) %>
+          <%- include('../../includes/pole', { pole: { label: 'Název banky', name: 'bank_name', value: member.bank_name, placeholder: 'Komerční banka' } }) %>
+          <%- include('../../includes/pole', { pole: { label: 'IBAN', name: 'iban', value: member.iban, placeholder: 'CZ65 …' } }) %>
         </div>
 
-        <!-- Skrytá pole — osobní údaje -->
+        <!-- Skrytá pole — osobní údaje (routa přepisuje celý řádek; prázdná hodnota u přepínačů = vypnuto) -->
         <input type="hidden" name="email" value="<%= member.email || '' %>">
         <input type="hidden" name="first_name" value="<%= member.first_name || '' %>">
         <input type="hidden" name="last_name" value="<%= member.last_name || '' %>">
@@ -231,12 +175,8 @@
         <input type="hidden" name="city" value="<%= member.city || '' %>">
         <input type="hidden" name="zip" value="<%= member.zip || '' %>">
         <input type="hidden" name="country" value="<%= member.country || 'Česká republika' %>">
-        <% if (member.is_admin) { %><input type="hidden" name="is_admin" value="1"><% } %>
-        <% if (member.is_active) { %><input type="hidden" name="is_active" value="1"><% } %>
-
-        <div style="display:flex;justify-content:flex-end;">
-          <button type="submit" class="btn btn-primary">Uložit bankovní účet</button>
-        </div>
+        <input type="hidden" name="is_admin" value="<%= member.is_admin ? '1' : '' %>">
+        <input type="hidden" name="is_active" value="<%= member.is_active ? '1' : '' %>">
       </form>
     </div>
   </div>
@@ -332,4 +272,4 @@
     </div>
   </div>
 <% } %>
-
+</div>

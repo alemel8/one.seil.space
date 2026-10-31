@@ -2,15 +2,19 @@
   const sb = receipt.status==='Zaúčtována' ? '#dcfce7' : receipt.status==='Storno' ? '#f3f4f6' : '#fef9c3';
   const sc = receipt.status==='Zaúčtována' ? '#166534' : receipt.status==='Storno' ? '#6b7280' : '#92400e';
   const fmt  = n => Number(n||0).toLocaleString('cs-CZ', { minimumFractionDigits: 2 });
-  const den  = d => d ? new Date(d).toISOString().split('T')[0] : '';
   const isImage = (receipt.attachment_mime || '').startsWith('image/');
   const hotove  = !receipt.payment_method || receipt.payment_method === 'Hotovost';
   const agenda  = hotove ? 'Pokladna' : 'Ostatní závazky';
   const bezDph  = receipt.vat_deductible === false;
   const chybi   = receipt.attachment_path && receipt.attachment_missing;
   const fileUrl = receipt.attachment_path && !chybi ? '/doklady/soubor/' + receipt.attachment_path : null;
+  // Režim úprav (src/upravy.js): jediný formulář záznamu, tužka v hlavičce
+  // vždy; bez JS otevře úpravy ?upravit=1, Zrušit vede na čistou adresu.
+  const rezim   = rezimUprav ? 'upravy' : 'zobrazeni';
+  const urlZpet = '/ucetnictvi/uctenky/' + receipt.id;
 %>
 
+<div class="detail" data-rezim="<%= rezim %>">
 <div class="page-header">
   <div class="page-header-left">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -28,9 +32,9 @@
     </div>
     <p><%= receipt.number ? 'Doklad ' + receipt.number + ' · ' : '' %><%= new Date(receipt.receipt_date).toLocaleDateString('cs-CZ') %> · <%= fmt(receipt.total_amount) %> <%= receipt.currency %></p>
   </div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+  <div class="page-header-akce">
     <% if (fileUrl) { %>
-    <a href="<%= fileUrl %>" class="btn btn-outline btn-sm"
+    <a href="<%= fileUrl %>" class="btn btn-outline"
        data-nahled
        data-nahled-nazev="<%= receipt.attachment_path %>"
        data-nahled-typ="<%= receipt.attachment_mime || '' %>"
@@ -38,13 +42,14 @@
     <% } %>
     <form method="post" action="/ucetnictvi/uctenky/<%= receipt.id %>/smazat"
           onsubmit="return confirm('Opravdu smazat tuto účtenku i s dokladem?')" style="display:inline;">
-      <button type="submit" class="btn btn-outline btn-sm" style="color:var(--danger);">Smazat</button>
+      <button type="submit" class="btn btn-outline" style="color:var(--danger);">Smazat</button>
     </form>
+    <%- include('../../includes/upravit', { formular: 'formUctenka', urlUpravit: '?upravit=1', urlZpet }) %>
   </div>
 </div>
 
 <% if (saved) { %>
-<div style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:10px 16px;border-radius:8px;margin-bottom:16px;">✓ Uloženo</div>
+<div class="jen-zobrazeni" style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:10px 16px;border-radius:8px;margin-bottom:16px;">✓ Uloženo</div>
 <% } %>
 <% if (error) { %>
 <div style="background:var(--danger-bg);color:var(--danger);padding:10px 16px;border-radius:8px;margin-bottom:16px;">⚠ <%= error %></div>
@@ -105,121 +110,68 @@
     </div>
   </div>
 
-  <!-- Editace -->
-  <form method="post" action="/ucetnictvi/uctenky/<%= receipt.id %>/upravit" class="card" style="align-self:start;">
-    <div class="card-header"><strong>Údaje účtenky</strong></div>
-    <div class="card-body" style="display:flex;flex-direction:column;gap:14px;">
+  <!-- Údaje účtenky: formulář záznamu — v zobrazení hodnoty jako text, tužka ho otevře -->
+  <div class="card" style="align-self:start;">
+    <form method="post" action="/ucetnictvi/uctenky/<%= receipt.id %>/upravit" id="formUctenka" class="upravitelne">
+      <div class="card-header"><strong>Údaje účtenky</strong></div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:14px;">
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div class="form-group">
-          <label class="form-label">Číslo dokladu</label>
-          <input type="text" name="number" class="form-control" value="<%= receipt.number || '' %>" placeholder="Nepovinné">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <%- include('../../includes/pole', { pole: { label: 'Číslo dokladu', name: 'number', value: receipt.number, placeholder: 'Nepovinné' } }) %>
+          <%- include('../../includes/pole', { pole: { label: 'Datum dokladu', name: 'receipt_date', typ: 'date', value: receipt.receipt_date } }) %>
         </div>
-        <div class="form-group">
-          <label class="form-label">Datum dokladu</label>
-          <input type="date" name="receipt_date" class="form-control" value="<%= den(receipt.receipt_date) %>">
+
+        <%- include('../../includes/pole', { pole: { label: 'Dodavatel', name: 'vendor', value: receipt.vendor, required: true } }) %>
+
+        <%- include('../../includes/pole', { pole: { label: 'IČO dodavatele', name: 'vendor_ico', value: receipt.vendor_ico, placeholder: 'Nepovinné' } }) %>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <%- include('../../includes/pole', { pole: { label: 'Základ bez DPH', name: 'amount', typ: 'number', step: '0.01', min: 0,
+            value: receipt.amount, zobraz: fmt(receipt.amount) + ' ' + receipt.currency } }) %>
+          <%- include('../../includes/pole', { pole: { label: 'DPH', name: 'vat_amount', typ: 'number', step: '0.01', min: 0,
+            value: receipt.vat_amount, zobraz: fmt(receipt.vat_amount) + ' ' + receipt.currency } }) %>
         </div>
+
+        <div style="display:grid;grid-template-columns:1fr 90px;gap:12px;">
+          <%- include('../../includes/pole', { pole: { label: 'Celková částka', name: 'total_amount', typ: 'number', step: '0.01', min: 0,
+            value: receipt.total_amount, zobraz: fmt(receipt.total_amount) + ' ' + receipt.currency } }) %>
+          <%- include('../../includes/pole', { pole: { label: 'Měna', name: 'currency', typ: 'select', moznosti: ['CZK', 'EUR', 'USD'], value: receipt.currency } }) %>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <%- include('../../includes/pole', { pole: { label: 'Kategorie', name: 'category', id: 'rdCategory', typ: 'select', moznosti: CATEGORIES, value: receipt.category } }) %>
+          <%- include('../../includes/pole', { pole: { label: 'Stav', name: 'status', typ: 'select', moznosti: STATUSES, value: receipt.status } }) %>
+        </div>
+
+        <%# Hinty plní rdUhrada() podle kategorie a formy úhrady; include jim id dát neumí,
+            proto ručně pod polem — obal drží pole i hint v jedné buňce mřížky. %>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-group">
+            <%- include('../../includes/pole', { pole: { label: 'Forma úhrady', name: 'payment_method', id: 'rdPayment', typ: 'select',
+              moznosti: PAYMENT_METHODS, value: receipt.payment_method || 'Hotovost' } }) %>
+            <small id="rdAgendaHint" class="form-hint jen-upravy"></small>
+          </div>
+          <div class="form-group">
+            <%- include('../../includes/pole', { pole: { label: 'DPH', name: 'vat_deductible', id: 'rdVatDeductible', typ: 'checkbox', hodnotaVstupu: 'on',
+              value: !bezDph, popisek: 'Uplatnit nárok na odpočet', zobraz: bezDph ? 'Bez odpočtu DPH' : 'Uplatněn odpočet' } }) %>
+            <small id="rdVatHint" class="form-hint jen-upravy"></small>
+          </div>
+        </div>
+
+        <%- include('../../includes/pole', { pole: { label: 'Poznámka / předmět nákupu', name: 'notes', typ: 'textarea', rows: 3, value: receipt.notes } }) %>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <%- include('../../includes/pole', { pole: { label: 'Předkontace MD', name: 'account_debit', value: receipt.account_debit, placeholder: 'např. 518', list: 'rdAcList', autocomplete: 'off' } }) %>
+          <%- include('../../includes/pole', { pole: { label: 'Předkontace D', name: 'account_credit', value: receipt.account_credit, placeholder: 'např. 211', list: 'rdAcList', autocomplete: 'off' } }) %>
+        </div>
+        <datalist id="rdAcList"></datalist>
+
+        <%- include('../../includes/upravit', { paticka: true, formular: 'formUctenka', urlZpet }) %>
       </div>
+    </form>
+  </div>
 
-      <div class="form-group">
-        <label class="form-label required">Dodavatel</label>
-        <input type="text" name="vendor" class="form-control" value="<%= receipt.vendor || '' %>" required>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">IČO dodavatele</label>
-        <input type="text" name="vendor_ico" class="form-control" value="<%= receipt.vendor_ico || '' %>" placeholder="Nepovinné">
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div class="form-group">
-          <label class="form-label">Základ bez DPH</label>
-          <input type="number" name="amount" class="form-control" step="0.01" min="0" value="<%= receipt.amount %>">
-        </div>
-        <div class="form-group">
-          <label class="form-label">DPH</label>
-          <input type="number" name="vat_amount" class="form-control" step="0.01" min="0" value="<%= receipt.vat_amount %>">
-        </div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 90px;gap:12px;">
-        <div class="form-group">
-          <label class="form-label">Celková částka</label>
-          <input type="number" name="total_amount" class="form-control" step="0.01" min="0" value="<%= receipt.total_amount %>">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Měna</label>
-          <select name="currency" class="form-select">
-            <% ['CZK','EUR','USD'].forEach(c => { %>
-            <option value="<%= c %>" <%= receipt.currency===c?'selected':'' %>><%= c %></option>
-            <% }) %>
-          </select>
-        </div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div class="form-group">
-          <label class="form-label">Kategorie</label>
-          <select name="category" id="rdCategory" class="form-select" onchange="rdUhrada()">
-            <% CATEGORIES.forEach(c => { %>
-            <option value="<%= c %>" <%= receipt.category===c?'selected':'' %>><%= c %></option>
-            <% }) %>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Stav</label>
-          <select name="status" class="form-select">
-            <% STATUSES.forEach(st => { %>
-            <option value="<%= st %>" <%= receipt.status===st?'selected':'' %>><%= st %></option>
-            <% }) %>
-          </select>
-        </div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div class="form-group">
-          <label class="form-label">Forma úhrady</label>
-          <select name="payment_method" id="rdPayment" class="form-select" onchange="rdUhrada()">
-            <% PAYMENT_METHODS.forEach(m => { %>
-            <option value="<%= m %>" <%= (receipt.payment_method || 'Hotovost')===m?'selected':'' %>><%= m %></option>
-            <% }) %>
-          </select>
-          <small id="rdAgendaHint" style="color:var(--text-muted);"></small>
-        </div>
-        <div class="form-group">
-          <label class="form-label">DPH</label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13px;padding-top:9px;">
-            <input type="checkbox" name="vat_deductible" id="rdVatDeductible" value="on"
-                   <%= bezDph ? '' : 'checked' %>>
-            <span>Uplatnit nárok na odpočet</span>
-          </label>
-          <small id="rdVatHint" style="color:var(--text-muted);"></small>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">Poznámka / předmět nákupu</label>
-        <textarea name="notes" class="form-control" rows="3"><%= receipt.notes || '' %></textarea>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div class="form-group">
-          <label class="form-label">Předkontace MD</label>
-          <input type="text" name="account_debit" class="form-control" value="<%= receipt.account_debit || '' %>" placeholder="např. 518" list="rdAcList" autocomplete="off">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Předkontace D</label>
-          <input type="text" name="account_credit" class="form-control" value="<%= receipt.account_credit || '' %>" placeholder="např. 211" list="rdAcList" autocomplete="off">
-        </div>
-      </div>
-      <datalist id="rdAcList"></datalist>
-    </div>
-    <div class="modal-footer" style="border-top:1px solid var(--border);">
-      <a href="/ucetnictvi/uctenky" class="btn btn-ghost">Zpět na seznam</a>
-      <button type="submit" class="btn btn-primary">Uložit změny</button>
-    </div>
-  </form>
-
+</div>
 </div>
 
 <style>
@@ -284,7 +236,15 @@ window.rdUhrada = function () {
     hint.textContent = vat.checked ? '' : 'Celá částka včetně DPH půjde do nákladů.';
   }
 };
+// Pole vykresluje include pole.ejs, který inline onchange neumí — posluchače visí tady.
+document.getElementById('rdCategory').addEventListener('change', window.rdUhrada);
+document.getElementById('rdPayment').addEventListener('change', window.rdUhrada);
 document.getElementById('rdVatDeductible').addEventListener('change', window.rdUhrada);
+// Zrušit (upravy.js) volá form.reset(): ten vrátí hodnoty, ale ne disabled a
+// texty hintů, které nastavuje rdUhrada() — zamčený checkbox by se neodeslal
+// a další uložení by odpočet tiše vypnulo. Událost reset přichází před
+// obnovením hodnot, proto přepočet až po ní.
+document.getElementById('formUctenka').addEventListener('reset', () => setTimeout(window.rdUhrada, 0));
 window.rdUhrada();
 
 fetch('/api/accounting-chart').then(r => r.json()).then(list => {

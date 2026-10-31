@@ -1,15 +1,16 @@
 import { getDb } from '../db.js';
 import { buildPohodaXml, PAYMENT_METHODS, isCashReceipt } from '../pohoda.js';
 import { saveAttachment, deleteAttachment, isSupportedMime, markMissingAttachments } from '../attachments.js';
+import { rezimUprav } from '../upravy.js';
 import Anthropic from '@anthropic-ai/sdk';
 
-const STATUSES = ['Nezaúčtována', 'Zaúčtována', 'Storno'];
-const CATEGORIES = ['Kancelář', 'Cestovné', 'PHM', 'Stravné', 'Reprezentace',
+export const STATUSES = ['Nezaúčtována', 'Zaúčtována', 'Storno'];
+export const CATEGORIES = ['Kancelář', 'Cestovné', 'PHM', 'Stravné', 'Reprezentace',
                     'IT & Software', 'Marketing', 'Provoz', 'Ostatní'];
 
 // Kategorie, u kterých zákon nárok na odpočet DPH nepřipouští
 // (§ 72 odst. 4 ZDPH — náklady na reprezentaci, pohoštění, dary).
-const NO_VAT_CATEGORIES = ['Reprezentace'];
+export const NO_VAT_CATEGORIES = ['Reprezentace'];
 
 // Nárok na odpočet: u reprezentace ho nelze uplatnit, jinak rozhoduje uživatel.
 // Checkbox se z prohlížeče posílá jen když je zaškrtnutý, proto 'on'/'1'/'true'.
@@ -93,6 +94,7 @@ export default async function receiptsRoutes(fastify) {
       NO_VAT_CATEGORIES,
       saved: request.query.saved === '1',
       error: request.query.error || null,
+      rezimUprav: rezimUprav(request.query),
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -198,6 +200,11 @@ Kategorie PHM použij u nákupu pohonných hmot, Reprezentace u pohoštění, ob
     try {
       form = await parseReceiptForm(request);
     } catch (err) {
+      // Detail posílá klasický formulář (Accept: text/html) a chybu ukáže nad
+      // otevřenými poli (upravit=1); modal v seznamu volá fetch a čeká JSON.
+      if ((request.headers.accept || '').includes('text/html')) {
+        return reply.redirect(`/ucetnictvi/uctenky/${request.params.id}?error=${encodeURIComponent(err.message)}&upravit=1`);
+      }
       return reply.code(400).send({ error: err.message });
     }
 

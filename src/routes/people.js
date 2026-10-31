@@ -12,6 +12,7 @@ import {
   platbyUzivatele, dokumentyUzivatele, PLATBA_DRUHY, PODKLAD_STAVY, hodinyPoMesicich,
 } from '../hr.js';
 import { addAttachment, isArchivableMime } from '../attachments.js';
+import { rezimUprav } from '../upravy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MEDIA_DIR = path.resolve(__dirname, '../../data/media');
@@ -181,6 +182,7 @@ export default async function peopleRoutes(fastify) {
       maData: pocty.podklady + pocty.mzdy + pocty.platby > 0,
       PLATBA_DRUHY, PODKLAD_STAVY,
       saved: request.query.saved === '1',
+      rezimUprav: rezimUprav(request.query),
     }, { layout: 'layouts/base.ejs' });
   });
 

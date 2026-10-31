@@ -1,5 +1,6 @@
 import bcryptjs from 'bcryptjs';
 import { getDb } from '../db.js';
+import { rezimUprav } from '../upravy.js';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -18,6 +19,7 @@ export default async function authRoutes(fastify) {
       user: request.user,
       saved: request.query.saved === '1',
       error: request.query.error || null,
+      rezimUprav: rezimUprav(request.query),
     }, { layout: 'layouts/base.ejs' });
   });
 
