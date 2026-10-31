@@ -12,6 +12,7 @@ import { renderSeriesNumber, paymentVs } from '../series-format.js';
 import { saveAttachment, deleteAttachment, isSupportedMime, markMissingAttachments } from '../attachments.js';
 import { denUhradyZFormulare, uhradaFakturyObjednavky, zobrazeniUhrady } from '../danovy-doklad.js';
 import { ceskeDatum, jenDatum, prazskeDatum, pridejDny } from '../prazsky-cas.js';
+import { rezimUprav } from '../upravy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '../..');
@@ -899,6 +900,7 @@ export default async function invoicesRoutes(fastify) {
       pageTitle: `Přijatá ${invoice.number}`, currentPath: '/ucetnictvi/prijate-faktury',
       user: request.user, invoice, bankTx, STATUSES_RECEIVED,
       saved: request.query.saved === '1',
+      rezimUprav: rezimUprav(request.query),
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -930,7 +932,7 @@ export default async function invoicesRoutes(fastify) {
         modified_at      = NOW()
       WHERE id = ${request.params.id} AND type = 'received'
     `;
-    return reply.redirect(`/ucetnictvi/prijate-faktury/${request.params.id}`);
+    return reply.redirect(`/ucetnictvi/prijate-faktury/${request.params.id}?saved=1`);
   });
 
   fastify.get('/ucetnictvi/prijate-faktury', async (request, reply) => {
