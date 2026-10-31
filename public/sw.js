@@ -10,7 +10,8 @@
 // v5: režim úprav na detailech (components.css, upravy.js, app.js)
 // v6: pomlčky v textech skriptů a komentářích stylů (U+2014 → U+2013)
 // v7: pojistka proti dvojkliku, návrat po uložení, rozepsané hodnoty po chybě (upravy.js, app.js)
-const CACHE_NAME = 'one-seil-v7';
+// v8: kontrola při Uložit, cizí změna se nepřepíše (upravy.js)
+const CACHE_NAME = 'one-seil-v8';
 
 // Při instalaci – předcache jen statické assets
 self.addEventListener('install', event => {

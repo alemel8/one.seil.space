@@ -90,7 +90,7 @@ test('karta Poznámky je vidět i bez poznámky, hláška Uloženo se v úpravá
 
 test('záložka poznámky: vlastní routa, jen textarea, žádná hidden pole', async () => {
   const html = await vykresli('poznamky');
-  const form = html.match(/<form method="post" action="\/crm\/firmy\/firmatest01\/poznamky" id="formPoznamky" class="upravitelne">([\s\S]*?)<\/form>/);
+  const form = html.match(/<form method="post" action="\/crm\/firmy\/firmatest01\/poznamky" id="formPoznamky" class="upravitelne" autocomplete="off">([\s\S]*?)<\/form>/);
   assert.ok(form, 'formulář poznámek míří na /crm/firmy/:id/poznamky');
   assert.ok(!form[1].includes('type="hidden"'), 'bez hidden polí – routa přepisuje jen poznámku');
   assert.match(form[1], /<textarea class="form-control" rows="10"[^>]*name="notes"/, 'textarea má 10 řádků');

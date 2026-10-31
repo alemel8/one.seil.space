@@ -34,6 +34,7 @@
  */
 
 import './lib/load-env.js';   // musí být první – plní process.env z .env
+import { porovnejDodavatele } from './lib/dodavatel.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -225,16 +226,6 @@ function readImport(kind, label) {
     console.log(`  (${prekryv}× stejný doklad ve více letech – brán z nejnovějšího exportu)`);
   }
   return rows;
-}
-
-// Stejný dodavatel jako v indexu z migrace 044. 'nejisty' = jedna strana nemá IČO
-// a názvy se liší: nic se nepřepíše ani nezaloží, rozhodne člověk.
-const icoKlic = (v) => str(v).replace(/[^0-9A-Za-z]/g, '').replace(/^0+/, '');
-function porovnejDodavatele(radek, f) {
-  const a = icoKlic(radek.supplier_ico), b = icoKlic(f.ico);
-  if (a && b) return a === b ? 'stejny' : 'jiny';
-  if (str(radek.supplier).toLowerCase() === f.name.toLowerCase()) return 'stejny';
-  return a || b ? 'nejisty' : 'jiny';
 }
 
 const stats = {

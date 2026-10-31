@@ -50,7 +50,7 @@
 
 <!-- ══ TAB: PŘEHLED ══ -->
 <% if (currentTab === 'prehled') { %>
-<form method="post" action="/projekty/<%= project.id %>" id="formProjekt" class="upravitelne">
+<form method="post" action="/projekty/<%= project.id %>" id="formProjekt" class="upravitelne" autocomplete="off">
 <input type="hidden" name="tab" value="<%= currentTab %>">
 <div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;align-items:start;">
   <div style="display:flex;flex-direction:column;gap:16px;">

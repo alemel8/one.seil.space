@@ -67,7 +67,7 @@
 <!-- ══ TAB: ZÁKLADNÍ INFORMACE ══ -->
 <% if (currentTab === 'zakladni') { %>
 
-<form method="post" action="/crm/firmy/<%= company.id %>" id="formFirma" class="upravitelne">
+<form method="post" action="/crm/firmy/<%= company.id %>" id="formFirma" class="upravitelne" autocomplete="off">
 <div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;align-items:start;">
   <div style="display:flex;flex-direction:column;gap:20px;">
 
@@ -305,7 +305,7 @@
 <div style="max-width:720px;">
   <div class="card">
     <div class="card-header"><strong>Poznámky k firmě</strong></div>
-    <form method="post" action="/crm/firmy/<%= company.id %>/poznamky" id="formPoznamky" class="upravitelne">
+    <form method="post" action="/crm/firmy/<%= company.id %>/poznamky" id="formPoznamky" class="upravitelne" autocomplete="off">
       <div class="card-body">
         <%- include('../../includes/pole', { pole: { label: 'Interní poznámky', name: 'notes', typ: 'textarea', value: company.notes, rows: 10, skrytyPopisek: true, placeholder: 'Interní poznámky, informace o spolupráci…' } }) %>
       </div>

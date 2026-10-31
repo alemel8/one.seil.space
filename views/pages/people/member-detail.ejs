@@ -122,7 +122,7 @@
       <h2 style="font-size:15px;font-weight:600;margin:0;">Osobní údaje</h2>
     </div>
     <div class="card-body">
-      <form method="post" action="/lide/tym/<%= member.public_id %>" id="formDetail" class="upravitelne">
+      <form method="post" action="/lide/tym/<%= member.public_id %>" id="formDetail" class="upravitelne" autocomplete="off">
         <input type="hidden" name="tab" value="<%= currentTab %>">
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;">
           <%- include('../../includes/pole', { pole: { label: 'Titul', name: 'title', value: member.title, placeholder: 'Ing., Mgr., …' } }) %>
@@ -154,7 +154,7 @@
       <h2 style="font-size:15px;font-weight:600;margin:0;">Bankovní účet</h2>
     </div>
     <div class="card-body">
-      <form method="post" action="/lide/tym/<%= member.public_id %>" id="formBanka" class="upravitelne">
+      <form method="post" action="/lide/tym/<%= member.public_id %>" id="formBanka" class="upravitelne" autocomplete="off">
         <input type="hidden" name="tab" value="<%= currentTab %>">
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;">
           <%- include('../../includes/pole', { pole: { label: 'Číslo účtu', name: 'bank_account', value: member.bank_account, placeholder: '123456789/0100' } }) %>

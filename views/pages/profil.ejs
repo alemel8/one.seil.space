@@ -67,7 +67,7 @@
         <%- include('../includes/upravit', { formular: 'formProfil', urlUpravit: '/profil?upravit=1', urlZpet: '/profil' }) %>
       </div>
     </div>
-    <form method="post" action="/profil" id="formProfil" class="upravitelne">
+    <form method="post" action="/profil" id="formProfil" class="upravitelne" autocomplete="off">
       <div class="card-body" style="display:flex;flex-direction:column;gap:14px;">
         <%- include('../includes/pole', { pole: { label: 'Jméno', name: 'first_name', value: user.first_name } }) %>
         <%- include('../includes/pole', { pole: { label: 'Příjmení', name: 'last_name', value: user.last_name } }) %>

@@ -53,7 +53,7 @@ test('tužka, formulář záznamu a všechny sloupce v obou režimech, bez vnoř
 
 test('formulář je prázdný hned za hlavičkou a každé pole se k němu hlásí přes form=', async () => {
   const html = await vykresli();
-  assert.ok(html.includes(`<form method="post" action="/ucetnictvi/prijate-faktury/${invoice.id}/upravit" id="${FORMULAR}" class="upravitelne"></form>`), 'prázdný formulář záznamu');
+  assert.ok(html.includes(`<form method="post" action="/ucetnictvi/prijate-faktury/${invoice.id}/upravit" id="${FORMULAR}" class="upravitelne" autocomplete="off"></form>`), 'prázdný formulář záznamu');
   assert.ok(html.indexOf(`id="${FORMULAR}"`) < html.indexOf('<!-- Levý sloupec -->'), 'leží před mřížkou karet');
   for (const name of SLOUPCE) {
     assert.match(html, new RegExp(`<(?:input|select|textarea)\\b[^>]*name="${name}"[^>]*form="${FORMULAR}"`), `pole ${name} má form="${FORMULAR}"`);
@@ -153,7 +153,7 @@ describe('proti serveru', { skip: PRESKOCIT }, () => {
     assert.equal(res.status, 200);
     let html = await res.text();
     assert.ok(html.includes('data-rezim="zobrazeni"'), 'výchozí je zobrazení');
-    assert.ok(html.includes(`id="${FORMULAR}" class="upravitelne"></form>`), 'prázdný formulář záznamu');
+    assert.ok(html.includes(`id="${FORMULAR}" class="upravitelne" autocomplete="off"></form>`), 'prázdný formulář záznamu');
     assert.ok(html.includes('href="?upravit=1" class="btn btn-outline btn-ikona upravit-otevrit"'), 'tužka vede bez JS na ?upravit=1');
     assert.ok(html.includes(`form="${FORMULAR}" class="btn btn-primary upravit-ulozit"`), 'Uložit míří na formulář záznamu');
     assert.ok(html.includes(`<div class="pole-hodnota">Dodavatel ${r}</div>`), 'dodavatel jako text pole');

@@ -5,7 +5,8 @@
 // JavaScriptu totéž umí server přes ?upravit=1 (tužka i Zrušit jsou odkazy,
 // Uložit je submit s form=). Skript jen přepíná atribut bez načtení stránky,
 // drží URL pravdivou a hlídá rozepsané změny: Zrušit, Esc i odchod ze
-// stránky se při změněném formuláři zeptají. Uložit je nativní submit.
+// stránky se při změněném formuláři zeptají. Uložit nejdřív porovná formulář
+// s čerstvě načtenou stránkou (viz „Kontrola při Uložit“), pak odešle nativně.
 (function () {
   const obaly = Array.from(document.querySelectorAll('[data-rezim]'));
   if (!obaly.length) return;
@@ -16,6 +17,9 @@
   let odesilam = false;
   let odeslano = -Infinity;
   let prepnuto = -Infinity;
+  // Běží kontrola při Uložit (dotaz na server před odesláním).
+  let kontrola = false;
+  let sitSelhala = false;
   const nacteno = Date.now();
 
   // sessionStorage nemusí být dostupný (soukromé okno, plná kvóta).
@@ -63,7 +67,7 @@
 
   function zavri(obal) {
     // Uložit už běží a doběhne i po zahození – stránka by pak hlásila Uloženo.
-    if (performance.now() - odeslano < 5000) return;
+    if (kontrola || performance.now() - odeslano < 5000) return;
     if (jeZmeneny(obal) && !confirm('Zahodit neuložené změny?')) return;
     formular(obal)?.reset(); // vyvolá event reset – stránka si podle něj přepočítá, co inputy odvozují
     obal.dataset.rezim = 'zobrazeni';
@@ -79,24 +83,135 @@
   // (?error=…&upravit=1) i nahrání dokladu by je jinak nahradily hodnotami
   // z databáze. Záznam platí jen pro první načtení, snímek zůstává ze serveru,
   // takže Zrušit i odchod se dál ptají a Zrušit vrátí uložený stav.
-  const klicRozepsano = 'upravy-rozepsano:' + location.pathname;
-  const zapamatujRozepsane = (form, poNacteni) =>
-    zapis(klicRozepsano, JSON.stringify({ form: form.id, hodnoty: serializuj(form), poNacteni }));
+  //
+  // Vrací se jen pole, která uživatel změnil proti snímku. Ostatní mají z načtení
+  // čerstvé hodnoty: vrácení starých by přepsalo, co někdo mezitím uložil.
+  // Klíč se počítá při použití: POST „Ověřit připojení“ vykreslí stránku na jiné cestě.
+  const klicRozepsano = () => 'upravy-rozepsano:' + location.pathname;
 
-  function doplnRozepsane(form, hodnoty) {
+  // Porovnává se proti snímku, ne proti defaultValue: prohlížeč hodnoty typu e-mail
+  // a URL sám upravuje, takže by se lišily i bez zásahu uživatele.
+  function zmenenaPole(form) {
+    const obal = form.closest('[data-rezim]');
+    if (!snimky.has(obal)) return [];
+    const pred = new URLSearchParams(snimky.get(obal));
+    const ted = new URLSearchParams(serializuj(form));
+    return [...new Set([...pred.keys(), ...ted.keys()])]
+      .filter(n => JSON.stringify(pred.getAll(n)) !== JSON.stringify(ted.getAll(n)));
+  }
+  function zapamatujRozepsane(form, poNacteni, navic = {}) {
+    const zmenena = zmenenaPole(form);
+    const ted = new URLSearchParams(serializuj(form));
+    const hodnoty = new URLSearchParams();
+    zmenena.forEach(n => ted.getAll(n).forEach(v => hodnoty.append(n, v)));
+    return zapis(klicRozepsano(), JSON.stringify({ form: form.id, hodnoty: hodnoty.toString(), zmenena, poNacteni, ...navic }));
+  }
+
+  function doplnRozepsane(form, hodnoty, zmenena) {
     const h = new URLSearchParams(hodnoty);
+    const jen = new Set(zmenena || []);
     Array.from(form.elements).forEach(el => {
-      if (!el.name || ['hidden', 'submit', 'button', 'reset', 'file', 'password'].includes(el.type)) return;
+      if (!jen.has(el.name) || ['hidden', 'submit', 'button', 'reset', 'file', 'password'].includes(el.type)) return;
       if (el.disabled && !h.has(el.name)) return; // vypnuté pole se neodesílá, není co vracet
       if (el.type === 'checkbox' || el.type === 'radio') el.checked = h.getAll(el.name).includes(el.value);
-      else if (h.has(el.name)) el.value = h.get(el.name);
+      else if (h.has(el.name)) {
+        // Volba, kterou mezitím někdo smazal: select by zůstal bez výběru a neodeslal se.
+        const v = h.get(el.name);
+        if (el.tagName !== 'SELECT' || Array.from(el.options).some(o => o.value === v)) el.value = v;
+      }
       el.dispatchEvent(new Event('change', { bubbles: true })); // zámky a hinty skriptu stránky
     });
   }
 
+  // ── Kontrola při Uložit ──
+  // Routy přepisují všechny sloupce formuláře, takže stránka načtená před hodinami
+  // by vrátila, co někdo mezitím změnil. Před odesláním se načte tatáž stránka znovu
+  // a porovná se, co server vykreslil do formuláře tehdy a co teď. Změna ve sloupci,
+  // který formulář nepíše (export do POHODY, příloha, stav faktury), tu není vidět
+  // a správně: uložení ji nepřepíše.
+  function vychoziStav(form) {
+    const stav = {};
+    for (const el of form.elements) {
+      if (!el.name || ['submit', 'button', 'reset', 'image', 'file'].includes(el.type)) continue;
+      const seznam = stav[el.name] || (stav[el.name] = []);
+      if (el.type === 'checkbox' || el.type === 'radio') { if (el.defaultChecked) seznam.push(el.value); }
+      else if (el.tagName === 'SELECT') {
+        const moznosti = Array.from(el.options);
+        const volba = moznosti.filter(o => o.defaultSelected).pop() || moznosti.find(o => !o.disabled);
+        if (volba) seznam.push(volba.value);
+      } else seznam.push(el.defaultValue);
+    }
+    return stav;
+  }
+  const stejne = (a, b) => JSON.stringify(a ?? []) === JSON.stringify(b ?? []);
+
+  async function zkontroluj(form, tuzka) {
+    const ctrl = new AbortController();
+    const casovac = setTimeout(() => ctrl.abort(), 5000);
+    try {
+      const res = await fetch(tuzka.href, { cache: 'no-store', signal: ctrl.signal });
+      if (res.redirected && new URL(res.url).pathname === '/prihlasit') return { stav: 'prihlaseni' };
+      if (res.status === 404) return { stav: 'smazano' };
+      if (!res.ok) return { stav: 'neznamo' };
+      const novy = new DOMParser().parseFromString(await res.text(), 'text/html').getElementById(form.id);
+      if (!novy) return { stav: 'neznamo' };
+      const a = vychoziStav(form), b = vychoziStav(novy);
+      const zmeny = [...new Set([...Object.keys(a), ...Object.keys(b)])].filter(n => !stejne(a[n], b[n]));
+      return { stav: zmeny.length ? 'konflikt' : 'shoda', zmeny };
+    } catch (err) {
+      // Spadlá síť: POST by skončil chybovou stránkou prohlížeče. Vypršel čas: server jen pomalu odpovídá.
+      return { stav: err?.name === 'AbortError' ? 'neznamo' : 'sit' };
+    } finally {
+      clearTimeout(casovac);
+    }
+  }
+
+  function hlaska(obal, text) {
+    smazHlasky();
+    const div = document.createElement('div');
+    div.setAttribute('data-hlaska', '');
+    div.setAttribute('role', 'alert');
+    div.tabIndex = -1;
+    div.style.cssText = 'background:var(--warning-bg);color:#92400E;border:1px solid #fde68a;padding:10px 16px;border-radius:8px;margin-bottom:16px;';
+    div.textContent = text;
+    const hlavicka = obal.querySelector('.page-header') || obal.querySelector('.card-header');
+    if (hlavicka) hlavicka.after(div); else obal.prepend(div);
+    div.focus();
+  }
+
+  const prvekPole = (form, jmeno) => { const el = form.elements[jmeno]; return el instanceof Element ? el : el?.[0]; };
+  function popisekPole(form, jmeno) {
+    const el = prvekPole(form, jmeno);
+    return (el?.closest('.form-group')?.querySelector('.form-label')?.textContent || el?.labels?.[0]?.textContent || jmeno).trim();
+  }
+  // Co je teď uložené: výchozí hodnota prvku čerstvě načtené stránky.
+  function ulozenaHodnota(form, jmeno) {
+    const el = prvekPole(form, jmeno);
+    if (el?.type === 'checkbox') return el.defaultChecked ? 'Ano' : 'Ne';
+    if (el?.tagName === 'SELECT') {
+      const moznosti = Array.from(el.options);
+      return (moznosti.filter(o => o.defaultSelected).pop() || moznosti[0])?.textContent.trim() || 'nevyplněno';
+    }
+    const v = el?.defaultValue || 'nevyplněno';
+    return v.length > 200 ? v.slice(0, 200) + '…' : v;
+  }
+  function ukazKonflikt(obal, form, r) {
+    const pole = r.konflikt.map(n => popisekPole(form, n));
+    const ted = new URLSearchParams(serializuj(form));
+    const vychozi = vychoziStav(form);
+    const kolize = r.konflikt.filter(n => r.zmenena.includes(n) && !stejne(ted.getAll(n), vychozi[n]));
+    let text = `Záznam se mezitím změnil (možná v jiné kartě): ${pole.join(', ')}. Tato pole ukazují aktuální hodnotu, vaše úpravy zůstaly.`;
+    if (kolize.length) {
+      text = `Záznam se mezitím změnil (možná v jiné kartě): ${pole.join(', ')}. Ostatní pole ukazují aktuální hodnotu, vaše úpravy zůstaly. `
+        + kolize.map(n => `${popisekPole(form, n)} jste měnili i vy: uloženo je „${ulozenaHodnota(form, n)}“, uložením ho přepíšete vaší hodnotou.`).join(' ');
+    }
+    hlaska(obal, `${text} Zkontrolujte údaje a klikněte znovu na Uložit.`);
+    prepnuto = performance.now(); // druhý klik dvojkliku nesmí dopadnout na Uložit nové stránky
+  }
+
   let rozepsano = null;
-  try { rozepsano = JSON.parse(cti(klicRozepsano)); } catch { /* poškozený záznam se zahodí */ }
-  smaz(klicRozepsano);
+  try { rozepsano = JSON.parse(cti(klicRozepsano())); } catch { /* poškozený záznam se zahodí */ }
+  smaz(klicRozepsano());
 
   // Serverem otevřené úpravy (?upravit=1) dostanou snímek hned při načtení.
   obaly.forEach(obal => {
@@ -104,8 +219,10 @@
     const form = formular(obal);
     if (!form) return;
     snimky.set(obal, serializuj(form));
-    if (rozepsano?.form === form.id && (rozepsano.poNacteni || /[?&]error=/.test(location.search))) {
-      doplnRozepsane(form, rozepsano.hodnoty);
+    const zpet = performance.getEntriesByType?.('navigation')?.[0]?.type === 'back_forward';
+    if (rozepsano?.form === form.id && (rozepsano.poNacteni || zpet || /[?&]error=/.test(location.search))) {
+      doplnRozepsane(form, rozepsano.hodnoty, rozepsano.zmenena);
+      if (rozepsano.konflikt) ukazKonflikt(obal, form, rozepsano);
     }
   });
 
@@ -171,11 +288,52 @@
     }
   });
 
-  document.addEventListener('submit', e => {
-    if (!e.target.classList?.contains('upravitelne')) return;
+  function pripravOdeslani(form) {
     odesilam = true;
     odeslano = performance.now();
-    zapamatujRozepsane(e.target, false);
+    zapamatujRozepsane(form, false);
+  }
+  // Událost submit už proběhla, druhá by jen spustila další kontrolu. Přes prototyp:
+  // pole pojmenované „submit“ by metodu formuláře zakrylo.
+  function odesli(form) {
+    pripravOdeslani(form);
+    HTMLFormElement.prototype.submit.call(form);
+  }
+
+  document.addEventListener('submit', e => {
+    const form = e.target;
+    if (!form.classList?.contains('upravitelne') || e.defaultPrevented) return;
+    // Kontrola běží nebo už odešel POST: další klik nic nepřidá.
+    if (kontrola || performance.now() - odeslano < 5000) { e.preventDefault(); return; }
+    const obal = form.closest('[data-rezim]');
+    const tuzka = obal?.querySelector('.upravit-otevrit');
+    if (!tuzka) { pripravOdeslani(form); return; }
+
+    e.preventDefault();
+    kontrola = true;
+    const tlacitka = Array.from(document.querySelectorAll(`.upravit-ulozit[form="${form.id}"]`));
+    const popisky = tlacitka.map(b => b.textContent);
+    tlacitka.forEach(b => { b.textContent = 'Ukládám…'; });
+    const hotovo = () => { kontrola = false; tlacitka.forEach((b, i) => { b.textContent = popisky[i]; }); };
+
+    zkontroluj(form, tuzka).then(({ stav, zmeny }) => {
+      hotovo();
+      if (stav === 'prihlaseni') return hlaska(obal, 'Přihlášení vypršelo. Přihlaste se v jiném panelu a klikněte znovu na Uložit, rozepsané údaje tu zůstávají.');
+      // Jednou se zeptá znovu, podruhé odešle: kontrola nesmí Uložit zablokovat, ani když fetch trvale selhává.
+      if (stav === 'sit' && !sitSelhala) { sitSelhala = true; return hlaska(obal, 'Server teď neodpovídá. Údaje zůstávají ve formuláři, zkuste uložit znovu.'); }
+      if (stav === 'smazano') return hlaska(obal, 'Tento záznam mezitím někdo smazal, uložit už nejde.');
+      if (stav !== 'konflikt') return odesli(form);
+      // Pole, které se liší při každém načtení, by jinak uložení znemožnilo navždy.
+      const pocet = (rozepsano?.pocet || 0) + 1;
+      if (pocet >= 3 && confirm('Údaje se opakovaně mění. Přesto uložit a přepsat je?')) return odesli(form);
+      if (!zapamatujRozepsane(form, true, { konflikt: zmeny, pocet })) {
+        // Rozepsané nejde přenést přes načtení stránky (plné nebo vypnuté úložiště).
+        if (confirm(`Záznam se mezitím změnil: ${zmeny.map(n => popisekPole(form, n)).join(', ')}. Přesto uložit a přepsat to?`)) odesli(form);
+        return;
+      }
+      odesilam = true;
+      location.replace(tuzka.href);
+    }).catch(() => { hotovo(); odesli(form); }); // chyba v kontrole nesmí znemožnit uložení
   });
 
   // Návrat tlačítkem Zpět ze zásobníku stránek (bfcache) ukáže stránku tak, jak
@@ -188,6 +346,7 @@
   window.addEventListener('pageshow', e => {
     odesilam = false;
     odeslano = -Infinity;
+    kontrola = false;
     if (!e.persisted || !(Number(cti(klicUlozeni)) > nacteno)) return;
     const obal = vUpravach();
     if (obal) upravUrl(obal, false);

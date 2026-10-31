@@ -7,6 +7,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import ejs from 'ejs';
 import { jenDatum, ceskeDatum } from '../src/prazsky-cas.js';
@@ -123,4 +124,18 @@ test('select: hodnota mimo nabídku zůstane vybraná, aby ji uložení nepřeps
   assert.match(html, /<div class="pole-hodnota">V přípravě<\/div>/);
   assert.match(html, /<option value="V přípravě" selected>V přípravě<\/option>/);
   assert.match(html, /<option value="Aktivní">Aktivní<\/option>/, 'první volba nabídky vybraná není');
+});
+
+test('každý formulář režimu úprav má autocomplete="off", jinak prohlížeč po F5 a Zpět vrátí staré hodnoty', () => {
+  const views = fileURLToPath(new URL('../views/', import.meta.url));
+  let pocet = 0;
+  for (const soubor of readdirSync(views, { recursive: true })) {
+    if (!String(soubor).endsWith('.ejs')) continue;
+    // Regex na celou značku <form> by se zastavil na > uvnitř <%= %>.
+    for (const m of readFileSync(views + soubor, 'utf8').matchAll(/class="[^"]*\bupravitelne\b[^"]*"(.{0,20})/g)) {
+      pocet++;
+      assert.match(m[1], /^ autocomplete="off"/, `${soubor}: ${m[0]}`);
+    }
+  }
+  assert.ok(pocet >= 14, `našlo se jen ${pocet} formulářů`);
 });

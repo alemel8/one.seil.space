@@ -46,6 +46,7 @@ export function zkontrolujDetail(html, { formular, sloupce = [], rezim = 'zobraz
   }
   assert.ok(html.includes(`id="${formular}"`), `formulář ${formular} je na stránce`);
   assert.match(html, new RegExp(`<form[^>]*id="${formular}"[^>]*class="[^"]*\\bupravitelne\\b|<form[^>]*class="[^"]*\\bupravitelne\\b[^"]*"[^>]*id="${formular}"`), 'formulář záznamu má třídu upravitelne');
+  assert.match(html, new RegExp(`<form\\b[^>]*\\bid="${formular}"[^>]*\\bautocomplete="off"`), 'prohlížeč do formuláře nevrací staré hodnoty, kontrola při Uložit by je neviděla');
   assert.ok(html.includes(`form="${formular}" class="btn btn-primary upravit-ulozit"`), 'Uložit v hlavičce míří na formulář záznamu');
   assert.match(html, /class="btn btn-outline btn-ikona upravit-otevrit"[^>]*aria-label="Upravit"/, 'tužka je jen ikona s přístupným názvem');
   const pole = poleFormulare(html, formular);

@@ -915,11 +915,30 @@ Jak to drží pohromadě:
   se starými výchozími hodnotami a další Uložit by uloženou změnu potichu vrátilo.
   Každá stránka s `?saved=` si proto v `sessionStorage` poznamená čas uložení
   pro svou cestu; stránka z paměti, která je starší, se načte znovu a bez úprav.
-- **Rozepsané hodnoty přežijí načtení.** Při odeslání si skript hodnoty
-  formuláře uloží do `sessionStorage` a na `?error=…&upravit=1` je vrátí do polí.
-  Stejně to dělá nahrání dokladu během úprav (`window.upravyNactiZnovu()`
-  místo `location.reload()`). Snímek pro hlídání změn zůstává ze serveru, takže
-  Zrušit vrátí uložený stav a odchod se dál ptá. Záznam platí pro jedno načtení.
+- **Rozepsané hodnoty přežijí načtení.** Při odeslání si skript do
+  `sessionStorage` uloží pole, která uživatel změnil proti snímku z otevření,
+  a na `?error=…&upravit=1` vrátí jen ta. Ostatní mají z načtení čerstvé hodnoty,
+  vrácení všech by přepsalo, co někdo mezitím uložil. Stejně to dělá nahrání dokladu
+  během úprav (`window.upravyNactiZnovu()` místo `location.reload()`). Snímek pro
+  hlídání změn zůstává ze serveru, takže Zrušit vrátí uložený stav a odchod se dál
+  ptá. Záznam platí pro jedno načtení.
+- **Kontrola při Uložit.** Routy přepisují všechny sloupce formuláře, stránka
+  načtená před hodinou by tedy vrátila, co někdo mezitím změnil. Skript proto před
+  odesláním načte adresu tužky znovu a porovná výchozí hodnoty polí, které server
+  vykreslil tehdy a teď. Když se liší, nic neodešle, načte stránku znovu, vrátí jen
+  změněná pole a ukáže hlášku se jmény polí; když totéž pole změnili oba, řekne
+  i uloženou hodnotu. Druhé Uložit projde. Změna sloupce, který formulář nepíše
+  (export do POHODY, příloha, stav faktury, kontrola Disku), poplach nevyvolá a uložení
+  ji nepřepíše. Proto `xmin` ani `updated_at` nejsou lepší: hlásily by i tyto změny.
+  Selhání kontroly uložení nezablokuje: chyba serveru a vypršený limit 5 s odešlou
+  hned, výpadek sítě se jednou zeptá a podruhé odešle. Vypršené přihlášení a smazaný
+  záznam nic neodešlou a údaje nechají ve formuláři. Třetí poplach v řadě se zeptá,
+  aby nestabilní pole uložení nezablokovalo navždy. Meze: mezi kontrolou a odesláním
+  zůstává krátké okno, bez JavaScriptu se nekontroluje. Formuláře mají
+  `autocomplete="off"`, jinak prohlížeč po F5 a Zpět vrátí do polí staré hodnoty, které
+  kontrola nevidí, protože výchozí hodnoty jsou čerstvé. Nové pole nesmí výchozí
+  hodnotu měnit skriptem ani při každém načtení jinou (čas, token): každé Uložit by
+  pak hlásilo poplach, hlídá to `test/rezim-uprav-kolo.test.js`.
 - **Server** čte režim jen z `?upravit=1` (`rezimUprav()` v `src/upravy.js`),
   nikdy z `error=` – chyba může přijít z jiného formuláře na téže stránce
   (heslo na profilu, fotka člena, token platformy). POST upravitelného
@@ -932,7 +951,8 @@ Jak to drží pohromadě:
   v `src/server.js` musí stát před registrací rout: Fastify obsluhu přiřadí
   routě při registraci a později nastavená by pro ni neplatila.
 - **Routy přepisují celý řádek** (`UPDATE … SET` všech sloupců), formulář
-  proto musí poslat všechna pole. Vazbu pole na sloupec hlídá
+  proto musí poslat všechna pole a cizí změnu hlídá kontrola při Uložit. Vazbu
+  pole na sloupec hlídá
   `test/rezim-uprav-kolo.test.js`: otevře každý formulář, klikne Uložit bez
   změny a porovná řádek v databázi.
   Render testy (`test/render-*.test.js`, pomocník `test/pomocnici/render.js`)
