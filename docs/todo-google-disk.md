@@ -1,8 +1,8 @@
 # TODO — zprovoznění importu faktur z Google Disku
 
-Kód je nasazený (commit `ce481f5`), ale integrace nezačne fungovat, dokud se
-nedodá přístup ke Google Disku. Než je hotovo, stránka
-`/ucetnictvi/prijate-faktury/gdrive` hlásí, co konkrétně chybí.
+Faktura uložená do složky na Disku se sama vytěží a založí v One SEIL. Než je
+přístup hotový, stránka `/ucetnictvi/prijate-faktury/gdrive` hlásí, co konkrétně
+chybí, a ukazuje čas i chybu poslední automatické kontroly.
 
 ---
 
@@ -55,8 +55,23 @@ Každý soubor se páruje přes Drive file ID (`accounting_invoices.gdrive_file_
 unikátní index), takže opakovaný import nic nezduplikuje — ani po přejmenování
 nebo přesunu souboru na Disku.
 
-Import běží na pozadí s ukazatelem průběhu; vytěžení jedné faktury přes Claude
-trvá zhruba 10 sekund.
+**Automatika** (`src/gdrive-import.js`) kontroluje každých 5 minut letošní
+a loňský rok. První úspěšná kontrola jen zapíše, co ve složce je (stav `vychozi`
+v `gdrive_soubory`), a nic neimportuje: ty doklady jsou v systému z POHODY a na
+stránce nejsou předvybrané. Importuje se až to, co přibude později. Po změně ID
+složky se výchozí stav zapíše znovu.
+
+Před založením se hledá stejná faktura bez vazby na Disk: stejné IČO a k tomu
+číslo dokladu, nebo datum vystavení a částka. Shoda s jedinou fakturou se k ní
+připojí (doplní se vazba a chybějící příloha, číslo a stav zůstávají). Bez IČO
+se neslučuje. Číslo samo nestačí, u faktur z POHODY je v `number` její interní číslo.
+
+Nevytěžený doklad fakturu nezaloží. Zkusí se znovu po hodině, nejvýš 5×, pak
+přijde push a zbývá ruční import ze stránky. Za jednu kontrolu se zpracuje nejvýš
+25 dokladů. O nově načtených dokladech chodí push.
+
+Ruční výběr na stránce běží na pozadí s ukazatelem průběhu; vytěžení jedné
+faktury přes Claude trvá zhruba 10 sekund.
 
 Přístup je **jen pro čtení** (scope `drive.readonly`) — aplikace na Disku nic
 nemění ani nemaže.
@@ -66,16 +81,12 @@ nemění ani nemaže.
 ## Neověřeno
 
 Reálné volání Drive API a vytěžení skutečné faktury nebylo možné otestovat bez
-přihlašovacích údajů. Otestované je: procházení složek a JWT přihlášení proti
-nasimulovanému Drive API, migrace proti čisté databázi, registrace rout
-a vykreslení stránek.
+přihlašovacích údajů. Otestované je (`test/gdrive-import.test.js`): procházení
+složek proti nasimulovanému Drive API, výchozí stav, slučování, pokusy, migrace
+proti čisté databázi a vykreslení stránky.
 
 ## Možné rozšíření
 
-- [ ] **Automatická synchronizace** — kontrola nových souborů každou hodinu na
-      pozadí, bez klikání. Aplikace už takový mechanismus má pro healthchecky
-      (`src/server.js`, `setInterval`), jde o malý dodělek.
-- [ ] **Notifikace** při nalezení nové faktury (push kanál v systému už je)
 - [ ] **Předkontace** u importovaných faktur — teď se zakládají prázdné
 
 ---
@@ -85,3 +96,4 @@ a vykreslení stránek.
 - [x] Export účtenek do POHODY (agenda Pokladna) — opraveno a ověřeno v provozu
 - [x] Rychlý odkaz na Účtenky na homepage
 - [x] Import z Google Disku — kód, stránka, dedup, běh na pozadí
+- [x] Automatický import nových dokladů a push o výsledku

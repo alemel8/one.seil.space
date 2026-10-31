@@ -30,6 +30,12 @@
 </div>
 <% } %>
 
+<div style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
+  Nové doklady ve složce se načítají samy, kontrola běží každých 5 minut.
+  <% if (kontrola) { %>Poslední kontrola: <%= new Date(kontrola).toLocaleString('cs-CZ', { timeZone: 'Europe/Prague' }) %>.<% } else { %>Zatím neproběhla.<% } %>
+  <% if (chybaKontroly) { %><div style="color:var(--danger);margin-top:4px;">Poslední kontrola selhala: <%= chybaKontroly %></div><% } %>
+</div>
+
 <form method="get" style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center;">
   <select name="year" class="form-select" style="width:auto;">
     <% for (let y = new Date().getFullYear() + 1; y >= 2020; y--) { %>
@@ -45,7 +51,8 @@
   <button type="submit" class="btn btn-outline">Načíst složku</button>
 </form>
 
-<% const pending = files.filter(f => !f.invoiceId); %>
+<%# Doklady z doby před automatikou jsou v systému z POHODY, proto nejsou předvybrané. %>
+<% const pending = files.filter(f => !f.invoiceId && f.stav !== 'vychozi'); %>
 
 <form method="post" action="/ucetnictvi/prijate-faktury/gdrive/import" id="gdForm">
   <input type="hidden" name="year"  value="<%= year %>">
@@ -57,7 +64,7 @@
       ↓ Naimportovat vybrané (<span id="gdCount"><%= pending.length %></span>)
     </button>
     <span style="font-size:13px;color:var(--text-muted);">
-      Každý doklad se stáhne, vytěží Claudem a založí jako přijatá faktura. Může to chvíli trvat.
+      Každý doklad se stáhne a vytěží Claudem. Stejnou fakturu v systému doplní, jinak založí novou. Může to chvíli trvat.
     </span>
   </div>
   <% } %>
@@ -76,7 +83,7 @@
           <tr>
             <td>
               <% if (!f.invoiceId) { %>
-                <input type="checkbox" class="gd-cb" name="file_ids" value="<%= f.id %>" checked onchange="gdUpdate()">
+                <input type="checkbox" class="gd-cb" name="file_ids" value="<%= f.id %>" <%= f.stav === 'vychozi' ? '' : 'checked' %> onchange="gdUpdate()">
               <% } %>
             </td>
             <td style="font-weight:600;">
@@ -91,6 +98,10 @@
             <td>
               <% if (f.invoiceId) { %>
                 <a href="/ucetnictvi/prijate-faktury/<%= f.invoiceId %>" class="badge" style="background:#dcfce7;color:#166534;text-decoration:none;">Naimportováno</a>
+              <% } else if (f.stav === 'vychozi') { %>
+                <span class="badge" style="background:var(--bg-page);color:var(--text-muted);" title="Ve složce byl už před spuštěním automatiky, sám se nenačte.">Před automatikou</span>
+              <% } else if (f.stav === 'chyba') { %>
+                <span class="badge" style="background:#fee2e2;color:#991b1b;" title="<%= f.chyba %>">Chyba</span>
               <% } else { %>
                 <span class="badge" style="background:#fef9c3;color:#92400e;">Nové</span>
               <% } %>

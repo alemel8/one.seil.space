@@ -296,6 +296,15 @@ try {
   startMarketingScheduler(fastify.log);
 }
 
+// ── Background: přijaté faktury z Google Disku ───────────────
+//
+// Každých 5 minut hledá nové doklady ve složce; co v ní bylo před první
+// kontrolou, nechává být. Podrobnosti v hlavičce src/gdrive-import.js.
+{
+  const { startGdriveScheduler } = await import('./gdrive-import.js');
+  startGdriveScheduler(fastify.log);
+}
+
 // ── Graceful shutdown ─────────────────────────────────────────
 
 const shutdown = async (signal) => {

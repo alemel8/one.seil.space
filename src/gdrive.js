@@ -17,11 +17,23 @@ export { isConfigured, serviceAccountEmail } from './google-auth.js';
 const API   = 'https://www.googleapis.com/drive/v3';
 const SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
 
+/** Kód chyby findReceivedInvoices, když složka roku neexistuje (typicky 1. ledna). */
+export const ROK_CHYBI = 'GDRIVE_ROK_CHYBI';
+
+// Do pole v nastavení se snadno vloží celá adresa složky místo jejího ID.
+export function idSlozky(hodnota) {
+  const text = String(hodnota || '').trim();
+  return text.match(/\/folders\/([\w-]+)/)?.[1] || text;
+}
+
 async function api(pathname, params = {}) {
   const url = new URL(API + pathname);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
 
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${await accessToken([SCOPE])}` } });
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${await accessToken([SCOPE])}` },
+    signal: AbortSignal.timeout(30_000),
+  });
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
     if (res.status === 404) throw new Error('Složka nebo soubor na Google Disku nenalezen — je nasdílený service accountu?');
@@ -61,7 +73,10 @@ export async function downloadFile(fileId) {
   const url = new URL(`${API}/files/${fileId}`);
   url.searchParams.set('alt', 'media');
   url.searchParams.set('supportsAllDrives', 'true');
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${await accessToken([SCOPE])}` } });
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${await accessToken([SCOPE])}` },
+    signal: AbortSignal.timeout(120_000),
+  });
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
     throw new Error(`Stažení souboru z Google Disku selhalo (${res.status}): ${detail.slice(0, 200)}`);
@@ -83,14 +98,15 @@ const MONTH_NAMES = [
 ];
 
 // Složka měsíce se jmenuje např. „7. Červenec“, „07 - červenec“ nebo „Červenec“
-function monthOfFolder(name) {
+export function monthOfFolder(name) {
   const n = normalize(name);
   const byNumber = n.match(/^(\d{1,2})\b/);
   if (byNumber) {
     const m = parseInt(byNumber[1], 10);
     if (m >= 1 && m <= 12) return m;
   }
-  const idx = MONTH_NAMES.findIndex(m => n.includes(m));
+  // „cervenec“ obsahuje i „cerven“, proto se hledá od konce seznamu
+  const idx = MONTH_NAMES.findLastIndex(m => n.includes(m));
   return idx >= 0 ? idx + 1 : null;
 }
 
@@ -101,7 +117,7 @@ export async function findReceivedInvoices({ rootFolderId, year, month = null })
   const yearFolder = (await listChildren(rootFolderId))
     .find(f => f.mimeType === FOLDER_MIME && normalize(f.name).includes(yearStr));
   if (!yearFolder) {
-    throw new Error(`Ve sdílené složce není podsložka pro rok ${yearStr}.`);
+    throw Object.assign(new Error(`Ve sdílené složce není podsložka pro rok ${yearStr}.`), { code: ROK_CHYBI });
   }
 
   const monthFolders = (await listChildren(yearFolder.id))

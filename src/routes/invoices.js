@@ -3,7 +3,6 @@ import { renderInvoicePdf } from '../pdf.js';
 import { sendInvoiceEmail, sendReminderEmail } from '../email.js';
 import { brandForShopId } from '../brand.js';
 import { buildPohodaXml } from '../pohoda.js';
-import Anthropic from '@anthropic-ai/sdk';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { writeFile, mkdir } from 'node:fs/promises';
@@ -13,6 +12,7 @@ import { saveAttachment, deleteAttachment, isSupportedMime, markMissingAttachmen
 import { denUhradyZFormulare, uhradaFakturyObjednavky, zobrazeniUhrady } from '../danovy-doklad.js';
 import { ceskeDatum, jenDatum, prazskeDatum, pridejDny } from '../prazsky-cas.js';
 import { rezimUprav } from '../upravy.js';
+import { extractInvoiceData, importujSoubor } from '../gdrive-import.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '../..');
@@ -40,39 +40,6 @@ const FORM_ERRORS = {
 async function getIssuer(sql) {
   const [company] = await sql`SELECT * FROM company_settings LIMIT 1`;
   return company || {};
-}
-
-// ── AI: vytěžení dat přijaté faktury z PDF/obrázku ───────────
-
-const EXTRACT_PROMPT = `Z tohoto dokladu vyextrahuj data přijaté faktury. Vrať POUZE platný JSON objekt bez markdown bloků ani dalšího textu:
-{"number":"číslo faktury od dodavatele","supplier":"název dodavatele","supplier_ico":"IČO nebo null","amount":základ_bez_DPH_číslo,"vat_amount":DPH_číslo,"total_amount":celková_částka_číslo,"currency":"CZK","issue_date":"YYYY-MM-DD nebo null","due_date":"YYYY-MM-DD nebo null","notes":"předmět plnění nebo null"}`;
-
-async function extractInvoiceData(buf, mimeType, log) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey || apiKey.length < 20 || apiKey.includes('XXX')) {
-    throw new Error('ANTHROPIC_API_KEY není nastavena na serveru. Nastavte ji v prostředí (Coolify env vars).');
-  }
-
-  const base64 = buf.toString('base64');
-  const contentBlock = mimeType.startsWith('image/')
-    ? { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } }
-    : { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } };
-
-  const message = await new Anthropic({ apiKey }).messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 1024,
-    messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: EXTRACT_PROMPT }] }],
-  });
-
-  const text = (message.content?.[0]?.text || '{}').trim()
-    .replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    log?.warn({ text }, 'Claude vrátil neplatný JSON');
-    return {};
-  }
 }
 
 // ── Výpočet DPH souhrnu ───────────────────────────────────────
@@ -1058,8 +1025,17 @@ export default async function invoicesRoutes(fastify) {
         const imported = ids.length > 0
           ? await sql`SELECT id, gdrive_file_id FROM accounting_invoices WHERE gdrive_file_id = ANY(${ids})`
           : [];
+        const known = ids.length > 0
+          ? await sql`SELECT file_id, stav, chyba FROM gdrive_soubory WHERE file_id = ANY(${ids})`
+          : [];
         const byFile = new Map(imported.map(r => [r.gdrive_file_id, r.id]));
-        files = files.map(f => ({ ...f, invoiceId: byFile.get(f.id) || null }));
+        const stavy  = new Map(known.map(r => [r.file_id, r]));
+        files = files.map(f => ({
+          ...f,
+          invoiceId: byFile.get(f.id) || null,
+          stav: stavy.get(f.id)?.stav || null,
+          chyba: stavy.get(f.id)?.chyba || '',
+        }));
       } catch (err) {
         fastify.log.error({ err }, 'Google Drive listing selhal');
         error = err.message;
@@ -1072,48 +1048,10 @@ export default async function invoicesRoutes(fastify) {
       serviceAccount: serviceAccountEmail(),
       rootFolderId: company.gdrive_root_folder_id || '',
       job: gdriveJob,
+      kontrola: company.gdrive_posledni_kontrola || null,
+      chybaKontroly: company.gdrive_posledni_chyba || '',
     }, { layout: 'layouts/base.ejs' });
   });
-
-  // Import jednoho souboru: stáhnout → vytěžit Claudem → založit fakturu
-  const importGdriveFile = async (fileId) => {
-    const { downloadFile, getFile } = await import('../gdrive.js');
-
-    // Přeskoč, co už v systému je (dvojklik na tlačítko, souběžný běh)
-    const [existing] = await sql`SELECT id FROM accounting_invoices WHERE gdrive_file_id = ${fileId}`;
-    if (existing) return 'skipped';
-
-    const meta = await getFile(fileId);
-    const buf  = await downloadFile(fileId);
-    const mime = meta.mimeType || 'application/pdf';
-    const d    = await extractInvoiceData(buf, mime, fastify.log);
-
-    const saved = await saveAttachment(buf, mime, 'inv_recv_gd', { log: fastify.log });
-
-    const amount      = parseFloat(d.amount     || 0);
-    const vatAmount   = parseFloat(d.vat_amount || 0);
-    const totalAmount = d.total_amount ? parseFloat(d.total_amount) : (amount + vatAmount);
-
-    await sql`
-      INSERT INTO accounting_invoices
-        (id, type, number, supplier, supplier_ico, amount, vat_amount, total_amount,
-         currency, status, issue_date, due_date, notes,
-         attachment_path, attachment_mime, attachment_size, gdrive_file_id)
-      VALUES (
-        ${generateId()}, 'received',
-        ${String(d.number || meta.name || '').slice(0, 60)},
-        ${(d.supplier || '').trim()},
-        ${(d.supplier_ico || '').trim() || null},
-        ${amount}, ${vatAmount}, ${totalAmount},
-        ${d.currency || 'CZK'}, 'Nezaplacena',
-        ${d.issue_date || new Date().toISOString().split('T')[0]},
-        ${d.due_date || null},
-        ${(d.notes || '').trim() || meta.name},
-        ${saved.filename}, ${saved.mime}, ${saved.size}, ${fileId}
-      )
-    `;
-    return 'imported';
-  };
 
   // Import běží na pozadí — vytěžení jedné faktury trvá ~10 s, celá dávka by
   // přesáhla timeout proxy. Stav drží jedna proměnná, souběžný běh nedovolíme.
@@ -1132,8 +1070,8 @@ export default async function invoicesRoutes(fastify) {
     (async () => {
       for (const fileId of fileIds) {
         try {
-          const result = await importGdriveFile(fileId);
-          gdriveJob[result === 'imported' ? 'imported' : 'skipped']++;
+          const { vysledek } = await importujSoubor(sql, fastify.log, fileId);
+          gdriveJob[vysledek === 'skipped' ? 'skipped' : 'imported']++;
         } catch (err) {
           fastify.log.error({ err, fileId }, 'Import faktury z Google Disku selhal');
           gdriveJob.failed++;

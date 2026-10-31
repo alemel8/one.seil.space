@@ -7,6 +7,7 @@ import { hashKlice, otiskKlice, vygenerujKlic } from '../eshop-klice.js';
 import { behySyncu, nactiZdroje, nastavMarketingEshopu, tajemstviZdroje, ulozZdroj, ZdrojError } from '../marketing/zdroje.js';
 import { maKlic } from '../marketing/tajemstvi.js';
 import { isConfigured as maGoogleServiceAccount, serviceAccountEmail } from '../google-auth.js';
+import { idSlozky } from '../gdrive.js';
 
 /**
  * Toneráček jede přes /api/toneracek s klíčem z TONERACEK_API_KEY a jeho
@@ -76,7 +77,7 @@ export default async function settingsRoutes(fastify) {
           pohoda_predkontace  = ${(b.pohoda_predkontace  ||'').trim()},
           pohoda_predkontace_prijate = ${(b.pohoda_predkontace_prijate ||'').trim()},
           pohoda_predkontace_repre   = ${(b.pohoda_predkontace_repre   ||'').trim()},
-          gdrive_root_folder_id = ${(b.gdrive_root_folder_id ||'').trim()},
+          gdrive_root_folder_id = ${idSlozky(b.gdrive_root_folder_id)},
           updated_at   = NOW()
         WHERE id = ${existing.id}
       `;
@@ -99,7 +100,7 @@ export default async function settingsRoutes(fastify) {
                 ${(b.pohoda_predkontace||'').trim()},
                 ${(b.pohoda_predkontace_prijate||'').trim()},
                 ${(b.pohoda_predkontace_repre||'').trim()},
-                ${(b.gdrive_root_folder_id||'').trim()})
+                ${idSlozky(b.gdrive_root_folder_id)})
       `;
     }
     return reply.redirect('/nastaveni/firma?saved=1');

@@ -461,8 +461,23 @@ Vydané i přijaté faktury.
 | `attachment_path` | TEXT | Doklad přijaté faktury v `data/media/` (viz `src/attachments.js`) |
 | `attachment_mime` | TEXT | `image/jpeg`, `application/pdf`, … |
 | `attachment_size` | INT | Velikost v bajtech po zmenšení |
+| `gdrive_file_id` | TEXT UNIQUE | Soubor na Google Disku, ze kterého faktura je |
 | `notes` | TEXT | |
 | `created_at` | TIMESTAMPTZ | |
+
+### `gdrive_soubory`
+Doklady, které automatický import viděl na Google Disku (`src/gdrive-import.js`).
+
+| Sloupec | Typ | Popis |
+|---|---|---|
+| `file_id` | TEXT PK | ID souboru na Disku |
+| `nazev`, `slozka` | TEXT | Název a cesta při poslední kontrole |
+| `stav` | TEXT | `vychozi` (ve složce před první kontrolou, sám se nenačte) / `cekajici` / `naimportovano` / `chyba` (CHECK) |
+| `invoice_id` | TEXT → accounting_invoices (SET NULL) | Založená nebo doplněná faktura |
+| `pokusy` | INT | Neúspěšné pokusy, strop 5 |
+| `chyba` | TEXT | Poslední chyba |
+| `posledni_pokus` | TIMESTAMPTZ | Další pokus nejdřív za hodinu |
+| `created_at`, `updated_at` | TIMESTAMPTZ | |
 
 ### `accounting_invoice_items`
 Položky faktur.
@@ -654,6 +669,9 @@ Jeden řádek — údaje fakturující firmy.
 | `pohoda_predkontace_prijate` | TEXT | Předkontace přijatých faktur a ostatních závazků |
 | `pohoda_predkontace_repre` | TEXT | Předkontace dokladů bez nároku na odpočet DPH |
 | `gdrive_root_folder_id` | TEXT | Kořenová složka pro import přijatých faktur |
+| `gdrive_vychozi_slozka` | TEXT | Složka, pro kterou je zapsaný výchozí stav v `gdrive_soubory` |
+| `gdrive_posledni_kontrola` | TIMESTAMPTZ | Poslední automatická kontrola složky |
+| `gdrive_posledni_chyba` | TEXT | Chyba poslední kontroly, prázdné = v pořádku |
 | `logo_path` | TEXT | Logo v `data/media/` |
 | `updated_at` | TIMESTAMPTZ | |
 

@@ -119,6 +119,7 @@ faktura bere DUZP.
 | `GET /ucetnictvi/prijate-faktury` | Seznam přijatých faktur |
 | `POST /ucetnictvi/prijate-faktury/vytvorit` | Vytvořit přijatou fakturu |
 | `GET /ucetnictvi/prijate-faktury/:id` | Detail přijaté faktury |
+| `GET /ucetnictvi/prijate-faktury/gdrive` | Doklady na Google Disku a stav automatického importu (viz `docs/todo-google-disk.md`) |
 | `POST /ucetnictvi/vydane-faktury/pohoda-xml` | POHODA XML — agenda Vydané faktury |
 | `POST /ucetnictvi/prijate-faktury/pohoda-xml` | POHODA XML — agenda Přijaté faktury |
 | `GET /ucetnictvi/opakujici-se-faktury` | Správa šablon opakujících se faktur |
