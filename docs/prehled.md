@@ -61,11 +61,11 @@ one.seil.space/
 │   └── pdf/invoice.ejs     # Šablona pro PDF faktury
 ├── public/
 │   ├── sw.js               # Service Worker (PWA + push notifikace)
-│   ├── js/                 # app.js (menu, modaly, téma), hledani.js (našeptávač), upravy.js (režim úprav), stopky, doklady
-│   ├── css/                # variables, layout, components
+│   ├── js/                 # app.js (menu, modaly, téma), hledani.js (našeptávač), upravy.js (režim úprav), marketing.js, stopky, doklady
+│   ├── css/                # variables, layout, components, auth
 │   ├── chart.umd.min.js    # Chart.js 4.4.7 (UMD, MIT) pro grafy
 │   └── manifest.json       # PWA manifest
-├── migrations/             # Číslované SQL migrace (001–010)
+├── migrations/             # Číslované SQL migrace
 ├── docs/                   # Tato dokumentace
 ├── scripts/                # Pomocné skripty (migrace dat, superuser)
 ├── data/                   # Runtime data (media, PDF) – není v gitu
@@ -106,7 +106,7 @@ Fio CSV import
 
 ### Push notifikace
 ```
-Uživatel zapne notifikace v /profil
+Uživatel zapne notifikace v /nastaveni
   → Browser vyžádá permission
   → Subscription uložena do push_subscriptions
   → Při nové objednávce: sendPushToAll() → broadcast

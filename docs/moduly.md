@@ -10,7 +10,7 @@ Každý modul je Fastify plugin registrovaný v `src/server.js`. Většina modul
 |---|---|
 | `GET /prihlasit` | Přihlašovací formulář |
 | `POST /prihlasit` | Ověření e-mailu + bcrypt hesla, zápis session |
-| `POST /odhlasit` | Zničení session |
+| `GET /odhlasit` | Zničení session |
 | `GET /profil` | Profil přihlášeného uživatele |
 | `POST /profil` | Uložení jména / změna hesla |
 | `POST /profil/foto` | Upload profilové fotky (JPG/PNG/WebP, max 5 MB) |
@@ -120,6 +120,9 @@ faktura bere DUZP.
 | `POST /ucetnictvi/prijate-faktury/vytvorit` | Vytvořit přijatou fakturu |
 | `GET /ucetnictvi/prijate-faktury/:id` | Detail přijaté faktury |
 | `GET /ucetnictvi/prijate-faktury/gdrive` | Doklady na Google Disku a stav automatického importu (viz `docs/todo-google-disk.md`) |
+| `POST /ucetnictvi/prijate-faktury/:id/upravit` | Uložit fakturu z detailu (celý řádek, pole přes `form=`); přesměruje na `?saved=1`, při chybě na `?error=duplicita` nebo `datum` s `&upravit=1` |
+| `POST /ucetnictvi/prijate-faktury/:id/stav` | Změnit stav faktury |
+| `POST /ucetnictvi/prijate-faktury/:id/priloha` | Nahrát nebo nahradit přílohu |
 | `POST /ucetnictvi/vydane-faktury/pohoda-xml` | POHODA XML – agenda Vydané faktury |
 | `POST /ucetnictvi/prijate-faktury/pohoda-xml` | POHODA XML – agenda Přijaté faktury |
 | `GET /ucetnictvi/opakujici-se-faktury` | Správa šablon opakujících se faktur |
@@ -275,7 +278,7 @@ v `notification_log` (`faktura_lhuta`, klíč = pražské datum). Jen interní p
 | `GET /ucetnictvi/uctenky/:id` | Detail účtenky s dokladem a editací |
 | `POST /ucetnictvi/uctenky/analyze-pdf` | AI vytěžení z fotky nebo PDF (Claude) |
 | `POST /ucetnictvi/uctenky/vytvorit` | Vytvořit účtenku (multipart – veze i doklad) |
-| `POST /ucetnictvi/uctenky/:id/upravit` | Ruční úprava dat, volitelně výměna dokladu |
+| `POST /ucetnictvi/uctenky/:id/upravit` | Ruční úprava dat z detailu (doklad mění `/priloha`) |
 | `POST /ucetnictvi/uctenky/:id/priloha` | Dofotit / nahradit doklad u existující účtenky |
 | `POST /ucetnictvi/uctenky/:id/stav` | Změnit stav (Nezaúčtována/Zaúčtována/Storno) |
 | `POST /ucetnictvi/uctenky/:id/smazat` | Smazat účtenku i její doklad |
@@ -293,8 +296,8 @@ viz „Export do POHODY“ níže.
 
 Modal v seznamu účtenku **jen zakládá** (upload → vytěžení → kontrola polí).
 Úpravy má detail: vlevo doklad ve velkém, vpravo formulář. `/:id/upravit`
-proto rozlišuje klienta – formulář z detailu (`Accept: text/html`) dostane
-přesměrování zpět na detail, `fetch` z modalu JSON.
+rozlišuje klienta: formulář z detailu (`Accept: text/html`) dostane
+přesměrování zpět na detail, ostatní klienti JSON. Modal na tuhle routu nevolá.
 
 ---
 
@@ -590,7 +593,7 @@ z `api_keys` otevíral všechny kontakty v CRM.
 | `POST /api/push/unsubscribe` | Odregistrace |
 | `POST /api/push/status` | Stav subscription pro aktuální zařízení |
 
-Uživatel zapíná notifikace v `/profil`. Každý uživatel/zařízení má vlastní subscription. Při nové objednávce `sendPushToAll()` odešle notifikaci všem registrovaným.
+Uživatel zapíná notifikace v `/nastaveni`. Každý uživatel/zařízení má vlastní subscription. Při nové objednávce `sendPushToAll()` odešle notifikaci všem registrovaným.
 
 ---
 
@@ -628,6 +631,12 @@ Katalog sekcí systému žije v `src/access.js` – jeden zdroj pravdy pro matic
 levé menu i strážce rout v `src/server.js`. **Kdo přidá sekci do sidebaru,
 přidá ji i do katalogu**, jinak ji matice nezná a zůstane přístupná všem.
 
+Strážce porovnává vzor routy (`request.routeOptions.url`), ne URL požadavku:
+router cestu před hledáním dekóduje, takže `/crm/%66irmy` by se v katalogu
+nenašlo a do routy `/crm/firmy` se dostalo. Deaktivovaný účet s živou session
+strážce neřeší, proto ho přesměruje už hook s přihlášením, jinak by jeden
+požadavek došel na routu bez kontroly.
+
 Pravidla vyhodnocení:
 
 - Bez uloženého záznamu platí „vidí“ – nasazení migrace nikomu nic neodebere.
@@ -653,8 +662,8 @@ načítá jen ta otevřená, a počty do popisků jdou spočítat jen na serveru
 | `vydaje` | platby mimo mzdu (zálohy, proplacené nákupy) |
 | `dokumenty` | osobní a smluvní dokumenty |
 
-**Pozor:** `POST /lide/tym/:id` přepisuje všech šestnáct sloupců uživatele
-naráz. Nové formuláře proto **musí mít vlastní routu**
+**Pozor:** `POST /lide/tym/:id` přepisuje všechny sloupce své záložky naráz
+(`tab=banka` účet, jinak osobní údaje a přepínače). Nové formuláře proto **musí mít vlastní routu**
 (`/lide/tym/:id/platby/vytvorit`, `/dokumenty/vytvorit`, …), jinak osobní
 údaje vynulují.
 
@@ -827,10 +836,10 @@ platformy, poslední stažení), `healthchecky` (healthchecky, alerty při
 výpadku, „+ Healthcheck“). Neznámý klíč otevře `zakladni`.
 
 Konvence: každý POST se vrací na svou záložku –
-`/nastaveni/eshopy/:id?tab=<záložka>&saved=1` nebo `…&error=<kód>&upravit=1`
-(chyba vrátí uživatele do otevřeného formuláře, viz *Režim úprav na
-detailech* níž; chyby formulářů platforem na záložce Marketing `upravit=1`
-nenesou – netýkají se formuláře marže); POSTy,
+`/nastaveni/eshopy/:id?tab=<záložka>&saved=1` nebo `…&error=<kód>`, formuláře
+záznamu navíc `&upravit=1` (chyba vrátí uživatele do otevřeného formuláře, viz
+*Režim úprav na detailech* níž). Formuláře platforem na záložce Marketing
+a záložka Napojení `upravit=1` nenesou. POSTy,
 které vykreslují přímo (nový klíč, nové tajemství, ověření platformy),
 předávají `vykresliDetail()` záložku v `extra.tab`. Healthchecky a alerty
 jdou přes routy monitoringu a vrací se hodnotou `returnTo`
@@ -875,22 +884,48 @@ Jak to drží pohromadě:
 - **Ovládání** je `views/includes/upravit.ejs`: bez JavaScriptu je tužka
   odkaz na `?…&upravit=1`, Zrušit odkaz zpět, Uložit submit.
   `public/js/upravy.js` přepíná atribut bez načtení stránky, drží URL
-  pravdivou (`upravit=1` přidá a odebere, `saved` zmizí při otevření) a hlídá
-  rozepsané změny: Zrušit, Esc i odchod ze stránky se při změněném formuláři
-  zeptají. Esc se ignoruje v selectu, kalendáři a poli s našeptávačem, přes
-  otevřený modal a mimo upravovaný obal (hledání v liště, heslo vedle karty na
-  profilu). Zrušení volá `form.reset()` – stránka, která něco z polí odvozuje
-  (účtenka: zámek odpočtu DPH), si to přepočítá v události `reset`. Nesla-li
-  stránka při načtení hlášku (`saved`, `error`), po zrušení se načte znovu,
-  aby se hláška nevrátila.
+  pravdivou (bere ji z odkazu tužky nebo Zrušit, takže `upravit`, `saved`,
+  `error` ani `ares` nezůstanou viset) a hlídá rozepsané změny: Zrušit, Esc
+  i odchod ze stránky se při změněném formuláři zeptají. Esc se ignoruje
+  v selectu, kalendáři a poli s našeptávačem, přes otevřený modal a mimo
+  formulář záznamu (hledání v liště, heslo vedle karty na profilu, token
+  platformy). Zrušení volá `form.reset()` – stránka, která něco z polí odvozuje
+  (účtenka: zámek odpočtu DPH), si to přepočítá v události `reset`.
+- **Hlášky** z načtení stránky (Uloženo, chyba, ARES) mají atribut
+  `data-hlaska`. Otevření tužkou i zrušení je odstraní bez načtení stránky.
+  Text chyby určuje mapa v routě nebo šabloně, adresa nese jen kód: odkaz by
+  jinak mohl přihlášenému podstrčit vymyšlenou zprávu.
+- **Pojistka proti dvojkliku.** Přepnutí režimu vymění tlačítka: pod tužkou
+  leží po otevření Uložit, pod Zrušit po zavření třeba Sync ARES. Druhý klik
+  dvojkliku (`e.detail >= 2`) do sekundy po přepnutí skript zahodí. Uložit navíc
+  první půlsekundu po otevření nereaguje vůbec, protože telefon dvě klepnutí
+  za dvojklik počítat nemusí. Podržený Enter formulář neodešle. Sync ARES se před
+  přepisem zeptá a v úpravách je skrytý. Testy proto po tužce čekají přes
+  půl sekundy, než kliknou na Uložit.
+- **Zpět po uložení.** Prohlížeč může po Zpět ukázat stránku z paměti (bfcache)
+  se starými výchozími hodnotami a další Uložit by uloženou změnu potichu vrátilo.
+  Každá stránka s `?saved=` si proto v `sessionStorage` poznamená čas uložení
+  pro svou cestu; stránka z paměti, která je starší, se načte znovu a bez úprav.
+- **Rozepsané hodnoty přežijí načtení.** Při odeslání si skript hodnoty
+  formuláře uloží do `sessionStorage` a na `?error=…&upravit=1` je vrátí do polí.
+  Stejně to dělá nahrání dokladu během úprav (`window.upravyNactiZnovu()`
+  místo `location.reload()`). Snímek pro hlídání změn zůstává ze serveru, takže
+  Zrušit vrátí uložený stav a odchod se dál ptá. Záznam platí pro jedno načtení.
 - **Server** čte režim jen z `?upravit=1` (`rezimUprav()` v `src/upravy.js`),
   nikdy z `error=` – chyba může přijít z jiného formuláře na téže stránce
   (heslo na profilu, fotka člena, token platformy). POST upravitelného
-  formuláře proto při chybě přidá `&upravit=1` do přesměrování sám. Na
+  formuláře proto při chybě přidá `&upravit=1` do přesměrování sám, i u chyby
+  z databáze (duplicitní číslo faktury, e-mail člena). Na
   stránkách se záložkami je tužka jen u záložek s formulářem záznamu
   (mapa záložka → id formuláře v šabloně nebo v routě).
+- **Neočekávaná chyba** skončí stránkou `errors/500.ejs` s cestou zpět, API
+  a `fetch` dál dostávají JSON a chyby klienta svůj kód. `setErrorHandler`
+  v `src/server.js` musí stát před registrací rout: Fastify obsluhu přiřadí
+  routě při registraci a později nastavená by pro ni neplatila.
 - **Routy přepisují celý řádek** (`UPDATE … SET` všech sloupců), formulář
-  proto musí poslat všechna pole – i hidden pro druhou záložku (člen týmu).
+  proto musí poslat všechna pole. Vazbu pole na sloupec hlídá
+  `test/rezim-uprav-kolo.test.js`: otevře každý formulář, klikne Uložit bez
+  změny a porovná řádek v databázi.
   Render testy (`test/render-*.test.js`, pomocník `test/pomocnici/render.js`)
   pro každou stránku hlídají, že každý zapisovaný sloupec patří formuláři
   záznamu (leží v něm, nebo na něj míří `form=`; stejně pojmenované pole
@@ -907,14 +942,17 @@ obsahuje editor položek, který do karet detailu nepatří.
 
 Zvláštnosti jednotlivých stránek:
 
-- **Firma, projekt, podprojekt**: dřívější modaly úprav jsou pryč. Název,
-  typ a stav (v zobrazení v hlavičce stránky) jsou `.jen-upravy` pole
-  nahoře v první kartě; u podprojektu i výběr e-shopu a healthchecku (v
-  zobrazení je ukazují pravé karty). Karty Brand identita, Poznámky a Popis
-  se vykreslují vždy, aby šla hodnota poprvé vyplnit.
-- **Člen týmu**: oba formuláře (detail, bankovní účet) posílají všech
-  šestnáct sloupců – hidden pole druhé záložky zůstávají, přepínače
-  `is_admin`/`is_active` jsou na záložce banka hidden vždy (`'1'` nebo `''`).
+- **Firma, projekt, podprojekt**: dřívější modaly úprav jsou pryč. Název
+  a stav, u firmy i typ (v zobrazení v hlavičce stránky) jsou `.jen-upravy` pole
+  v kartě Identifikace nebo Základní informace, u podprojektu v kartě Provoz,
+  kde je i výběr e-shopu a healthchecku (v zobrazení je ukazují pravé karty).
+  Karty Brand identita, Poznámky a Popis se vykreslují vždy, aby šla hodnota
+  poprvé vyplnit. Kontakt projektu, který přešel k jiné firmě, nabídne výběr se
+  jménem a poznámkou „(jiná firma)“.
+- **Člen týmu**: `POST /lide/tym/:id` zapisuje podle `tab=`: `banka` jen účet,
+  jinak osobní údaje a přepínače `is_admin`/`is_active`. Formuláře nenesou
+  sloupce druhé záložky, skryté pole by přeneslo stav z načtení stránky a uložení
+  účtu ze starší stránky by znovu aktivovalo vypnutý účet.
 - **Můj profil**: režim nese karta Osobní údaje (`data-rezim` na `.card`,
   ovládání v `.card-header` ve `.card-header-akce`), fotka a heslo mají
   vlastní formuláře. E-mail a role jsou `stale` pole bez vstupu.
@@ -922,22 +960,28 @@ Zvláštnosti jednotlivých stránek:
   `rdPayment`, `rdVatDeductible`); hinty, které skript plní, jsou ručně
   `<small class="form-hint jen-upravy">` pod includem. Událost `reset`
   formuláře znovu volá `rdUhrada()`, protože `form.reset()` vrátí hodnoty,
-  ale ne zámek odpočtu DPH u reprezentace. Chyba při parsování
-  `POST /ucetnictvi/uctenky/:id/upravit` se pro `Accept: text/html` vrací
-  přesměrováním `?error=<zpráva>&upravit=1`, pro fetch dál JSON 400.
+  ale ne zámek odpočtu DPH u reprezentace. Kategorie Reprezentace a zpět vrátí
+  volbu odpočtu. Prázdné nebo neplatné datum vrátí
+  `POST /ucetnictvi/uctenky/:id/upravit` pro `Accept: text/html` přesměrováním
+  `?error=datum&upravit=1`, jiným klientům JSON 400.
 - **Přijatá faktura**: formulář `formFaktura` je naschvál prázdný hned za
   hlavičkou, všechna pole na kartách obou sloupců na něj míří `form=`
   (mezi kartami leží formuláře příloh, párování a exportu POHODA, obalit
   nejde). Rekapitulace ukazuje v zobrazení řádky Základ/DPH/K úhradě,
   v úpravách vstupy částek. `POST …/upravit` přesměruje na `?saved=1`.
+  Index `(type, number)` nezahrnuje dodavatele, takže stejné číslo od dvou
+  dodavatelů skončí hláškou `duplicita`.
   Odkaz „Upravit fakturu“ v kartě Akce je `?upravit=1` s `data-upravit-otevrit`.
 - **Include `pole.ejs`** umí navíc `vychozi` (hodnota jen pro vstup, když je
-  sloupec prázdný – Stát „Česká republika“; zobrazení ukáže „–“),
-  `tridaHodnoty` (`pole-mono` pro IČO/DIČ/předkontace, `pole-varovani` pro
-  splatnost po termínu) a `skrytyPopisek` (karta s jediným polem, kde se
-  nadpis karty rovná popisku – popisek zůstává jen pro čtečku). Hodnota
-  selectu mimo nabídku (starší data, kontakt z jiné firmy) zůstane vybraná,
-  aby ji uložení formuláře potichu nepřepsalo první volbou.
+  sloupec prázdný – Stát „Česká republika“; zobrazení ukáže „–“, uložení ji
+  zapíše do sloupce), `tridaHodnoty` (`pole-mono` například pro IČO na detailu
+  firmy a předkontace, `pole-varovani` pro splatnost po termínu)
+  a `skrytyPopisek` (karta s jediným polem, kde se nadpis karty rovná popisku –
+  popisek zůstává jen pro čtečku). Hodnota selectu mimo nabídku (starší data)
+  zůstane vybraná, aby ji uložení formuláře potichu nepřepsalo první volbou;
+  výjimkou je forma úhrady účtenky, kterou routa drží na seznamu `PAYMENT_METHODS`.
+  Povinné textové pole odmítne i samé mezery, `mailto:` dostane jen hodnota bez
+  `?`, `&` a čárky, které by přidaly příjemce nebo předvyplněný text.
 
 ### Identita e-shopu v e-mailech
 

@@ -30,7 +30,7 @@ chybí, a ukazuje čas i chybu poslední automatické kontroly.
 
 ## 4. Nastavení v aplikaci
 
-- [ ] **Nastavení → Firma → Google Disk** → vyplnit **ID složky**
+- [ ] **Nastavení → Firma → tužka vpravo nahoře → Google Disk** → vyplnit **ID složky**
       (z URL složky: `drive.google.com/drive/folders/`**`ID`**)
 - [ ] Uložit
 
