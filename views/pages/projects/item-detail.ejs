@@ -37,7 +37,7 @@
 </div>
 
 <% if (saved) { %>
-<div class="jen-zobrazeni" style="background:var(--success-bg);color:#166534;border:1px solid #bbf7d0;padding:10px 16px;border-radius:8px;margin-bottom:16px;">✓ Uloženo</div>
+<div data-hlaska class="jen-zobrazeni" style="background:var(--success-bg);color:#166534;border:1px solid #bbf7d0;padding:10px 16px;border-radius:8px;margin-bottom:16px;">✓ Uloženo</div>
 <% } %>
 
 <form method="post" action="/projekty/podprojekty/<%= item.id %>" id="formPodprojekt" class="upravitelne">
@@ -116,7 +116,7 @@
       <div class="card-header"><strong>Napojený eshop</strong></div>
       <div class="card-body" style="font-size:13px;">
         <div style="font-weight:600;margin-bottom:4px;"><%= shop.name %></div>
-        <% if (shop.url) { %><a href="<%= shop.url %>" target="_blank" style="color:var(--primary);"><%= shop.url %></a><% } %>
+        <% if (/^https?:\/\//i.test(shop.url || '')) { %><a href="<%= shop.url %>" target="_blank" rel="noopener noreferrer" style="color:var(--primary);"><%= shop.url %></a><% } else if (shop.url) { %><%= shop.url %><% } %>
       </div>
     </div>
     <% } %>

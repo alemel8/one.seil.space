@@ -5,7 +5,7 @@ import formbody from '@fastify/formbody';
 import view from '@fastify/view';
 import staticPlugin from '@fastify/static';
 import ejs from 'ejs';
-import { jenDatum, ceskeDatum } from './prazsky-cas.js';
+import { jenDatum, ceskeDatum, prazskeDatum } from './prazsky-cas.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getDb, closeAll } from './db.js';
@@ -56,8 +56,9 @@ await fastify.register(view, {
   engine: { ejs },
   root: path.join(projectRoot, 'views'),
   layout: false,
-  // jenDatum/ceskeDatum: pole.ejs vykresluje datum nezávisle na TZ procesu
-  defaultContext: { appName: 'one.seil.space', jenDatum, ceskeDatum },
+  // jenDatum/ceskeDatum: pole.ejs vykresluje datum nezávisle na TZ procesu;
+  // prazskeDatum: den ze sloupce TIMESTAMPTZ, ceskeDatum čte hodnoty sloupců DATE
+  defaultContext: { appName: 'one.seil.space', jenDatum, ceskeDatum, prazskeDatum },
   options: { views: path.join(projectRoot, 'views') },
 });
 
@@ -73,13 +74,43 @@ await fastify.register(staticPlugin, {
   decorateReply: false,
 });
 
+// ── Obsluha chyb ──────────────────────────────────────────────
+// Musí stát před registrací rout: Fastify ji routě přiřadí při registraci a plugin
+// dědí tu, která platí v tu chvíli. Nastavená později by pro ně neplatila a každá
+// chyba by skončila surovým JSONem s názvy databázových indexů.
+
+fastify.setErrorHandler(async (err, request, reply) => {
+  const status = err.statusCode >= 400 ? err.statusCode : 500;
+  // API, webhooky a fetch z prohlížeče čekají JSON a chyby klienta (400, 413…)
+  // nesou vlastní kód: dostanou výchozí odpověď Fastify. Stránku jen navigace
+  // prohlížeče při chybě serveru.
+  if (status < 500 || !(request.headers.accept || '').includes('text/html')) throw err;
+
+  fastify.log.error({ err, url: request.url }, 'Neočekávaná chyba serveru');
+  const user = request.user ?? null;
+  const isDev = process.env.NODE_ENV !== 'production';
+  return reply.code(500).view('pages/errors/500.ejs', {
+    pageTitle: 'Chyba serveru', currentPath: request.url,
+    user, isDev, message: isDev ? err.message : null,
+  }, { layout: 'layouts/base.ejs' });
+});
+
 // Veřejná Swagger dokumentace na /api/docs popisovala jen starší /api/v1
 // (hlavička X-API-Key), které je od 26. 10. 2026 pryč. API e-shopů
 // (/api/toneracek, /api/eshop) je popsané v docs/api.md.
 
+// ── Veřejné cesty ─────────────────────────────────────────────
+// '/media' tu záměrně není: míří do stejného adresáře jako doklady
+// (data/media), takže veřejná cesta by dávala účtenky, faktury a nově
+// i výplatní pásky komukoli, kdo uhodne název souboru. Profilové fotky
+// se z něj berou jen na stránkách za přihlášením.
+// '/api/eshop' si klíč ověřuje sám (src/eshop-klice.js) – bez session.
+const VEREJNE_CESTY = ['/prihlasit', '/health', '/static', '/health/api', '/api/toneracek', '/api/eshop', '/health/cookie-test', '/api/webhook'];
+const jeVerejna = (url) => VEREJNE_CESTY.some(p => url === p || url.startsWith(p + '/') || url.startsWith(p + '?'));
+
 // ── Auth hook ─────────────────────────────────────────────────
 
-fastify.addHook('preHandler', async (request) => {
+fastify.addHook('preHandler', async (request, reply) => {
   request.user = null;
   if (request.session.userId) {
     // Přístupová matice se veze s uživatelem – sidebar i strážce rout ji
@@ -95,7 +126,12 @@ fastify.addHook('preHandler', async (request) => {
        WHERE u.id = ${request.session.userId} AND u.is_active = TRUE
     `;
     request.user = rows[0] ?? null;
-    if (!request.user) await request.session.destroy();
+    if (!request.user) {
+      await request.session.destroy();
+      // Deaktivovaný účet: bez návratu by požadavek došel na routu s user=null
+      // a strážce matice, který takový požadavek neřeší, by ho pustil.
+      if (!jeVerejna(request.url)) return reply.redirect('/prihlasit');
+    }
 
     if (request.user) {
       // Zkratky pro šablony (sidebar, dlaždice na homepage)
@@ -126,7 +162,9 @@ fastify.addHook('preHandler', async (request) => {
 
 fastify.addHook('preHandler', async (request, reply) => {
   if (!request.user) return;
-  const item = matchAccessItem(request.url);
+  // Vzor routy, ne request.url: router cestu před hledáním dekóduje, strážce ne,
+  // takže /crm/%66irmy by v katalogu nic nenašlo a do routy /crm/firmy se dostalo.
+  const item = matchAccessItem(request.routeOptions?.url ?? request.url);
   if (!item || isAllowed(request.user, item)) return;
 
   fastify.log.info({ url: request.url, userId: request.user.id, item: item.key },
@@ -154,16 +192,7 @@ await fastify.register(authRoutes);
 // ── Auth guard ────────────────────────────────────────────────
 
 fastify.addHook('onRequest', async (request, reply) => {
-  // '/media' tu záměrně není: míří do stejného adresáře jako doklady
-  // (data/media), takže veřejná cesta by dávala účtenky, faktury a nově
-  // i výplatní pásky komukoli, kdo uhodne název souboru. Profilové fotky
-  // se z něj berou jen na stránkách za přihlášením.
-  // '/api/eshop' si klíč ověřuje sám (src/eshop-klice.js) – bez session.
-  const publicPaths = ['/prihlasit', '/health', '/static', '/health/api', '/api/toneracek', '/api/eshop', '/health/cookie-test', '/api/webhook'];
-  const isPublic = publicPaths.some(
-    p => request.url === p || request.url.startsWith(p + '/') || request.url.startsWith(p + '?')
-  );
-  if (!isPublic && !request.session.userId) {
+  if (!jeVerejna(request.url) && !request.session.userId) {
     return reply.redirect('/prihlasit');
   }
 });
@@ -210,23 +239,13 @@ await fastify.register(userSettingsRoutes);
 await fastify.register(tradeRoutes);
 await fastify.register(marketingRoutes);
 
-// ── Error handlers ────────────────────────────────────────────
+// ── Stránka nenalezena ────────────────────────────────────────
 
 fastify.setNotFoundHandler(async (request, reply) => {
   const user = request.user ?? null;
   return reply.code(404).view('pages/errors/404.ejs', {
     pageTitle: 'Stránka nenalezena', currentPath: request.url,
     user, url: request.url,
-  }, { layout: 'layouts/base.ejs' });
-});
-
-fastify.setErrorHandler(async (err, request, reply) => {
-  fastify.log.error({ err, url: request.url }, 'Neočekávaná chyba serveru');
-  const user = request.user ?? null;
-  const isDev = process.env.NODE_ENV !== 'production';
-  return reply.code(500).view('pages/errors/500.ejs', {
-    pageTitle: 'Chyba serveru', currentPath: request.url,
-    user, isDev, message: isDev ? err.message : null,
   }, { layout: 'layouts/base.ejs' });
 });
 

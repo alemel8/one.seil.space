@@ -51,7 +51,7 @@ export const ACCESS_SECTIONS = [
       { key: 'ucetnictvi.upominky',        label: 'Upomínky',         path: '/ucetnictvi/upominky' },
       { key: 'ucetnictvi.sablony-faktur',  label: 'Šablony faktur',   path: '/ucetnictvi/sablony-faktur' },
       { key: 'ucetnictvi.uctenky',         label: 'Účtenky',          path: '/ucetnictvi/uctenky' },
-      { key: 'ucetnictvi.banka',           label: 'Banka',            path: '/ucetnictvi/banka' },
+      { key: 'ucetnictvi.banka',           label: 'Banka',            path: '/ucetnictvi/banka', extraPaths: ['/api/banka'] },
     ],
   },
   {
