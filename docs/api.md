@@ -363,6 +363,7 @@ tudy se registrace ověří, aniž by se na ni čekalo.
 
 | Route | Popis |
 |---|---|
+| `GET /api/hledat?q=` | Našeptávač globálního hledání: `{ q, skupiny: [{ klic, nazev, odkazSeznam, polozky: [{ titulek, popis, url, stitek }] }] }`, 5 položek na skupinu, jen skupiny podle práv přihlášeného |
 | `GET /api/banka/doklady` | Faktury a účtenky pro autocomplete párování |
 | `GET /api/cashflow` | Data cash flow pro grafy |
 | `GET /api/accounting-chart` | Účetní osnova pro autocomplete |

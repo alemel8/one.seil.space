@@ -22,4 +22,14 @@ export default async function hledaniRoutes(fastify) {
       oblasti: povoleneSkupiny(request.user).map((s) => ({ nazev: s.nazev, odkaz: s.odkazSeznam(q, []) })),
     }, { layout: 'layouts/base.ejs' });
   });
+
+  // Našeptávač v liště (public/js/hledani.js): totéž hledání, 5 položek na
+  // skupinu, JSON. Za session guardem jako stránka; krátký dotaz vrátí
+  // prázdné skupiny bez dotazu do databáze.
+  fastify.get('/api/hledat', async (request, reply) => {
+    const q = normalizujDotaz(request.query.q);
+    const skupiny = await hledej(sql, request.user, q, { limitNaSkupinu: 5 });
+    reply.header('Cache-Control', 'no-store');
+    return { q, skupiny };
+  });
 }

@@ -36,8 +36,11 @@ KPI na domovské stránce: počty faktur, objednávek, CRM kontaktů, členů t�
 | Route | Popis |
 |---|---|
 | `GET /hledat` | Výsledky hledání po skupinách (`?q=`, min. 2, max. 100 znaků) |
+| `GET /api/hledat` | Totéž jako JSON pro našeptávač v liště (`public/js/hledani.js`), 5 položek na skupinu |
 
-Pole v horní liště (`Ctrl+K` / `⌘K`), na mobilu lupa vedoucí na stránku.
+Pole v horní liště (`Ctrl+K` / `⌘K`) našeptává od dvou znaků (debounce
+250 ms, šipky a Enter, Esc zavře; Enter bez výběru odešle na stránku),
+na mobilu ho nahrazuje lupa vedoucí na stránku.
 Hledá se `ILIKE '%q%'` ve skupinách Stránky (položky menu bez diakritiky),
 Firmy (`name`, `city`, `country`, `ico`), Kontakty (`first_name`,
 `last_name`, `email`, `phone`), Objednávky (`order_number`, jméno, `email`,

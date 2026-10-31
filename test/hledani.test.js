@@ -179,6 +179,26 @@ describe('hledání proti serveru', { skip: !process.env.DATABASE_URL && 'bez DA
     }
   });
 
+  test('našeptávač dostane JSON se skupinami, nejvýš pět položek na skupinu', async () => {
+    const res = await get(`/api/hledat?q=${encodeURIComponent(T)}`);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('cache-control'), 'no-store');
+    const data = await res.json();
+    assert.equal(data.q, T);
+    const klice = data.skupiny.map((g) => g.klic);
+    for (const k of ['firmy', 'kontakty', 'objednavky']) assert.ok(klice.includes(k), k);
+    assert.ok(data.skupiny.every((g) => g.polozky.length <= 5));
+    assert.equal(data.skupiny.find((g) => g.klic === 'firmy').polozky[0].url, `/crm/firmy/${ctx.firma}`);
+
+    const kratky = await get('/api/hledat?q=a');
+    assert.equal(kratky.status, 200);
+    assert.deepEqual((await kratky.json()).skupiny, []);
+
+    const bezny = await (await get(`/api/hledat?q=${encodeURIComponent(T)}`, ctx.beznyCookie)).json();
+    assert.ok(!bezny.skupiny.some((g) => g.klic === 'firmy'), 'bez práva na firmy ani v JSON');
+    assert.equal((await get('/api/hledat?q=ab', null)).status, 302, 'bez přihlášení přesměruje');
+  });
+
   test('bez přihlášení se jde na login', async () => {
     const res = await get('/hledat?q=ab', null);
     assert.equal(res.status, 302);
