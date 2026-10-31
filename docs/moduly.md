@@ -31,6 +31,40 @@ KPI na domovské stránce: počty faktur, objednávek, CRM kontaktů, členů t�
 
 ---
 
+## Hledání (`src/hledani.js`, `src/routes/hledani.js`)
+
+| Route | Popis |
+|---|---|
+| `GET /hledat` | Výsledky hledání po skupinách (`?q=`, min. 2, max. 100 znaků) |
+
+Pole v horní liště (`Ctrl+K` / `⌘K`), na mobilu lupa vedoucí na stránku.
+Hledá se `ILIKE '%q%'` ve skupinách Stránky (položky menu bez diakritiky),
+Firmy (`name`, `city`, `country`, `ico`), Kontakty (`first_name`,
+`last_name`, `email`, `phone`), Objednávky (`order_number`, jméno, `email`,
+`phone`, `invoice_number`, `company`, všechny e-shopy), Vydané faktury
+(`number`, `client_name`; i zálohové — ty seznam neukáže, proto štítek
+„Zálohová“), Přijaté faktury (`number`, `supplier`), Účtenky (`vendor`,
+`number`, `notes`), Projekty (název projektu i firmy), Úkoly (`code`,
+`summary` — jako seznam, všem všechny) a Tým (jméno, e-mail).
+
+**Smlouva „hledání = seznam“:** skupina hledá přesně v těch sloupcích, ve
+kterých filtruje seznam, na který odkazuje „Všechny v seznamu →“. Kdo přidá
+sloupec do `SKUPINY`, přidá ho i do `?q=` filtru seznamu (a naopak), jinak
+hledání najde, co seznam neukáže.
+
+**Práva:** `/hledat` není v katalogu přístupové matice — nemá vlastní data.
+Každá skupina má klíč položky z `ACCESS_SECTIONS` (`pravo`) a dotáže se jen
+tomu, kdo na její seznam smí (`isAllowed`); modul při startu odmítne klíč
+mimo katalog, protože neznámý klíč by skupinu otevřel všem. `%`, `_` a `\`
+v dotazu se escapují, NUL se odstraní, pod dva znaky se do databáze nejde.
+
+**Výkon:** sekvenční čtení bez indexu, nejvýš 10 tabulek paralelně
+s limitem 10 na skupinu a bez `COUNT(*)` — při objemech SEIL desítky ms.
+Trigramové indexy (`pg_trgm`) až kdyby data nebo logy ukázaly potřebu;
+`CREATE EXTENSION` chce práva na databázi a migrace běží při startu.
+
+---
+
 ## Účetnictví — banka (`src/routes/accounting.js`)
 
 | Route | Popis |

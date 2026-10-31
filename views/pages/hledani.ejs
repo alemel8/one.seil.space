@@ -1,0 +1,63 @@
+<%
+  // Čtyři stavy: prázdný dotaz, příliš krátký, nic nenalezeno, výsledky.
+  // Řádky jsou odkazy přes celou šířku (ne .data-table — ta na mobilu
+  // skrývá sloupce a vnucuje minimální šířku).
+  const sklonujVysledky = (n) => n === 1 ? 'výsledek' : n < 5 ? 'výsledky' : 'výsledků';
+%>
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Hledání</h1>
+    <p>
+      <% if (q.length >= MIN_DELKA) { %>
+        Výsledky pro „<%= q %>“<% if (celkem) { %> · <%= celkem %> <%= sklonujVysledky(celkem) %> v <%= skupiny.length %> <%= skupiny.length === 1 ? 'oblasti' : 'oblastech' %><% } %>
+      <% } else { %>
+        Firmy, kontakty, objednávky, doklady, projekty, úkoly i stránky systému.
+      <% } %>
+    </p>
+  </div>
+</div>
+
+<form method="get" action="/hledat" role="search" class="hledani-formular">
+  <div style="position:relative;max-width:640px;">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none;">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input type="search" name="q" value="<%= q %>" class="form-control" style="padding-left:40px;" placeholder="Vyhledat v systému…" autocomplete="off" maxlength="100" aria-label="Hledat v systému" <%= q ? '' : 'autofocus' %>>
+  </div>
+</form>
+
+<% if (prilisKratke) { %>
+<div class="hledani-prazdno">Zadejte alespoň <%= MIN_DELKA %> znaky.</div>
+
+<% } else if (!q) { %>
+<div class="hledani-prazdno">
+  Hledá se v oblastech: <%= oblasti.map(o => o.nazev).join(', ') %><%= oblasti.length ? ' a ve ' : 've ' %>stránkách systému.<br>
+  Pole v horní liště otevře <kbd>Ctrl</kbd>+<kbd>K</kbd> (na Macu <kbd>⌘</kbd>+<kbd>K</kbd>).
+</div>
+
+<% } else if (!skupiny.length) { %>
+<div class="hledani-prazdno">
+  <strong>Nic nenalezeno pro „<%= q %>“.</strong><br>
+  Zkuste část názvu, IČO, e-mail nebo číslo dokladu<% if (oblasti.length) { %>, nebo hledejte přímo v seznamu:
+  <% oblasti.forEach((o, i) => { %><%= i ? ', ' : '' %><a href="<%= o.odkaz %>"><%= o.nazev %></a><% }) %><% } %>.
+</div>
+
+<% } else { %>
+<% skupiny.forEach(g => { %>
+<div class="card hledani-skupina">
+  <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+    <span><%= g.nazev %> <span style="color:var(--text-muted);font-weight:500;"><%= g.polozky.length %><%= g.plny ? '+' : '' %></span></span>
+    <% if (g.odkazSeznam) { %><a href="<%= g.odkazSeznam %>" class="btn btn-ghost btn-sm">Všechny v seznamu →</a><% } %>
+  </div>
+  <% g.polozky.forEach(p => { %>
+  <a href="<%= p.url %>" class="hledani-radek">
+    <span style="min-width:0;">
+      <span class="hledani-titulek"><%= p.titulek %></span>
+      <% if (p.popis) { %><span class="hledani-popis"><%= p.popis %></span><% } %>
+    </span>
+    <% if (p.stitek) { %><span class="badge badge-reselling"><%= p.stitek %></span><% } %>
+  </a>
+  <% }) %>
+</div>
+<% }) %>
+<% } %>

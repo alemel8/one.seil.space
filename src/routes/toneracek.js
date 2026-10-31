@@ -804,7 +804,7 @@ export default async function toneracekRoutes(fastify) {
       o.order_number ILIKE ${'%'+q+'%'} OR
       o.first_name ILIKE ${'%'+q+'%'} OR o.last_name ILIKE ${'%'+q+'%'} OR
       o.email ILIKE ${'%'+q+'%'} OR o.phone ILIKE ${'%'+q+'%'} OR
-      o.invoice_number ILIKE ${'%'+q+'%'}
+      o.invoice_number ILIKE ${'%'+q+'%'} OR o.company ILIKE ${'%'+q+'%'}
     )`);
     if (statusFilter) conditions.push(sql`o.status = ${statusFilter}`);
 

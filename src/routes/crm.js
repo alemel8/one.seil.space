@@ -14,7 +14,7 @@ export default async function crmRoutes(fastify) {
     const offset  = (page - 1) * perPage;
 
     const conditions = [];
-    if (q)          conditions.push(sql`(name ILIKE ${'%' + q + '%'} OR city ILIKE ${'%' + q + '%'} OR country ILIKE ${'%' + q + '%'})`);
+    if (q)          conditions.push(sql`(name ILIKE ${'%' + q + '%'} OR city ILIKE ${'%' + q + '%'} OR country ILIKE ${'%' + q + '%'} OR ico ILIKE ${'%' + q + '%'})`);
     if (typeFilter) conditions.push(sql`company_type = ${typeFilter}`);
     // „(bez zdroje)" je vlastní volba, aby šlo najít ručně založené záznamy —
     // prázdný řetězec znamená „nefiltrovat", takže NULL potřebuje svůj klíč.
@@ -121,7 +121,7 @@ export default async function crmRoutes(fastify) {
     const offset  = (page - 1) * perPage;
 
     const conditions = [];
-    if (q)             conditions.push(sql`(c.first_name ILIKE ${'%'+q+'%'} OR c.last_name ILIKE ${'%'+q+'%'} OR c.email ILIKE ${'%'+q+'%'})`);
+    if (q)             conditions.push(sql`(c.first_name ILIKE ${'%'+q+'%'} OR c.last_name ILIKE ${'%'+q+'%'} OR c.email ILIKE ${'%'+q+'%'} OR c.phone ILIKE ${'%'+q+'%'})`);
     if (companyFilter) conditions.push(sql`c.company_id = ${companyFilter}`);
     if (sourceFilter === '-') conditions.push(sql`c.source IS NULL`);
     else if (sourceFilter)    conditions.push(sql`c.source = ${sourceFilter}`);

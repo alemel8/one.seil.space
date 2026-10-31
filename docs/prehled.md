@@ -50,6 +50,7 @@ one.seil.space/
 │   ├── session-store.js    # PostgreSQL session store
 │   ├── google-auth.js      # Service account Googlu (JWT → token), společný pro Disk i Marketing
 │   ├── atribuce-objednavky.js # Zdroj objednávky a nákupní cena z těla POST …/orders
+│   ├── hledani.js          # Globální hledání: skupiny výsledků podle přístupové matice (routa v routes/hledani.js)
 │   └── routes/             # Fastify route pluginy (viz moduly.md)
 ├── views/                  # EJS šablony
 │   ├── layouts/base.ejs    # Hlavní layout (navbar, sidebar)

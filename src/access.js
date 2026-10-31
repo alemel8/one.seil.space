@@ -8,6 +8,10 @@
 // se zaškrtnutým políčkem. Bez uloženého záznamu platí „vidí“ — jinak by
 // nasazení migrace odřízlo všechny od všeho. Výjimkou jsou položky
 // s defaultDeny, které se otevřou až vědomým zaškrtnutím v matici.
+//
+// Hledání (/hledat) v katalogu záměrně není: nemá vlastní data a každou
+// skupinu výsledků filtruje přes isAllowed() týmž klíčem, kterým strážce
+// hlídá URL detailu (src/hledani.js).
 
 export const ACCESS_SECTIONS = [
   {

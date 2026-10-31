@@ -186,8 +186,10 @@ const { default: pushRoutes }       = await import('./routes/push.js');
 const { default: userSettingsRoutes } = await import('./routes/user-settings.js');
 const { default: tradeRoutes }      = await import('./routes/trade.js');
 const { default: marketingRoutes }  = await import('./routes/marketing.js');
+const { default: hledaniRoutes }    = await import('./routes/hledani.js');
 
 await fastify.register(dashboardRoutes);
+await fastify.register(hledaniRoutes);
 await fastify.register(crmRoutes);
 await fastify.register(projectsRoutes);
 await fastify.register(peopleRoutes);

@@ -68,6 +68,24 @@ document.addEventListener('DOMContentLoaded', () => {
   // zůstala za okrajem a uživatel by nevěděl, kde je.
   document.querySelector('.tabs .tab.active')?.scrollIntoView({ inline: 'center', block: 'nearest' });
 
+  // ── Hledání v liště ───────────────────────────────────────
+  const hledaniPole = document.getElementById('hledaniPole');
+  const hledaniForm = hledaniPole?.closest('form');
+  hledaniPole?.addEventListener('input', () => hledaniForm.classList.toggle('ma-text', hledaniPole.value.length > 0));
+  hledaniForm?.querySelector('.topbar-hledani-zrusit')?.addEventListener('click', () => {
+    hledaniPole.value = '';
+    hledaniForm.classList.remove('ma-text');
+    hledaniPole.focus();
+  });
+  // ⌘K / Ctrl+K fokusuje pole; na telefonu je skryté, tam vede na stránku.
+  document.addEventListener('keydown', e => {
+    if (e.isComposing || !(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+    if (String(e.key).toLowerCase() !== 'k') return;
+    e.preventDefault();
+    if (hledaniPole && hledaniPole.offsetParent !== null) { hledaniPole.focus(); hledaniPole.select(); }
+    else window.location.href = '/hledat';
+  });
+
   // ── User dropdown ─────────────────────────────────────────
   const userDropdown = document.getElementById('userDropdown');
   const userDropdownMenu = document.getElementById('userDropdownMenu');

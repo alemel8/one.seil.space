@@ -294,7 +294,8 @@ body.app-body {
 }
 
 .topbar-title {
-  flex: 1;
+  flex: 0 1 auto;
+  min-width: 180px;
   font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
@@ -309,6 +310,64 @@ body.app-body {
   gap: 4px;
   flex-shrink: 0;
 }
+
+/* ── Hledání v liště ──────────────────────────────────────── */
+/* Pole roste do 320 px a svým pravým auto-marginem odsouvá stopky a ovládání
+   doprava; na 1024 px s běžícími stopkami zbyde titulku 180 px. Vzhled
+   pole dědí z .form-control, přepisuje se jen tvar pilulky. */
+.topbar-hledani {
+  position: relative;
+  flex: 0 1 320px;
+  min-width: 160px;
+  margin-left: 8px;
+  margin-right: auto;
+}
+
+.topbar-hledani-ikona {
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.topbar-hledani .form-control {
+  height: 36px;
+  padding: 0 36px 0 38px;
+  border-radius: var(--radius-full);
+  background: var(--gray-100);
+  font-size: 13px;
+}
+
+[data-theme="dark"] .topbar-hledani .form-control { background: var(--sidebar-hover); }
+
+/* Vlastní křížek místo nativního tlačítka WebKitu — stejný v každém prohlížeči. */
+.topbar-hledani input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+
+.topbar-hledani-zrusit {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: none;
+  border-radius: 50%;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.topbar-hledani-zrusit:hover { background: var(--gray-200); color: var(--text-primary); }
+[data-theme="dark"] .topbar-hledani-zrusit:hover { background: var(--sidebar-active); }
+.topbar-hledani.ma-text .topbar-hledani-zrusit { display: flex; }
+
+/* Stejná specificita jako .topbar-btn níž by prohrála — proto dvě třídy. */
+.topbar-btn.topbar-hledani-mobil { display: none; }
 
 /* ── Icon buttons ─────────────────────────────────────────── */
 .topbar-btn {
@@ -678,7 +737,13 @@ body.app-body {
   }
   .topbar {
     left: 0;
+    padding: 0 12px;
+    gap: 8px;
   }
+  .topbar-title { min-width: 0; flex: 1; }
+  /* Pole se do lišty s pilulkou stopek nevejde — lupa vede na /hledat. */
+  .topbar-hledani { display: none; }
+  .topbar-btn.topbar-hledani-mobil { display: flex; }
   .main-wrapper {
     margin-left: 0;
   }
@@ -738,6 +803,11 @@ body.app-body {
   .data-table td:last-child {
     display: table-cell;
   }
+}
+
+/* Úzký telefon: přepínač tématu v liště ustoupí (téma zůstává v localStorage) */
+@media (max-width: 480px) {
+  .theme-toggle { display: none; }
 }
 
 /* Velmi malé obrazovky (telefony do 400px) */

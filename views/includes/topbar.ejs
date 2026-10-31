@@ -15,6 +15,19 @@
 
   <div class="topbar-title"><%= pageTitle || 'Přehled' %></div>
 
+  <%# Globální hledání (GET /hledat, src/hledani.js). Hodnotu předvyplní jen
+      stránka výsledků přes hledaniQ — include dědí locals stránky. Ctrl+K /
+      ⌘K pole fokusuje (app.js); na mobilu ho nahrazuje lupa v ovládání. %>
+  <form class="topbar-hledani<%= (typeof hledaniQ !== 'undefined' && hledaniQ) ? ' ma-text' : '' %>" action="/hledat" method="get" role="search">
+    <svg class="topbar-hledani-ikona" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input type="search" name="q" id="hledaniPole" class="form-control" value="<%= typeof hledaniQ !== 'undefined' ? hledaniQ : '' %>" placeholder="Vyhledat v systému…" autocomplete="off" maxlength="100" aria-label="Hledat v systému (Ctrl+K)">
+    <button type="button" class="topbar-hledani-zrusit" aria-label="Vymazat hledání">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </form>
+
   <%# Běžící stopky visí na request.user (src/server.js), takže je topbar
       vidí na každé stránce, aniž by je musela předávat každá routa. %>
   <% if (user && user.bezici_mereni) { %>
@@ -30,6 +43,13 @@
   <% } %>
 
   <div class="topbar-controls">
+
+    <!-- Hledání na mobilu: pole v liště je skryté, lupa vede na stránku -->
+    <a href="/hledat" class="topbar-btn topbar-hledani-mobil" aria-label="Hledat">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+    </a>
 
     <!-- Přepínač tématu -->
     <div class="theme-toggle" title="Přepnout téma">
