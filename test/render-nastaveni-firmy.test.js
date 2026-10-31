@@ -103,7 +103,8 @@ describe('proti serveru', { skip: PRESKOCIT }, () => {
     if (!sql) return;
     // Jednořádková sdílená tabulka: vrátit, co tam bylo (POST přepisuje všechny sloupce formuláře).
     if (puvodni) await sql`UPDATE company_settings SET ${sql(puvodni, ...SLOUPCE, 'updated_at')} WHERE id = ${puvodni.id}`;
-    else await sql`DELETE FROM company_settings`;
+    // Jen vlastní řádek testu: selže-li before, snímek v `puvodni` chybí a plošný DELETE by smazal sdílený řádek.
+    else await sql`DELETE FROM company_settings WHERE name = ${`Firma test ${r}`}`;
     if (uklid.sids.length)  await sql`DELETE FROM session WHERE sid = ANY(${uklid.sids})`;
     if (uklid.users.length) await sql`DELETE FROM users WHERE id = ANY(${uklid.users})`;
     await sql.end();
