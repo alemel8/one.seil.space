@@ -17,11 +17,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // Aktivní tlačítko přepínače stylují selektory podle data-theme
+  // (layout.css), takže stačí nastavit atribut.
   function applyTheme(theme) {
     html.setAttribute('data-theme', theme);
-    document.querySelectorAll('[data-set-theme]').forEach(btn => {
-      btn.classList.toggle('active', btn.getAttribute('data-set-theme') === theme);
-    });
   }
 
   // ── Sidebar nav — accordion ───────────────────────────────

@@ -5,7 +5,9 @@
 // statika servírovala cache-first z nikdy neměněné cache, takže nainstalovaná
 // PWA držela první stažené CSS napořád a nové styly se k ní nikdy nedostaly.
 // v3: public/chart.umd.min.js je skutečný Chart.js 4.4.7 místo 431B stubu.
-const CACHE_NAME = 'one-seil-v3';
+// v4: téma před vykreslením, sbalitelné menu, záložky detailů, hledání
+//     (layout.css, components.css, variables.css, app.js).
+const CACHE_NAME = 'one-seil-v4';
 
 // Při instalaci — předcache jen statické assets
 self.addEventListener('install', event => {

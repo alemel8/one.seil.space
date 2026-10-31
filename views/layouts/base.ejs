@@ -3,6 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>
+    // Téma (a stav menu) ještě před prvním vykreslením — app.js běží až po
+    // DOMContentLoaded a stránka by blikla výchozím světlým vzhledem.
+    (function () { try {
+      var h = document.documentElement, s = window.localStorage;
+      h.setAttribute('data-theme', s.getItem('seil-theme') || 'light');
+    } catch (e) {} })();
+  </script>
   <title><%= pageTitle ? pageTitle + ' — ' : '' %>One SEIL</title>
   <link rel="icon" href="/static/img/favicon.png">
   <link rel="manifest" href="/static/manifest.json">

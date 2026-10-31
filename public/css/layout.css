@@ -356,13 +356,17 @@ body.app-body {
   font-size: 14px;
 }
 
-.theme-btn.active {
+/* Aktivní tlačítko se pozná z data-theme na <html>, které nastaví inline
+   skript v base.ejs ještě před vykreslením — třída .active by až do
+   DOMContentLoaded ukazovala světlý režim i v tmavém. */
+[data-theme="light"] .theme-btn[data-set-theme="light"],
+[data-theme="dark"] .theme-btn[data-set-theme="dark"] {
   background: var(--white);
   color: var(--text-primary);
   box-shadow: var(--shadow-xs);
 }
 
-[data-theme="dark"] .theme-btn.active {
+[data-theme="dark"] .theme-btn[data-set-theme="dark"] {
   background: var(--gray-800);
   color: var(--text-primary);
 }
