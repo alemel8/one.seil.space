@@ -5,17 +5,14 @@ co čeká na rozhodnutí nebo se vědomě neřešilo.
 
 ## Čeká na rozhodnutí
 
-- **Tlačítko Spárovat v bance nikdy nefungovalo.** `views/pages/accounting/bank.ejs`
+- **Tlačítko Spárovat v bance nikdy nefungovalo.** Banka se zatím nestahuje, takže
+  se to teď neřeší (rozhodnutí z 31. 10. 2026). `views/pages/accounting/bank.ejs`
   volá `openModal`, která je jen uvnitř closure v `public/js/app.js`, klik skončí
   chybou. Výstup modalu je už escapovaný. Zprovoznění je `window.openModal =
   openModal` v `app.js` a `COALESCE(NULLIF(client_name,''), supplier, '')`
   v `GET /api/banka/doklady`, jinak budou přijaté faktury bez názvu. Spustí to
   ruční párování, které označuje faktury jako zaplacené a v provozu ještě neběželo.
   Odkaz `?parovat=` z `received-detail.ejs` zatím nikdo nečte.
-- **Číslo přijaté faktury je unikátní bez ohledu na dodavatele.** Index
-  `(type, number)` nepustí dvě faktury se stejným číslem od různých dodavatelů.
-  Hláška to říká, ale správné číslo takové faktury uložit nejde. Oprava je migrace,
-  která do indexu přidá dodavatele.
 - **Poslední zápis vyhrává.** Formulář ze starší stránky přepíše, co někdo mezitím
   změnil, včetně přepínačů Správce a Aktivní účet na záložce Detail. Úplné řešení je
   kontrola `updated_at` při ukládání, v aplikaci zatím nemá předlohu.

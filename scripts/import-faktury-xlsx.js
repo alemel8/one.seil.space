@@ -23,11 +23,13 @@
  *   "FA prijate.xlsx"), soubor se proto hledá podle názvu bez mezer a diakritiky.
  *
  * Hlídání duplicit:
- *   1. Číslo dokladu (POHODA "Číslo") proti number v DB – hlavní klíč.
- *   2. Variabilní symbol proti number v DB – zachytí faktury, které do
- *      systému přitekly jinou cestou (import z Disku) a jsou vedené pod
- *      číslem dodavatele. Ty se ve výchozím stavu sloučí do existujícího
- *      záznamu (zůstane id i příloha), s --no-merge se jen přeskočí.
+ *   1. Číslo dokladu (POHODA "Číslo") a dodavatel proti number a dodavateli
+ *      v DB – hlavní klíč. Stejné číslo od jiného dodavatele je jiná faktura
+ *      (migrace 044), bez IČO a s jiným názvem se to poznat nedá: jen varování.
+ *   2. Variabilní symbol a dodavatel proti number a dodavateli v DB – zachytí
+ *      faktury, které do systému přitekly jinou cestou (import z Disku) a jsou
+ *      vedené pod číslem dodavatele. Ty se ve výchozím stavu sloučí do
+ *      existujícího záznamu (zůstane id i příloha), s --no-merge se jen přeskočí.
  *   3. Kontrolně dodavatel+datum+částka – jen varování do logu.
  */
 
@@ -225,6 +227,16 @@ function readImport(kind, label) {
   return rows;
 }
 
+// Stejný dodavatel jako v indexu z migrace 044. 'nejisty' = jedna strana nemá IČO
+// a názvy se liší: nic se nepřepíše ani nezaloží, rozhodne člověk.
+const icoKlic = (v) => str(v).replace(/[^0-9A-Za-z]/g, '').replace(/^0+/, '');
+function porovnejDodavatele(radek, f) {
+  const a = icoKlic(radek.supplier_ico), b = icoKlic(f.ico);
+  if (a && b) return a === b ? 'stejny' : 'jiny';
+  if (str(radek.supplier).toLowerCase() === f.name.toLowerCase()) return 'stejny';
+  return a || b ? 'nejisty' : 'jiny';
+}
+
 const stats = {
   issued: 0, issuedSkip: 0,
   received: 0, receivedSkip: 0, receivedMerged: 0,
@@ -330,11 +342,20 @@ async function importReceived(icoToCompany, today) {
   console.log(`  Řádků v souboru: ${rows.length}`);
 
   const dbRows = await sql`
-    SELECT id, number, supplier, status, issue_date::text AS issue_date,
+    SELECT id, number, supplier, supplier_ico, status, issue_date::text AS issue_date,
            paid_date::text AS paid_date, total_amount, bank_transaction_id
     FROM accounting_invoices WHERE type = 'received'
   `;
-  const byNumber = new Map(dbRows.map(r => [r.number, r]));
+  const byNumber = new Map();
+  const pridej = (cislo, r) => byNumber.set(cislo, [...(byNumber.get(cislo) ?? []), r]);
+  for (const r of dbRows) pridej(r.number, r);
+  const kandidati = (cislo, f) => {
+    const radky = byNumber.get(cislo) ?? [];
+    return {
+      stejne: radky.filter(r => porovnejDodavatele(r, f) === 'stejny'),
+      nejiste: radky.filter(r => porovnejDodavatele(r, f) === 'nejisty'),
+    };
+  };
   // Kontrolní index pro fuzzy shodu (jiné číslo, ale stejné datum i částka)
   const byDateAmount = new Map();
   for (const r of dbRows) {
@@ -346,15 +367,26 @@ async function importReceived(icoToCompany, today) {
     const f = mapRow(row, today);
 
     // 1) duplicita podle čísla dokladu
-    const dup = byNumber.get(f.number);
-    if (dup) {
+    const podleCisla = kandidati(f.number, f);
+    if (podleCisla.stejne.length > 1 || (!podleCisla.stejne.length && podleCisla.nejiste.length)) {
       stats.receivedSkip++;
-      await syncStatus(dup, f);
+      warnings.push(`${f.number} (${f.name}): stejné číslo má ${[...podleCisla.stejne, ...podleCisla.nejiste].map(r => r.supplier).join(', ')}, dodavatele nejde rozlišit – přeskočeno, zkontrolovat ručně`);
+      continue;
+    }
+    if (podleCisla.stejne.length) {
+      stats.receivedSkip++;
+      await syncStatus(podleCisla.stejne[0], f);
       continue;
     }
 
     // 2) duplicita pod variabilním symbolem (faktura přišla jinou cestou)
-    const underVs = f.varsym ? byNumber.get(f.varsym) : null;
+    const podleVs = f.varsym ? kandidati(f.varsym, f) : { stejne: [], nejiste: [] };
+    if (podleVs.stejne.length > 1 || (!podleVs.stejne.length && podleVs.nejiste.length)) {
+      stats.receivedSkip++;
+      warnings.push(`${f.number} (${f.name}): VS ${f.varsym} má ${[...podleVs.stejne, ...podleVs.nejiste].map(r => r.supplier).join(', ')}, dodavatele nejde rozlišit – přeskočeno, zkontrolovat ručně`);
+      continue;
+    }
+    const underVs = podleVs.stejne[0];
     if (underVs) {
       if (NO_MERGE) {
         stats.receivedSkip++;
@@ -374,8 +406,8 @@ async function importReceived(icoToCompany, today) {
           WHERE id = ${underVs.id}
         `;
       }
-      byNumber.delete(f.varsym);
-      byNumber.set(f.number, { ...underVs, number: f.number });
+      byNumber.set(f.varsym, byNumber.get(f.varsym).filter(r => r !== underVs));
+      pridej(f.number, { ...underVs, number: f.number, supplier: f.name, supplier_ico: f.ico });
       stats.receivedMerged++;
       warnings.push(
         `${f.number}: sloučeno s existujícím záznamem "${underVs.number}" ` +
@@ -415,8 +447,8 @@ async function importReceived(icoToCompany, today) {
       `;
     }
 
-    byNumber.set(f.number, {
-      id: null, number: f.number, supplier: f.name, status: f.status,
+    pridej(f.number, {
+      id: null, number: f.number, supplier: f.name, supplier_ico: f.ico, status: f.status,
       issue_date: f.issueDate, paid_date: f.paidDate, total_amount: f.total,
     });
     stats.received++;

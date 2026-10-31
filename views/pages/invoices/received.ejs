@@ -558,8 +558,8 @@ function bulkClearAll() {
 
     try {
       const resp = await fetch('/ucetnictvi/prijate-faktury/vytvorit', { method: 'POST', body: fd });
-      if (!resp.ok) throw new Error('Chyba serveru');
-      const data = await resp.json();
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.error || 'Chyba serveru');
       window.location.href = `/ucetnictvi/prijate-faktury/${data.id}`;
     } catch (err) {
       btn.disabled = false;

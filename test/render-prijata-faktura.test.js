@@ -187,10 +187,10 @@ describe('proti serveru', { skip: PRESKOCIT }, () => {
   test('duplicitní číslo a neplatné datum: návrat do otevřeného formuláře s hláškou, řádek beze změny', async () => {
     const druha = `tpf2${r}`;
     await sql`INSERT INTO accounting_invoices (id, type, number, supplier, amount, vat_amount, total_amount, currency, issue_date, status)
-      VALUES (${druha}, 'received', ${`PF2-${r}`}, 'Jiný', 1, 0, 1, 'CZK', '2026-02-02', 'Nezaplacena')`;
+      VALUES (${druha}, 'received', ${`PF2-${r}`}, 'Stejny dodavatel', 1, 0, 1, 'CZK', '2026-02-02', 'Nezaplacena')`;
     try {
       const [pred] = await sql`SELECT number, notes, issue_date::text AS d FROM accounting_invoices WHERE id = ${id}`;
-      let res = await req.post(`/ucetnictvi/prijate-faktury/${id}/upravit`, { number: `PF2-${r}`, supplier: 'X', issue_date: '2026-02-02', notes: 'jiné' });
+      let res = await req.post(`/ucetnictvi/prijate-faktury/${id}/upravit`, { number: `PF2-${r}`, supplier: ' STEJNY dodavatel ', issue_date: '2026-02-02', notes: 'jiné' });
       assert.equal(res.status, 302);
       assert.equal(res.headers.get('location'), `/ucetnictvi/prijate-faktury/${id}?error=duplicita&upravit=1`);
       for (const zmena of [{ issue_date: '' }, { issue_date: '20266-02-02' }, { issue_date: '2026-02-02', due_date: '2026-02-30' }]) {
@@ -203,6 +203,27 @@ describe('proti serveru', { skip: PRESKOCIT }, () => {
       assert.ok(html.includes('data-rezim="upravy"') && html.includes('s tímto číslem už v systému je'));
       assert.ok(!(await (await req.get(`/ucetnictvi/prijate-faktury/${id}?error=vymysleno`)).text()).includes('<div data-hlaska style="background:var(--danger-bg)'), 'neznámý kód hlášku neukáže');
     } finally {
+      await sql`DELETE FROM accounting_invoices WHERE id = ${druha}`;
+    }
+  });
+
+  test('stejné číslo od jiného dodavatele uložit jde, zpět na stejného ne', async () => {
+    const druha = `tpf3${r}`;
+    const cislo = `PF3-${r}`;
+    await sql`INSERT INTO accounting_invoices (id, type, number, supplier, supplier_ico, amount, vat_amount, total_amount, currency, issue_date, status)
+      VALUES (${druha}, 'received', ${cislo}, 'Prvni s.r.o.', '11111111', 1, 0, 1, 'CZK', '2026-02-02', 'Nezaplacena')`;
+    try {
+      const uloz = (telo) => req.post(`/ucetnictvi/prijate-faktury/${id}/upravit`, { number: cislo, issue_date: '2026-02-02', ...telo });
+      let res = await uloz({ supplier: 'Druhy s.r.o.', supplier_ico: '22222222' });
+      assert.equal(res.headers.get('location'), `/ucetnictvi/prijate-faktury/${id}?saved=1`, 'různá IČO');
+      res = await uloz({ supplier: 'Prvni s.r.o.', supplier_ico: '22222222' });
+      assert.equal(res.headers.get('location'), `/ucetnictvi/prijate-faktury/${id}?saved=1`, 'stejný název, různá IČO: různí dodavatelé');
+      res = await uloz({ supplier: 'Kdokoli', supplier_ico: ' 111 111 11 ' });
+      assert.equal(res.headers.get('location'), `/ucetnictvi/prijate-faktury/${id}?error=duplicita&upravit=1`, 'stejné IČO');
+      res = await uloz({ supplier: 'prvni S.R.O.', supplier_ico: '' });
+      assert.equal(res.headers.get('location'), `/ucetnictvi/prijate-faktury/${id}?error=duplicita&upravit=1`, 'stejný název, jedna kopie bez IČO');
+    } finally {
+      await sql`UPDATE accounting_invoices SET number = ${`PF-${r}`} WHERE id = ${id}`;
       await sql`DELETE FROM accounting_invoices WHERE id = ${druha}`;
     }
   });

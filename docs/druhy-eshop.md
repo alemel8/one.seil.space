@@ -64,7 +64,7 @@ e-shop nemá vyplněnou identitu, API objednávky odmítá (`503`).
    - **zálohová faktura** (`zalohova_faktura`) a **faktura** (`faktura`):
      vlastní prefix, např. `ZV-YYYYNNNN` a `V-YYYYNNNN`. Čísla dokladů jsou
      jedinečná v rámci typu napříč **všemi** e-shopy i fakturami SEILu
-     (index z migrace 021) – shoda s jinou aktivní řadou znamená, že faktura
+     (index z migrace 021, od migrace 044 jen pro vydané a zálohové doklady) – shoda s jinou aktivní řadou znamená, že faktura
      nevznikne (chyba jen v logu) a objednávka zůstane bez faktury.
    - V doslovném textu formátu nesmí být `X`, `N`, `YY`, `MM`, `DD` – to jsou
      zástupné znaky (`src/series-format.js`).

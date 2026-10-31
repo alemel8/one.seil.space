@@ -59,7 +59,7 @@ describe('režim úprav v prohlížeči', { skip: PRESKOCIT }, () => {
     uctenkaId = uctenka.id;
     faktura2Id = `rezimfag${r}`;
     await sql`INSERT INTO accounting_invoices (id, type, number, supplier, amount, vat_amount, total_amount, currency, issue_date, status)
-      VALUES (${faktura2Id}, 'received', ${`PG-${r}`}, 'Jiný dodavatel', 1, 0, 1, 'CZK', '2026-02-02', 'Nezaplacena')`;
+      VALUES (${faktura2Id}, 'received', ${`PG-${r}`}, ${`Dodavatel ${r}`}, 1, 0, 1, 'CZK', '2026-02-02', 'Nezaplacena')`;
     firmaId = `rezimfir${r}`;
     await sql`INSERT INTO crm_companies (id, name, company_type, ico, website) VALUES (${firmaId}, ${`Firma ${r}`}, 'Zákazník', '12345678', 'https://firma.example.invalid')`;
 
@@ -391,6 +391,24 @@ describe('režim úprav v prohlížeči', { skip: PRESKOCIT }, () => {
     const [f] = await sql`SELECT notes, amount FROM accounting_invoices WHERE id = ${fakturaId}`;
     assert.ok(f.notes.startsWith('rozepsaná poznámka'), f.notes);
     assert.equal(Number(f.amount), 555.5);
+  });
+
+  test('stejné číslo od jiného dodavatele se uloží bez hlášky', async () => {
+    const treti = `tg3${r}`;
+    await sql`INSERT INTO accounting_invoices (id, type, number, supplier, supplier_ico, amount, vat_amount, total_amount, currency, issue_date, status)
+      VALUES (${treti}, 'received', ${`PG3-${r}`}, 'Cizi dodavatel', '99999999', 1, 0, 1, 'CZK', '2026-02-02', 'Nezaplacena')`;
+    try {
+      await jdi(`/ucetnictvi/prijate-faktury/${fakturaId}`);
+      await otevrit();
+      await page.$eval('input[name="number"]', (el, v) => { el.value = v; }, `PG3-${r}`);
+      await klikANavigace('.page-header-akce .upravit-ulozit');
+      assert.equal(await url(), `/ucetnictvi/prijate-faktury/${fakturaId}?saved=1`);
+      const [f] = await sql`SELECT number FROM accounting_invoices WHERE id = ${fakturaId}`;
+      assert.equal(f.number, `PG3-${r}`);
+    } finally {
+      await sql`UPDATE accounting_invoices SET number = ${`PF-${r}`} WHERE id = ${fakturaId}`;
+      await sql`DELETE FROM accounting_invoices WHERE id = ${treti}`;
+    }
   });
 
   test('povinné pole ze samých mezer a smazané datum účtenky prohlížeč neodešle', async () => {

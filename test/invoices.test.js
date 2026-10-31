@@ -10,6 +10,8 @@
 import { test, before, after, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import { readdir, readFile, rm } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import postgres from 'postgres';
 
 const BASE   = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000';
@@ -147,6 +149,56 @@ describe('vytvoření vydané faktury', () => {
 
     const [{ n }] = await sql`SELECT COUNT(*)::int AS n FROM accounting_invoices WHERE number = ${number}`;
     assert.equal(n, 1);
+  });
+});
+
+describe('nová přijatá faktura', () => {
+  const nova = async (pole, soubor) => {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(pole)) fd.append(k, v);
+    if (soubor) fd.append('attachment', new Blob([soubor], { type: 'application/pdf' }), 'doklad.pdf');
+    const res = await fetch(BASE + '/ucetnictvi/prijate-faktury/vytvorit', { method: 'POST', headers: { cookie }, body: fd });
+    const data = await res.json();
+    if (data.id) createdInvoices.push(data.id);
+    return { status: res.status, data };
+  };
+  const cislo = `PRIJ-${crypto.randomBytes(4).toString('hex')}`;
+  const zaklad = { number: cislo, issue_date: '2026-08-02', amount: '100' };
+
+  test('stejné číslo od jiného dodavatele projde', async () => {
+    assert.equal((await nova({ ...zaklad, supplier: 'Alfa', supplier_ico: '11111111' })).status, 201);
+    assert.equal((await nova({ ...zaklad, supplier: 'Beta', supplier_ico: '22222222' })).status, 201);
+    assert.equal((await nova({ ...zaklad, supplier: 'Alfa', supplier_ico: '33333333' })).status, 201, 'stejný název, jiné IČO');
+  });
+
+  test('stejné číslo od stejného dodavatele: 409 se srozumitelnou hláškou a bez osiřelé přílohy', async () => {
+    const otisk = `%PDF-1.4 ${crypto.randomBytes(16).toString('hex')}`;
+    const media = fileURLToPath(new URL('../data/media/', import.meta.url));
+    const prilohySOtiskem = async () => {
+      const nalezene = [];
+      for (const s of await readdir(media)) {
+        if ((await readFile(media + s).catch(() => '')).includes(otisk)) nalezene.push(s);
+      }
+      return nalezene;
+    };
+    assert.equal((await nova({ ...zaklad, supplier: 'Gama', supplier_ico: '44444444' }, otisk)).status, 201);
+    const ulozene = await prilohySOtiskem();
+    assert.equal(ulozene.length, 1, 'kontrola: příloha přijaté faktury se dá na disku najít');
+    try {
+      const pripady = [
+        { supplier: 'Kdokoli', supplier_ico: ' 111 111 11 ' },   // stejné IČO v jiném zápisu
+        { supplier: 'alfa ', supplier_ico: '' },                 // bez IČO, stejný název
+      ];
+      for (const pole of pripady) {
+        const { status, data } = await nova({ ...zaklad, ...pole }, otisk);
+        assert.equal(status, 409, JSON.stringify(pole));
+        assert.match(data.error, /s tímto číslem už v systému je/);
+        assert.ok(!/index|constraint|unique/i.test(data.error), 'bez technického textu');
+      }
+      assert.deepEqual(await prilohySOtiskem(), ulozene, 'odmítnutá příloha na disku nezůstala');
+    } finally {
+      await rm(media + ulozene[0], { force: true });
+    }
   });
 });
 

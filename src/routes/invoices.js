@@ -31,9 +31,29 @@ function vatDeductibleFrom(body) {
 // Hlášky detailu přijaté faktury podle ?error=. Text nikdy nejde z adresy.
 const CHYBY_PRIJATE = {
   __proto__: null,
-  duplicita: 'Přijatá faktura s tímto číslem už v systému je, i kdyby byla od jiného dodavatele. Zkontrolujte číslo.',
+  duplicita: 'Faktura s tímto číslem už v systému je, a to od stejného dodavatele. Zkontrolujte číslo a IČO nebo název dodavatele.',
   datum: 'Vyplňte platné datum přijetí a splatnosti.',
 };
+
+/**
+ * Přijatá faktura se stejným číslem i názvem dodavatele, kde jedna kopie nemá IČO.
+ * Tuhle shodu index z migrace 044 neumí, stejnou fakturu zadanou dvakrát hlídá tady.
+ * Obě IČO vyplněná a různá jsou různí dodavatelé, stejná IČO řeší index.
+ */
+async function shodaBezIco(sql, { number, supplier, ico, krome = '' }) {
+  if (!number || !supplier) return null;
+  const [shoda] = await sql`
+    SELECT id FROM accounting_invoices
+    WHERE type = 'received' AND number = ${number} AND id <> ${krome}
+      AND lower(btrim(supplier)) = lower(btrim(${supplier}))
+      AND (
+        NULLIF(ltrim(regexp_replace(supplier_ico, '[^0-9A-Za-z]', '', 'g'), '0'), '') IS NULL
+        OR NULLIF(ltrim(regexp_replace(${ico}, '[^0-9A-Za-z]', '', 'g'), '0'), '') IS NULL
+      )
+    LIMIT 1
+  `;
+  return shoda ?? null;
+}
 
 const FORM_ERRORS = {
   klient:    'Vyplňte klienta.',
@@ -889,12 +909,16 @@ export default async function invoicesRoutes(fastify) {
     // náhrada dneškem by zkreslila účetní datum. jenDatum odmítne i 30. 2.
     const issueDate = jenDatum(b.issue_date);
     if (!issueDate || (b.due_date && !jenDatum(b.due_date))) return zpetSChybou('datum');
+    const cislo = (b.number || '').trim();
+    const dodavatel = (b.supplier || '').trim();
+    const ico = (b.supplier_ico || '').trim();
+    if (await shodaBezIco(sql, { number: cislo, supplier: dodavatel, ico, krome: request.params.id })) return zpetSChybou('duplicita');
     try {
       await sql`
         UPDATE accounting_invoices SET
-          number           = ${b.number || ''},
-          supplier         = ${(b.supplier||'').trim()},
-          supplier_ico     = ${(b.supplier_ico||'').trim() || null},
+          number           = ${cislo},
+          supplier         = ${dodavatel},
+          supplier_ico     = ${ico || null},
           supplier_dic     = ${(b.supplier_dic||'').trim()},
           supplier_address = ${(b.supplier_address||'').trim()},
           supplier_city    = ${(b.supplier_city||'').trim()},
@@ -914,7 +938,7 @@ export default async function invoicesRoutes(fastify) {
         WHERE id = ${request.params.id} AND type = 'received'
       `;
     } catch (err) {
-      if (err.code === '23505') return zpetSChybou('duplicita'); // unique_violation: index (type, number)
+      if (err.code === '23505') return zpetSChybou('duplicita'); // unique_violation: číslo a dodavatel, migrace 044
       throw err;
     }
     return reply.redirect(`/ucetnictvi/prijate-faktury/${request.params.id}?saved=1`);
@@ -977,33 +1001,47 @@ export default async function invoicesRoutes(fastify) {
     const vatAmount   = parseFloat(b.vat_amount  || 0);
     const totalAmount = b.total_amount ? parseFloat(b.total_amount) : (amount + vatAmount);
     const newId = generateId();
+    const cislo = (b.number || '').trim();
+    const dodavatel = (b.supplier || '').trim();
+    const ico = (b.supplier_ico || '').trim();
+    // Uložená příloha by bez faktury zůstala na disku napořád
+    const duplicita = async () => {
+      if (attachmentPath) await deleteAttachment(attachmentPath);
+      return reply.code(409).send({ error: CHYBY_PRIJATE.duplicita });
+    };
+    if (await shodaBezIco(sql, { number: cislo, supplier: dodavatel, ico })) return duplicita();
 
-    await sql`
-      INSERT INTO accounting_invoices
-        (id, type, number, supplier, supplier_ico, supplier_dic,
-         supplier_address, supplier_city, supplier_zip, supplier_country,
-         amount, vat_amount, total_amount, currency,
-         status, issue_date, due_date, notes, account_debit, account_credit,
-         vat_deductible, attachment_path, attachment_mime, attachment_size)
-      VALUES (
-        ${newId}, 'received',
-        ${b.number || ''}, ${(b.supplier||'').trim()},
-        ${(b.supplier_ico||'').trim() || null},
-        ${(b.supplier_dic||'').trim()},
-        ${(b.supplier_address||'').trim()},
-        ${(b.supplier_city||'').trim()},
-        ${(b.supplier_zip||'').trim()},
-        ${(b.supplier_country||'Česká republika').trim()},
-        ${amount}, ${vatAmount}, ${totalAmount},
-        ${b.currency || 'CZK'}, ${b.status || 'Nezaplacena'},
-        ${b.issue_date || new Date().toISOString().split('T')[0]},
-        ${b.due_date || null}, ${(b.notes||'').trim()},
-        ${(b.account_debit  || '').trim()},
-        ${(b.account_credit || '').trim()},
-        ${vatDeductibleFrom(b)},
-        ${attachmentPath}, ${attachmentMime}, ${attachmentSize}
-      )
-    `;
+    try {
+      await sql`
+        INSERT INTO accounting_invoices
+          (id, type, number, supplier, supplier_ico, supplier_dic,
+           supplier_address, supplier_city, supplier_zip, supplier_country,
+           amount, vat_amount, total_amount, currency,
+           status, issue_date, due_date, notes, account_debit, account_credit,
+           vat_deductible, attachment_path, attachment_mime, attachment_size)
+        VALUES (
+          ${newId}, 'received',
+          ${cislo}, ${dodavatel},
+          ${ico || null},
+          ${(b.supplier_dic||'').trim()},
+          ${(b.supplier_address||'').trim()},
+          ${(b.supplier_city||'').trim()},
+          ${(b.supplier_zip||'').trim()},
+          ${(b.supplier_country||'Česká republika').trim()},
+          ${amount}, ${vatAmount}, ${totalAmount},
+          ${b.currency || 'CZK'}, ${b.status || 'Nezaplacena'},
+          ${b.issue_date || new Date().toISOString().split('T')[0]},
+          ${b.due_date || null}, ${(b.notes||'').trim()},
+          ${(b.account_debit  || '').trim()},
+          ${(b.account_credit || '').trim()},
+          ${vatDeductibleFrom(b)},
+          ${attachmentPath}, ${attachmentMime}, ${attachmentSize}
+        )
+      `;
+    } catch (err) {
+      if (err.code === '23505') return duplicita(); // unique_violation: číslo a dodavatel, migrace 044
+      throw err;
+    }
     // Odpovídáme JSON (front-end přesměruje)
     return reply.code(201).send({ id: newId });
   });

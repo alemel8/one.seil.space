@@ -437,6 +437,11 @@ hosta z objednávky (`is_registered = FALSE`). Primární klíč
 ### `accounting_invoices`
 Vydané i přijaté faktury.
 
+Jedinečnost čísla (migrace 044): vydané a zálohové `(type, number)`, přijaté
+`(number, dodavatel)`, kde dodavatel je IČO bez mezer a úvodních nul, a když chybí,
+`lower(btrim(supplier))`. Prázdné číslo se nehlídá. Shodu řádku s IČO a řádku bez
+IČO index nezná, hlídá ji aplikace, viz `docs/moduly.md`.
+
 | Sloupec | Typ | Popis |
 |---|---|---|
 | `id` | TEXT PK | `generateId()` |

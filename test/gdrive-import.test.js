@@ -181,6 +181,58 @@ describe('automatický import', { skip: PRESKOCIT }, () => {
     assert.equal(vysledek, 'imported');
   });
 
+  test('stejné číslo od jiného dodavatele je další faktura', async () => {
+    assert.equal((await importujSoubor(sql, null, 'dodavatel-1', { extract })).vysledek, 'imported');
+    const jiny = async () => ({ ...VYTEZENO, supplier: 'Jiný s.r.o.', supplier_ico: '12345678', total_amount: 605 });
+    assert.equal((await importujSoubor(sql, null, 'dodavatel-2', { extract: jiny })).vysledek, 'imported');
+    const [{ n }] = await sql`SELECT count(*)::int n FROM accounting_invoices WHERE number = 'FA-77'`;
+    assert.equal(n, 2);
+  });
+
+  test('faktura bez IČO a IČO v jiném zápisu se připojí k té z ručního zadání', async () => {
+    await sql`
+      INSERT INTO accounting_invoices (id, type, number, supplier, supplier_ico, amount, vat_amount, total_amount, status, issue_date)
+      VALUES ('inv_rucne', 'received', 'FA-77', ' wedos INTERNET, a.s.', NULL, 100, 21, 121, 'Zaplacena', '2026-10-01')
+    `;
+    assert.equal((await importujSoubor(sql, null, 'bez-ico', { extract })).vysledek, 'merged');
+    await sql`UPDATE accounting_invoices SET gdrive_file_id = NULL, supplier_ico = '281 157 08' WHERE id = 'inv_rucne'`;
+    assert.equal((await importujSoubor(sql, null, 'ico-v-mezerach', { extract })).vysledek, 'merged');
+  });
+
+  test('druhý soubor téže faktury skončí chybou a další kontrola ho znovu nevytěžuje', async () => {
+    await tikGdrive(null, { sql, now: NOW, extract, notify });
+    doklady = ['kopie-1', 'kopie-2'];
+    let vytezeni = 0;
+    const pocitej = async () => { vytezeni++; return VYTEZENO; };
+
+    const prvni = await tikGdrive(null, { sql, now: NOW, extract: pocitej, notify });
+    assert.deepEqual([prvni.naimportovano, prvni.chyby], [1, 1]);
+    assert.equal(vytezeni, 2);
+    const s = await stav('kopie-2');
+    assert.equal(s.stav, 'chyba');
+    assert.equal(s.pokusy, 1);
+    assert.match(s.chyba, /FA-77 od tohoto dodavatele už v systému je/);
+    assert.ok(!/index|constraint|unique/i.test(s.chyba), 'bez technického textu');
+    assert.equal(await faktura('kopie-2'), undefined);
+
+    await tikGdrive(null, { sql, now: NOW, extract: pocitej, notify });
+    assert.equal(vytezeni, 2, 'hned znovu se Claude nevolá');
+  });
+
+  test('souběh na stejném souboru se tiše přeskočí', async () => {
+    const soubeh = async () => {
+      // Mezitím soubor naimportoval druhý běh: INSERT narazí na index gdrive_file_id.
+      await sql`
+        INSERT INTO accounting_invoices (id, type, number, supplier, gdrive_file_id, amount, vat_amount, total_amount, status, issue_date)
+        VALUES ('inv_soubeh', 'received', 'FA-soubeh', 'Soubeh', 'soubeh', 1, 0, 1, 'Nezaplacena', '2026-09-09')
+      `;
+      return VYTEZENO;
+    };
+    const { vysledek } = await importujSoubor(sql, null, 'soubeh', { extract: soubeh });
+    assert.equal(vysledek, 'skipped');
+    assert.equal(await stav('soubeh'), undefined, 'žádná chyba se nezapsala');
+  });
+
   test('nevytěžený doklad nezaloží fakturu a po stropu pokusů se vzdá', async () => {
     await tikGdrive(null, { sql, now: NOW, extract, notify });
     doklady = ['necitelny'];

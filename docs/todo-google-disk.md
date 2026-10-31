@@ -53,7 +53,9 @@ i `Červenec` fungují, u podsložky stačí, že název obsahuje „přijaté�
 
 Každý soubor se páruje přes Drive file ID (`accounting_invoices.gdrive_file_id`,
 unikátní index), takže opakovaný import nic nezduplikuje – ani po přejmenování
-nebo přesunu souboru na Disku.
+nebo přesunu souboru na Disku. Druhý soubor se stejným číslem od stejného dodavatele
+skončí stavem `chyba` s hláškou a pokusy se opakují po hodině až do stropu; stejné
+číslo od jiného dodavatele je nová faktura.
 
 **Automatika** (`src/gdrive-import.js`) kontroluje každých 5 minut letošní
 a loňský rok. První úspěšná kontrola jen zapíše, co ve složce je (stav `vychozi`

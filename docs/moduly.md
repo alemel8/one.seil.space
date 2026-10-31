@@ -117,7 +117,7 @@ faktura bere DUZP.
 | `POST /ucetnictvi/upominky/:id/odeslat` | Odeslat upomínku ze seznamu |
 | `POST /ucetnictvi/upominky/:id/zrusit` | Zrušit upomínku |
 | `GET /ucetnictvi/prijate-faktury` | Seznam přijatých faktur |
-| `POST /ucetnictvi/prijate-faktury/vytvorit` | Vytvořit přijatou fakturu |
+| `POST /ucetnictvi/prijate-faktury/vytvorit` | Vytvořit přijatou fakturu; duplicita vrátí 409 s hláškou a příloha se smaže |
 | `GET /ucetnictvi/prijate-faktury/:id` | Detail přijaté faktury |
 | `GET /ucetnictvi/prijate-faktury/gdrive` | Doklady na Google Disku a stav automatického importu (viz `docs/todo-google-disk.md`) |
 | `POST /ucetnictvi/prijate-faktury/:id/upravit` | Uložit fakturu z detailu (celý řádek, pole přes `form=`); přesměruje na `?saved=1`, při chybě na `?error=duplicita` nebo `datum` s `&upravit=1` |
@@ -134,8 +134,17 @@ faktura bere DUZP.
 Ruční faktura se zadává po položkách (popis, množství, MJ, cena/MJ, sazba DPH).
 Základ, DPH i celkovou částku počítá vždy server z odeslaných řádků – součty
 ve formuláři jsou jen náhled. Server odmítne fakturu bez klienta, bez položek,
-s nulovou částkou nebo s číslem, které už existuje (`accounting_invoices` má
-unikátní index na dvojici typ + číslo).
+s nulovou částkou nebo s číslem, které už existuje (vydané a zálohové faktury
+mají unikátní index na dvojici typ + číslo; přijaté jsou jedinečné jen v rámci
+dodavatele, viz níže).
+
+Číslo přijaté faktury přiděluje dodavatel, takže stejné číslo od dvou dodavatelů
+je v pořádku (migrace 044). Stejný dodavatel znamená stejné IČO po odstranění
+mezer a úvodních nul, a když IČO chybí, stejný název bez ohledu na velikost písmen
+a okrajové mezery. Různá IČO jsou různí dodavatelé i se stejným názvem. Index neumí
+shodu řádku s IČO a řádku bez IČO, tu hlídá aplikace (`shodaBezIco`
+v `src/routes/invoices.js`, `najdiStejnou` v `src/gdrive-import.js`): stejné číslo
+a název, jedna kopie bez IČO. Tohle hlídání je dotaz před zápisem, ne atomické.
 
 ### Faktura k objednávce e-shopu
 
@@ -969,8 +978,8 @@ Zvláštnosti jednotlivých stránek:
   (mezi kartami leží formuláře příloh, párování a exportu POHODA, obalit
   nejde). Rekapitulace ukazuje v zobrazení řádky Základ/DPH/K úhradě,
   v úpravách vstupy částek. `POST …/upravit` přesměruje na `?saved=1`.
-  Index `(type, number)` nezahrnuje dodavatele, takže stejné číslo od dvou
-  dodavatelů skončí hláškou `duplicita`.
+  Hláška `duplicita` znamená stejné číslo od stejného dodavatele, jiný dodavatel
+  se stejným číslem projde (viz pravidlo u faktur výš).
   Odkaz „Upravit fakturu“ v kartě Akce je `?upravit=1` s `data-upravit-otevrit`.
 - **Include `pole.ejs`** umí navíc `vychozi` (hodnota jen pro vstup, když je
   sloupec prázdný – Stát „Česká republika“; zobrazení ukáže „–“, uložení ji
@@ -1071,11 +1080,13 @@ node --env-file=.env scripts/import-faktury-xlsx.js --sync-status # + srovnání
 
 **Hlídání duplicit** (skript je idempotentní, lze spouštět opakovaně):
 
-1. podle čísla dokladu (POHODA `Číslo`) proti `number`,
-2. podle variabilního symbolu proti `number` – zachytí faktury, které do
-   systému přitekly importem z Disku a jsou vedené pod číslem dodavatele;
-   ty se sloučí do existujícího záznamu (zůstane `id` i příloha),
-   s `--no-merge` se jen přeskočí,
+1. podle čísla dokladu (POHODA `Číslo`) a dodavatele proti `number`
+   a dodavateli; stejné číslo od jiného dodavatele je jiná faktura,
+2. podle variabilního symbolu a dodavatele proti `number` a dodavateli –
+   zachytí faktury, které do systému přitekly importem z Disku a jsou vedené
+   pod číslem dodavatele; ty se sloučí do existujícího záznamu (zůstane `id`
+   i příloha), s `--no-merge` se jen přeskočí; když jedna strana nemá IČO a názvy
+   se liší, skript nic nepřepíše ani nezaloží a jen varuje,
 3. kontrolní shoda dodavatel + datum + částka → jen varování do logu.
 
 **Mapování částek:** `amount` je součet všech sazeb (`Kč 0`, `Kč snížená`,

@@ -7,9 +7,10 @@
 //
 // Duplicity: soubor se páruje přes gdrive_file_id. Než se založí nová faktura,
 // hledá se stejná bez vazby na Disk – stejné IČO a k tomu číslo dokladu, nebo
-// datum vystavení a částka. Číslo samo nestačí, u faktur z POHODY je v `number`
-// její interní číslo, ne číslo dodavatele. Shoda s jedinou fakturou se k ní
-// připojí, nic nového nevzniká.
+// datum vystavení a částka; když jedna strana IČO nemá, stejné číslo a název.
+// Číslo samo nestačí: u faktur z POHODY je v `number` její interní číslo, ne číslo
+// dodavatele, a dva dodavatelé můžou mít stejné číslo (migrace 044). Shoda
+// s jedinou fakturou se k ní připojí, nic nového nevzniká.
 
 import Anthropic from '@anthropic-ai/sdk';
 import { getDb, generateId } from './db.js';
@@ -26,7 +27,7 @@ const PAUZA_MEZI_POKUSY_MS = 60 * 60_000;
 const MAX_ZA_KONTROLU = 25;
 
 const EXTRACT_PROMPT = `Z tohoto dokladu vyextrahuj data přijaté faktury. Vrať POUZE platný JSON objekt bez markdown bloků ani dalšího textu:
-{"number":"číslo faktury od dodavatele","supplier":"název dodavatele","supplier_ico":"IČO nebo null","amount":základ_bez_DPH_číslo,"vat_amount":DPH_číslo,"total_amount":celková_částka_číslo,"currency":"CZK","issue_date":"YYYY-MM-DD nebo null","due_date":"YYYY-MM-DD nebo null","notes":"předmět plnění nebo null"}`;
+{"number":"číslo faktury od dodavatele","supplier":"název dodavatele","supplier_ico":"IČO dodavatele, ne odběratele, nebo null","amount":základ_bez_DPH_číslo,"vat_amount":DPH_číslo,"total_amount":celková_částka_číslo,"currency":"CZK","issue_date":"YYYY-MM-DD nebo null","due_date":"YYYY-MM-DD nebo null","notes":"předmět plnění nebo null"}`;
 
 export async function extractInvoiceData(buf, mimeType, log) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -62,15 +63,27 @@ const cislo = (hodnota) => {
 };
 
 /** Faktura bez vazby na Disk, která je tímtéž dokladem; víc shod = radši žádná. */
-async function najdiStejnou(sql, { ico, cisloDokladu, datum, celkem }) {
-  if (!ico) return null;
+async function najdiStejnou(sql, { ico, dodavatel, cisloDokladu, datum, celkem }) {
   const shody = await sql`
     SELECT id, attachment_path FROM accounting_invoices
-    WHERE type = 'received' AND gdrive_file_id IS NULL AND supplier_ico = ${ico}
-      AND (
-        (${cisloDokladu} <> '' AND number = ${cisloDokladu})
-        OR (issue_date = ${datum}::date AND total_amount = ${celkem}::numeric)
+    WHERE type = 'received' AND gdrive_file_id IS NULL AND (
+      (
+        NULLIF(ltrim(regexp_replace(supplier_ico, '[^0-9A-Za-z]', '', 'g'), '0'), '')
+          = NULLIF(ltrim(regexp_replace(${ico}, '[^0-9A-Za-z]', '', 'g'), '0'), '')
+        AND (
+          (${cisloDokladu} <> '' AND number = ${cisloDokladu})
+          OR (issue_date = ${datum}::date AND total_amount = ${celkem}::numeric)
+        )
       )
+      OR (
+        ${cisloDokladu} <> '' AND number = ${cisloDokladu}
+        AND lower(btrim(supplier)) = lower(btrim(${dodavatel}))
+        AND (
+          NULLIF(ltrim(regexp_replace(supplier_ico, '[^0-9A-Za-z]', '', 'g'), '0'), '') IS NULL
+          OR NULLIF(ltrim(regexp_replace(${ico}, '[^0-9A-Za-z]', '', 'g'), '0'), '') IS NULL
+        )
+      )
+    )
     LIMIT 2
   `;
   return shody.length === 1 ? shody[0] : null;
@@ -116,8 +129,9 @@ export async function importujSoubor(sql, log, fileId, { extract = extractInvoic
 
     const ico          = String(d.supplier_ico || '').trim();
     const cisloDokladu = String(d.number || '').trim().slice(0, 60);
+    const cisloFaktury = cisloDokladu || String(meta.name || '').slice(0, 60);
     const stejna = await najdiStejnou(sql, {
-      ico, cisloDokladu, datum: d.issue_date || null, celkem: totalAmount,
+      ico, dodavatel: supplier, cisloDokladu, datum: d.issue_date || null, celkem: totalAmount,
     });
 
     // Příloha se nepřepisuje, když ji stejná faktura už má.
@@ -148,7 +162,7 @@ export async function importujSoubor(sql, log, fileId, { extract = extractInvoic
            attachment_path, attachment_mime, attachment_size, gdrive_file_id)
         VALUES (
           ${id}, 'received',
-          ${cisloDokladu || String(meta.name || '').slice(0, 60)},
+          ${cisloFaktury},
           ${supplier},
           ${ico || null},
           ${amount}, ${vatAmount}, ${totalAmount},
@@ -163,8 +177,14 @@ export async function importujSoubor(sql, log, fileId, { extract = extractInvoic
       return { vysledek: 'imported', invoiceId: id };
     } catch (err) {
       if (saved) await deleteAttachment(saved.filename);
-      // Souběh ruční dávky a automatiky: druhý běh narazí na unikátní index.
-      if (err.code === '23505') return { vysledek: 'skipped', invoiceId: null };
+      // Souběh ruční dávky a automatiky: druhý běh narazí na index gdrive_file_id,
+      // příští kontrola soubor zapíše jako hotový.
+      if (err.code === '23505' && err.constraint_name === 'accounting_invoices_gdrive_file_id_idx') {
+        return { vysledek: 'skipped', invoiceId: null };
+      }
+      // Stejné číslo od stejného dodavatele je duplicita, ne souběh. Bez chyby by
+      // soubor zůstal 'cekajici' a každá kontrola by ho znovu vytěžovala.
+      if (err.code === '23505') throw new Error(`Faktura ${cisloFaktury} od tohoto dodavatele už v systému je.`);
       throw err;
     }
   } catch (err) {
