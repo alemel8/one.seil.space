@@ -132,6 +132,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (el) { el.classList.remove('open'); document.body.style.overflow = ''; }
   }
 
+  // Některé šablony zavírají modal inline onclick (classList.remove('open')),
+  // který overflow těla nevrátí — stránka pak po zavření křížkem nejde
+  // scrollovat. Inline obsluha proběhne dřív než tenhle posluchač na
+  // dokumentu, takže stačí po každém kliku ověřit, že žádný modal není otevřený.
+  document.addEventListener('click', () => {
+    if (document.body.style.overflow === 'hidden' && !document.querySelector('.modal-backdrop.open')) {
+      document.body.style.overflow = '';
+    }
+  });
+
   // ── Sidebar — přepínač (desktop sbalí pruh, mobil otevře drawer) ──
   const sidebarToggle = document.getElementById('sidebarToggle');
   const sidebar = document.getElementById('sidebar');
