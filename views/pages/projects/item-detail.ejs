@@ -47,7 +47,7 @@
     <div class="card">
       <div class="card-header"><strong>Popis</strong></div>
       <div class="card-body">
-        <%- include('../../includes/pole', { pole: { label: 'Popis', name: 'description', typ: 'textarea', rows: 3, value: item.description, placeholder: 'Co tento podprojekt zahrnuje…' } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'Popis', name: 'description', typ: 'textarea', rows: 3, value: item.description, skrytyPopisek: true, placeholder: 'Co tento podprojekt zahrnuje…' } }) %>
       </div>
     </div>
 
@@ -73,7 +73,7 @@
     <div class="card">
       <div class="card-header"><strong>Poznámky</strong></div>
       <div class="card-body">
-        <%- include('../../includes/pole', { pole: { label: 'Poznámky', name: 'notes', typ: 'textarea', rows: 4, value: item.notes } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'Poznámky', name: 'notes', typ: 'textarea', rows: 4, value: item.notes, skrytyPopisek: true } }) %>
       </div>
     </div>
 

@@ -898,6 +898,38 @@ jen s textarea nepřepisoval zbytek řádku), projekt, podprojekt, člen týmu
 účtenka a přijatá faktura. **Vydaná faktura** zůstává u modalu — její úprava
 obsahuje editor položek, který do karet detailu nepatří.
 
+Zvláštnosti jednotlivých stránek:
+
+- **Firma, projekt, podprojekt**: dřívější modaly úprav jsou pryč. Název,
+  typ a stav (v zobrazení v hlavičce stránky) jsou `.jen-upravy` pole
+  nahoře v první kartě; u podprojektu i výběr e-shopu a healthchecku (v
+  zobrazení je ukazují pravé karty). Karty Brand identita, Poznámky a Popis
+  se vykreslují vždy, aby šla hodnota poprvé vyplnit.
+- **Člen týmu**: oba formuláře (detail, bankovní účet) posílají všech
+  šestnáct sloupců — hidden pole druhé záložky zůstávají, přepínače
+  `is_admin`/`is_active` jsou na záložce banka hidden vždy (`'1'` nebo `''`).
+- **Můj profil**: režim nese karta Osobní údaje (`data-rezim` na `.card`,
+  ovládání v `.card-header` ve `.card-header-akce`), fotka a heslo mají
+  vlastní formuláře. E-mail a role jsou `stale` pole bez vstupu.
+- **Účtenka**: pole mají `id`, na kterých visí skript stránky (`rdCategory`,
+  `rdPayment`, `rdVatDeductible`); hinty, které skript plní, jsou ručně
+  `<small class="form-hint jen-upravy">` pod includem. Událost `reset`
+  formuláře znovu volá `rdUhrada()`, protože `form.reset()` vrátí hodnoty,
+  ale ne zámek odpočtu DPH u reprezentace. Chyba při parsování
+  `POST /ucetnictvi/uctenky/:id/upravit` se pro `Accept: text/html` vrací
+  přesměrováním `?error=<zpráva>&upravit=1`, pro fetch dál JSON 400.
+- **Přijatá faktura**: formulář `formFaktura` je naschvál prázdný hned za
+  hlavičkou, všechna pole na kartách obou sloupců na něj míří `form=`
+  (mezi kartami leží formuláře příloh, párování a exportu POHODA, obalit
+  nejde). Rekapitulace ukazuje v zobrazení řádky Základ/DPH/K úhradě,
+  v úpravách vstupy částek. `POST …/upravit` přesměruje na `?saved=1`.
+  Odkaz „Upravit fakturu“ v kartě Akce je `?upravit=1` s `data-upravit-otevrit`.
+- **Include `pole.ejs`** umí navíc `vychozi` (hodnota jen pro vstup, když je
+  sloupec prázdný — Stát „Česká republika“; zobrazení ukáže „—“),
+  `tridaHodnoty` (`pole-mono` pro IČO/DIČ/předkontace, `pole-varovani` pro
+  splatnost po termínu) a `skrytyPopisek` (karta s jediným polem, kde se
+  nadpis karty rovná popisku — popisek zůstává jen pro čtečku).
+
 ### Identita e-shopu v e-mailech
 
 Odesílatel, barvy, loga a kontakty pro zákaznické e-maily jsou sloupce tabulky

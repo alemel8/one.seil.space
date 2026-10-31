@@ -46,10 +46,7 @@
 <div class="jen-zobrazeni" style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:10px 16px;border-radius:8px;margin-bottom:16px;">✓ Uloženo</div>
 <% } %>
 
-<%# Třída upravitelne i na mřížce: CSS přepíná vstupy a hodnoty polí jen pod
-    .upravitelne a pole tu leží mimo formulář. Jiný .form-control v mřížce není
-    (modal stavu je až za obalem). %>
-<div class="upravitelne" style="display:grid;grid-template-columns:2fr 1fr;gap:24px;align-items:start;">
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;align-items:start;">
 
   <!-- Levý sloupec -->
   <div style="display:flex;flex-direction:column;gap:20px;">
@@ -72,7 +69,7 @@
           <%- include('../../includes/pole', { pole: { label: 'Ulice', name: 'supplier_address', value: invoice.supplier_address, form: formular } }) %>
           <%- include('../../includes/pole', { pole: { label: 'Město', name: 'supplier_city', value: invoice.supplier_city, form: formular } }) %>
           <%- include('../../includes/pole', { pole: { label: 'PSČ', name: 'supplier_zip', value: invoice.supplier_zip, form: formular } }) %>
-          <%- include('../../includes/pole', { pole: { label: 'Stát', name: 'supplier_country', value: invoice.supplier_country || 'Česká republika', form: formular } }) %>
+          <%- include('../../includes/pole', { pole: { label: 'Stát', name: 'supplier_country', value: invoice.supplier_country, vychozi: 'Česká republika', form: formular } }) %>
         </div>
       </div>
     </div>
@@ -83,7 +80,7 @@
       <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
         <%- include('../../includes/pole', { pole: { label: 'Datum přijetí', name: 'issue_date', typ: 'date', value: invoice.issue_date, form: formular } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Datum splatnosti', name: 'due_date', typ: 'date', value: invoice.due_date, form: formular,
-          zobraz: isOverdue ? ceskeDatum(invoice.due_date) + ' ⚠' : undefined } }) %>
+          zobraz: isOverdue ? ceskeDatum(invoice.due_date) + ' ⚠' : undefined, tridaHodnoty: isOverdue ? 'pole-varovani' : undefined } }) %>
         <% if (invoice.paid_date) { %>
         <div class="form-group pole pole-stale">
           <span class="form-label">Zaplaceno</span>
@@ -106,8 +103,8 @@
     <div class="card">
       <div class="card-header"><strong>Účtování (předkontace)</strong></div>
       <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <%- include('../../includes/pole', { pole: { label: 'MD (má dáti)', name: 'account_debit', value: invoice.account_debit, placeholder: '518', form: formular } }) %>
-        <%- include('../../includes/pole', { pole: { label: 'D (dal)', name: 'account_credit', value: invoice.account_credit, placeholder: '321', form: formular } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'MD (má dáti)', name: 'account_debit', value: invoice.account_debit, placeholder: '518', tridaHodnoty: 'pole-mono', form: formular } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'D (dal)', name: 'account_credit', value: invoice.account_credit, placeholder: '321', tridaHodnoty: 'pole-mono', form: formular } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Odpočet DPH', name: 'vat_deductible', typ: 'checkbox', value: invoice.vat_deductible !== false, hodnotaVstupu: 'on', form: formular,
           popisek: 'Uplatnit nárok na odpočet DPH', zobraz: invoice.vat_deductible !== false ? 'Uplatněn' : 'Bez nároku', styl: 'grid-column:1/-1',
           hint: 'Vypněte u reprezentace a pohoštění (§ 72 odst. 4 ZDPH) — do POHODY pak jde celá částka včetně DPH do nákladů a členění DPH „Nezahrnovat do DPH“.' } }) %>
@@ -118,7 +115,7 @@
     <div class="card">
       <div class="card-header"><strong>Poznámka / předmět plnění</strong></div>
       <div class="card-body">
-        <%- include('../../includes/pole', { pole: { label: 'Poznámka', name: 'notes', typ: 'textarea', value: invoice.notes, rows: 3, form: formular } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'Poznámka', name: 'notes', typ: 'textarea', value: invoice.notes, rows: 3, skrytyPopisek: true, form: formular } }) %>
       </div>
     </div>
 

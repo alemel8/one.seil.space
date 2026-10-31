@@ -20,6 +20,9 @@
     zobraz     text pro režim zobrazení místo výchozího (např. „33 %“, „Expedice vypnutá“)
     hint       nápověda pod vstupem, jen v úpravách
     stale      true → jen hodnota bez vstupu, zůstává vidět i v úpravách (slug, e-mail v profilu)
+    vychozi    hodnota jen pro vstup, když je value prázdné („Česká republika“) — zobrazení ukáže „—“
+    tridaHodnoty  další třídy .pole-hodnota: 'pole-mono' (IČO, předkontace), 'pole-varovani', 'pole-uspech'
+    skrytyPopisek true → popisek jen pro čtečku (karta s jediným polem, kde se nadpis karty rovná popisku)
     trida      další třídy .form-group (např. 'col-span-2'); styl → inline style (např. 'grid-column:1/-1')
 
   Zobrazení: date → „1. 10. 2026“ (prazsky-cas.js, nezávisle na TZ procesu; vstup dostane
@@ -57,7 +60,7 @@
     else if (typ === 'tel') href = 'tel:' + s.replace(/\s+/g, '');
   }
 
-  const vstupniHodnota = typ === 'date' ? (jenDatum(hodnota) || '') : (maHodnotu ? String(hodnota) : '');
+  const vstupniHodnota = typ === 'date' ? (jenDatum(hodnota) || '') : (maHodnotu ? String(hodnota) : (p.vychozi != null ? String(p.vychozi) : ''));
 
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const spolecne = [
@@ -79,12 +82,13 @@
   ].join('');
 %>
 <div class="form-group pole<%= stale ? ' pole-stale' : '' %><%= p.trida ? ' ' + p.trida : '' %>"<% if (p.styl) { %> style="<%= p.styl %>"<% } %>>
+  <% const tridaPopisku = 'form-label' + (p.required ? ' required' : '') + (p.skrytyPopisek ? ' sr-only' : ''); %>
   <% if (id && !stale && !zaskrtavaci) { %>
-  <label class="form-label<%= p.required ? ' required' : '' %>" for="<%= id %>"><%= p.label %></label>
+  <label class="<%= tridaPopisku %>" for="<%= id %>"><%= p.label %></label>
   <% } else { %>
-  <span class="form-label<%= p.required ? ' required' : '' %>"><%= p.label %></span>
+  <span class="<%= tridaPopisku %>"><%= p.label %></span>
   <% } %>
-  <div class="pole-hodnota<%= typ === 'textarea' ? ' pole-hodnota-blok' : '' %>"><% if (prazdne) { %><span class="pole-prazdne">—<span class="sr-only"> nevyplněno</span></span><% } else if (href) { %><a href="<%= href %>"<% if (typ === 'url') { %> target="_blank" rel="noopener noreferrer"<% } %>><%= text %></a><% } else { %><%= text %><% } %></div>
+  <div class="pole-hodnota<%= typ === 'textarea' ? ' pole-hodnota-blok' : '' %><%= p.tridaHodnoty ? ' ' + p.tridaHodnoty : '' %>"><% if (prazdne) { %><span class="pole-prazdne">—<span class="sr-only"> nevyplněno</span></span><% } else if (href) { %><a href="<%= href %>"<% if (typ === 'url') { %> target="_blank" rel="noopener noreferrer"<% } %>><%= text %></a><% } else { %><%= text %><% } %></div>
   <% if (!stale) { %>
     <% if (typ === 'textarea') { %>
   <textarea class="form-control" rows="<%= p.rows || 3 %>"<%- spolecne %><%- textove %>><%= vstupniHodnota %></textarea>

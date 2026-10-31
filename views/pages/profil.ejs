@@ -63,7 +63,7 @@
   <div class="card" data-rezim="<%= rezimUprav ? 'upravy' : 'zobrazeni' %>">
     <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
       <span>Osobní údaje</span>
-      <div style="display:flex;align-items:center;gap:8px;margin:-12px 0;">
+      <div class="card-header-akce">
         <%- include('../includes/upravit', { formular: 'formProfil', urlUpravit: '/profil?upravit=1', urlZpet: '/profil' }) %>
       </div>
     </div>

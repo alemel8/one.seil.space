@@ -131,7 +131,7 @@
           <%- include('../../includes/pole', { pole: { label: 'Adresa', name: 'address', value: member.address, placeholder: 'Ulice a číslo popisné' } }) %>
           <%- include('../../includes/pole', { pole: { label: 'Město', name: 'city', value: member.city } }) %>
           <%- include('../../includes/pole', { pole: { label: 'PSČ', name: 'zip', value: member.zip } }) %>
-          <%- include('../../includes/pole', { pole: { label: 'Stát', name: 'country', value: member.country || 'Česká republika' } }) %>
+          <%- include('../../includes/pole', { pole: { label: 'Stát', name: 'country', value: member.country, vychozi: 'Česká republika' } }) %>
           <%- include('../../includes/pole', { pole: { label: 'Role', name: 'is_admin', typ: 'toggle', value: member.is_admin, popisek: 'Správce',
             zobraz: member.is_admin ? 'Správce' : 'Uživatel' } }) %>
           <%- include('../../includes/pole', { pole: { label: 'Stav účtu', name: 'is_active', typ: 'toggle', value: member.is_active, popisek: 'Aktivní účet',

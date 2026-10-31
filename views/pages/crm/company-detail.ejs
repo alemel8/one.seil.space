@@ -113,10 +113,10 @@
         <%- include('../../includes/pole', { pole: { label: 'Název', name: 'name', value: company.name, required: true, trida: 'jen-upravy', styl: 'grid-column:1/-1' } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Typ', name: 'company_type', typ: 'select', value: company.company_type || 'Zákazník', moznosti: ['Zákazník', 'Dodavatel', 'Partner', 'Jiný'], trida: 'jen-upravy' } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Stav', name: 'company_status', value: company.company_status, trida: 'jen-upravy' } }) %>
-        <%- include('../../includes/pole', { pole: { label: 'IČO', name: 'ico', value: company.ico } }) %>
-        <%- include('../../includes/pole', { pole: { label: 'DIČ', name: 'dic', value: company.dic } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'IČO', name: 'ico', value: company.ico, tridaHodnoty: 'pole-mono' } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'DIČ', name: 'dic', value: company.dic, tridaHodnoty: 'pole-mono' } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Právní forma', name: 'legal_form', value: company.legal_form, styl: 'grid-column:1/-1' } }) %>
-        <%- include('../../includes/pole', { pole: { label: 'Spisová značka', name: 'registration_info', value: company.registration_info } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'Spisová značka', name: 'registration_info', value: company.registration_info, tridaHodnoty: 'pole-mono' } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Datum vzniku', name: 'founded_date', typ: 'date', value: company.founded_date } }) %>
         <% if (company.ares_synced_at) { %>
         <div style="grid-column:1/-1;">
@@ -133,7 +133,7 @@
         <%- include('../../includes/pole', { pole: { label: 'Adresa', name: 'address', value: company.address, styl: 'grid-column:1/-1' } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Město', name: 'city', value: company.city } }) %>
         <%- include('../../includes/pole', { pole: { label: 'PSČ', name: 'zip', value: company.zip } }) %>
-        <%- include('../../includes/pole', { pole: { label: 'Stát', name: 'country', value: company.country || 'Česká republika', styl: 'grid-column:1/-1' } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'Stát', name: 'country', value: company.country, vychozi: 'Česká republika', styl: 'grid-column:1/-1' } }) %>
         <%- include('../../includes/pole', { pole: { label: 'E-mail', name: 'email', typ: 'email', value: company.email } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Telefon', name: 'phone', typ: 'tel', value: company.phone } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Web', name: 'website', typ: 'url', value: company.website, styl: 'grid-column:1/-1' } }) %>
@@ -144,7 +144,7 @@
     <div class="card">
       <div class="card-header"><strong>Poznámky</strong></div>
       <div class="card-body">
-        <%- include('../../includes/pole', { pole: { label: 'Interní poznámky', name: 'notes', typ: 'textarea', value: company.notes, rows: 6, placeholder: 'Interní poznámky, informace o spolupráci…' } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'Interní poznámky', name: 'notes', typ: 'textarea', value: company.notes, rows: 6, skrytyPopisek: true, placeholder: 'Interní poznámky, informace o spolupráci…' } }) %>
         <%- include('../../includes/upravit', { paticka: true, formular: 'formFirma', urlZpet: urlZalozky }) %>
       </div>
     </div>
@@ -307,7 +307,7 @@
     <div class="card-header"><strong>Poznámky k firmě</strong></div>
     <form method="post" action="/crm/firmy/<%= company.id %>/poznamky" id="formPoznamky" class="upravitelne">
       <div class="card-body">
-        <%- include('../../includes/pole', { pole: { label: 'Interní poznámky', name: 'notes', typ: 'textarea', value: company.notes, rows: 10, placeholder: 'Interní poznámky, informace o spolupráci…' } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'Interní poznámky', name: 'notes', typ: 'textarea', value: company.notes, rows: 10, skrytyPopisek: true, placeholder: 'Interní poznámky, informace o spolupráci…' } }) %>
       </div>
     </form>
   </div>

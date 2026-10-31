@@ -161,8 +161,8 @@
         <%- include('../../includes/pole', { pole: { label: 'Poznámka / předmět nákupu', name: 'notes', typ: 'textarea', rows: 3, value: receipt.notes } }) %>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-          <%- include('../../includes/pole', { pole: { label: 'Předkontace MD', name: 'account_debit', value: receipt.account_debit, placeholder: 'např. 518', list: 'rdAcList', autocomplete: 'off' } }) %>
-          <%- include('../../includes/pole', { pole: { label: 'Předkontace D', name: 'account_credit', value: receipt.account_credit, placeholder: 'např. 211', list: 'rdAcList', autocomplete: 'off' } }) %>
+          <%- include('../../includes/pole', { pole: { label: 'Předkontace MD', name: 'account_debit', value: receipt.account_debit, placeholder: 'např. 518', tridaHodnoty: 'pole-mono', list: 'rdAcList', autocomplete: 'off' } }) %>
+          <%- include('../../includes/pole', { pole: { label: 'Předkontace D', name: 'account_credit', value: receipt.account_credit, placeholder: 'např. 211', tridaHodnoty: 'pole-mono', list: 'rdAcList', autocomplete: 'off' } }) %>
         </div>
         <datalist id="rdAcList"></datalist>
 

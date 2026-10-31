@@ -34,7 +34,7 @@
       <%- include('../../includes/pole', { pole: { label: 'Ulice a číslo popisné', name: 'address', value: company.address, styl: 'grid-column:1/-1' } }) %>
       <%- include('../../includes/pole', { pole: { label: 'Město', name: 'city', value: company.city } }) %>
       <%- include('../../includes/pole', { pole: { label: 'PSČ', name: 'zip', value: company.zip } }) %>
-      <%- include('../../includes/pole', { pole: { label: 'Stát', name: 'country', value: company.country || 'Česká republika', styl: 'grid-column:1/-1' } }) %>
+      <%- include('../../includes/pole', { pole: { label: 'Stát', name: 'country', value: company.country, vychozi: 'Česká republika', styl: 'grid-column:1/-1' } }) %>
       <%- include('../../includes/pole', { pole: { label: 'Telefon', name: 'phone', typ: 'tel', value: company.phone } }) %>
       <%- include('../../includes/pole', { pole: { label: 'E-mail', name: 'email', typ: 'email', value: company.email } }) %>
     </div>

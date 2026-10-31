@@ -60,8 +60,8 @@ test('formulář je prázdný hned za hlavičkou a každé pole se k němu hlás
   }
   assert.equal((html.match(new RegExp(`form="${FORMULAR}" class="btn btn-primary upravit-ulozit"`, 'g')) || []).length, 2, 'Uložit v hlavičce i v patičce míří přes form=');
   assert.ok(html.includes('class="upravit-paticka jen-upravy"'), 'patička Zrušit/Uložit pod levým sloupcem');
-  // CSS přepíná vstupy a hodnoty jen pod .upravitelne — pole leží mimo formulář, třídu nese i mřížka.
-  assert.ok(html.includes('<div class="upravitelne" style="display:grid;grid-template-columns:2fr 1fr;'), 'mřížka karet nese upravitelne');
+  // CSS přepíná každé .pole podle data-rezim obalu, pomocná třída na mřížce není potřeba.
+  assert.ok(!html.includes('<div class="upravitelne" style="display:grid'), 'mřížka karet nenese pomocnou třídu upravitelne');
 
   // Ostatní formuláře (příloha, POHODA XML, stav) zůstávají vlastní a mimo dosah tužky.
   assert.ok(html.includes(`action="/ucetnictvi/prijate-faktury/${invoice.id}/priloha"`), 'formulář přílohy zůstal');
@@ -78,7 +78,7 @@ test('hodnoty jako escapovaný text, odkazy tužky a Zrušit, Upravit fakturu v 
   assert.ok(html.includes('Papírnictví &lt;b&gt;Tužka&lt;/b&gt;'), 'dodavatel se escapuje');
   assert.ok(!html.includes('<b>Tužka</b>'), 'surové HTML z hodnoty v stránce není');
   assert.match(html, /<div class="pole-hodnota">2\. 2\. 2026<\/div>/, 'datum přijetí nezávisle na časovém pásmu');
-  assert.match(html, /<div class="pole-hodnota">16\. 2\. 2026 ⚠<\/div>/, 'splatnost po termínu s varováním');
+  assert.match(html, /<div class="pole-hodnota pole-varovani">16\. 2\. 2026 ⚠<\/div>/, 'splatnost po termínu s varováním a varovnou barvou');
   assert.match(html, /<div class="pole-hodnota">Uplatněn<\/div>/, 'odpočet DPH jako text');
   assert.match(html, /<div class="pole-hodnota">CZK<\/div>/, 'měna jako popisek vybrané možnosti');
   assert.ok(html.includes('href="?upravit=1" class="btn btn-outline btn-ikona upravit-otevrit"'), 'tužka bez JS otevře ?upravit=1');

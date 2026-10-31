@@ -67,7 +67,8 @@ test('detail: hodnoty jako text a odkazy, escapované, role a stav slovy, výcho
   assert.match(html, /<div class="pole-hodnota">Aktivní<\/div>/, 'stav účtu slovy');
   assert.match(html, /name="is_admin"(?![^>]*checked)/, 'přepínač správce není zaškrtnutý');
   assert.match(html, /name="is_active"[^>]*checked/, 'přepínač aktivního účtu je zaškrtnutý');
-  assert.match(html, /<div class="pole-hodnota">Česká republika<\/div>/, 'prázdný stát ukáže výchozí hodnotu');
+  assert.match(html, /name="country"[^>]*value="Česká republika"|value="Česká republika"[^>]*name="country"/, 'prázdný stát má ve vstupu výchozí hodnotu');
+  assert.ok(!/<div class="pole-hodnota">Česká republika<\/div>/.test(html), 'v zobrazení se prázdný stát nepředstírá');
   assert.match(html, /value="Česká republika"[^>]*name="country"/, 'výchozí stát je i ve vstupu');
   assert.ok(!html.includes('--bg-secondary'), 'šedý box rolí s neexistující proměnnou je pryč');
 

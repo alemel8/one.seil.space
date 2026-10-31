@@ -97,3 +97,18 @@ test('form=, vlastní id, hint jen v úpravách a pole jen pro čtení', async (
   html = await vykresli({ label: 'Adresa', name: 'address', value: '', trida: 'col-span-2', styl: 'grid-column:1/-1' });
   assert.match(html, /<div class="form-group pole col-span-2" style="grid-column:1\/-1">/);
 });
+
+test('výchozí hodnota jen pro vstup, třídy hodnoty a skrytý popisek', async () => {
+  let html = await vykresli({ label: 'Stát', name: 'country', value: '', vychozi: 'Česká republika' });
+  assert.match(html, /pole-prazdne/, 'prázdná hodnota se v zobrazení nepředstírá');
+  assert.match(html, /<input type="text" class="form-control" value="Česká republika"/, 'vstup má výchozí hodnotu');
+  html = await vykresli({ label: 'Stát', name: 'country', value: 'Slovensko', vychozi: 'Česká republika' });
+  assert.match(html, /<div class="pole-hodnota">Slovensko<\/div>/);
+  assert.match(html, /value="Slovensko"/);
+
+  html = await vykresli({ label: 'IČO', name: 'ico', value: '12345678', tridaHodnoty: 'pole-mono' });
+  assert.match(html, /<div class="pole-hodnota pole-mono">12345678<\/div>/);
+
+  html = await vykresli({ label: 'Poznámky', name: 'notes', typ: 'textarea', value: 'x', skrytyPopisek: true });
+  assert.match(html, /<label class="form-label sr-only" for="pole-notes">Poznámky<\/label>/, 'popisek zůstává pro čtečku');
+});
