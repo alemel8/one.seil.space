@@ -130,11 +130,16 @@ describe('hledání proti serveru', { skip: !process.env.DATABASE_URL && 'bez DA
               VALUES (${ctx.kontakt}, 'Kontakt', ${T}, ${`k-${r}@example.invalid`}, ${ctx.firma})`;
     await sql`INSERT INTO shop_orders (id, shop_id, order_number, status, email, first_name, last_name, total_price)
               VALUES (${ctx.objednavka}, ${shop.id}, ${T}, 'Přijata', ${`o-${r}@example.invalid`}, 'Objednávka', 'Test', 100)`;
+    // Šest objednávek celkem — našeptávač má limit 5 na skupinu, stránka 10.
+    for (let i = 1; i <= 5; i++) {
+      await sql`INSERT INTO shop_orders (id, shop_id, order_number, status, email, first_name, last_name, total_price)
+                VALUES (${`${ctx.objednavka}-${i}`}, ${shop.id}, ${`${T}-${i}`}, 'Přijata', ${`o-${r}@example.invalid`}, 'Objednávka', 'Test', 100)`;
+    }
   });
 
   after(async () => {
     if (!sql) return;
-    await sql`DELETE FROM shop_orders WHERE id = ${ctx.objednavka ?? ''}`;
+    if (uklid.shops.length) await sql`DELETE FROM shop_orders WHERE shop_id = ANY(${uklid.shops})`;
     await sql`DELETE FROM crm_contacts WHERE id = ${ctx.kontakt ?? ''}`;
     await sql`DELETE FROM crm_companies WHERE id = ${ctx.firma ?? ''}`;
     if (uklid.shops.length) await sql`DELETE FROM shops WHERE id = ANY(${uklid.shops})`;
@@ -152,6 +157,7 @@ describe('hledání proti serveru', { skip: !process.env.DATABASE_URL && 'bez DA
     assert.ok(html.includes(`/crm/firmy/${ctx.firma}`), 'firma');
     assert.ok(html.includes(`/crm/kontakty/${ctx.kontakt}`), 'kontakt');
     assert.ok(html.includes(`/ucetnictvi/objednavky/${ctx.objednavka}`), 'objednávka');
+    assert.equal((html.match(new RegExp(`/ucetnictvi/objednavky/${ctx.objednavka}`, 'g')) || []).length, 6, 'stránka ukáže všech šest objednávek (limit 10)');
     assert.ok(html.includes(`/crm/firmy?q=${encodeURIComponent(T)}`), 'odkaz na seznam firem');
     assert.ok(html.includes(`eshop=${encodeURIComponent(ctx.shop.slug)}`), 'seznam objednávek dostane e-shop, když jsou všechny z jednoho');
   });
@@ -187,7 +193,10 @@ describe('hledání proti serveru', { skip: !process.env.DATABASE_URL && 'bez DA
     assert.equal(data.q, T);
     const klice = data.skupiny.map((g) => g.klic);
     for (const k of ['firmy', 'kontakty', 'objednavky']) assert.ok(klice.includes(k), k);
-    assert.ok(data.skupiny.every((g) => g.polozky.length <= 5));
+    const objednavky = data.skupiny.find((g) => g.klic === 'objednavky');
+    assert.equal(objednavky.polozky.length, 5, 'limit 5 na skupinu');
+    assert.equal(objednavky.plny, true, 'šest objednávek — seznam má víc');
+    assert.equal(data.skupiny.find((g) => g.klic === 'firmy').plny, false, 'jedna firma limit nedosáhne');
     assert.equal(data.skupiny.find((g) => g.klic === 'firmy').polozky[0].url, `/crm/firmy/${ctx.firma}`);
 
     const kratky = await get('/api/hledat?q=a');

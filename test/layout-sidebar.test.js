@@ -48,6 +48,7 @@ test('menu ukazuje jen sekce, které uživatel smí', async () => {
     canSection: k => k === 'prace',
   }), '/prace');
   assert.ok(html.includes('Můj čas'), 'povolená sekce je vidět');
+  assert.ok(html.includes('<span class="nav-label">Práce</span>'), 'značka nav-label má očekávaný tvar — jinak by negativní kontroly níž prošly naprázdno');
   for (const text of ['Domovská stránka', 'Projekty', 'Monitoring', 'Účetnictví', 'CRM', 'Marketing', 'Nastavení', 'Lidé &amp; Kultura']) {
     assert.ok(!html.includes(`<span class="nav-label">${text}</span>`), `${text} v menu není`);
   }

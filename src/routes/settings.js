@@ -158,7 +158,7 @@ export default async function settingsRoutes(fastify) {
 
   // ── Eshopy ────────────────────────────────────────────────────
   //
-  // Klíče se vydávají jen v detailu e-shopu (karta „Napojení e-shopu“, tabulka
+  // Klíče se vydávají jen v detailu e-shopu (záložka „Napojení e-shopu“, tabulka
   // eshop_api_keys). Starší klíče z api_keys otevíraly /api/v1 a s ním všechny
   // kontakty v CRM; nikdo to API nepoužíval, 26. 10. 2026 zmizelo i s nimi.
   // Tabulka api_keys v databázi zůstala (nic se nemaže), kód ji už nečte.
@@ -173,16 +173,23 @@ export default async function settingsRoutes(fastify) {
     return reply.view('pages/settings/shops.ejs', {
       pageTitle: 'Eshopy', currentPath: '/nastaveni/eshopy',
       user: request.user, shops, eshopSVlastnimApi: ESHOP_S_VLASTNIM_API,
-      saved: request.query.saved === '1',
+      saved: request.query.saved === '1', error: request.query.error || null,
     }, { layout: 'layouts/base.ejs' });
   });
 
+  // Slug je identifikátor v adresách (?eshop=) i v API a vypisuje se do
+  // šablon — hlídá se serverově stejně jako klientský pattern v shops.ejs
+  // (ten jde obejít): malá písmena, číslice, pomlčky.
+  const SLUG_ESHOPU = /^[a-z0-9][a-z0-9-]{0,39}$/;
+
   fastify.post('/nastaveni/eshopy/vytvorit', async (request, reply) => {
     const b = request.body || {};
-    if (!b.name || !b.slug) return reply.redirect('/nastaveni/eshopy?error=missing');
+    const name = String(b.name || '').trim();
+    const slug = String(b.slug || '').trim().toLowerCase();
+    if (!name || !SLUG_ESHOPU.test(slug)) return reply.redirect('/nastaveni/eshopy?error=missing');
     await sql`
       INSERT INTO shops (slug, name, url, active)
-      VALUES (${b.slug.trim().toLowerCase()}, ${b.name.trim()}, ${(b.url||'').trim()}, TRUE)
+      VALUES (${slug}, ${name}, ${String(b.url || '').trim()}, TRUE)
       ON CONFLICT (slug) DO NOTHING
     `;
     return reply.redirect('/nastaveni/eshopy?saved=1');

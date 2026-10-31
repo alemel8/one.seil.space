@@ -285,6 +285,21 @@ describe('detail e-shopu po záložkách', () => {
     assert.ok(/name="active"[^>]*disabled/.test(html), 'přepínač Toneráčku je zašedlý');
   });
 
+  test('slug se vypisuje escapovaný a při založení se hlídá', async () => {
+    const zly = await post('/nastaveni/eshopy/vytvorit', { name: 'Zlý', slug: 'x<img src=x onerror=1>' });
+    assert.equal(zly.headers.get('location'), '/nastaveni/eshopy?error=missing');
+    const [{ n }] = await sql`SELECT COUNT(*)::int AS n FROM shops WHERE slug LIKE 'x<%'`;
+    assert.equal(n, 0, 'e-shop s neplatným slugem nevznikl');
+    assert.ok((await (await get('/nastaveni/eshopy?error=missing')).text()).includes('slug smí mít jen malá písmena'));
+
+    // Databáze slug nehlídá (starší řádky) — šablona ho musí escapovat sama.
+    const [divny] = await sql`INSERT INTO shops (slug, name, url, active) VALUES (${`x<b>${r}`}, 'Divný slug', '', TRUE) RETURNING id`;
+    uklid.shops.push(divny.id);
+    const html = await (await get(`/nastaveni/eshopy/${divny.id}`)).text();
+    assert.ok(html.includes(`x&lt;b&gt;${r}`), 'slug je escapovaný');
+    assert.ok(!html.includes(`x<b>${r}`), 'surový slug v HTML není');
+  });
+
   test('nesprávce základní informace neuloží', async () => {
     const res = await fetch(`${BASE}/nastaveni/eshopy/${ctx.shop.id}/zakladni`, {
       method: 'POST', redirect: 'manual',

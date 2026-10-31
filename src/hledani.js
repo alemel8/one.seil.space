@@ -34,7 +34,7 @@ export function escapujLike(s) {
   return s.replace(/[\\%_]/g, (m) => '\\' + m);
 }
 
-/** Bez diakritiky a malými písmeny — pro hledání v názvech stránek menu. */
+/** Bez diakritiky a malými písmeny — pro hledání v názvech stránek katalogu. */
 export function bezDiakritiky(s) {
   return String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 }
@@ -187,8 +187,9 @@ export function povoleneSkupiny(user) {
 }
 
 /**
- * Stránky z levého menu, na které uživatel vidí — porovnání bez diakritiky,
- * ať „ucetnictvi“ najde Účetnictví. Dotaz už je normalizovaný.
+ * Stránky z katalogu přístupové matice (visibleSections), na které uživatel
+ * vidí — včetně těch mimo levé menu (např. /trade). Porovnání bez
+ * diakritiky, ať „ucetnictvi“ najde Účetnictví. Dotaz už je normalizovaný.
  */
 export function hledejStranky(user, q) {
   const hledany = bezDiakritiky(q);

@@ -17,7 +17,7 @@ otisk. Tlačítko **Ověřit připojení** zavolá `overit()` adaptéru a bez
 ukládání řekne, zda přístup funguje a co platforma o účtu říká (název,
 pásmo, měna); u aktivního zdroje úspěch rovnou spustí stažení dat na pozadí
 (průběh v Marketing › Synchronizace), takže po opravě přístupu není třeba
-chodit na ruční spuštění. Chyba u zdroje v kartě nese čas posledního běhu;
+chodit na ruční spuštění. Chyba u zdroje na záložce Marketing nese čas posledního běhu;
 po restartu aplikace (redeploy) se dnešní neúspěšný běh zkusí sám znovu.
 
 ---
@@ -201,7 +201,7 @@ dnů včetně dneška, s rozpadem po dnech.
 - Hotové: osm adaptérů (`src/marketing/adapters/*.js`), společné chyby
   a pomocníci, rejstřík `index.js` se seznamem pro nastavení, fixtury
   a testy (`test/marketing-adaptery.test.js`).
-- Noční sync (`src/marketing/sync.js`), stránky `/marketing*` a karta
+- Noční sync (`src/marketing/sync.js`), stránky `/marketing*` a záložka
   v nastavení vznikají zvlášť a adaptéry volají přes rozhraní v hlavičce
   `index.js`.
 - **Ověřeno proti specifikacím, ne proti živému API** (29. 10. 2026):

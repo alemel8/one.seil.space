@@ -41,7 +41,9 @@ KPI na domovské stránce: počty faktur, objednávek, CRM kontaktů, členů t�
 Pole v horní liště (`Ctrl+K` / `⌘K`) našeptává od dvou znaků (debounce
 250 ms, šipky a Enter, Esc zavře; Enter bez výběru odešle na stránku),
 na mobilu ho nahrazuje lupa vedoucí na stránku.
-Hledá se `ILIKE '%q%'` ve skupinách Stránky (položky menu bez diakritiky),
+Hledá se `ILIKE '%q%'` ve skupinách Stránky (položky katalogu přístupové
+matice `ACCESS_SECTIONS` bez diakritiky — vše, na co uživatel smí, i stránky
+mimo levé menu, např. `/trade`),
 Firmy (`name`, `city`, `country`, `ico`), Kontakty (`first_name`,
 `last_name`, `email`, `phone`), Objednávky (`order_number`, jméno, `email`,
 `phone`, `invoice_number`, `company`, všechny e-shopy), Vydané faktury
@@ -798,8 +800,8 @@ Vše admin-only.
 | Route | Popis |
 |---|---|
 | `GET/POST /nastaveni/firma` | Údaje firmy (ICO, DIČ, adresa, banka, fakturační poznámka) |
-| `GET/POST /nastaveni/ciselne-rady` | Číselné řady pro faktury (prefix, rok, padding) |
-| `GET/POST /nastaveni/eshopy` | Seznam e-shopů, založení nového |
+| `GET /nastaveni/ciselne-rady`, `POST …/ciselne-rady/vytvorit`, `POST …/ciselne-rady/:id/deaktivovat\|aktivovat` | Číselné řady pro faktury (prefix, rok, padding) |
+| `GET /nastaveni/eshopy`, `POST /nastaveni/eshopy/vytvorit` | Seznam e-shopů, založení nového (slug jen malá písmena, číslice a pomlčky) |
 | `GET /nastaveni/eshopy/:id` | Detail e-shopu po záložkách (`?tab=zakladni\|identita\|napojeni\|expedice\|marketing\|healthchecky`) |
 | `POST /nastaveni/eshopy/:id/zakladni` | Název, URL a stav e-shopu; slug je neměnný |
 | `POST /nastaveni/eshopy/:id/identita` | Identita e-shopu v e-mailech |
@@ -807,7 +809,7 @@ Vše admin-only.
 | `POST /nastaveni/eshopy/:id/webhook-secret` | Tajemství pro podání balíku (`akce=vygenerovat\|nastavit\|vymazat`; ne pro Toneráček) |
 | `POST /nastaveni/eshopy/:id/expedice` | Adresa skladu a datum, od kterého se posílá |
 | `GET /nastaveni/eshopy/:id/nahled-emailu` | Náhled šablony bez odeslání |
-| `GET/POST /nastaveni/ucetni-osnova` | Číselník účtů (MD/D pro předkontaci) |
+| `GET /nastaveni/ucetni-osnova`, `POST …/ucetni-osnova/vytvorit`, `POST …/ucetni-osnova/:id/smazat\|toggle` | Číselník účtů (MD/D pro předkontaci) |
 | `GET /api/accounting-chart` | API: účty pro autocomplete |
 | `POST /api/invoice-series/:id/next` | API: generování čísla faktury |
 

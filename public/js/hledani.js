@@ -10,15 +10,22 @@
   const form = pole?.closest('form');
   if (!pole || !form) return;
 
+  // Panel pod polem: hláška „nic“ (role=status) a seznam voleb (role=listbox)
+  // zvlášť — v listboxu smí být jen položky. Role combobox a aria-controls
+  // má pole už v šabloně.
+  const panel = document.createElement('div');
+  panel.className = 'hledani-napoveda';
+  panel.hidden = true;
+  const prazdno = document.createElement('div');
+  prazdno.className = 'hledani-napoveda-prazdno';
+  prazdno.setAttribute('role', 'status');
+  prazdno.hidden = true;
   const seznam = document.createElement('div');
-  seznam.className = 'hledani-napoveda';
   seznam.id = 'hledaniNapoveda';
   seznam.setAttribute('role', 'listbox');
-  seznam.hidden = true;
-  form.appendChild(seznam);
-  pole.setAttribute('aria-autocomplete', 'list');
-  pole.setAttribute('aria-controls', 'hledaniNapoveda');
-  pole.setAttribute('aria-expanded', 'false');
+  seznam.setAttribute('aria-label', 'Návrhy hledání');
+  panel.append(prazdno, seznam);
+  form.appendChild(panel);
 
   let casovac = null;
   let ridic = null;
@@ -28,8 +35,12 @@
   // Stejná normalizace jako na serveru — podle ní se pozná zastaralá odpověď.
   const normalizuj = (s) => s.replace(/\s+/g, ' ').trim().slice(0, 100);
 
+  // Zavření ruší i čekající dotaz — jinak by doběhlá odpověď seznam zase otevřela.
   function zavri() {
-    seznam.hidden = true;
+    clearTimeout(casovac);
+    ridic?.abort();
+    ridic = null;
+    panel.hidden = true;
     pole.setAttribute('aria-expanded', 'false');
     pole.removeAttribute('aria-activedescendant');
     vybrana = -1;
@@ -61,12 +72,8 @@
   function vykresli(data) {
     seznam.replaceChildren();
     polozky = [];
-    if (!data.skupiny.length) {
-      const p = document.createElement('div');
-      p.className = 'hledani-napoveda-prazdno';
-      p.textContent = `Nic nenalezeno pro „${data.q}“`;
-      seznam.appendChild(p);
-    }
+    prazdno.hidden = data.skupiny.length > 0;
+    prazdno.textContent = data.skupiny.length ? '' : `Nic nenalezeno pro „${data.q}“`;
     for (const g of data.skupiny) {
       for (const pol of g.polozky) {
         const a = polozka(pol.url);
@@ -88,7 +95,7 @@
     const vse = polozka(`/hledat?q=${encodeURIComponent(data.q)}`, 'hledani-napoveda-vse');
     vse.textContent = `Všechny výsledky pro „${data.q}“ →`;
     vybrana = -1;
-    seznam.hidden = false;
+    panel.hidden = false;
     pole.setAttribute('aria-expanded', 'true');
   }
 
@@ -109,18 +116,18 @@
   pole.addEventListener('input', () => {
     clearTimeout(casovac);
     const q = normalizuj(pole.value);
-    if (q.length < 2) { ridic?.abort(); zavri(); return; }
+    if (q.length < 2) { zavri(); return; }
     casovac = setTimeout(() => hledej(q), 250);
   });
 
   pole.addEventListener('focus', () => {
     const q = normalizuj(pole.value);
-    if (seznam.hidden && q.length >= 2) hledej(q);
+    if (panel.hidden && q.length >= 2) hledej(q);
   });
 
   pole.addEventListener('keydown', (e) => {
     if (e.isComposing) return;
-    if (seznam.hidden) return;                 // Esc nad zavřeným seznamem nechat modalům
+    if (panel.hidden) return;                  // Esc nad zavřeným seznamem nechat modalům
     if (e.key === 'ArrowDown') { e.preventDefault(); zvyrazni(Math.min(vybrana + 1, polozky.length - 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); zvyrazni(Math.max(vybrana - 1, -1)); }
     else if (e.key === 'Enter' && vybrana >= 0) { e.preventDefault(); window.location.href = polozky[vybrana].href; }

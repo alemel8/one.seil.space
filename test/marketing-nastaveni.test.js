@@ -1,4 +1,4 @@
-// Nastavení e-shopu → karta Marketing: marže a práh PNO, napojení platforem
+// Nastavení e-shopu → záložka Marketing: marže a práh PNO, napojení platforem
 // a tokeny (src/routes/settings.js, src/marketing/zdroje.js).
 //
 // Token platformy se do databáze ukládá jen šifrovaný (tajemstvi.js) a v
@@ -50,7 +50,7 @@ const post = (p, body = {}, cookie = ctx.cookie) => fetch(BASE + p, {
   body: new URLSearchParams(body),
 });
 
-describe('nastavení: karta Marketing', { skip: !DATABASE_URL && 'bez DATABASE_URL' }, () => {
+describe('nastavení: záložka Marketing', { skip: !DATABASE_URL && 'bez DATABASE_URL' }, () => {
   before(async () => {
     sql = postgres(lokalniDatabaze(), { max: 3, onnotice: () => {} });
     const health = await fetch(BASE + '/health').catch(() => null);
@@ -85,12 +85,12 @@ describe('nastavení: karta Marketing', { skip: !DATABASE_URL && 'bez DATABASE_U
     await sql.end();
   });
 
-  test('detail e-shopu má kartu Marketing se všemi platformami', async () => {
+  test('detail e-shopu má záložku Marketing se všemi platformami', async () => {
     const res = await get(`/nastaveni/eshopy/${ctx.shop.id}?tab=marketing`);
     assert.equal(res.status, 200);
     const html = await res.text();
     for (const text of ['Odhad hrubé marže', 'Napojené platformy', 'Google Analytics 4', 'Google Ads', 'Search Console', 'Merchant Center', 'Sklik', 'Heureka', 'Meta', 'E-shop (hledání bez výsledku']) {
-      assert.ok(html.includes(text), `karta obsahuje „${text}“`);
+      assert.ok(html.includes(text), `záložka obsahuje „${text}“`);
     }
     assert.ok(!html.includes('Ověřit připojení'), 'bez uloženého napojení není co ověřovat');
   });

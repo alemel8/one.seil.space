@@ -193,7 +193,16 @@ Aplikace je nainstalována jako PWA. Service Worker (`public/sw.js`) zajišťuje
 - Příjem a zobrazení push notifikací
 - Přesměrování po kliknutí na notifikaci
 
-### Rozložení (sidebar, topbar)
+Aktivace notifikací: `/profil` → karta "Push notifikace" → Povolit notifikace.
+
+Funguje na:
+- Android Chrome (PWA i browser)
+- iOS Safari 16.4+ (pouze jako nainstalovaná PWA)
+- Desktop Chrome/Edge/Firefox
+
+---
+
+## Rozložení (sidebar, topbar)
 
 Levé menu jde na desktopu sbalit do ikonového pruhu — přepínač je vlevo
 v horní liště, na mobilu totéž tlačítko otevírá drawer. Stav drží
@@ -204,10 +213,3 @@ nebliknula. Sbalený vzhled je v `public/css/layout.css` v bloku
 `@media not all and (max-width: 768px)`, přesném doplňku mobilního bloku;
 tutéž hranici používá `matchMedia` v `public/js/app.js`. Sbalená skupina
 je jedna ikona a vede na svou první podstránku.
-
-Aktivace notifikací: `/profil` → karta "Push notifikace" → Povolit notifikace.
-
-Funguje na:
-- Android Chrome (PWA i browser)
-- iOS Safari 16.4+ (pouze jako nainstalovaná PWA)
-- Desktop Chrome/Edge/Firefox

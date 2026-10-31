@@ -3,7 +3,7 @@
  *
  * Jeden řádek na dvojici e-shop × platforma: externí ID (property GA4,
  * zákazník Google Ads, provozovna Zboží…), případný token zašifrovaný přes
- * tajemstvi.js a stav posledního stažení. Odsud čte karta „Marketing“
+ * tajemstvi.js a stav posledního stažení. Odsud čte záložka „Marketing“
  * v nastavení e-shopu a noční sync (sync.js); tady je i jediný seznam
  * platforem s popisky pro formulář, ať se nastavení a sync nerozejdou.
  *
