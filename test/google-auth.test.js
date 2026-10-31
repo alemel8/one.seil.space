@@ -1,4 +1,4 @@
-// Jednotkový test přihlášení service accountu Googlu — bez sítě: fetch je
+// Jednotkový test přihlášení service accountu Googlu – bez sítě: fetch je
 // nahrazený a klíč je čerstvě vygenerovaný RSA pár.
 //
 //   node --test test/google-auth.test.js

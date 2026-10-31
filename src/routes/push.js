@@ -45,7 +45,7 @@ export default async function pushRoutes(fastify) {
   });
 
   // Zkušební notifikace na vlastní zařízení. Jediný jiný spouštěč je skutečná
-  // objednávka, takže bez tohohle se registrace zařízení ověřit nedá — jen
+  // objednávka, takže bez tohohle se registrace zařízení ověřit nedá – jen
   // čekáním, jestli něco přijde.
   fastify.post('/api/push/test', async (request, reply) => {
     if (!request.user) return reply.code(401).send({ error: 'Unauthorized' });

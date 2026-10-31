@@ -50,9 +50,9 @@
                    data-exported="<%= inv.pohoda_exported_at ? new Date(inv.pohoda_exported_at).toLocaleDateString('cs-CZ') : '' %>">
           </td>
           <td style="font-weight:600;color:var(--primary);"><%= inv.number %></td>
-          <td><%= inv.client_name || '—' %></td>
+          <td><%= inv.client_name || '–' %></td>
           <td style="color:var(--text-muted);font-size:13px;"><%= new Date(inv.issue_date).toLocaleDateString('cs-CZ') %></td>
-          <td style="color:var(--text-muted);font-size:13px;"><%= inv.due_date ? new Date(inv.due_date).toLocaleDateString('cs-CZ') : '—' %></td>
+          <td style="color:var(--text-muted);font-size:13px;"><%= inv.due_date ? new Date(inv.due_date).toLocaleDateString('cs-CZ') : '–' %></td>
           <td style="text-align:right;"><%= Number(inv.amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %></td>
           <td style="text-align:right;font-weight:600;"><%= Number(inv.total_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= inv.currency %></td>
           <td onclick="event.stopPropagation();">
@@ -93,7 +93,7 @@ function bulkUpdate() {
   document.getElementById('bulkCount').textContent = `${cbs.length} vybráno`;
   inp.innerHTML = [...cbs].map(c => `<input type="hidden" name="ids" value="${c.value}">`).join('');
 
-  // Opakovaný import založí doklad v POHODĚ znovu — ať to není překvapení
+  // Opakovaný import založí doklad v POHODĚ znovu – ať to není překvapení
   const exported = [...cbs].filter(c => c.dataset.exported).length;
   document.getElementById('bulkSplit').textContent = exported
     ? `· ⚠ ${exported} už jednou exportováno` : '';
@@ -140,7 +140,7 @@ function bulkClearAll() {
         <div class="form-group" style="grid-column:1/-1;">
           <label class="form-label">Číselná řada</label>
           <select name="series_id" class="form-select">
-            <option value="">— Zadat číslo ručně —</option>
+            <option value="">– Zadat číslo ručně –</option>
             <% series.forEach(s => { %>
             <option value="<%= s.id %>"><%= s.name %></option>
             <% }) %>
@@ -214,6 +214,6 @@ document.getElementById('modalCreate').style.display = 'flex';
 // Předkontace autocomplete
 fetch('/api/accounting-chart').then(r => r.json()).then(list => {
   const dl = document.getElementById('acList');
-  if (dl) dl.innerHTML = list.map(a => `<option value="${a.code}">${a.code} — ${a.name}</option>`).join('');
+  if (dl) dl.innerHTML = list.map(a => `<option value="${a.code}">${a.code} – ${a.name}</option>`).join('');
 }).catch(() => {});
 </script>

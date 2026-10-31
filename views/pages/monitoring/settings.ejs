@@ -66,8 +66,8 @@
               <% rules.forEach(r => { %>
               <tr>
                 <td><%= eventLabels[r.event_type] || r.event_type %></td>
-                <td><%= r.threshold != null ? r.threshold + (r.event_type==='cpu_high' ? '' : ' %') : '—' %></td>
-                <td style="font-size:13px;"><%= r.channel_name || '—' %></td>
+                <td><%= r.threshold != null ? r.threshold + (r.event_type==='cpu_high' ? '' : ' %') : '–' %></td>
+                <td style="font-size:13px;"><%= r.channel_name || '–' %></td>
                 <td>
                   <form method="post" action="/nastaveni/notifikace/pravidlo/<%= r.id %>/smazat" style="display:inline;" onsubmit="return confirm('Smazat?')">
                     <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger);">🗑</button>

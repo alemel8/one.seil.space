@@ -6,7 +6,7 @@
  * požadavku, jen odsud.
  *
  * V databázi je jen SHA-256 otisk. Klíč má 256 bitů náhody, takže pomalý
- * hash (bcrypt) by nic nepřidal a stál by čas na každém požadavku — e-shop
+ * hash (bcrypt) by nic nepřidal a stál by čas na každém požadavku – e-shop
  * volá One SEIL synchronně z pokladny i z přihlášení.
  *
  * Vyhledání podle otisku přes index časově neprozradí nic použitelného:
@@ -20,7 +20,7 @@ import crypto from 'node:crypto';
 /** Délka klíče v bajtech náhody; v hexu dvojnásobek. */
 const DELKA_KLICE = 32;
 
-/** Jak často se smí zapsat last_used_at — zápis při každém volání by byl zbytečný. */
+/** Jak často se smí zapsat last_used_at – zápis při každém volání by byl zbytečný. */
 const POUZITI_INTERVAL_MS = 5 * 60_000;
 
 /** Kdy se který klíč naposledy zapsal (id → ms). Jen šetří zápisy, o přístupu nerozhoduje. */
@@ -30,7 +30,7 @@ export function hashKlice(klic) {
   return crypto.createHash('sha256').update(String(klic ?? ''), 'utf8').digest('hex');
 }
 
-/** Prvních osm znaků otisku — podle toho se klíč pozná v administraci. Klíč z toho nejde zpět. */
+/** Prvních osm znaků otisku – podle toho se klíč pozná v administraci. Klíč z toho nejde zpět. */
 export function otiskKlice(hash) {
   return String(hash ?? '').slice(0, 8);
 }
@@ -54,7 +54,7 @@ export function klicZHlavicky(authorization) {
 }
 
 /**
- * E-shop podle klíče, nebo null. Platí jen aktivní klíč aktivního e-shopu —
+ * E-shop podle klíče, nebo null. Platí jen aktivní klíč aktivního e-shopu –
  * vypnutý e-shop se tak dá odstřihnout jedním přepínačem bez mazání klíčů.
  * Vrací celý řádek `shops` a navíc `api_key_id`.
  */
@@ -83,7 +83,7 @@ export async function eshopPodleKlice(sql, authorization) {
 
 /**
  * Zapíše last_used_at nejvýš jednou za pět minut na klíč a proces. Nikdy
- * nevyhazuje a nečeká se na něj — požadavek e-shopu kvůli evidenci
+ * nevyhazuje a nečeká se na něj – požadavek e-shopu kvůli evidenci
  * nesmí zpomalit ani spadnout. Podmínka v SQL drží interval i mezi
  * víc procesy (deploy, kdy chvíli běží starý i nový kontejner).
  */

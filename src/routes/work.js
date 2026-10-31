@@ -1,7 +1,7 @@
-// Sekce Práce — úkoly, stopky a výkazy.
+// Sekce Práce – úkoly, stopky a výkazy.
 //
 // Není admin-only: kdo si měří čas, musí se ke svým úkolům dostat.
-// Rozsah dat řeší routy, ne přístupová matice — ta umí jen „vidí / nevidí
+// Rozsah dat řeší routy, ne přístupová matice – ta umí jen „vidí / nevidí
 // URL", ne „vidí jen svoje". /prace a /prace/vykazy jsou proto vždy
 // omezené na přihlášeného a parametr osoby se běžnému uživateli ignoruje,
 // místo aby padalo 403.
@@ -16,7 +16,7 @@ const dnesek = () => new Date().toISOString().slice(0, 10);
 
 function zpet(request, vychozi) {
   const b = request.body?.back || request.query?.back || '';
-  // Jen relativní cesta v rámci aplikace — ať se z toho nedá udělat
+  // Jen relativní cesta v rámci aplikace – ať se z toho nedá udělat
   // odrazový můstek na cizí web.
   return /^\/[A-Za-z0-9/_?=&.-]*$/.test(b) ? b : vychozi;
 }
@@ -61,7 +61,7 @@ export default async function workRoutes(fastify) {
     return reply.redirect(zpet(request, '/prace'));
   });
 
-  // Zapomenuté stopky nikdy neukončujeme sami — vymyšlený čas ve výkazu
+  // Zapomenuté stopky nikdy neukončujeme sami – vymyšlený čas ve výkazu
   // je horší než chybějící. Tohle je ruční dořešení s konkrétním časem.
   fastify.post('/prace/stopky/:id/dokoncit', async (request, reply) => {
     const b = request.body || {};

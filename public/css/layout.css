@@ -1,5 +1,5 @@
 /* ============================================================
-   MAIN APP LAYOUT — sidebar + topbar + content
+   MAIN APP LAYOUT – sidebar + topbar + content
    ============================================================ */
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -49,7 +49,7 @@ body.app-body {
   width: auto;
 }
 
-/* Znak pro sbalený pruh — wordmark je při výšce 36 px 81 px široký. Obě
+/* Znak pro sbalený pruh – wordmark je při výšce 36 px 81 px široký. Obě
    značky jsou v šabloně, CSS ukazuje vždy jen jednu (logo se nepřebarvuje
    ani neořezává, viz design/DESIGN_SYSTEM.md). */
 .sidebar-logo-znak { display: none; }
@@ -364,7 +364,7 @@ body.app-body {
 [data-theme="dark"] .topbar-hledani-zrusit:hover { background: var(--sidebar-active); }
 .topbar-hledani.ma-text .topbar-hledani-zrusit { display: flex; }
 
-/* Stejná specificita jako .topbar-btn níž by prohrála — proto dvě třídy. */
+/* Stejná specificita jako .topbar-btn níž by prohrála – proto dvě třídy. */
 .topbar-btn.topbar-hledani-mobil { display: none; }
 
 /* ── Icon buttons ─────────────────────────────────────────── */
@@ -419,7 +419,7 @@ body.app-body {
 }
 
 /* Aktivní tlačítko se pozná z data-theme na <html>, které nastaví inline
-   skript v base.ejs ještě před vykreslením — třída .active by až do
+   skript v base.ejs ještě před vykreslením – třída .active by až do
    DOMContentLoaded ukazovala světlý režim i v tmavém. */
 [data-theme="light"] .theme-btn[data-set-theme="light"],
 [data-theme="dark"] .theme-btn[data-set-theme="dark"] {
@@ -684,7 +684,7 @@ body.app-body {
 /* ============================================================
    SBALENÝ SIDEBAR (jen desktop)
    ============================================================ */
-/* Stav drží <html data-sidebar="collapsed"> — nastaví ho inline skript
+/* Stav drží <html data-sidebar="collapsed"> – nastaví ho inline skript
    v base.ejs z localStorage 'seil-sidebar' ještě před prvním vykreslením.
    Blok je přesný doplněk mobilního @media (max-width: 768px): stejnou
    hranici používá matchMedia v app.js, takže CSS i JS dělí svět shodně
@@ -739,7 +739,7 @@ body.app-body {
     gap: 8px;
   }
   .topbar-title { min-width: 0; flex: 1; }
-  /* Pole se do lišty s pilulkou stopek nevejde — lupa vede na /hledat. */
+  /* Pole se do lišty s pilulkou stopek nevejde – lupa vede na /hledat. */
   .topbar-hledani { display: none; }
   .topbar-btn.topbar-hledani-mobil { display: flex; }
   .main-wrapper {
@@ -750,7 +750,7 @@ body.app-body {
     padding: 16px 16px 80px;
   }
 
-  /* Tabulky — horizontální scroll na mobilu */
+  /* Tabulky – horizontální scroll na mobilu */
   .table-wrapper {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -759,7 +759,7 @@ body.app-body {
     min-width: 600px;
   }
 
-  /* Page header — stack na mobilu */
+  /* Page header – stack na mobilu */
   .page-header {
     flex-direction: column;
     align-items: flex-start;
@@ -768,7 +768,7 @@ body.app-body {
   .page-header > * { width: 100%; }
   .page-header .btn, .page-header button { width: auto; }
 
-  /* Grid layouts — single column na mobilu */
+  /* Grid layouts – single column na mobilu */
   [style*="grid-template-columns: 1fr 1fr"],
   [style*="grid-template-columns:1fr 1fr"],
   [style*="grid-template-columns: 2fr 1fr"],
@@ -776,7 +776,7 @@ body.app-body {
     grid-template-columns: 1fr !important;
   }
 
-  /* Modal — full width na malých obrazovkách */
+  /* Modal – full width na malých obrazovkách */
   .modal {
     width: 95% !important;
     max-width: 95% !important;
@@ -784,10 +784,10 @@ body.app-body {
     overflow-y: auto;
   }
 
-  /* Formuláře — full width inputs */
+  /* Formuláře – full width inputs */
   .form-control, .form-select { width: 100%; }
 
-  /* Karty — menší padding */
+  /* Karty – menší padding */
   .card-body { padding: 14px; }
 
   /* Skrýt méně důležité sloupce v tabulkách na mobilu */
@@ -805,7 +805,7 @@ body.app-body {
 
 /* Užší desktop (tablet na výšku, nemaximalizované okno): pole hledání by
    s pilulkou stopek a ovládáním lištu přeteklo a avatar s odhlášením by
-   zmizel za okrajem — lupa vede na /hledat jako na mobilu (Ctrl+K tam míří
+   zmizel za okrajem – lupa vede na /hledat jako na mobilu (Ctrl+K tam míří
    také), ovládání drží vpravo bez auto-marginu pole. */
 @media (min-width: 769px) and (max-width: 1100px) {
   .topbar-hledani { display: none; }

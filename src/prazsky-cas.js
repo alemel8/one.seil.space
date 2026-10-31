@@ -2,14 +2,14 @@
  * Pražský čas a kalendářní data nezávislá na časovém pásmu procesu.
  *
  * Samostatný modul bez závislostí, ať si ho můžou natáhnout PDF, číselné řady
- * i hlídání lhůt — dřív bydlel v src/expedice.js a kdo chtěl pražské datum,
+ * i hlídání lhůt – dřív bydlel v src/expedice.js a kdo chtěl pražské datum,
  * natáhl si s ním e-mail, Zásilkovnu, push i databázi.
  *
  * ## Okamžik se převádí do Prahy
  *
  * Dockerfile nenastavuje TZ ani neinstaluje tzdata a v Coolify to nikdo
  * negarantuje, takže `new Date().getHours()` i `toISOString()` můžou být
- * v UTC — ve 0:30 pražského času je to ještě včerejšek. Pražský den se proto
+ * v UTC – ve 0:30 pražského času je to ještě včerejšek. Pražský den se proto
  * počítá přes `Intl`, nečte se z procesu.
  *
  * ## Datum se čte v UTC

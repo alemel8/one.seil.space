@@ -1,4 +1,4 @@
-// Jednotkový test atribuce objednávky a nákupní ceny položky — běží bez
+// Jednotkový test atribuce objednávky a nákupní ceny položky – běží bez
 // databáze i serveru:
 //
 //   node --test test/atribuce-objednavky.test.js
@@ -6,8 +6,8 @@
 // Hlídá kontrakt s e-shopem (docs/api.md): 21 sloupců shop_orders přesně
 // podle migrace 042, čištění textů (řídicí a neviditelné formátovací znaky,
 // <>"'`\, délky, malá písmena u source/medium), enumy jen z povolených
-// hodnot, čas dotyku jen ISO 8601 s pásmem a do ±1 roku — jinak u dotyku
-// s údaji čas přijetí, u dotyku bez údajů NULL —, click-id jen
+// hodnot, čas dotyku jen ISO 8601 s pásmem a do ±1 roku – jinak u dotyku
+// s údaji čas přijetí, u dotyku bez údajů NULL –, click-id jen
 // s marketingovým souhlasem, a že bez `marketing` v těle vyjdou výchozí
 // hodnoty sloupců. Nákupní cena na haléře, ne na celé koruny.
 
@@ -17,7 +17,7 @@ import {
   DELKY, DRUHY_CLICK_ID, SLOUPCE_ATRIBUCE, SOUHLASY, atribuceZTela, nakupniCenaZPolozky,
 } from '../src/atribuce-objednavky.js';
 
-// Pevné „teď“ — hranice ±1 rok nesmí záviset na dni spuštění testu.
+// Pevné „teď“ – hranice ±1 rok nesmí záviset na dni spuštění testu.
 const TED = new Date('2026-10-29T12:00:00Z');
 
 const PRAZDNY_DOTYK = (p) => ({
@@ -137,7 +137,7 @@ describe('dotyky', () => {
     assert.equal(r.landing_page_last.length, 200);
   });
 
-  test('ořez počítá znaky, ne bajty — diakritika a emoji se nerozpůlí', () => {
+  test('ořez počítá znaky, ne bajty – diakritika a emoji se nerozpůlí', () => {
     const r = atribuceZTela({ consent: 'none', last: { campaign: 'ě'.repeat(119) + '😀' + 'x'.repeat(10) } }, TED);
     assert.equal(r.utm_campaign_last, 'ě'.repeat(119) + '😀');
     assert.equal(Array.from(r.utm_campaign_last).length, 120);
@@ -212,7 +212,7 @@ describe('referrer a vstupní stránka', () => {
 describe('čas dotyku', () => {
   // Dotyk bez údajů: čas se bere jen platný, jinak NULL.
   const cas = (v) => atribuceZTela({ consent: 'none', last: { at: v } }, TED).touch_last_at;
-  // Dotyk se zdrojem: čas má vždy — nepoužitelný nahradí čas přijetí (TED).
+  // Dotyk se zdrojem: čas má vždy – nepoužitelný nahradí čas přijetí (TED).
   const casSeZdrojem = (v) => atribuceZTela({ consent: 'none', last: { source: 'google', medium: 'cpc', at: v } }, TED).touch_last_at;
 
   test('ISO 8601 s pásmem projde, i s posunem', () => {
@@ -223,7 +223,7 @@ describe('čas dotyku', () => {
     assert.deepEqual(casSeZdrojem('2026-10-28T09:15:00Z'), new Date('2026-10-28T09:15:00Z'), 'platný čas zůstane i se zdrojem');
   });
 
-  test('bez pásma se čas nebere — new Date by ho vzal v pásmu serveru, ne v UTC', () => {
+  test('bez pásma se čas nebere – new Date by ho vzal v pásmu serveru, ne v UTC', () => {
     for (const v of ['2026-10-28T09:15:00', '2026-10-28T09:15', '2026-10-28T09:15:00.000']) {
       assert.equal(cas(v), null, `hodnota ${v}`);
       assert.deepEqual(casSeZdrojem(v), TED, `hodnota ${v} se zdrojem → čas přijetí`);
@@ -250,7 +250,7 @@ describe('čas dotyku', () => {
     for (const v of ['nesmysl', undefined, '1970-01-01T00:00:00Z', '2027-11-15T12:00:00Z']) {
       assert.deepEqual(casSeZdrojem(v), TED, `hodnota ${JSON.stringify(v)}`);
     }
-    // Stačí jediný údaj — i referrer bez UTM určuje kanál.
+    // Stačí jediný údaj – i referrer bez UTM určuje kanál.
     assert.deepEqual(atribuceZTela({ consent: 'none', first: { referrerHost: 'seznam.cz', at: 'x' } }, TED).touch_first_at, TED);
     // Click-id bez marketingového souhlasu se zahodí celý: dotyk pak nic nenese a čas zůstane NULL.
     assert.equal(atribuceZTela({ consent: 'none', last: { clickIdKind: 'gclid', clickId: 'x', at: 'x' } }, TED).touch_last_at, null);

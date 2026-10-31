@@ -3,7 +3,7 @@
 // (Wikimedia Commons, "Czech Republic location map blank.svg",
 // projekce: top 51.3°, bottom 48.3°, left 11.8°, right 19.2°).
 //
-// Pokrývá hlavní/okresní města — menší obce, které nejsou v tomto
+// Pokrývá hlavní/okresní města – menší obce, které nejsou v tomto
 // seznamu, se na mapu nevykreslí, ale zobrazí se v seznamu "Ostatní".
 
 export const MAP_BOUNDS = { top: 51.3, bottom: 48.3, left: 11.8, right: 19.2 };

@@ -40,7 +40,7 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      - name: Smoke test — server start + health check
+      - name: Smoke test – server start + health check
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
           SESSION_SECRET: ci-test-secret-32-chars-minimum-xx

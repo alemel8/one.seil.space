@@ -1,4 +1,4 @@
-// Jednotkový test daňového dokladu k objednávce — běží bez databáze i serveru:
+// Jednotkový test daňového dokladu k objednávce – běží bez databáze i serveru:
 //
 //   node --test test/danovy-doklad.test.js
 //
@@ -6,12 +6,12 @@
 // úplaty počítaný v pražském čase (kontejner běží v UTC), dobírka nesmí být
 // zaplacená ani dostat razítko ZAPLACENO s číslem účtu, první potvrzení platby
 // se nepřepíše, zálohovka DUZP netiskne a POHODA dostane totéž DUZP jako PDF.
-// PDF se testuje jako HTML (renderInvoiceHtml) — puppeteer by test zpomalil
+// PDF se testuje jako HTML (renderInvoiceHtml) – puppeteer by test zpomalil
 // a do obsahu dokladu nic nepřidává.
 //
 // Vystavení faktury (generateInvoiceForOrder) a upomínka jedou proti falešné
 // databázi, která jen zapisuje dotazy a vrací připravené řádky. Skutečné SQL
-// tu neběží — co závisí na Postgresu (COALESCE u paid_at), je popsané u testu.
+// tu neběží – co závisí na Postgresu (COALESCE u paid_at), je popsané u testu.
 //
 // Výsledek nesmí záviset na časovém pásmu stroje; ověřeno s TZ=UTC,
 // Europe/Prague, America/Los_Angeles a Pacific/Kiritimati.
@@ -32,7 +32,7 @@ import { vyberDokladKPlatbe, zaplatDokladPohybem } from '../src/routes/accountin
 import { objednavkaProEshop } from '../src/routes/toneracek.js';
 import { invoiceSummaryRows } from '../src/email.js';
 
-// Pondělí 19. 10. 2026, poledne v Praze. Fixní okamžik — test nesmí záviset
+// Pondělí 19. 10. 2026, poledne v Praze. Fixní okamžik – test nesmí záviset
 // na dni ani na TZ stroje.
 const NYNI = new Date('2026-10-19T10:00:00Z');
 
@@ -110,7 +110,7 @@ describe('stav a data vydané faktury', () => {
 
   test('dobírka: nezaplacená, bez dne úhrady, DUZP = den vystavení', () => {
     const r = uhradaFakturyObjednavky({ payment_method: 'Dobírka', paid_at: null }, { now: NYNI });
-    // 'Nezaplacena', ne 'Vystavena' — ta v STATUSES_ISSUED není
+    // 'Nezaplacena', ne 'Vystavena' – ta v STATUSES_ISSUED není
     assert.deepEqual(r, { status: 'Nezaplacena', paidDate: null, taxableDate: '2026-10-19' });
   });
 
@@ -290,7 +290,7 @@ describe('číselná řada', () => {
 describe('první potvrzení platby se nepřepíše', () => {
   // Bez databáze jde ověřit jen tvar SQL, ne chování Postgresu. Že COALESCE
   // nechá první zapsaný okamžik a opakovaný Stripe webhook den přijetí úplaty
-  // neposune, je vlastnost COALESCE — tady se hlídá, že ho PATCH payment-status
+  // neposune, je vlastnost COALESCE – tady se hlídá, že ho PATCH payment-status
   // i payment-method opravdu dostanou (sdílejí okamzikPlatbySql()).
   const falesneSql = (strings, ...values) => ({ text: strings.join('$'), values });
 
@@ -317,7 +317,7 @@ describe('data bez závislosti na pásmu', () => {
     assert.equal(jenDatum('2026-10-01'), '2026-10-01');
     assert.equal(jenDatum(null), null);
     assert.equal(jenDatum('nesmysl'), null);
-    // Z formuláře může přijít den, který neexistuje — Date by ho přetočil na 2. 3.
+    // Z formuláře může přijít den, který neexistuje – Date by ho přetočil na 2. 3.
     assert.equal(jenDatum('2026-02-30'), null);
     assert.equal(jenDatum('2026-13-01'), null);
     assert.equal(jenDatum('2028-02-29'), '2028-02-29');
@@ -413,7 +413,7 @@ describe('PDF faktury (HTML ze šablony)', () => {
   const DUZP = (text) => new RegExp(
     `Datum uskutečnění zdanitelného plnění</td>\\s*<td class="value" colspan="3">${text.replace(/\./g, '\\.')}</td>`);
 
-  test('dobírka: žádné ZAPLACENO, QR ani číslo účtu — jen text o dobírce', async () => {
+  test('dobírka: žádné ZAPLACENO, QR ani číslo účtu – jen text o dobírce', async () => {
     const h = await html(
       faktura({ status: 'Nezaplacena', paid_date: null, taxable_date: datum('2026-10-07') }),
       { paymentMethod: 'Dobírka', paid: false },
@@ -466,7 +466,7 @@ describe('PDF faktury (HTML ze šablony)', () => {
     assert.match(h, /Platební instrukce/);
   });
 
-  test('zálohová faktura DUZP netiskne — daňovým dokladem není', async () => {
+  test('zálohová faktura DUZP netiskne – daňovým dokladem není', async () => {
     const h = await html(
       faktura({ type: 'proforma', number: '2026100001', status: 'Nezaplacena', taxable_date: null }),
       { paymentMethod: 'Bankovní převod', vs: '10234' },
@@ -518,7 +518,7 @@ describe('párování plateb s doklady', () => {
     assert.equal(vyberDokladKPlatbe([]), null);
   });
 
-  test('víc kandidátů na jeden VS se nepáruje — rozhodne obsluha', () => {
+  test('víc kandidátů na jeden VS se nepáruje – rozhodne obsluha', () => {
     // 20260042, ZF-20260042 i FV-2026-0042 mají týž VS; ani shoda částky
     // nerozhoduje, dvě objednávky na stejnou částku jsou běžné.
     assert.equal(vyberDokladKPlatbe([b2b, zaloha]), null);
@@ -527,7 +527,7 @@ describe('párování plateb s doklady', () => {
 
   test('ruční spárování: den úhrady je den pohybu na účtu, ne den kliknutí', async () => {
     const db = falesnaDatabaze();
-    // 23:30 UTC 19. 10. je v Praze už 20. 10. — pojistka bere pražský den
+    // 23:30 UTC 19. 10. je v Praze už 20. 10. – pojistka bere pražský den
     await zaplatDokladPohybem(db.sql, { docId: 'zf', txId: 42, now: new Date('2026-10-19T23:30:00Z') });
 
     const [zapis] = db.dotazy;

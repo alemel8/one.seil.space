@@ -9,7 +9,7 @@
  * Přepínače:
  *   --dry-run           nic neuloží ani nestáhne, jen vypíše, co by vzniklo
  *   --z-souboru=DIR     čte záznamy z DIR/<tabulka>.json místo z API. Slouží
- *                       k běhu bez tokenu — data se vyexportují jinudy.
+ *                       k běhu bez tokenu – data se vyexportují jinudy.
  *                       Odkazy na přílohy v exportu platí jen dvě hodiny,
  *                       takže se musí migrovat hned po něm.
  *   --jen=a,b           jen vybrané fáze (podklady, mzdy, extra, dokumenty,
@@ -19,7 +19,7 @@
  *   --trojek=<email>    komu patří základna Trojek (jinak AIRTABLE_TROJEK_EMAIL)
  *
  * KDE TO POUŠTĚT: v kontejneru, ne lokálně přes tunel. Soubory musí přistát
- * na persistent volume /app/data — při lokálním běhu by databáze měla stovky
+ * na persistent volume /app/data – při lokálním běhu by databáze měla stovky
  * řádků a disk nula souborů a checkAttachments() by při startu hlásil, že
  * chybí všechno.
  *
@@ -63,7 +63,7 @@ const sql = postgres(process.env.DATABASE_URL, {
 const stat = { radky: 0, preskoceno: 0, soubory: 0, souboryPreskoceno: 0, chyby: 0 };
 
 /**
- * Záznamy tabulky — buď z API, nebo z předem vyexportovaného souboru.
+ * Záznamy tabulky – buď z API, nebo z předem vyexportovaného souboru.
  * Soubor má tvar odpovědi Airtable: { records: [...] }.
  */
 async function* ctiZaznamy(tableId, nazev, baseId = BASE_TROJEK) {
@@ -135,7 +135,7 @@ async function fazePodklady(userId) {
 
     const invoiceId = p.invoiceNumber ? faktury.get(p.invoiceNumber) ?? null : null;
     if (p.invoiceNumber && !invoiceId) {
-      varovani.push(`podklad ${p.title}: faktura ${p.invoiceNumber} není v systému — PDF se archivuje`);
+      varovani.push(`podklad ${p.title}: faktura ${p.invoiceNumber} není v systému – PDF se archivuje`);
     }
 
     if (DRY) {
@@ -166,14 +166,14 @@ async function fazePodklady(userId) {
     await ulozPrilohy('work_report_id', id, p.prilohy,
       { baseId: BASE_TROJEK, tableId: TABULKY.podklady, recordId: p.airtableId,
         fieldId: POLE.podklad.rozpisPrace });
-    // PDF faktury archivujeme jen tam, kde se doklad v systému nenašel —
+    // PDF faktury archivujeme jen tam, kde se doklad v systému nenašel –
     // jinak by systém držel dvě kopie téhož.
     if (!invoiceId && p.fakturaPriloha) {
       await ulozPrilohy('work_report_id', id, [p.fakturaPriloha],
         { baseId: BASE_TROJEK, tableId: TABULKY.podklady, recordId: p.airtableId,
           fieldId: POLE.podklad.faktura });
     }
-    console.log(`  + ${p.reportDate} | ${p.projekty.join('/') || '—'} | ${kc(p.totalAmount)} Kč`);
+    console.log(`  + ${p.reportDate} | ${p.projekty.join('/') || '–'} | ${kc(p.totalAmount)} Kč`);
   }
 }
 
@@ -218,7 +218,7 @@ async function fazeExtra(userId) {
     const v = mapujExtraVydaj(rec);
     if (!DRY && !(await jeNovy('hr_payroll_items', v.airtableId))) continue;
     if (DRY) {
-      console.log(`  [nová] ${v.paidOn} | ${kc(v.amount)} Kč | ${v.description || '—'}`);
+      console.log(`  [nová] ${v.paidOn} | ${kc(v.amount)} Kč | ${v.description || '–'}`);
       stat.radky++; continue;
     }
     await sql`
@@ -226,7 +226,7 @@ async function fazeExtra(userId) {
       VALUES (${genId()}, ${userId}, ${v.kind}, ${v.paidOn}, ${v.amount}, ${v.description}, ${v.airtableId})
     `;
     stat.radky++;
-    console.log(`  + ${v.paidOn} | ${kc(v.amount)} Kč | ${v.description || '—'}`);
+    console.log(`  + ${v.paidOn} | ${kc(v.amount)} Kč | ${v.description || '–'}`);
   }
 }
 
@@ -236,7 +236,7 @@ async function fazeDokumenty(userId, employmentId) {
     const d = mapujDokument(rec);
     if (!DRY && !(await jeNovy('hr_documents', d.airtableId))) continue;
     if (DRY) {
-      console.log(`  [nový] ${d.title} | ${d.category || '—'} | ${d.prilohy.length} souborů`);
+      console.log(`  [nový] ${d.title} | ${d.category || '–'} | ${d.prilohy.length} souborů`);
       stat.radky++; continue;
     }
     const id = genId();
@@ -265,7 +265,7 @@ async function mapaUzivatelu() {
     const u = mapujUzivatele(rec);
     const id = podleEmailu.get(u.email);
     if (id) mapa.set(u.airtableId, { id, email: u.email, hourlyRate: u.hourlyRate });
-    else varovani.push(`uživatel ${u.email || u.airtableId} v systému není — jeho záznamy zůstanou bez vazby`);
+    else varovani.push(`uživatel ${u.email || u.airtableId} v systému není – jeho záznamy zůstanou bez vazby`);
   }
   return mapa;
 }
@@ -273,10 +273,10 @@ async function mapaUzivatelu() {
 async function fazeUkoly(lide) {
   console.log('\n━━━ Úkoly ━━━');
   // Všechny úkoly jsou pro jednoho klienta (GrapeNet). Kdyby v CRM nebyl,
-  // úkoly se naimportují bez vazby — je to popisný údaj, ne účetní.
+  // úkoly se naimportují bez vazby – je to popisný údaj, ne účetní.
   const [klient] = await sql`
     SELECT id FROM crm_companies WHERE LOWER(name) LIKE 'grapenet%' LIMIT 1`;
-  if (!klient) varovani.push('GrapeNet není v CRM — úkoly zůstanou bez vazby na firmu');
+  if (!klient) varovani.push('GrapeNet není v CRM – úkoly zůstanou bez vazby na firmu');
   const airtableNaId = new Map();
   const hierarchie = [];
 
@@ -285,7 +285,7 @@ async function fazeUkoly(lide) {
     const [uz] = DRY ? [] : await sql`SELECT id FROM tasks WHERE airtable_id = ${u.airtableId}`;
     if (uz) { airtableNaId.set(u.airtableId, uz.id); stat.preskoceno++; continue; }
 
-    // Mapa i hierarchie se plní i nasucho — jinak by dry run tvrdil, že
+    // Mapa i hierarchie se plní i nasucho – jinak by dry run tvrdil, že
     // žádné měření nemá úkol a žádný úkol nemá nadřazený.
     const id = genId();
     airtableNaId.set(u.airtableId, id);
@@ -309,7 +309,7 @@ async function fazeUkoly(lide) {
         fieldId: POLE.task.priloha });
   }
 
-  // Nadřazené úkoly až druhým průchodem — záznamy nechodí topologicky
+  // Nadřazené úkoly až druhým průchodem – záznamy nechodí topologicky
   let navazano = 0;
   for (const [id, rodicAirtable] of hierarchie) {
     const rodic = airtableNaId.get(rodicAirtable);
@@ -330,7 +330,7 @@ async function fazeCas(lide, ukolyMapa) {
     const uzivatel = lide.get(m.uzivatelAirtableId);
     if (!uzivatel) { bezUzivatele++; continue; }
     // Databáze nepustí konec před začátkem. Radši to nahlásit než tiše
-    // prohodit — obrácený záznam znamená, že v Airtable je něco špatně.
+    // prohodit – obrácený záznam znamená, že v Airtable je něco špatně.
     if (m.endedAt && m.endedAt < m.startedAt) {
       varovani.push(`měření ${m.airtableId}: konec ${m.endedAt} je před začátkem ${m.startedAt}, přeskočeno`);
       continue;
@@ -375,7 +375,7 @@ async function fazePayroll(lide) {
 
     const id = genId();
     if (r.druh === 'naklad') {
-      // Proplacený nákup není mzda — Airtable to mísil v jedné tabulce
+      // Proplacený nákup není mzda – Airtable to mísil v jedné tabulce
       await sql`
         INSERT INTO hr_payroll_items (id, user_id, kind, paid_on, period, amount,
                                       description, airtable_id)
@@ -427,7 +427,7 @@ async function overit() {
   };
 
   if (trojek) {
-    console.log('\n━━━ Kontrolní součty — Trojek ━━━');
+    console.log('\n━━━ Kontrolní součty – Trojek ━━━');
     const [[p], [m], [e]] = await Promise.all([
       sql`SELECT COUNT(*)::int n, COALESCE(SUM(total_amount),0)::float8 v
             FROM hr_work_reports  WHERE user_id = ${trojek.id}`,
@@ -443,7 +443,7 @@ async function overit() {
   }
 
   if (herik) {
-    console.log('\n━━━ Kontrolní součty — Heřík ━━━');
+    console.log('\n━━━ Kontrolní součty – Heřík ━━━');
     const [[mzdy], [nakupy], [cas], [ukoly]] = await Promise.all([
       sql`SELECT COUNT(*)::int n,
                  COALESCE(SUM(hours),0)::float8     hodiny,
@@ -486,7 +486,7 @@ async function overit() {
 
 try {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL není nastavená');
-  console.log(`=== Migrace z Airtable ===${DRY ? '  ⚠ DRY RUN — nic se neukládá' : ''}`);
+  console.log(`=== Migrace z Airtable ===${DRY ? '  ⚠ DRY RUN – nic se neukládá' : ''}`);
 
   if (OVERIT) { await overit(); }
   else {
@@ -497,16 +497,16 @@ try {
         '   s právem data.records:read a přístupem k oběma základnám.'
       );
     }
-    // Základna Trojek — e-mail je potřeba jen pro její fáze; Heříkovy fáze
+    // Základna Trojek – e-mail je potřeba jen pro její fáze; Heříkovy fáze
     // si uživatele najdou samy podle tabulky Users v základně SEIL.
     const trojkovyFaze = ['podklady', 'mzdy', 'extra', 'dokumenty'].filter(delam);
     if (trojkovyFaze.length) {
       if (!TROJEK_EMAIL) {
-        throw new Error('Chybí --trojek=<email> (nebo AIRTABLE_TROJEK_EMAIL) — komu patří základna Trojek.');
+        throw new Error('Chybí --trojek=<email> (nebo AIRTABLE_TROJEK_EMAIL) – komu patří základna Trojek.');
       }
       const [trojek] = await sql`SELECT id FROM users WHERE LOWER(email) = ${TROJEK_EMAIL.toLowerCase()}`;
       if (!trojek) {
-        throw new Error(`Uživatel ${TROJEK_EMAIL} v systému není — založ ho v /lide/tym a spusť znovu.`);
+        throw new Error(`Uživatel ${TROJEK_EMAIL} v systému není – založ ho v /lide/tym a spusť znovu.`);
       }
 
       // Poměr, na který se navěsí mzdy a dokumenty
@@ -524,7 +524,7 @@ try {
       if (delam('dokumenty')) await fazeDokumenty(trojek.id, uvazek?.id ?? null);
     }
 
-    // Základna SEIL — Heřík: úkoly, měření času a mzdy z dohody
+    // Základna SEIL – Heřík: úkoly, měření času a mzdy z dohody
     if (delam('ukoly') || delam('cas') || delam('payroll')) {
       const lide = await mapaUzivatelu();
       const ukolyMapa = delam('ukoly') ? await fazeUkoly(lide) : new Map(
@@ -547,7 +547,7 @@ try {
     if (varovani.length > 40) console.log(`  … a dalších ${varovani.length - 40}`);
   }
   if (!DRY && !OVERIT) {
-    console.log('\nSoubory leží v data/media — pokud skript neběžel v kontejneru,');
+    console.log('\nSoubory leží v data/media – pokud skript neběžel v kontejneru,');
     console.log('přenes je na persistent volume, jinak je systém nenajde.');
   }
 } catch (err) {

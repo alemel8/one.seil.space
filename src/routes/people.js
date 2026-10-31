@@ -26,7 +26,7 @@ export default async function peopleRoutes(fastify) {
 
   /**
    * Přečte formulář, který může a nemusí nést soubor. Multipart stream se
-   * musí vždy dočíst do konce, jinak se požadavek zasekne — stejný důvod
+   * musí vždy dočíst do konce, jinak se požadavek zasekne – stejný důvod
    * jako v receipts.js.
    */
   async function ctiFormular(request) {
@@ -115,7 +115,7 @@ export default async function peopleRoutes(fastify) {
 
     // Ukládáme jen sloupce, které formulář opravdu poslal (skryté acc_user).
     // Kdybychom brali všechny uživatele z databáze, neúplný požadavek by
-    // ostatním smazal celou matici — nezaškrtnutý checkbox se neodesílá.
+    // ostatním smazal celou matici – nezaškrtnutý checkbox se neodesílá.
     const perUser = new Map(
       [].concat(b.acc_user ?? [])
         .map(Number)
@@ -154,7 +154,7 @@ export default async function peopleRoutes(fastify) {
     member.access = matrix[member.id] ?? {};
 
     // Počty do popisků záložek se musí spočítat vždy, obsah jen pro tu
-    // otevřenou — načítat všech pět seznamů při každém otevření profilu
+    // otevřenou – načítat všech pět seznamů při každém otevření profilu
     // by bylo plýtvání.
     const [[pocty], ucet] = await Promise.all([
       sql`SELECT
@@ -217,7 +217,7 @@ export default async function peopleRoutes(fastify) {
   });
 
   // ── Platby mimo mzdu ─────────────────────────────────────────
-  // Vlastní routa, ne sdílený POST /lide/tym/:id — ten přepisuje všech
+  // Vlastní routa, ne sdílený POST /lide/tym/:id – ten přepisuje všech
   // šestnáct sloupců uživatele naráz a formulář odjinud by je vynuloval.
   fastify.post('/lide/tym/:id/platby/vytvorit', async (request, reply) => {
     const { member } = await findMember(request.params.id);

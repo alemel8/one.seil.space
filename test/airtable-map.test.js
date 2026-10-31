@@ -1,7 +1,7 @@
 // Převod záznamů z Airtable na řádky pro databázi.
 //
 // Testuje se na skutečných odpovědích z API (test/fixtures/airtable.json),
-// jen s vyměněnými URL příloh — ty expirují po dvou hodinách.
+// jen s vyměněnými URL příloh – ty expirují po dvou hodinách.
 // Nepotřebuje běžící server ani databázi:
 //   node --test test/airtable-map.test.js
 
@@ -18,7 +18,7 @@ import {
 const fix = JSON.parse(readFileSync(new URL('./fixtures/airtable.json', import.meta.url), 'utf8'));
 
 describe('drobné převody', () => {
-  test('české měsíce — červen a červenec se nesmí splést', () => {
+  test('české měsíce – červen a červenec se nesmí splést', () => {
     assert.equal(cisloMesice('Leden'), 1);
     assert.equal(cisloMesice('Červen'), 6);
     assert.equal(cisloMesice('Červenec'), 7);
@@ -135,7 +135,7 @@ describe('mzdový rozpis', () => {
 
 describe('platby mimo mzdu', () => {
   test('extra výdaj jde vždy jako záloha', () => {
-    // Zálohu od proplaceného nákladu nejde z dat poznat — u dvanácti záznamů
+    // Zálohu od proplaceného nákladu nejde z dat poznat – u dvanácti záznamů
     // je poznámka prázdná. Špatné zařazení by posunulo hrubý zisk, takže se
     // hádat nebude a druh se překlikne v UI.
     const v = mapujExtraVydaj({

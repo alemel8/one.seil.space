@@ -27,7 +27,7 @@
       </span>
       <% if (bezDph) { %>
       <span class="badge" style="background:#fef3c7;color:#92400e;font-size:12px;"
-            title="Celá částka včetně DPH jde do nákladů — § 72 odst. 4 ZDPH">bez odpočtu DPH</span>
+            title="Celá částka včetně DPH jde do nákladů – § 72 odst. 4 ZDPH">bez odpočtu DPH</span>
       <% } %>
     </div>
     <p><%= receipt.number ? 'Doklad ' + receipt.number + ' · ' : '' %><%= new Date(receipt.receipt_date).toLocaleDateString('cs-CZ') %> · <%= fmt(receipt.total_amount) %> <%= receipt.currency %></p>
@@ -110,7 +110,7 @@
     </div>
   </div>
 
-  <!-- Údaje účtenky: formulář záznamu — v zobrazení hodnoty jako text, tužka ho otevře -->
+  <!-- Údaje účtenky: formulář záznamu – v zobrazení hodnoty jako text, tužka ho otevře -->
   <div class="card" style="align-self:start;">
     <form method="post" action="/ucetnictvi/uctenky/<%= receipt.id %>/upravit" id="formUctenka" class="upravitelne">
       <div class="card-header"><strong>Údaje účtenky</strong></div>
@@ -144,7 +144,7 @@
         </div>
 
         <%# Hinty plní rdUhrada() podle kategorie a formy úhrady; include jim id dát neumí,
-            proto ručně pod polem — obal drží pole i hint v jedné buňce mřížky. %>
+            proto ručně pod polem – obal drží pole i hint v jedné buňce mřížky. %>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           <div class="form-group">
             <%- include('../../includes/pole', { pole: { label: 'Forma úhrady', name: 'payment_method', id: 'rdPayment', typ: 'select',
@@ -212,7 +212,7 @@ window.rdPriloha = async function (input) {
   }
 };
 
-// Reprezentace nárok na odpočet nemá (§ 72 odst. 4 ZDPH) — checkbox zamkneme,
+// Reprezentace nárok na odpočet nemá (§ 72 odst. 4 ZDPH) – checkbox zamkneme,
 // ať ho nikdo omylem nezaškrtne. Server totéž hlídá i při uložení.
 const RD_NO_VAT = <%- JSON.stringify(NO_VAT_CATEGORIES) %>;
 
@@ -230,18 +230,18 @@ window.rdUhrada = function () {
   if (RD_NO_VAT.includes(cat)) {
     vat.checked = false;
     vat.disabled = true;
-    hint.textContent = 'U reprezentace odpočet uplatnit nelze — celá částka jde do nákladů.';
+    hint.textContent = 'U reprezentace odpočet uplatnit nelze – celá částka jde do nákladů.';
   } else {
     vat.disabled = false;
     hint.textContent = vat.checked ? '' : 'Celá částka včetně DPH půjde do nákladů.';
   }
 };
-// Pole vykresluje include pole.ejs, který inline onchange neumí — posluchače visí tady.
+// Pole vykresluje include pole.ejs, který inline onchange neumí – posluchače visí tady.
 document.getElementById('rdCategory').addEventListener('change', window.rdUhrada);
 document.getElementById('rdPayment').addEventListener('change', window.rdUhrada);
 document.getElementById('rdVatDeductible').addEventListener('change', window.rdUhrada);
 // Zrušit (upravy.js) volá form.reset(): ten vrátí hodnoty, ale ne disabled a
-// texty hintů, které nastavuje rdUhrada() — zamčený checkbox by se neodeslal
+// texty hintů, které nastavuje rdUhrada() – zamčený checkbox by se neodeslal
 // a další uložení by odpočet tiše vypnulo. Událost reset přichází před
 // obnovením hodnot, proto přepočet až po ní.
 document.getElementById('formUctenka').addEventListener('reset', () => setTimeout(window.rdUhrada, 0));
@@ -249,6 +249,6 @@ window.rdUhrada();
 
 fetch('/api/accounting-chart').then(r => r.json()).then(list => {
   const dl = document.getElementById('rdAcList');
-  if (dl) dl.innerHTML = list.map(a => `<option value="${a.code}">${a.code} — ${a.name}</option>`).join('');
+  if (dl) dl.innerHTML = list.map(a => `<option value="${a.code}">${a.code} – ${a.name}</option>`).join('');
 }).catch(() => {});
 </script>

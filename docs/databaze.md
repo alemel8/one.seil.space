@@ -1,6 +1,6 @@
 # Databázové schéma
 
-Systém používá **PostgreSQL 16** pro všechna živá data. Pro historické VPS metriky slouží **SQLite** (`data/history.sqlite`) — ta je read-only z aplikace, zapisuje do ní pouze collector běžící na hostu.
+Systém používá **PostgreSQL 16** pro všechna živá data. Pro historické VPS metriky slouží **SQLite** (`data/history.sqlite`) – ta je read-only z aplikace, zapisuje do ní pouze collector běžící na hostu.
 
 Migrace jsou číslovány (`migrations/001_initial_schema.sql` … `010_push_subscriptions.sql`) a spouštějí se automaticky při každém startu serveru přes `src/migrate.js`. Provedené migrace jsou evidovány v tabulce `schema_migrations`.
 
@@ -28,7 +28,7 @@ Uživatelé systému.
 | `bank_account`, `bank_name`, `iban` | TEXT | Bankovní spojení |
 
 ### `user_access`
-Přístupová matice — kdo vidí kterou sekci systému. Klíče definuje katalog
+Přístupová matice – kdo vidí kterou sekci systému. Klíče definuje katalog
 v `src/access.js`; chybějící řádek znamená „vidí“.
 
 | Sloupec | Typ | Popis |
@@ -50,19 +50,19 @@ tři toky a jejich rozdíl je jeho **osobní zůstatek**:
 příjmy (fakturační podklady) − výdaje (mzdy) − platby mimo mzdu.
 
 ### `hr_employments`
-Zaměstnanecký poměr. Vlastní tabulka, ne sloupce na `users` — sazba i typ
+Zaměstnanecký poměr. Vlastní tabulka, ne sloupce na `users` – sazba i typ
 úvazku se v čase mění a mzdový list se musí odkázat na to, co platilo tehdy.
 
 | Sloupec | Typ | Popis |
 |---|---|---|
 | `id` | TEXT PK | `generateId()` |
-| `user_id` | INT → users | ON DELETE **RESTRICT** — mzdový list se archivuje 30 let |
+| `user_id` | INT → users | ON DELETE **RESTRICT** – mzdový list se archivuje 30 let |
 | `kind` | TEXT | `hpp` \| `dpp` \| `dpc` \| `osvc` \| `jednatel` |
 | `monthly_gross`, `hourly_rate` | NUMERIC | sjednaná hrubá / sazba |
 | `started_on`, `ended_on` | DATE | |
 
 ### `hr_work_reports`
-Fakturační podklad — jedna služební cesta nebo zakázka, ze které vznikla
+Fakturační podklad – jedna služební cesta nebo zakázka, ze které vznikla
 vydaná faktura.
 
 | Sloupec | Typ | Popis |
@@ -75,14 +75,14 @@ vydaná faktura.
 | `status` | TEXT | `rozpracovano` \| `k_fakturaci` \| `odeslano` \| `fakturovano` \| `storno` |
 | `invoice_id` | TEXT → accounting_invoices | vydaná faktura se odkazuje, nekopíruje |
 | `invoice_number` | TEXT | zůstává i bez vazby, aby šlo spárovat později |
-| `airtable_id` | TEXT | partial UNIQUE — idempotence importu |
+| `airtable_id` | TEXT | partial UNIQUE – idempotence importu |
 
 `hr_work_report_projects` a `hr_work_report_locations` drží vícehodnotová
 čísla zakázek a lokality. Nejsou to projekty SEIL, ale **zakázková čísla
 odběratele**, proto vlastní tabulky a ne vazba na `projects`.
 
 ### `hr_payroll_runs`
-Mzdový list za jeden měsíc. HPP i dohody v jedné tabulce — liší se vyplněná
+Mzdový list za jeden měsíc. HPP i dohody v jedné tabulce – liší se vyplněná
 pole, ne rytmus.
 
 | Sloupec | Typ | Popis |
@@ -98,16 +98,16 @@ pole, ne rytmus.
 `company_cost` a `paid_total` **nejsou zaměnitelné** a u části měsíců se liší.
 `company_cost` se ukládá tak, jak přišel z mzdové účtárny, a nedopočítává se.
 
-Bez unikátního klíče na `(user_id, period)` — Airtable vede na některé měsíce
+Bez unikátního klíče na `(user_id, period)` – Airtable vede na některé měsíce
 dva listy a sloučit je při importu by byla interpretace. UI takový měsíc označí.
 
 ### `hr_payroll_items`
 Platby mimo mzdu. `kind` rozlišuje `zaloha` (pohledávka za zaměstnancem, účet
-335 — **není náklad**) od `proplaceny_naklad` (náklad je). Špatné zařazení
+335 – **není náklad**) od `proplaceny_naklad` (náklad je). Špatné zařazení
 posune hrubý zisk.
 
 ### `hr_documents`
-Osobní a smluvní dokumenty. `category` je volný text — v Airtable byla
+Osobní a smluvní dokumenty. `category` je volný text – v Airtable byla
 vyplněná u tří záznamů z deseti a odvozuje se z názvu.
 
 ---
@@ -116,7 +116,7 @@ vyplněná u tří záznamů z deseti a odvozuje se z názvu.
 
 ### `tasks`
 Úkoly. `code` (`GUK-467`), self-link `parent_id`, vazba na `crm_companies`
-a `projects`. Naměřený čas se **neukládá** — dopočítá se z `time_entries`,
+a `projects`. Naměřený čas se **neukládá** – dopočítá se z `time_entries`,
 aby se uložená kopie nerozešla první spuštěnou stopkou.
 
 ### `time_entries`
@@ -136,9 +136,9 @@ jich má 4 až 17, proto vlastní tabulka.
 Vlastník se drží **výlučným obloukem**: vyplněný je právě jeden z pěti FK
 sloupců (`work_report_id`, `payroll_run_id`, `payroll_item_id`, `document_id`,
 `task_id`), což hlídá CHECK. Proti dvojici (typ, id) to má skutečné cizí klíče
-a kaskádu — smazaný mzdový list po sobě nenechá osiřelé soubory.
+a kaskádu – smazaný mzdový list po sobě nenechá osiřelé soubory.
 
-Účtenky a faktury se sem **nepřevádějí** — fungují a mají vlastní UI.
+Účtenky a faktury se sem **nepřevádějí** – fungují a mají vlastní UI.
 
 Pohled **`attachment_files`** sjednocuje všechny zdroje souborů; z něj čte
 `checkAttachments()` (`src/attachments.js`). Kdyby se seznam tabulek psal v JS,
@@ -187,7 +187,7 @@ e-shopu*).
 ### `api_keys`
 **Nepoužívá se** (od 26. 10. 2026). Klíče pro starší `/api/v1` (hlavička
 `X-API-Key`); API i jeho správa jsou pryč, kód tabulku nečte. Zůstala, aby
-se nic nemazalo — dá se zrušit samostatnou migrací.
+se nic nemazalo – dá se zrušit samostatnou migrací.
 
 | Sloupec | Typ | Popis |
 |---|---|---|
@@ -216,8 +216,8 @@ Objednávky z e-shopů.
 | `shipping_*` | TEXT | Doručovací adresa |
 | `pickup_point_id`, `pickup_point_name` | TEXT | Zásilkovna apod. |
 | `total_price` | NUMERIC | |
-| `invoice_number` | TEXT | Číslo vydané faktury; zapisuje ho `generateInvoiceForOrder()`, do vystavení prázdné. Objednávky z doby před migrací 039 v něm nesou vymyšlené `FV-<rok>-<objednávka>`, ke kterému doklad neexistuje — e-shopu proto API posílá číslo z `accounting_invoices`, ne tenhle sloupec |
-| `paid_at` | TIMESTAMPTZ | Kdy e-shop poprvé ohlásil zaplacení kartou (stav „Zaplaceno“ při založení, v payment-status nebo payment-method); další potvrzení ho nepřepíší. Z něj je den přijetí úplaty karty (DUZP) na faktuře a od něj běží hlídaná lhůta 15 dnů. NULL = převod, dobírka, starší objednávky (migrace 039); zaplacená karta bez něj bere pražský den `created_at` — dopočítá se, nedopisuje (`denPlatbyKartou()`) |
+| `invoice_number` | TEXT | Číslo vydané faktury; zapisuje ho `generateInvoiceForOrder()`, do vystavení prázdné. Objednávky z doby před migrací 039 v něm nesou vymyšlené `FV-<rok>-<objednávka>`, ke kterému doklad neexistuje – e-shopu proto API posílá číslo z `accounting_invoices`, ne tenhle sloupec |
+| `paid_at` | TIMESTAMPTZ | Kdy e-shop poprvé ohlásil zaplacení kartou (stav „Zaplaceno“ při založení, v payment-status nebo payment-method); další potvrzení ho nepřepíší. Z něj je den přijetí úplaty karty (DUZP) na faktuře a od něj běží hlídaná lhůta 15 dnů. NULL = převod, dobírka, starší objednávky (migrace 039); zaplacená karta bez něj bere pražský den `created_at` – dopočítá se, nedopisuje (`denPlatbyKartou()`) |
 | `tracking_number`, `label_url` | TEXT | Sledování zásilky |
 | `ip_address`, `notes` | TEXT | |
 | `crm_contact_id` | TEXT → crm_contacts | Automaticky linkovaný kontakt |
@@ -230,7 +230,7 @@ Objednávky z e-shopů.
 | `click_id_kind_first`, `click_id_first` | TEXT | Druh (`gclid`, `gbraid`, `wbraid`, `fbclid`, `sznclid`, `sznaiid`, `hgtid`, `aku`) a hodnota click-id prvního dotyku; jen s marketingovým souhlasem, hodnota se po 90 dnech maže |
 | `referrer_host_first`, `landing_page_first` | TEXT | Hostitel odkazujícího webu bez `www.` a cesta vstupní stránky bez query stringu |
 | `touch_first_at` | TIMESTAMPTZ | Kdy první dotyk nastal; nepoužitelný čas z e-shopu (bez pásma, nečitelný, mimo ±1 rok) nahradí čas přijetí objednávky. NULL = e-shop první dotyk neposlal |
-| `*_last`, `touch_last_at` | | Totéž pro poslední dotyk před objednávkou — z něj se počítá kanál objednávky. `touch_last_at IS NULL` = e-shop atribuci neposlal → kanál „neznámý“ (dotyk, který něco nese, má čas vždy — viz `touch_first_at`) |
+| `*_last`, `touch_last_at` | | Totéž pro poslední dotyk před objednávkou – z něj se počítá kanál objednávky. `touch_last_at IS NULL` = e-shop atribuci neposlal → kanál „neznámý“ (dotyk, který něco nese, má čas vždy – viz `touch_first_at`) |
 | `attribution_consent` | TEXT | Kategorie souhlasu z lišty e-shopu: `none` / `analytics` / `marketing` / `all`; `''` = před nasazením (CHECK) |
 | `created_at`, `modified_at` | TIMESTAMPTZ | |
 
@@ -246,12 +246,12 @@ Položky objednávek.
 | `quantity` | INT | |
 | `price` | NUMERIC | Cena za kus |
 | `product_id` | TEXT | ID produktu v e-shopu |
-| `supplier_code` | TEXT | Kód dodavatele pro sklad (Airtable „ID Dodavatele"). **Není to `sku`** — to je interní kód Toneráčku. Prázdné = neznámý |
-| `cost_price` | NUMERIC(10,2) | Nákupní cena za kus v okamžiku objednávky, na haléře (ne celé koruny jako `price`). NULL = e-shop ji neposlal (pseudo-položky, starší e-shop). **E-shopu se nikdy nevrací** — API vybírá sloupce položek výslovně (migrace 042) |
+| `supplier_code` | TEXT | Kód dodavatele pro sklad (Airtable „ID Dodavatele"). **Není to `sku`** – to je interní kód Toneráčku. Prázdné = neznámý |
+| `cost_price` | NUMERIC(10,2) | Nákupní cena za kus v okamžiku objednávky, na haléře (ne celé koruny jako `price`). NULL = e-shop ji neposlal (pseudo-položky, starší e-shop). **E-shopu se nikdy nevrací** – API vybírá sloupce položek výslovně (migrace 042) |
 | `cost_price_vat_included` | BOOLEAN | `TRUE` = `cost_price` s DPH, `FALSE` = bez DPH (Toneráček), NULL = neznámo |
 
 ### `warehouse_dispatches`
-Jeden běh ranní expedice do skladu. Zároveň zámek — řádek vzniká před prací.
+Jeden běh ranní expedice do skladu. Zároveň zámek – řádek vzniká před prací.
 
 | Sloupec | Typ | Popis |
 |---|---|---|
@@ -262,7 +262,7 @@ Jeden běh ranní expedice do skladu. Zároveň zámek — řádek vzniká před
 | `status` | TEXT | `probiha` / `odeslano` / `prazdno` / `chyba` |
 | `attempt` | INT | Kolikátý pokus (backoff 10, 20, 30… minut, max 6) |
 | `started_at`, `finished_at` | TIMESTAMPTZ | |
-| `email_sent_at` | TIMESTAMPTZ | Kdy Resend zprávu přijal — bod, za kterým se běh už neposílá znovu |
+| `email_sent_at` | TIMESTAMPTZ | Kdy Resend zprávu přijal – bod, za kterým se běh už neposílá znovu |
 | `recipient`, `subject`, `resend_id` | TEXT | Co a komu odešlo |
 | `order_count`, `held_count` | INT | Odeslané a zadržené objednávky |
 | `error` | TEXT | |
@@ -293,7 +293,7 @@ ID; Sklik, Heureka a Meta mají tajemství šifrované v databázi.
 |---|---|---|
 | `id` | SERIAL PK | |
 | `shop_id` | INT → shops (CASCADE) | |
-| `platform` | TEXT | `ga4` / `google_ads` / `search_console` / `merchant` / `sklik` / `heureka` / `meta` / `eshop` (CHECK). Zboží.cz vlastní zdroj nemá — jeho statistiky jsou od října 2026 jen ve Skliku, zapisuje je adaptér `sklik` |
+| `platform` | TEXT | `ga4` / `google_ads` / `search_console` / `merchant` / `sklik` / `heureka` / `meta` / `eshop` (CHECK). Zboží.cz vlastní zdroj nemá – jeho statistiky jsou od října 2026 jen ve Skliku, zapisuje je adaptér `sklik` |
 | `active` | BOOL | Vypnutý zdroj sync přeskočí |
 | `external_id` | TEXT | ID na straně platformy (property GA4, zákaznické číslo Ads, web v Search Console, účet Merchant, účet Sklik, `act_…` Meta); u `eshop` prázdné (bere se `shops.url`) |
 | `parent_external_id` | TEXT | Nadřazené ID: `premiseId` provozovny pro Seznam Nákupy, MCC u Google Ads |
@@ -317,7 +317,7 @@ Jeden běh stažení statistik ze zdroje. Zároveň zámek (vzor
 | `run_date` | DATE | Pražské datum běhu |
 | `status` | TEXT | `probiha` / `hotovo` / `chyba`; `probiha` déle než 30 minut = přerušený běh |
 | `attempt` | INT | Kolikátý pokus (backoff 10, 20, 30 minut, nejvýš 6) |
-| `permanent` | BOOL | Chyba, kterou opakování nespraví (401, 403, špatné ID) — čeká na obsluhu |
+| `permanent` | BOOL | Chyba, kterou opakování nespraví (401, 403, špatné ID) – čeká na obsluhu |
 | `from_date`, `to_date` | DATE | Stahované okno (zpravidla posledních 14 dnů do včerejška) |
 | `rows_saved` | INT | Zapsané řádky `marketing_daily_stats` |
 | `error` | TEXT | Text chyby posledního pokusu (do 500 znaků) |
@@ -332,7 +332,7 @@ Dva částečné unikátní indexy: `(source_id, run_date) WHERE kind = 'auto'`
 Denní statistiky platforem; jeden řádek na `(shop_id, platform, date,
 segment_kind, segment)` (UNIQUE). **`segment_kind = ''` je denní součet
 platformy a jen ten vstupuje do KPI** (PNO, ROAS); rozpady jsou doplňkové
-a sčítat je s celkem by náklady zdvojilo. Typované metriky, ne JSONB —
+a sčítat je s celkem by náklady zdvojilo. Typované metriky, ne JSONB –
 každá platforma vyplní svou část, zbytek nechá `0`. Sync přepisuje okno
 14 dnů (`DELETE` okna + `INSERT` v jedné transakci).
 
@@ -346,7 +346,7 @@ každá platforma vyplní svou část, zbytek nechá `0`. Sync přepisuje okno
 | `segment` | TEXT | Hodnota segmentu (název kampaně, kanál, dotaz, cesta, země, SKU); u součtu prázdné |
 | `cost`, `cost_with_vat` | NUMERIC(12,2) | Náklady v CZK **bez DPH**; s DPH jen tam, kde je platforma posílá (Heureka) |
 | `impressions`, `clicks` | INT | Zobrazení (Heureka je neposílá) a kliknutí |
-| `conversions`, `conversion_value` | NUMERIC(12,2) | Konverze a jejich hodnota podle platformy — jen pro porovnání, zdroj pravdy jsou objednávky |
+| `conversions`, `conversion_value` | NUMERIC(12,2) | Konverze a jejich hodnota podle platformy – jen pro porovnání, zdroj pravdy jsou objednávky |
 | `sessions`, `total_users`, `view_item`, `add_to_cart`, `begin_checkout`, `purchase`, `purchase_revenue` | INT / NUMERIC | GA4: relace, uživatelé a trychtýř; nákupy jen pro porovnání (bez souhlasu je GA4 nevidí) |
 | `position_sum` | NUMERIC(14,2) | Search Console: Σ pozice × zobrazení; průměrná pozice = `position_sum / impressions` |
 | `approved_items`, `disapproved_items` | INT | Merchant Center: schválené a zamítnuté položky feedu ke dni |
@@ -360,7 +360,7 @@ Index `(shop_id, date)` pro součty za období.
 ### `marketing_manual_costs`
 Ručně zadané náklady za období (před napojením API, při výpadku). Do KPI
 se rozpočítají rovnoměrně po dnech; když pro tutéž platformu a den existují
-i řádky z API, přehled varuje. Heureka tu je jen jako záloha — má API
+i řádky z API, přehled varuje. Heureka tu je jen jako záloha – má API
 s náklady (napojuje se až ve 4. kroku nasazení), ručně se zadává jen do
 jeho napojení nebo při výpadku a při překryvu s API platí totéž varování.
 
@@ -419,7 +419,7 @@ hosta z objednávky (`is_registered = FALSE`). Primární klíč
 |---|---|---|
 | `contact_id` | TEXT → crm_contacts (CASCADE) | |
 | `shop_id` | INT → shops (CASCADE) | |
-| `is_registered` | BOOL | Účet v tomhle e-shopu. Výchozí `TRUE` z migrace 001 — kód zapisuje vždy výslovně |
+| `is_registered` | BOOL | Účet v tomhle e-shopu. Výchozí `TRUE` z migrace 001 – kód zapisuje vždy výslovně |
 | `registered_at` | TIMESTAMPTZ | Registrace v e-shopu (u hosta první objednávka) |
 | `marketing_consent`, `notifications_consent` | BOOL | Souhlasy pro tenhle e-shop |
 | `gdpr_consent_at` | TIMESTAMPTZ | Kdy dal souhlas se zpracováním údajů tomuhle e-shopu |
@@ -444,7 +444,7 @@ Vydané i přijaté faktury.
 | `number` | TEXT | Číslo faktury |
 | `status` | TEXT | Nezaplacena / Zaplacena / Po splatnosti / Storno (`STATUSES_ISSUED`) |
 | `issue_date`, `due_date` | DATE | |
-| `paid_date` | DATE | Den úhrady — den pohybu na účtu (párování s bankou) nebo den zadaný při ruční změně stavu, ne den kliknutí. U faktury k objednávce den přijetí úplaty (karta, převod), u dobírky NULL do spárování |
+| `paid_date` | DATE | Den úhrady – den pohybu na účtu (párování s bankou) nebo den zadaný při ruční změně stavu, ne den kliknutí. U faktury k objednávce den přijetí úplaty (karta, převod), u dobírky NULL do spárování |
 | `taxable_date` | DATE | DUZP vydané faktury: u karty a převodu den přijetí úplaty, u dobírky den vystavení. NULL = shodné s `issue_date` (starší a ruční doklady). Tiskne ho PDF, je v CSV exportu a jde do POHODY jako `dateTax`; opravuje se v úpravě faktury (migrace 039) |
 | `client_name`, `client_ico`, `client_dic` | TEXT | Odběratel (vydané a zálohové faktury) |
 | `supplier` | TEXT | Dodavatel (přijaté faktury) |
@@ -583,7 +583,7 @@ Bankovní pohyby.
 | `category` | TEXT | Kancelář, IT & Software, … |
 | `description` | TEXT | |
 | `account_debit`, `account_credit` | TEXT | Předkontace |
-| `payment_method` | TEXT | Hotovost / Karta / Převodem — určuje agendu v POHODĚ |
+| `payment_method` | TEXT | Hotovost / Karta / Převodem – určuje agendu v POHODĚ |
 | `vat_deductible` | BOOL | Nárok na odpočet DPH; u reprezentace vždy `FALSE` |
 | `pohoda_exported_at` | TIMESTAMPTZ | Poslední export do POHODY (ochrana před duplicitou) |
 | `attachment_path` | TEXT | Foto / PDF dokladu v `data/media/` (viz `src/attachments.js`) |
@@ -645,14 +645,14 @@ Pravidla kdy notifikovat.
 | `active` | BOOL | |
 
 ### `notification_log`
-Log odeslaných notifikací (deduplikace — zabraňuje opakovanému spamu).
+Log odeslaných notifikací (deduplikace – zabraňuje opakovanému spamu).
 
 ---
 
 ## Nastavení firmy
 
 ### `company_settings`
-Jeden řádek — údaje fakturující firmy.
+Jeden řádek – údaje fakturující firmy.
 
 | Sloupec | Typ | Popis |
 |---|---|---|
@@ -701,4 +701,4 @@ Web Push registrace zařízení.
 | `auth` | TEXT | Auth secret |
 | `created_at` | TIMESTAMPTZ | |
 
-Unique constraint: `(user_id, endpoint)` — každé zařízení jednoho uživatele má vlastní subscription.
+Unique constraint: `(user_id, endpoint)` – každé zařízení jednoho uživatele má vlastní subscription.

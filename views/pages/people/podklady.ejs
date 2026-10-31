@@ -1,6 +1,6 @@
 <%
   const kc = n => Number(n || 0).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const den = d => d ? new Date(d).toLocaleDateString('cs-CZ') : '—';
+  const den = d => d ? new Date(d).toLocaleDateString('cs-CZ') : '–';
   const stavLabel = s => (PODKLAD_STAVY.find(x => x[0] === s) || [, s])[1];
 %>
 
@@ -52,10 +52,10 @@
         <% podklady.forEach(function (w) { %>
         <tr style="cursor:pointer;" onclick="window.location='/lide/podklady/<%= w.id %>'">
           <td style="color:var(--text-muted);font-size:13px;white-space:nowrap;"><%= den(w.report_date) %></td>
-          <td style="font-family:var(--font-mono);font-size:12.5px;"><%= (w.kody || []).join(', ') || '—' %></td>
-          <td style="font-size:13px;"><%= (w.lokality || []).join(', ') || '—' %></td>
+          <td style="font-family:var(--font-mono);font-size:12.5px;"><%= (w.kody || []).join(', ') || '–' %></td>
+          <td style="font-size:13px;"><%= (w.lokality || []).join(', ') || '–' %></td>
           <td style="font-size:13px;"><%= ((w.first_name || '') + ' ' + (w.last_name || '')).trim() %></td>
-          <td style="font-size:12.5px;color:var(--text-muted);"><%= w.priloh ? '📎 ' + w.priloh : '—' %></td>
+          <td style="font-size:12.5px;color:var(--text-muted);"><%= w.priloh ? '📎 ' + w.priloh : '–' %></td>
           <td style="font-size:12.5px;white-space:nowrap;">
             <% if (w.invoice_id) { %>
               <a href="/ucetnictvi/vydane-faktury/<%= w.invoice_id %>" onclick="event.stopPropagation();"
@@ -63,7 +63,7 @@
               <span style="color:var(--text-muted);"> · <%= w.faktura_stav %></span>
             <% } else if (w.invoice_number) { %>
               <span title="Faktura tohoto čísla není v systému" style="color:var(--warning);"><%= w.invoice_number %> ⚠</span>
-            <% } else { %>—<% } %>
+            <% } else { %>–<% } %>
           </td>
           <td><span class="badge" style="background:var(--gray-100);color:var(--text-secondary);"><%= stavLabel(w.status) %></span></td>
           <td style="text-align:right;font-family:var(--font-mono);font-size:13px;"><%= kc(w.total_amount) %></td>

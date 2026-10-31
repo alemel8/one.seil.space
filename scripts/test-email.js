@@ -1,5 +1,5 @@
 /**
- * Ověření odesílání e-mailů — zkontroluje konfiguraci a pošle testovací zprávu.
+ * Ověření odesílání e-mailů – zkontroluje konfiguraci a pošle testovací zprávu.
  *
  * V produkci (Coolify terminál), kde jsou proměnné už v prostředí:
  *   node scripts/test-email.js ales@seil.cz
@@ -36,7 +36,7 @@ console.log(`MAIL_FROM       ${MAIL_FROM || '(nenastaveno → použije se "SEIL 
 console.log(`MAIL_REPLY_TO   ${MAIL_REPLY_TO || '(nenastaveno → použije se e-mail z nastavení firmy)'}`);
 
 const problems = [];
-if (!RESEND_API_KEY)                     problems.push('RESEND_API_KEY není nastaven — e-maily se jen logují do konzole.');
+if (!RESEND_API_KEY)                     problems.push('RESEND_API_KEY není nastaven – e-maily se jen logují do konzole.');
 else if (!RESEND_API_KEY.startsWith('re_')) problems.push('RESEND_API_KEY nevypadá jako klíč Resendu (má začínat "re_").');
 else if (/X{3,}/.test(RESEND_API_KEY))   problems.push('RESEND_API_KEY je pořád zástupná hodnota z .env.example.');
 
@@ -53,7 +53,7 @@ if (problems.length) {
 
 const effectiveFrom = MAIL_FROM || 'SEIL s.r.o. <noreply@seil.cz>';
 console.log(`\nOdesílatel:  ${effectiveFrom}`);
-console.log(`Doména:      ${senderDomain(effectiveFrom)} — musí být ověřená v Resendu`);
+console.log(`Doména:      ${senderDomain(effectiveFrom)} – musí být ověřená v Resendu`);
 
 if (!to) {
   console.log('\nPro odeslání testovací zprávy přidej adresu:');
@@ -62,7 +62,7 @@ if (!to) {
 }
 
 if (!RESEND_API_KEY || problems.length) {
-  console.error('\n❌ Neodesílám — nejdřív oprav problémy výše.');
+  console.error('\n❌ Neodesílám – nejdřív oprav problémy výše.');
   process.exit(1);
 }
 
@@ -72,7 +72,7 @@ const { data, error } = await new Resend(RESEND_API_KEY).emails.send({
   from: effectiveFrom,
   replyTo: MAIL_REPLY_TO || undefined,
   to: [to],
-  subject: 'Test odesílání — one.seil.space',
+  subject: 'Test odesílání – one.seil.space',
   html: `<p>Tohle je testovací zpráva z one.seil.space.</p>
 <p>Odesílatel: <strong>${effectiveFrom}</strong><br>
 Odpovědi směřují na: <strong>${MAIL_REPLY_TO || '(nenastaveno)'}</strong></p>
@@ -88,4 +88,4 @@ if (error) {
 }
 
 console.log(`\n✓ Odesláno. Resend id: ${data?.id}`);
-console.log('  Zkontroluj schránku — a zkus na zprávu odpovědět, jestli odpověď dorazí na reply-to adresu.');
+console.log('  Zkontroluj schránku – a zkus na zprávu odpovědět, jestli odpověď dorazí na reply-to adresu.');

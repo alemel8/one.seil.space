@@ -1,5 +1,5 @@
 -- ============================================================
--- one.seil.space — číslo objednávky YYMMXXXX a DPH na dokladech
+-- one.seil.space – číslo objednávky YYMMXXXX a DPH na dokladech
 -- ============================================================
 -- Objednávky Toneráčku se dosud číslovaly prostou sekvencí od 10001, protože
 -- e-shop neměl založenou řadu typu 'objednavka' a toneracek.js spadl na
@@ -27,7 +27,7 @@ WHERE s.slug = 'toneracek'
 -- ── DPH ──────────────────────────────────────────────────────
 -- SEIL s.r.o. je plátce DPH a generateInvoiceForOrder() vystavuje doklady
 -- e-shopu s 21 % od začátku. company_settings ale drží ze seedu migrace 001
--- poznámku "Nejsme plátci DPH." a vat_payer se od té doby nikdo nedotkl —
+-- poznámku "Nejsme plátci DPH." a vat_payer se od té doby nikdo nedotkl –
 -- na faktuře se tedy tiskla věta, která odporovala rozpisu DPH pár řádků nad
 -- ní. Opravujeme jen hodnoty, které pořád sedí na seed; ručně vyplněné
 -- nastavení zůstává, jak je.

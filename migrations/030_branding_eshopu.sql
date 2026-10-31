@@ -1,8 +1,8 @@
 -- ============================================================
--- one.seil.space — identita e-shopu v e-mailech
+-- one.seil.space – identita e-shopu v e-mailech
 -- ============================================================
--- Zákazník Toneráčku dostával nejdůležitější zprávu celé objednávky —
--- „vyřízena, faktura v příloze, tady je sledovací číslo" — od SEIL s.r.o.
+-- Zákazník Toneráčku dostával nejdůležitější zprávu celé objednávky –
+-- „vyřízena, faktura v příloze, tady je sledovací číslo" – od SEIL s.r.o.
 -- <noreply@seil.cz>, tedy od firmy, o které nikdy neslyšel. Odesílatel
 -- e-shopu byl přitom v kódu na čtyřech místech natvrdo (src/email.js:8, 40,
 -- 96 a src/routes/toneracek.js), takže druhý e-shop by posílal svá storna
@@ -13,7 +13,7 @@
 -- formulář, ne forkovat šablony.
 --
 -- Konvence: typované sloupce, ne shops.config JSONB. Ten je od migrace 001
--- prázdný a nikdo ho nečte — a nejvíc na očích viditelný obsah v celém
+-- prázdný a nikdo ho nečte – a nejvíc na očích viditelný obsah v celém
 -- systému není místo, kde tuhle tradici začínat. Přes HTTP to čtou dvě
 -- aplikace a `config->>'colorPrimary'` místo `color_primary` je tichý NULL,
 -- který se projeví až prázdným přechodem v cizí schránce. TEXT NOT NULL
@@ -21,7 +21,7 @@
 -- i tvrdá kontrola.
 --
 -- Bankovní účet, IBAN ani formát variabilního symbolu tu schválně nejsou.
--- To je účetnictví, ne branding — patří vystavovateli (company_settings),
+-- To je účetnictví, ne branding – patří vystavovateli (company_settings),
 -- a právě proto, že je e-shop měl vlastní, chodily zákazníkovi dva různé
 -- variabilní symboly k jedné platbě.
 
@@ -60,7 +60,7 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ── Toneráček ────────────────────────────────────────────────
 -- Hodnoty odpovídají tomu, co dnes vykresluje src/lib/email.ts e-shopu,
--- aby se po nasazení nic nezměnilo vizuálně — mění se jen to, odkud se berou.
+-- aby se po nasazení nic nezměnilo vizuálně – mění se jen to, odkud se berou.
 -- Výjimka je odesílatel: z ahoj@toneracek.cz se stává noreply@toneracek.cz
 -- a ahoj@ zůstává jako reply-to, aby odpověď zákazníka měla kam dojít.
 INSERT INTO shops (slug, name, url) VALUES ('toneracek', 'Toneráček.cz', 'https://toneracek.cz')

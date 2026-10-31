@@ -1,10 +1,10 @@
-// Jednotkový test šifrování tokenů platforem — běží bez databáze i serveru:
+// Jednotkový test šifrování tokenů platforem – běží bez databáze i serveru:
 //
 //   node --test test/marketing-tajemstvi.test.js
 //
 // Hlídá, že token po zašifrování a dešifrování vyjde stejný (i s diakritikou
 // a prázdný), že se bez klíče, s jiným klíčem nebo s poškozeným řádkem nic
-// tiše nevrátí — jen česká chyba, podle které obsluha pozná, co se stalo —,
+// tiše nevrátí – jen česká chyba, podle které obsluha pozná, co se stalo –,
 // a že otisk je stabilních 8 hex znaků SHA-256 jako u klíčů e-shopů.
 
 import { test, describe, beforeEach, after } from 'node:test';
@@ -61,13 +61,13 @@ describe('šifrování a dešifrování', () => {
     const enc = zasifruj('token');
     process.env.MARKETING_SECRETS_KEY = KLIC_B;
     assert.throws(() => desifruj(enc), (e) => e instanceof TajemstviError
-      && e.message === 'token nelze dešifrovat — změnil se MARKETING_SECRETS_KEY?');
+      && e.message === 'token nelze dešifrovat – změnil se MARKETING_SECRETS_KEY?');
   });
 
   test('poškozený tag, data i IV skončí stejnou chybou jako cizí klíč', () => {
     const enc = zasifruj('token');
     for (const index of [1, 2, 3]) {
-      assert.throws(() => desifruj(poskod(enc, index)), /token nelze dešifrovat — změnil se MARKETING_SECRETS_KEY\?/, `část ${index}`);
+      assert.throws(() => desifruj(poskod(enc, index)), /token nelze dešifrovat – změnil se MARKETING_SECRETS_KEY\?/, `část ${index}`);
     }
   });
 
@@ -105,7 +105,7 @@ describe('klíč z prostředí', () => {
     assert.throws(() => zasifruj('t'), /musí mít 64 hex znaků/);
   });
 
-  test('klíč se čte při každém volání — změna za běhu platí hned', () => {
+  test('klíč se čte při každém volání – změna za běhu platí hned', () => {
     const enc = zasifruj('t');
     process.env.MARKETING_SECRETS_KEY = KLIC_B;
     const enc2 = zasifruj('t');

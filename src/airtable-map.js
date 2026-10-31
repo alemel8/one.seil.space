@@ -1,6 +1,6 @@
 // Převod záznamů z Airtable na řádky pro PostgreSQL.
 //
-// Čisté funkce bez databáze i bez sítě — jádro migrace se tak dá otestovat
+// Čisté funkce bez databáze i bez sítě – jádro migrace se tak dá otestovat
 // na skutečných odpovědích z API, aniž by se něco kamkoli zapisovalo.
 //
 // Pole se čtou přes ID, ne přes název (returnFieldsByFieldId=true). Kdyby se
@@ -128,7 +128,7 @@ export function mapujPodklad(rec) {
     totalAmount: cislo(c[F.podklad.castka]),
     status: PODKLAD_STAV[jednaVolba(c[F.podklad.status])] ?? 'odeslano',
     // Vícehodnotové: jeden podklad pokrývá i tři zakázky ve dvou zemích.
-    // Nečte se z formule „Označení" — u vícehodnotových ji nejde rozebrat zpět.
+    // Nečte se z formule „Označení" – u vícehodnotových ji nejde rozebrat zpět.
     projekty: jmenaVoleb(c[F.podklad.projekty]),
     lokality: jmenaVoleb(c[F.podklad.lokality]).map(rozdelLokalitu),
     invoiceNumber: fakturaPriloha ? cisloFakturyZNazvu(fakturaPriloha.filename) : '',
@@ -150,7 +150,7 @@ export function rozdelLokalitu(text) {
 
 // ── mzdový rozpis ────────────────────────────────────────────
 
-/** Kategorie přílohy z názvu souboru — balíček od účetní má stabilní názvy. */
+/** Kategorie přílohy z názvu souboru – balíček od účetní má stabilní názvy. */
 export function kategoriePrilohyMzdy(filename) {
   const n = String(filename ?? '').toLowerCase();
   if (/\.xml$/.test(n) || /cssz|čssz|mh-\d/.test(n)) return 'epodani_cssz';
@@ -227,7 +227,7 @@ const KATEGORIE_PODLE_NAZVU = [
   [/prohl[aá][sš]en[ií]/i,         'Prohlášení'],
 ];
 
-/** Kategorie z názvu — v Airtable je vyplněná jen u tří záznamů z deseti. */
+/** Kategorie z názvu – v Airtable je vyplněná jen u tří záznamů z deseti. */
 export function kategorieDokumentu(nazev, zAirtable) {
   if (zAirtable) return zAirtable;
   for (const [re, kat] of KATEGORIE_PODLE_NAZVU) if (re.test(String(nazev ?? ''))) return kat;
@@ -300,7 +300,7 @@ export function mapujMereni(rec) {
  * Rozdělí řádek Payroll na mzdu nebo proplacený nákup.
  * Airtable je mísil: řádky s Extra Bonusem jsou nákupy (tablet, sluchátka,
  * O2 tarif) s fakturou v příloze, zbytek jsou mzdy. Rozhoduje se podle dat,
- * ne podle seznamu názvů — nová položka by jinak propadla.
+ * ne podle seznamu názvů – nová položka by jinak propadla.
  */
 export function mapujPayroll(rec) {
   const c = bunky(rec);

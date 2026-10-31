@@ -1,10 +1,10 @@
-// Jednotkový test období marketingového přehledu — běží bez databáze i serveru:
+// Jednotkový test období marketingového přehledu – běží bez databáze i serveru:
 //
 //   node --test test/marketing-obdobi.test.js
 //
-// Hlídá, že presety dávají správný uzavřený interval s pevným „dnes“ — hlavně
+// Hlídá, že presety dávají správný uzavřený interval s pevným „dnes“ – hlavně
 // konce měsíců (únor, přestupný únor, prosinec, přechod roku), které se musí
-// počítat řetězcově a ne přes Date v pásmu procesu — že neplatné vlastní
+// počítat řetězcově a ne přes Date v pásmu procesu – že neplatné vlastní
 // období nespadne, ale vrátí tento měsíc s vysvětlením v popisku, a že výčet
 // dní na neplatnou mez vrátí prázdné pole místo smyčky do přetečení Date.
 //
@@ -150,7 +150,7 @@ describe('vlastní období', () => {
 
     const moc = vyhodnotObdobi({ obdobi: 'vlastni', od: '2025-09-23', do: '2026-10-29' }, '2026-10-29');
     assert.deepEqual([moc.od, moc.do, moc.preset], ['2026-10-01', '2026-10-29', 'tento-mesic']);
-    assert.match(moc.popis, /^říjen 2026 — vlastní období se nepoužilo: rozsah je delší než 400 dní$/);
+    assert.match(moc.popis, /^říjen 2026 – vlastní období se nepoužilo: rozsah je delší než 400 dní$/);
   });
 
   test('začátek po konci padá na tento měsíc s vysvětlením', () => {
@@ -169,7 +169,7 @@ describe('vlastní období', () => {
     ]) {
       const r = vyhodnotObdobi({ obdobi: 'vlastni', ...q }, '2026-03-01');
       assert.deepEqual([r.od, r.do, r.preset], ['2026-03-01', '2026-03-01', 'tento-mesic'], JSON.stringify(q));
-      assert.match(r.popis, /^březen 2026 — vlastní období se nepoužilo: chybí nebo není platné datum/);
+      assert.match(r.popis, /^březen 2026 – vlastní období se nepoužilo: chybí nebo není platné datum/);
     }
   });
 });

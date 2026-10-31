@@ -1,7 +1,7 @@
 import { getDb, generateId } from '../db.js';
 import { rezimUprav } from '../upravy.js';
 
-// Typy podprojektů — jediné místo pravdy pro label/ikonu/barvu, sdílené routami i views.
+// Typy podprojektů – jediné místo pravdy pro label/ikonu/barvu, sdílené routami i views.
 export const PROJECT_TYPES = {
   web:             { label: 'Web',                      icon: 'web.svg',             color: '#14E6E6' },
   eshop:           { label: 'Eshop',                     icon: 'eshop.svg',           color: '#0F7E89' },

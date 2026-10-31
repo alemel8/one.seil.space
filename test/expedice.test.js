@@ -1,4 +1,4 @@
-// Jednotkový test ranní expedice do skladu — běží bez databáze i serveru:
+// Jednotkový test ranní expedice do skladu – běží bez databáze i serveru:
 //
 //   node --test test/expedice.test.js
 //
@@ -106,7 +106,7 @@ describe('seskupení podle zásilek', () => {
 });
 
 describe('pražský čas a okno odeslání', () => {
-  // Fixní okamžiky v UTC — test nesmí záviset na TZ stroje ani kontejneru.
+  // Fixní okamžiky v UTC – test nesmí záviset na TZ stroje ani kontejneru.
   test('letní čas: 04:59 UTC je v Praze 06:59', () => {
     const c = prazskyCas(new Date('2026-09-04T04:59:00Z'));
     assert.deepEqual([c.datum, c.den, c.hodina], ['2026-09-04', 5, 6]);
@@ -130,7 +130,7 @@ describe('pražský čas a okno odeslání', () => {
     assert.equal(jeVOkne(prazskyCas(new Date('2026-09-07T05:00:00Z'))), true);  // pondělí 07:00
   });
 
-  test('okno nemá horní hranici — po výpadku se pošle i odpoledne', () => {
+  test('okno nemá horní hranici – po výpadku se pošle i odpoledne', () => {
     assert.equal(jeVOkne({ den: 1, hodina: 5 }), false);
     assert.equal(jeVOkne({ den: 1, hodina: 6 }), true);
     assert.equal(jeVOkne({ den: 5, hodina: 15 }), true);

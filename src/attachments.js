@@ -1,6 +1,6 @@
 // Ukládání příloh k dokladům (účtenky, přijaté faktury).
 //
-// Fotka z mobilu má běžně 4–12 MB, což je pro archiv dokladů zbytečné —
+// Fotka z mobilu má běžně 4–12 MB, což je pro archiv dokladů zbytečné –
 // paragon je čitelný i po zmenšení na ~2400 px delší strany. Zmenšení dělá
 // primárně prohlížeč (public/js/doklad-foto.js), aby se velký soubor vůbec
 // nemusel nahrávat; tady je druhá pojistka pro soubory, které přijdou odjinud
@@ -17,7 +17,7 @@ const projectRoot = path.resolve(__dirname, '..');
 
 export const MEDIA_DIR = path.join(projectRoot, 'data/media');
 
-// Cílová velikost archivované přílohy — nad ní se obrázek zmenšuje.
+// Cílová velikost archivované přílohy – nad ní se obrázek zmenšuje.
 export const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 
 // Tvrdý strop uploadu (shodný s limitem @fastify/multipart v server.js).
@@ -37,7 +37,7 @@ const QUALITY_LADDER = [
   { edge: 1400, quality: 50 },
 ];
 
-// sharp je nepovinná závislost — když v runtime chybí (jiná platforma, ruční
+// sharp je nepovinná závislost – když v runtime chybí (jiná platforma, ruční
 // instalace bez native modulů), ukládáme soubor tak, jak přišel.
 let sharpPromise = null;
 async function loadSharp() {
@@ -54,10 +54,10 @@ export function isSupportedMime(mime) {
   return mime === 'application/pdf' || (typeof mime === 'string' && mime.startsWith('image/'));
 }
 
-// Archivní typy — nedají se vytěžit ani zmenšit, jen se ukládají. Potřebuje je
+// Archivní typy – nedají se vytěžit ani zmenšit, jen se ukládají. Potřebuje je
 // import z Airtable: v mzdových balíčcích jsou XML pro e-podání ČSSZ, mezi
 // smluvními dokumenty DOCX a u úkolů XLSX i ZIP. Do formulářů dokladů se
-// nepouštějí — tam má být sken, ne tabulka.
+// nepouštějí – tam má být sken, ne tabulka.
 export const ARCHIVE_MIMES = new Set([
   'application/xml',
   'text/xml',
@@ -72,12 +72,12 @@ export const ARCHIVE_MIMES = new Set([
 ]);
 
 /**
- * Archivní režim bere cokoli. Přílohy úkolů jsou libovolné soubory —
- * v datech z Airtable je vedle PDF a XML i skript v Pythonu — a allowlist
+ * Archivní režim bere cokoli. Přílohy úkolů jsou libovolné soubory –
+ * v datech z Airtable je vedle PDF a XML i skript v Pythonu – a allowlist
  * by je tiše zahodil. Bezpečné je to proto, že se ukládají bez otevírání
  * a servírují se `Content-Disposition: attachment` + `nosniff`; inline se
  * pouští jen úzký seznam typů v routě dokladů. U formulářů účtenek a faktur
- * dál platí přísné `isSupportedMime()` — tam je sken povinný.
+ * dál platí přísné `isSupportedMime()` – tam je sken povinný.
  */
 export function isArchivableMime(mime) {
   return Boolean(String(mime ?? '').trim());
@@ -110,7 +110,7 @@ const MIME_BY_EXT = new Map([...EXT_BY_MIME].map(([mime, ext]) => [ext, mime]).c
 ]));
 
 // Pozor: fallback je octet-stream, ne obrázek. Z téhle funkce staví
-// documents.js hlavičku Content-Type — kdyby neznámá přípona spadla na
+// documents.js hlavičku Content-Type – kdyby neznámá přípona spadla na
 // image/jpeg, prohlížeč by se snažil vykreslit ZIP jako fotku.
 export function mimeForFile(filename) {
   const ext = path.extname(filename || '').toLowerCase();
@@ -129,11 +129,11 @@ export function formatBytes(bytes) {
 export async function compressImage(buf, mime, { maxBytes = MAX_ATTACHMENT_BYTES, log } = {}) {
   const sharp = await loadSharp();
   if (!sharp) {
-    log?.warn('sharp není k dispozici — příloha se ukládá bez zmenšení');
+    log?.warn('sharp není k dispozici – příloha se ukládá bez zmenšení');
     return { buf, mime, compressed: false };
   }
 
-  // Malý sken nebo screenshot v bezztrátovém formátu necháváme být — převod
+  // Malý sken nebo screenshot v bezztrátovém formátu necháváme být – převod
   // do JPEGu by u drobného písma jen přidal artefakty a nic neušetřil.
   if (buf.length <= KEEP_AS_IS_BYTES && (mime === 'image/png' || mime === 'image/webp')) {
     return { buf, mime, compressed: false };
@@ -158,7 +158,7 @@ export async function compressImage(buf, mime, { maxBytes = MAX_ATTACHMENT_BYTES
     }
     return { buf: best, mime: 'image/jpeg', compressed: true };
   } catch (err) {
-    log?.warn({ err }, 'Zmenšení obrázku selhalo — ukládám originál');
+    log?.warn({ err }, 'Zmenšení obrázku selhalo – ukládám originál');
     return { buf, mime, compressed: false };
   }
 }
@@ -177,7 +177,7 @@ export async function saveAttachment(buf, mime, baseName, { log, archive = false
   let finalMime = mime;
 
   // Archivní soubor se ukládá tak, jak přišel. Je to důkazní materiál
-  // (výplatní páska, e-podání na ČSSZ) — přeukládat ho nemá smysl a u XML
+  // (výplatní páska, e-podání na ČSSZ) – přeukládat ho nemá smysl a u XML
   // ani nejde.
   if (!archive && mime.startsWith('image/')) {
     const result = await compressImage(buf, mime, { log });
@@ -193,10 +193,10 @@ export async function saveAttachment(buf, mime, baseName, { log, archive = false
   }
 
   // Tahle hláška dává smysl jen tam, kde jsme se zmenšit opravdu pokusili.
-  // V archivním režimu se úmyslně nekomprimuje, takže velký obrázek není chyba —
+  // V archivním režimu se úmyslně nekomprimuje, takže velký obrázek není chyba –
   // spadne níž mezi ostatní velké soubory a jen se zaloguje.
   if (!archive && finalMime.startsWith('image/') && finalBuf.length > MAX_ATTACHMENT_BYTES) {
-    // Sem se dostaneme jen bez sharpu — jinak žebřík kvality obrázek srazí níž
+    // Sem se dostaneme jen bez sharpu – jinak žebřík kvality obrázek srazí níž
     throw new Error(
       `Fotku se nepodařilo zmenšit pod ${formatBytes(MAX_ATTACHMENT_BYTES)} (má ${formatBytes(finalBuf.length)}). ` +
       'Vyfoťte doklad znovu v nižším rozlišení.'
@@ -214,7 +214,7 @@ export async function saveAttachment(buf, mime, baseName, { log, archive = false
 
   // Unikátnost drží časové razítko, jenže při hromadném importu se do jedné
   // milisekundy vejde víc souborů. Zápis s příznakem 'wx' proto raději selže,
-  // než by přepsal cizí doklad — kolize se vyřeší přidáním pořadí a nikdy
+  // než by přepsal cizí doklad – kolize se vyřeší přidáním pořadí a nikdy
   // neskončí tím, že dva záznamy v DB ukazují na stejný soubor.
   for (let poradi = 0; ; poradi++) {
     const filename = `${safeBase}_${Date.now()}${poradi ? `-${poradi}` : ''}${ext}`;
@@ -228,7 +228,7 @@ export async function saveAttachment(buf, mime, baseName, { log, archive = false
   }
 }
 
-// Smaže soubor přílohy. Chybějící soubor není chyba — záznam v DB může
+// Smaže soubor přílohy. Chybějící soubor není chyba – záznam v DB může
 // přežít ruční úklid adresáře.
 export async function deleteAttachment(filename) {
   if (!filename) return;
@@ -238,7 +238,7 @@ export async function deleteAttachment(filename) {
 }
 
 // Chybí soubor, na který se záznam v DB odkazuje? Stane se to, když se
-// data/media ztratí (chybějící persistent volume) nebo někdo uklidí adresář —
+// data/media ztratí (chybějící persistent volume) nebo někdo uklidí adresář –
 // v systému pak zůstane doklad, který nejde otevřít. Views to potřebují vědět,
 // aby místo rozbité miniatury ukázaly, že doklad chybí.
 export function attachmentMissing(filename) {
@@ -258,7 +258,7 @@ export function markMissingAttachments(rows) {
 // ── Přílohy navázané na záznam ────────────────────────────────
 // Tabulka attachments drží vlastníka „výlučným obloukem": vyplněný je právě
 // jeden z pěti sloupců. Tady je jediné místo, kde se překládá název entity
-// na sloupec — routy ani šablony to vědět nemusí.
+// na sloupec – routy ani šablony to vědět nemusí.
 
 export const ATTACHMENT_OWNERS = Object.freeze({
   work_report:  'work_report_id',
@@ -327,7 +327,7 @@ export function markMissingFiles(rows) {
 }
 
 // Ohlásí, kolik příloh evidovaných v DB chybí na disku. Typicky to znamená,
-// že data/media nepřežilo deploy — bez persistent volume žije v zapisovatelné
+// že data/media nepřežilo deploy – bez persistent volume žije v zapisovatelné
 // vrstvě kontejneru a každý build ho smaže. Bez téhle hlášky se na to přijde
 // až ve chvíli, kdy někdo doklad hledá.
 export async function checkAttachments(sql, log) {
@@ -339,11 +339,11 @@ export async function checkAttachments(sql, log) {
 
   const missing = rows.filter(r => !existsSync(path.join(MEDIA_DIR, path.basename(r.attachment_path))));
   if (missing.length === 0) {
-    log?.info(`[přílohy] ${rows.length} souborů v ${MEDIA_DIR} — vše na místě`);
+    log?.info(`[přílohy] ${rows.length} souborů v ${MEDIA_DIR} – vše na místě`);
   } else if (missing.length === rows.length) {
     log?.error(
       `[přílohy] CHYBÍ VŠECH ${rows.length} souborů v ${MEDIA_DIR}. ` +
-      'Adresář zjevně nepřežil deploy — připoj persistent volume na /app/data (viz docs/nasazeni.md).'
+      'Adresář zjevně nepřežil deploy – připoj persistent volume na /app/data (viz docs/nasazeni.md).'
     );
   } else {
     log?.warn(`[přílohy] chybí ${missing.length} z ${rows.length} souborů v ${MEDIA_DIR}: ${missing.slice(0, 5).map(m => m.attachment_path).join(', ')}`);

@@ -4,20 +4,20 @@
 // podle přístupové matice. Routy jsou v src/routes/hledani.js.
 //
 // Smlouva „hledání = seznam“: skupina hledá přesně v těch sloupcích, ve
-// kterých filtruje seznam, na který odkazuje „Všechny v seznamu“ — kdo
+// kterých filtruje seznam, na který odkazuje „Všechny v seznamu“ – kdo
 // najde firmu podle IČO tady, musí ji najít i v seznamu firem. Kdo přidá
 // sloupec sem, přidá ho i do filtru seznamu (a naopak).
 //
 // Práva: skupina se vůbec nedotáže, když uživatel nesmí na její seznam
 // (isAllowed s týmž klíčem, kterým strážce rout hlídá URL detailu). Proto
-// /hledat nepatří do katalogu v access.js — nemá vlastní data.
+// /hledat nepatří do katalogu v access.js – nemá vlastní data.
 
 import { ACCESS_KEYS, isAllowed, visibleSections } from './access.js';
 
 export const MIN_DELKA = 2;
 export const MAX_DELKA = 100;
 
-/** Slug výchozího e-shopu — seznam objednávek ho bere bez parametru (toneracek.js). */
+/** Slug výchozího e-shopu – seznam objednávek ho bere bez parametru (toneracek.js). */
 const VYCHOZI_ESHOP = 'toneracek';
 
 /**
@@ -34,7 +34,7 @@ export function escapujLike(s) {
   return s.replace(/[\\%_]/g, (m) => '\\' + m);
 }
 
-/** Bez diakritiky a malými písmeny — pro hledání v názvech stránek katalogu. */
+/** Bez diakritiky a malými písmeny – pro hledání v názvech stránek katalogu. */
 export function bezDiakritiky(s) {
   return String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 }
@@ -71,7 +71,7 @@ export const SKUPINY = [
         FROM crm_contacts c LEFT JOIN crm_companies co ON co.id = c.company_id
        WHERE c.first_name ILIKE ${vzor} OR c.last_name ILIKE ${vzor} OR c.email ILIKE ${vzor} OR c.phone ILIKE ${vzor}
        ORDER BY c.last_name, c.first_name LIMIT ${limit}`,
-    polozka: (r) => ({ titulek: jmeno(r) || r.email || '—', popis: spoj(r.email, r.firma), url: `/crm/kontakty/${r.id}`, stitek: '' }),
+    polozka: (r) => ({ titulek: jmeno(r) || r.email || '–', popis: spoj(r.email, r.firma), url: `/crm/kontakty/${r.id}`, stitek: '' }),
   },
   {
     klic: 'objednavky', nazev: 'Objednávky', pravo: 'ucetnictvi.objednavky',
@@ -101,7 +101,7 @@ export const SKUPINY = [
   {
     klic: 'vydane-faktury', nazev: 'Vydané faktury', pravo: 'ucetnictvi.vydane-faktury',
     odkazSeznam: (q) => `/ucetnictvi/vydane-faktury?q=${encodeURIComponent(q)}`,
-    // Detail bere i zálohové faktury (proforma), seznam jen vydané — proto
+    // Detail bere i zálohové faktury (proforma), seznam jen vydané – proto
     // štítek „Zálohová“, ať je jasné, proč ji seznam neukáže.
     dotaz: (sql, vzor, limit) => sql`
       SELECT id, number, type, status, client_name, issue_date, total_amount
@@ -177,7 +177,7 @@ export const SKUPINY = [
 ];
 
 for (const s of SKUPINY) {
-  // Překlep v právu by skupinu otevřel všem — isAllowed neznámý klíč neomezuje.
+  // Překlep v právu by skupinu otevřel všem – isAllowed neznámý klíč neomezuje.
   if (!ACCESS_KEYS.includes(s.pravo)) throw new Error(`Hledání: skupina ${s.klic} má právo mimo katalog: ${s.pravo}`);
 }
 
@@ -188,7 +188,7 @@ export function povoleneSkupiny(user) {
 
 /**
  * Stránky z katalogu přístupové matice (visibleSections), na které uživatel
- * vidí — včetně těch mimo levé menu (např. /trade). Porovnání bez
+ * vidí – včetně těch mimo levé menu (např. /trade). Porovnání bez
  * diakritiky, ať „ucetnictvi“ najde Účetnictví. Dotaz už je normalizovaný.
  */
 export function hledejStranky(user, q) {

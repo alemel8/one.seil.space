@@ -1,5 +1,5 @@
 /**
- * Adaptér Sklik (API Fénix, https://api.sklik.cz/v1) — zapisuje platformy
+ * Adaptér Sklik (API Fénix, https://api.sklik.cz/v1) – zapisuje platformy
  * `sklik` i `zbozi`.
  *
  * Zboží.cz vlastní API nemá (skončilo 16. 3. 2026) a statistiky Seznam
@@ -12,11 +12,11 @@
  *
  * Tvar volání i odpovědí je ověřený proti specifikaci
  * https://api.sklik.cz/v1/openapi.json z 29. 10. 2026 (ne proti živému
- * účtu — první ostrý běh porovnat s UI Skliku).
+ * účtu – první ostrý běh porovnat s UI Skliku).
  *
  * ## Přihlášení
  *
- * Tajemství je klíč API Fénix s právem čtení (r) — vzniká v Skliku pod
+ * Tajemství je klíč API Fénix s právem čtení (r) – vzniká v Skliku pod
  * Nastavení → Správa klíčů API Fénix, jen při přímém přihlášení majitele
  * účtu. `POST /user/token` s `Authorization: Bearer <klíč>` a
  * `grant_type=client_credentials` (formulář) vrátí `access_token` na
@@ -24,7 +24,7 @@
  * proto se token drží v paměti procesu pod otiskem klíče nejvýš 55 minut,
  * ať se nebere při každém kusu okna. `user_id` jde do žádosti jen tehdy,
  * když `external_id` nese číslo propojeného (agenturou spravovaného) účtu.
- * Když datové volání vrátí 401, token se jednou obnoví — Seznam ho může
+ * Když datové volání vrátí 401, token se jednou obnoví – Seznam ho může
  * zneplatnit dřív než za hodinu; druhá 401 už je trvalá chyba (klíč).
  * Chybný klíč vrací endpoint tokenu podle RFC 6749 jako 400
  * (invalid_grant), proto je u tokenu i 400 „špatný klíč“ s návodem.
@@ -37,7 +37,7 @@
  * co se požádalo) a s granularitou je odpověď PLOCHÁ: v `items` se každá
  * kampaň opakuje jednou na den a každý řádek nese statistiky toho dne
  * a jeho `firstDate` (doplňuje API). `limit`/`offset` proto počítají řádky
- * (kampaň × den), ne kampaně — kampaň může být rozdělená přes dvě stránky,
+ * (kampaň × den), ne kampaně – kampaň může být rozdělená přes dvě stránky,
  * což součtům nevadí. Odpověď nenese celkový počet, stránkuje se, dokud
  * stránka vrací plný `limit` (nejvýš 1 000), s pojistkou proti opakované
  * stránce. Nejvýš 60 bucketů na kampaň, denně „do 1 měsíce“ →
@@ -61,13 +61,13 @@ export const platform = 'sklik';
 export const popis = 'Sklik (včetně kampaní Zboží.cz)';
 export const zapisujePlatformy = ['sklik', 'zbozi'];
 export const potrebujeTajemstvi = true;
-export const popisExternalId = 'ID propojeného účtu Sklik (userId) — jen když klíč patří agentuře, jinak prázdné';
+export const popisExternalId = 'ID propojeného účtu Sklik (userId) – jen když klíč patří agentuře, jinak prázdné';
 export const popisParentId = '';
 export const maxDniNaDotaz = 30;
 export const prepisDni = 30;
 
 export const API = 'https://api.sklik.cz/v1';
-/** Řádků (kampaň × den) na stránku — maximum i výchozí hodnota API. */
+/** Řádků (kampaň × den) na stránku – maximum i výchozí hodnota API. */
 export const LIMIT = 1000;
 export const PRODLEVA_MS = 250;
 /** Access token platí hodinu; drží se nejvýš 55 minut, ať nevyprší uprostřed stránkování. */
@@ -83,20 +83,20 @@ const spi = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 /** otisk klíče + user_id → { token, expiresAt } */
 const tokeny = new Map();
 
-/** Zahodí tokeny v paměti — po změně klíče, při 401 a v testech. */
+/** Zahodí tokeny v paměti – po změně klíče, při 401 a v testech. */
 export function vymazTokenySklik() {
   tokeny.clear();
 }
 
 function klicApi(tajemstvi) {
   const klic = String(tajemstvi ?? '').trim();
-  if (!klic) throw new AdapterError('Sklik: chybí klíč API Fénix — uložte ho v nastavení e-shopu (Sklik → Nastavení → Správa klíčů API Fénix, právo čtení)', { permanent: true, platform });
+  if (!klic) throw new AdapterError('Sklik: chybí klíč API Fénix – uložte ho v nastavení e-shopu (Sklik → Nastavení → Správa klíčů API Fénix, právo čtení)', { permanent: true, platform });
   return klic;
 }
 
 const NAVOD_KLIC = 'klíč API Fénix neplatí, vypršel nebo nemá právo čtení (r); nový vzniká v Skliku pod Nastavení → Správa klíčů API Fénix při přímém přihlášení majitele účtu';
 
-/** Dovětek k chybě datového volání podle stavu — co má obsluha udělat. */
+/** Dovětek k chybě datového volání podle stavu – co má obsluha udělat. */
 function napoveda(chyba) {
   if (chyba.status === 401 || chyba.status === 403) return NAVOD_KLIC;
   if (chyba.status === 429) return 'limit API je 5 požadavků za sekundu, běh se zopakuje';
@@ -154,7 +154,7 @@ export function radkyZeStranky(stranka) {
   return Array.isArray(stranka?.items) ? stranka.items : [];
 }
 
-/** Počet řádků (kampaň × den) na stránce — podle nich se stránkuje (`limit`/`offset` počítají řádky, ne kampaně). */
+/** Počet řádků (kampaň × den) na stránce – podle nich se stránkuje (`limit`/`offset` počítají řádky, ne kampaně). */
 export function pocetRadku(stranka) {
   return radkyZeStranky(stranka).length;
 }
@@ -227,7 +227,7 @@ export async function fetchDaily({ source, from, to, tajemstvi, log, fetchImpl, 
     }
     const n = pocetRadku(stranka);
     const otisk = JSON.stringify(stranka);
-    // Pojistka: kdyby API offset ignorovalo, stejná stránka by se sečetla dvakrát — nepřidá se a končí se.
+    // Pojistka: kdyby API offset ignorovalo, stejná stránka by se sečetla dvakrát – nepřidá se a končí se.
     if (n > 0 && otisk === predchozi) {
       log?.warn?.({ offset, radku: n }, `Sklik: stránka s offsetem ${offset} je stejná jako předchozí, stránkování končí`);
       break;
@@ -260,7 +260,7 @@ export async function overit({ source, tajemstvi, log, fetchImpl, sleep = spi, n
     const ucet = me?.userName ?? me?.userId ?? '?';
     const zastupce = me?.actor?.userName ? ` přes ${me.actor.userName}` : '';
     if (Array.isArray(me?.scope) && !me.scope.includes(SCOPE_KAMPANI)) {
-      return { ok: false, zprava: `Účet Sklik ${ucet}: klíč nemá právo „${SCOPE_KAMPANI}“ (čtení kampaní), má jen: ${me.scope.join(', ') || 'nic'} — založte klíč s právem čtení celého účtu` };
+      return { ok: false, zprava: `Účet Sklik ${ucet}: klíč nemá právo „${SCOPE_KAMPANI}“ (čtení kampaní), má jen: ${me.scope.join(', ') || 'nic'} – založte klíč s právem čtení celého účtu` };
     }
 
     let kredit = '';

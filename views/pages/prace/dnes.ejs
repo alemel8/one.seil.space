@@ -81,7 +81,7 @@
     </div>
     <% }) %>
     <div style="font-size:12.5px;color:var(--text-muted);margin-top:6px;">
-      Měření delší než <%= PODEZRELE_HODIN %> hodin se samo neukončuje — vymyšlený čas ve výkazu
+      Měření delší než <%= PODEZRELE_HODIN %> hodin se samo neukončuje – vymyšlený čas ve výkazu
       je horší než chybějící.
     </div>
   </div>
@@ -126,7 +126,7 @@
             <% if (z.task_id) { %>
               <a href="/prace/ukoly/<%= z.task_id %>" style="color:var(--primary);text-decoration:none;font-family:var(--font-mono);font-size:12.5px;"><%= z.ukol_kod %></a>
               <%= z.ukol_nazev %>
-            <% } else { %><span style="color:var(--text-muted);">—</span><% } %>
+            <% } else { %><span style="color:var(--text-muted);">–</span><% } %>
           </td>
           <td style="font-size:13px;color:var(--text-muted);"><%= z.note || '' %></td>
           <td style="text-align:right;font-family:var(--font-mono);font-size:13px;">

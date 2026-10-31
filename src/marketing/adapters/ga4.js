@@ -3,14 +3,14 @@
  *
  * GA4 je jediná platforma, která vidí trychtýř návštěvy (relace → zobrazení
  * produktu → košík → pokladna → nákup) a zdroj návštěv po kanálech; náklady
- * nemá a tržby z ní jsou jen pro porovnání — bez souhlasu s analytikou
+ * nemá a tržby z ní jsou jen pro porovnání – bez souhlasu s analytikou
  * nákup nevidí (hlavička ../kpi.js). Stahují se dva reporty:
  *
  *  A. součty po dnech: dimenze `date`, metriky sessions, totalUsers,
  *     newUsers, engagementRate, itemsViewed, addToCarts, checkouts,
  *     ecommercePurchases, purchaseRevenue → řádek `segment_kind = ''`
  *     (newUsers a engagementRate se stahují podle plánu D9, do tabulky
- *     zatím nejdou — nemají sloupec);
+ *     zatím nejdou – nemají sloupec);
  *  B. kanály: dimenze `date` × `sessionSourceMedium`, metriky sessions,
  *     totalUsers, ecommercePurchases, purchaseRevenue → `segment_kind =
  *     'channel'`, segment doslova „google / cpc“, jak ho GA4 vrací; na
@@ -19,7 +19,7 @@
  *
  * Dva runReporty místo batchRunReports: stránkují se každý zvlášť
  * (limit/offset platí na jeden report) a kvóta tokenů je stejná. Volají se
- * za sebou, ne souběžně — GA4 povoluje 10 souběžných požadavků na property
+ * za sebou, ne souběžně – GA4 povoluje 10 souběžných požadavků na property
  * a noční sync může běžet pro víc e-shopů.
  *
  * ## Datum a pásmo
@@ -33,7 +33,7 @@
  *
  * Když má den řádky kanálů, ale v reportu A chybí (GA4 prahuje a vzorkuje,
  * nemělo by se to stát), součet se dopočítá z kanálů, aby KPI o den
- * nepřišlo — trychtýř (view_item…) v něm pak chybí, relace a nákupy ne,
+ * nepřišlo – trychtýř (view_item…) v něm pak chybí, relace a nákupy ne,
  * a běh to ohlásí varováním.
  */
 
@@ -64,12 +64,12 @@ export const METRIKY_SOUCTU = [
 ];
 export const METRIKY_KANALU = ['sessions', 'totalUsers', 'ecommercePurchases', 'purchaseRevenue'];
 
-/** ID property z napojení; G-… (ID streamu) ani text neprojdou — API by vrátilo 400 a sync by hlásil trvalou chybu bez vysvětlení. */
+/** ID property z napojení; G-… (ID streamu) ani text neprojdou – API by vrátilo 400 a sync by hlásil trvalou chybu bez vysvětlení. */
 export function propertyId(source) {
   const id = jenCislice(source?.external_id);
   if (!id) {
     throw new AdapterError(
-      `GA4: ID property musí být číslo (např. 318467224), ne „${String(source?.external_id ?? '').trim()}“ — G-… je ID datového streamu, property je v GA4 → Správa → Nastavení vlastnosti`,
+      `GA4: ID property musí být číslo (např. 318467224), ne „${String(source?.external_id ?? '').trim()}“ – G-… je ID datového streamu, property je v GA4 → Správa → Nastavení vlastnosti`,
       { permanent: true, platform },
     );
   }
@@ -105,7 +105,7 @@ export function dotazKanaly(from, to, offset = 0) {
 /**
  * Řádky runReportu (jedné odpovědi nebo pole stránek) jako
  * `{ dimenze: { date: '20261005', … }, metriky: { sessions: '142', … } }`
- * — podle názvů v hlavičkách, ne podle pořadí, ať změna pořadí metrik
+ * – podle názvů v hlavičkách, ne podle pořadí, ať změna pořadí metrik
  * nepřehodí sloupce.
  */
 export function radkyReportu(odpoved) {
@@ -192,7 +192,7 @@ export async function overit({ source, log, googleJsonImpl } = {}) {
       scopes: [SCOPE], platform, nazev: 'GA4 property', log, googleJsonImpl, timeoutMs: 20_000,
     });
     const nazev = p?.displayName ? ` (${p.displayName})` : '';
-    const mena = p?.currencyCode && p.currencyCode !== 'CZK' ? ` — pozor, měna property je ${p.currencyCode}, tržby se čekají v CZK` : '';
+    const mena = p?.currencyCode && p.currencyCode !== 'CZK' ? ` – pozor, měna property je ${p.currencyCode}, tržby se čekají v CZK` : '';
     return { ok: true, zprava: `Property ${id}${nazev}, pásmo ${p?.timeZone || 'neznámé'}${mena}` };
   } catch (err) {
     return { ok: false, zprava: zpravaOvereni(err, { platform }) };

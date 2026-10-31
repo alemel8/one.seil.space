@@ -65,7 +65,7 @@
 
       <div class="form-group jen-upravy" style="grid-column:1/-1;">
         <p style="font-size:13px;color:var(--text-muted);margin:0;">
-          Účetní jednotku určuje IČO výše — musí přesně odpovídat IČO účetní jednotky
+          Účetní jednotku určuje IČO výše – musí přesně odpovídat IČO účetní jednotky
           otevřené v POHODĚ, jinak import balíček odmítne.
         </p>
       </div>
@@ -93,7 +93,7 @@
   </div>
 
   <div class="card" style="margin-bottom:20px;">
-    <div class="card-header"><strong>Google Disk — přijaté faktury</strong></div>
+    <div class="card-header"><strong>Google Disk – přijaté faktury</strong></div>
     <div class="card-body" style="display:grid;grid-template-columns:1fr;gap:16px;">
       <%- include('../../includes/pole', { pole: { label: 'ID složky „SEIL - účetnictví“', name: 'gdrive_root_folder_id', value: company.gdrive_root_folder_id, placeholder: '1AbCdEf…',
         hint: 'ID je v adrese složky na Google Disku: drive.google.com/drive/folders/ID. Uvnitř se očekává struktura rok → měsíc → Přijaté faktury. Složku nasdílejte service accountu (proměnná GOOGLE_SERVICE_ACCOUNT_JSON) s právem Čtenář.' } }) %>

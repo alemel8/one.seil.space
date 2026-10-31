@@ -9,7 +9,7 @@ export const CATEGORIES = ['Kancelář', 'Cestovné', 'PHM', 'Stravné', 'Reprez
                     'IT & Software', 'Marketing', 'Provoz', 'Ostatní'];
 
 // Kategorie, u kterých zákon nárok na odpočet DPH nepřipouští
-// (§ 72 odst. 4 ZDPH — náklady na reprezentaci, pohoštění, dary).
+// (§ 72 odst. 4 ZDPH – náklady na reprezentaci, pohoštění, dary).
 export const NO_VAT_CATEGORIES = ['Reprezentace'];
 
 // Nárok na odpočet: u reprezentace ho nelze uplatnit, jinak rozhoduje uživatel.
@@ -27,7 +27,7 @@ function paymentMethodFrom(body) {
 export default async function receiptsRoutes(fastify) {
   const sql = getDb();
 
-  // Formulář účtenky chodí jako multipart — kromě polí veze i foto dokladu.
+  // Formulář účtenky chodí jako multipart – kromě polí veze i foto dokladu.
   // Prohlížeč ho posílá i bez souboru, proto je příloha vždy nepovinná.
   async function parseReceiptForm(request) {
     const fields = {};
@@ -213,7 +213,7 @@ Kategorie PHM použij u nákupu pohonných hmot, Reprezentace u pohoštění, ob
     const vatAmount   = parseFloat(b.vat_amount  || 0);
     const totalAmount = b.total_amount ? parseFloat(b.total_amount) : (amount + vatAmount);
 
-    // Přílohu přepisujeme jen když nějaká přišla — jinak zůstává původní.
+    // Přílohu přepisujeme jen když nějaká přišla – jinak zůstává původní.
     // Starý soubor mažeme až po úspěšném zápisu, ať o doklad nepřijdeme.
     let replaced = null;
     let attachmentSet = sql``;
@@ -306,7 +306,7 @@ Kategorie PHM použij u nákupu pohonných hmot, Reprezentace u pohoštění, ob
   // ── POHODA XML export (Pokladna + Ostatní závazky) ────────────
   //
   // Hotovostní účtenka jde do pokladny, účtenka placená kartou nebo převodem
-  // do ostatních závazků — z pokladny ji účetní stejně vyhazuje, protože
+  // do ostatních závazků – z pokladny ji účetní stejně vyhazuje, protože
   // peníze odešly z účtu. Rozřazení řeší buildPohodaXml podle payment_method.
   fastify.post('/ucetnictvi/uctenky/pohoda-xml', async (request, reply) => {
     const ids = [].concat(request.body?.ids || []).map(Number).filter(Boolean);
@@ -317,13 +317,13 @@ Kategorie PHM použij u nákupu pohonných hmot, Reprezentace u pohoštění, ob
     const plain = txt => reply.code(400).type('text/plain; charset=utf-8').send(txt);
 
     if (receipts.length === 0) {
-      return plain('Není co exportovat — vybrané účtenky jsou ve stavu Storno nebo žádné neexistují.');
+      return plain('Není co exportovat – vybrané účtenky jsou ve stavu Storno nebo žádné neexistují.');
     }
 
     // IČO určuje účetní jednotku, do které POHODA balíček naimportuje
     const [company] = await sql`SELECT * FROM company_settings LIMIT 1`;
     if (!company?.ico) {
-      return plain('Chybí IČO firmy — POHODA bez něj nepozná účetní jednotku. Doplňte jej v Nastavení → Firma.');
+      return plain('Chybí IČO firmy – POHODA bez něj nepozná účetní jednotku. Doplňte jej v Nastavení → Firma.');
     }
 
     const xml = buildPohodaXml(receipts.map(r => ({ ...r, _type: 'receipt' })), {

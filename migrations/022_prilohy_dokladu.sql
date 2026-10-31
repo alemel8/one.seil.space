@@ -1,5 +1,5 @@
 -- Ukládání naskenovaných/vyfocených dokladů, ze kterých vytěžujeme data.
--- Doposud se soubor poslal Claudovi na vytěžení a zahodil — účtenka po sobě
+-- Doposud se soubor poslal Claudovi na vytěžení a zahodil – účtenka po sobě
 -- nezanechala žádný obrazový doklad, což účetní při kontrole potřebuje.
 
 -- ── Účtenky: příloha (foto / PDF paragonu) ───────────────────

@@ -1,8 +1,8 @@
-// Trade SEIL — minimální routa pro přehled paper tradingu.
+// Trade SEIL – minimální routa pro přehled paper tradingu.
 //
 // Zatím jen servíruje vygenerovaný dashboard za One SEIL přihlášením.
 // Plnohodnotný modul (vlastní DB, worker, kill-switch) až podle
-// Trade_SEIL_Integracni_plan_v1.md — teď by to bylo stavění platformy
+// Trade_SEIL_Integracni_plan_v1.md – teď by to bylo stavění platformy
 // před důkazem edge, což návrh v1.1 zakazuje (past 13.1).
 //
 // Dashboard generuje research/build_dashboard.py; sem se jen kopíruje
@@ -34,7 +34,7 @@ export default async function tradeRoutes(fastify) {
         <div style="position:fixed;top:0;left:0;right:0;z-index:99;
              background:#F59E0B;color:#0A1626;font:600 13px/1.4 system-ui;
              padding:8px 16px;text-align:center;">
-          Data jsou stará ${Math.floor(ageH)} h — denní krok pravděpodobně neproběhl.
+          Data jsou stará ${Math.floor(ageH)} h – denní krok pravděpodobně neproběhl.
         </div><div style="height:34px"></div>` : '';
       return reply.type('text/html; charset=utf-8').send(banner + html);
     } catch (err) {

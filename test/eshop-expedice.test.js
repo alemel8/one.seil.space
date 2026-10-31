@@ -1,9 +1,9 @@
 // Podání balíku u e-shopu podepsané tajemstvím TOHO e-shopu.
 //
-// Dřív jedno globální SHOP_WEBHOOK_SECRET pro všechny e-shopy — Dílna by
+// Dřív jedno globální SHOP_WEBHOOK_SECRET pro všechny e-shopy – Dílna by
 // musela znát tajemství Toneráčku. Teď: Toneráček jen globální (sloupec
 // shops.webhook_secret se u něj nečte), ostatní e-shopy jen vlastní
-// shops.webhook_secret. Bez něj se jejich balík nepodá — globální jim
+// shops.webhook_secret. Bez něj se jejich balík nepodá – globální jim
 // nikdy nejde, ani když se tajemství nepodaří načíst.
 //
 // Potřebuje databázi, běžící server ne. „E-shop“ je lokální HTTP server na
@@ -21,7 +21,7 @@ function lokalniDatabaze() {
   const url = process.env.DATABASE_URL || '';
   const host = url ? new URL(url).hostname : '';
   if (!['127.0.0.1', 'localhost'].includes(host) && process.env.TEST_DB_ALLOW_REMOTE !== '1') {
-    throw new Error(`Test zakládá e-shopy — DATABASE_URL musí mířit na 127.0.0.1/localhost, ne na "${host}"`);
+    throw new Error(`Test zakládá e-shopy – DATABASE_URL musí mířit na 127.0.0.1/localhost, ne na "${host}"`);
   }
   return url;
 }
@@ -91,7 +91,7 @@ describe('tajemství pro podání balíku', () => {
 
   test('když se tajemství nepodaří načíst, jiný e-shop nedostane nic', async () => {
     process.env.SHOP_WEBHOOK_SECRET = SECRET_GLOBALNI;
-    // Nečíselné id shodí dotaz — stejná cesta jako výpadek databáze.
+    // Nečíselné id shodí dotaz – stejná cesta jako výpadek databáze.
     assert.equal(await expedice.webhookSecretEshopu('neni-cislo'), '');
   });
 

@@ -87,7 +87,7 @@
     <div>
       <%# Doklad k objednávce nese v záhlaví značku e-shopu, u kterého zákazník
           nakoupil. Vystavitele (SEIL s.r.o.) uvádí blok Dodavatel níž a patička
-          — je to jeho faktura, ale zákazník ji má poznat podle e-shopu. %>
+          – je to jeho faktura, ale zákazník ji má poznat podle e-shopu. %>
       <% if (brand) { %>
         <div class="brand-logo">
           <% if (brand.logo_mark_url) { %><img src="<%= brand.logo_mark_url %>" alt=""><% } %>
@@ -105,7 +105,7 @@
         <%# Razítko řídí `uhrada` z renderInvoiceHtml() (zobrazeniUhrady() v
             src/danovy-doklad.js). Dobírka razítko ZAPLACENO nedostane, i když
             je objednávka vyřízená: zákazník platí až při převzetí a nevyzvednutá
-            zásilka by nechala „zaplacený“ doklad bez peněz. Ani PO SPLATNOSTI —
+            zásilka by nechala „zaplacený“ doklad bez peněz. Ani PO SPLATNOSTI –
             u dobírky to znamená, že ji ještě nikdo nespároval s penězi od
             Zásilkovny, ne že zákazník dluží. %>
         <% if (uhrada.zaplaceno) { %>
@@ -160,7 +160,7 @@
   <%# Všechna data přes ceskeDatum(), ne toLocaleDateString(): to čte datum
       v pásmu procesu a na stroji západně od UTC by vystavení a splatnost
       ukázalo o den dřív než DUZP o řádek níž. Dobírka se neplatí do data
-      splatnosti, ale při převzetí — datum v databázi slouží jen obsluze. %>
+      splatnosti, ale při převzetí – datum v databázi slouží jen obsluze. %>
   <table class="meta-table">
     <tr>
       <td class="label">Datum vystavení</td>
@@ -170,7 +170,7 @@
     </tr>
     <%# Daňový doklad musí nést den plnění nebo přijetí úplaty, liší-li se ode
         dne vystavení (§ 29 odst. 1 písm. h ZDPH). Tiskne se vždy, i když je
-        shodný — čtenář pak nemusí domýšlet, co znamená chybějící řádek.
+        shodný – čtenář pak nemusí domýšlet, co znamená chybějící řádek.
         Zálohová faktura daňovým dokladem není, `uhrada.duzp` je u ní prázdné. %>
     <% if (uhrada.duzp) { %>
     <tr>
@@ -215,7 +215,7 @@
         <td style="text-align:right;font-weight:500;"><%= Number(item.total).toLocaleString('cs-CZ', {minimumFractionDigits:2}) %> Kč</td>
       </tr>
       <% }) %>
-      <%# Faktury bez rozpisu (import z POHODY) — ať tabulka není prázdná %>
+      <%# Faktury bez rozpisu (import z POHODY) – ať tabulka není prázdná %>
       <% if (!items.length) {
            const base = Number(invoice.amount) || 0;
            const rate = base ? Math.round((Number(invoice.vat_amount) || 0) / base * 100) : 0; %>
@@ -276,7 +276,7 @@
 
   <!-- Platební info -->
   <%# Zaplacený doklad platební instrukce neuvádí. Číslo účtu a variabilní
-      symbol na faktuře, která je vyřízená a uhrazená, svádí k druhé platbě —
+      symbol na faktuře, která je vyřízená a uhrazená, svádí k druhé platbě –
       a u dobírky k platbě, která se nespáruje, protože peníze vybere dopravce. %>
   <% if (uhrada.dobirka) { %>
   <div class="payment-info">
@@ -291,19 +291,19 @@
     <div class="payment-info-grid">
       <div>
         <div class="label">Číslo účtu</div>
-        <div><strong><%= issuer.bank_account || '—' %></strong></div>
+        <div><strong><%= issuer.bank_account || '–' %></strong></div>
       </div>
       <div>
         <div class="label">IBAN</div>
-        <div><%= issuer.iban || '—' %></div>
+        <div><%= issuer.iban || '–' %></div>
       </div>
       <div>
         <div class="label">Banka</div>
-        <div><%= issuer.bank_name || '—' %></div>
+        <div><%= issuer.bank_name || '–' %></div>
       </div>
       <div>
         <div class="label">SWIFT/BIC</div>
-        <div><%= issuer.swift || '—' %></div>
+        <div><%= issuer.swift || '–' %></div>
       </div>
       <div>
         <div class="label">Variabilní symbol</div>
@@ -325,7 +325,7 @@
   <% } %>
 
   <!-- Patička
-       Doklad e-shopu se podepisuje e-shopem — zákazník nakoupil u něj.
+       Doklad e-shopu se podepisuje e-shopem – zákazník nakoupil u něj.
        Vystavitele nese blok Dodavatel výš, včetně IČO a DIČ, takže se
        o identifikaci prodávajícího nepřichází. Doklady mimo e-shop
        (ruční, opakované, import z POHODY) se podepisují vystavitelem. -->

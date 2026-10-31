@@ -61,13 +61,13 @@
             <input type="checkbox" class="bulk-cb" value="<%= r.id %>" onchange="bulkUpdate()"
                    data-cash="<%= hotove ? '1' : '0' %>" data-exported="<%= exportovano %>">
           </td>
-          <td style="font-weight:600;color:var(--primary);"><%= r.number || '—' %></td>
-          <td><%= r.vendor || '—' %></td>
+          <td style="font-weight:600;color:var(--primary);"><%= r.number || '–' %></td>
+          <td><%= r.vendor || '–' %></td>
           <td style="color:var(--text-muted);font-size:13px;"><%= new Date(r.receipt_date).toLocaleDateString('cs-CZ') %></td>
           <td>
             <span style="font-size:12px;color:var(--text-muted);"><%= r.category %></span>
             <% if (bezDph) { %><br><span class="badge" style="background:#fef3c7;color:#92400e;font-size:10px;"
-                 title="Bez nároku na odpočet DPH — celá částka jde do nákladů">bez odpočtu</span><% } %>
+                 title="Bez nároku na odpočet DPH – celá částka jde do nákladů">bez odpočtu</span><% } %>
           </td>
           <td>
             <span class="badge" style="background:<%= hotove ? '#e0e7ff' : '#fce7f3' %>;color:<%= hotove ? '#3730a3' : '#9d174d' %>;font-size:11px;"
@@ -77,7 +77,7 @@
           <td style="text-align:right;font-weight:600;"><%= Number(r.total_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= r.currency %></td>
           <td onclick="event.stopPropagation();">
             <% if (r.attachment_path && r.attachment_missing) { %>
-              <span class="doklad-thumb doklad-thumb-missing" title="Doklad chybí — soubor <%= r.attachment_path %> na serveru není. Nahrajte jej prosím znovu.">
+              <span class="doklad-thumb doklad-thumb-missing" title="Doklad chybí – soubor <%= r.attachment_path %> na serveru není. Nahrajte jej prosím znovu.">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
               </span>
             <% } else if (r.attachment_path) { %>
@@ -163,7 +163,7 @@
           <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
         </svg>
         <p style="margin:10px 0 3px;font-weight:600;color:var(--text-primary);font-size:14px;">Nahrát PDF / foto a vytěžit automaticky</p>
-        <p style="margin:0;font-size:12px;color:var(--text-muted);">Přetáhněte soubor nebo klikněte — Claude vyplní pole za vás</p>
+        <p style="margin:0;font-size:12px;color:var(--text-muted);">Přetáhněte soubor nebo klikněte – Claude vyplní pole za vás</p>
       </label>
       <label for="rcFileInputCamera" class="rc-manual-btn">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -172,7 +172,7 @@
         </svg>
         <div>
           <div style="font-weight:600;font-size:14px;color:var(--text-primary);">Vyfotit účtenku</div>
-          <div style="font-size:12px;color:var(--text-muted);">Otevře fotoaparát — foto se zmenší a uloží k dokladu</div>
+          <div style="font-size:12px;color:var(--text-muted);">Otevře fotoaparát – foto se zmenší a uloží k dokladu</div>
         </div>
       </label>
       <button type="button" class="rc-manual-btn" onclick="rcOpenManual()">
@@ -383,7 +383,7 @@
   const form            = document.getElementById('rcForm');
   let currentBlobUrl    = null;
   let currentFile       = null;   // připravený (zmenšený) soubor, který se uloží s účtenkou
-  let currentPreview    = null;   // co ukázat v popupu — blob nově vybraného souboru i už uložený doklad
+  let currentPreview    = null;   // co ukázat v popupu – blob nově vybraného souboru i už uložený doklad
 
   document.querySelectorAll('[data-modal-open="modalCreate"]').forEach(b =>
     b.addEventListener('click', rcOpen)
@@ -398,7 +398,7 @@
     if (currentBlobUrl) { URL.revokeObjectURL(currentBlobUrl); currentBlobUrl = null; }
     currentFile = null;
     // Křížek modalu nemá data-modal-close, takže obsluha v app.js scroll
-    // neobnoví — bez tohohle zůstane stránka po zavření zamrzlá.
+    // neobnoví – bez tohohle zůstane stránka po zavření zamrzlá.
     if (!document.querySelector('.dn-backdrop.open')) document.body.style.overflow = '';
   };
 
@@ -437,7 +437,7 @@
     if (f) handleAiFile(f);
   });
 
-  // Popup náhled — funguje pro blob právě vybraného souboru i pro uložený doklad
+  // Popup náhled – funguje pro blob právě vybraného souboru i pro uložený doklad
   function rcSetPreview(preview) {
     currentPreview = preview;
     zoomBtn.style.display = preview ? '' : 'none';
@@ -446,7 +446,7 @@
     if (currentPreview) window.dokladNahled.open(currentPreview);
   };
 
-  // Zmenší fotku ještě v prohlížeči — na vytěžení i do archivu jde stejný,
+  // Zmenší fotku ještě v prohlížeči – na vytěžení i do archivu jde stejný,
   // už odlehčený soubor, takže se velké foto z mobilu nahrává jen jednou.
   async function prepareFile(file) {
     const res = await window.dokladFoto.prepare(file);
@@ -539,10 +539,10 @@
       }
       rcUhrada();
       aiBadge.style.cssText = 'display:block;background:var(--primary-light);color:var(--primary-dark);border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;font-weight:600;';
-      aiBadge.textContent = '✦ Pole byla předvyplněna z dokladu — zkontrolujte prosím hodnoty';
+      aiBadge.textContent = '✦ Pole byla předvyplněna z dokladu – zkontrolujte prosím hodnoty';
     } else if (errMsg) {
       aiBadge.style.cssText = 'display:block;background:var(--danger-bg);color:var(--danger);border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;font-weight:600;';
-      aiBadge.textContent = '⚠ ' + errMsg + ' — vyplňte pole ručně.';
+      aiBadge.textContent = '⚠ ' + errMsg + ' – vyplňte pole ručně.';
     }
 
     inner.classList.add('rc-expanded');
@@ -583,7 +583,7 @@
     }
   });
 
-  // Dofocení dokladu přímo v seznamu — zmenšíme a pošleme bez opuštění stránky
+  // Dofocení dokladu přímo v seznamu – zmenšíme a pošleme bez opuštění stránky
   window.rcAttachSubmit = async function (input) {
     const raw = input.files && input.files[0];
     if (!raw) return;
@@ -611,11 +611,11 @@
   // Předkontace autocomplete
   fetch('/api/accounting-chart').then(r => r.json()).then(list => {
     const dl = document.getElementById('rcAcList');
-    if (dl) dl.innerHTML = list.map(a => `<option value="${a.code}">${a.code} — ${a.name}</option>`).join('');
+    if (dl) dl.innerHTML = list.map(a => `<option value="${a.code}">${a.code} – ${a.name}</option>`).join('');
   }).catch(() => {});
 
   // Reprezentace nárok na odpočet DPH nemá (§ 72 odst. 4 ZDPH) a doklad placený
-  // kartou nepatří do pokladny — obojí ukážeme rovnou při zakládání účtenky.
+  // kartou nepatří do pokladny – obojí ukážeme rovnou při zakládání účtenky.
   const RC_NO_VAT   = <%- JSON.stringify(NO_VAT_CATEGORIES) %>;
   const RC_PAYMENTS = <%- JSON.stringify(PAYMENT_METHODS) %>;
 
@@ -629,7 +629,7 @@
     if (RC_NO_VAT.includes(cat)) {
       vat.checked  = false;
       vat.disabled = true;
-      rows.push('Reprezentace — odpočet DPH nelze uplatnit, celá částka jde do nákladů.');
+      rows.push('Reprezentace – odpočet DPH nelze uplatnit, celá částka jde do nákladů.');
     } else {
       vat.disabled = false;
       if (!vat.checked) rows.push('Celá částka včetně DPH půjde do nákladů.');
@@ -650,7 +650,7 @@
     document.getElementById('bulkCount').textContent = `${cbs.length} vybráno`;
     inp.innerHTML = [...cbs].map(c => `<input type="hidden" name="ids" value="${c.value}">`).join('');
 
-    // Ať je dopředu vidět, co z výběru půjde do pokladny a co mezi závazky —
+    // Ať je dopředu vidět, co z výběru půjde do pokladny a co mezi závazky –
     // účetní nechce v pokladně doklady placené kartou.
     const cash     = [...cbs].filter(c => c.dataset.cash === '1').length;
     const exported = [...cbs].filter(c => c.dataset.exported).length;

@@ -1,6 +1,6 @@
 <%
-  const fmtD = d => d ? new Date(d).toLocaleDateString('cs-CZ') : '—';
-  const fmtDT = d => d ? new Date(d).toLocaleString('cs-CZ') : '—';
+  const fmtD = d => d ? new Date(d).toLocaleDateString('cs-CZ') : '–';
+  const fmtDT = d => d ? new Date(d).toLocaleString('cs-CZ') : '–';
   const statusColor = s => ({
     'Aktivní':      ['var(--success-bg)', '#166534'],
     'Pozastaveno':  ['var(--warning-bg)', '#92400e'],
@@ -54,19 +54,19 @@
     <div class="card">
       <div class="card-header"><strong>Provoz</strong></div>
       <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <%# Název a stav jsou v zobrazení v hlavičce stránky, napojení ukazují karty vpravo — v kartě jen při úpravách. %>
+        <%# Název a stav jsou v zobrazení v hlavičce stránky, napojení ukazují karty vpravo – v kartě jen při úpravách. %>
         <%- include('../../includes/pole', { pole: { label: 'Název', name: 'name', value: item.name, required: true, trida: 'jen-upravy' } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Stav', name: 'status', typ: 'select', value: item.status, moznosti: ITEM_STATUSES, trida: 'jen-upravy' } }) %>
-        <%- include('../../includes/pole', { pole: { label: 'Kde to běží', name: 'hosting_provider', value: item.hosting_provider, placeholder: 'např. Coolify — VPS #1', styl: 'grid-column:1/-1' } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'Kde to běží', name: 'hosting_provider', value: item.hosting_provider, placeholder: 'např. Coolify – VPS #1', styl: 'grid-column:1/-1' } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Produkce', name: 'production_url', typ: 'url', value: item.production_url, placeholder: 'https://…' } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Staging', name: 'staging_url', typ: 'url', value: item.staging_url, placeholder: 'https://staging…' } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Repozitář', name: 'repo_url', typ: 'url', value: item.repo_url, placeholder: 'https://github.com/…' } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Tech stack', name: 'tech_stack', value: item.tech_stack, placeholder: 'Node.js, PostgreSQL…' } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Datum spuštění', name: 'go_live_date', typ: 'date', value: item.go_live_date } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Napojený eshop', name: 'shop_id', typ: 'select', value: item.shop_id,
-          moznosti: shops.map(s => [s.id, s.name]), prazdna: '— žádný —', trida: 'jen-upravy' } }) %>
+          moznosti: shops.map(s => [s.id, s.name]), prazdna: '– žádný –', trida: 'jen-upravy' } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Napojený healthcheck', name: 'healthcheck_id', typ: 'select', value: item.healthcheck_id,
-          moznosti: healthchecks.map(h => [h.id, h.name]), prazdna: '— žádný —', trida: 'jen-upravy' } }) %>
+          moznosti: healthchecks.map(h => [h.id, h.name]), prazdna: '– žádný –', trida: 'jen-upravy' } }) %>
       </div>
     </div>
 

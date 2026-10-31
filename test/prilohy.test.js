@@ -1,4 +1,4 @@
-// Přístup k přílohám — kdo smí otevřít výplatní pásku a kdo ne.
+// Přístup k přílohám – kdo smí otevřít výplatní pásku a kdo ne.
 //
 // Testy jedou proti běžícímu serveru a databázi z .env; přihlášení obchází
 // vložením session přímo do DB, stejně jako test/invoices.test.js.
@@ -57,7 +57,7 @@ const get = (p, cookie) => fetch(BASE + p, { headers: cookie ? { cookie } : {}, 
 before(async () => {
   sql = postgres(process.env.DATABASE_URL, { ssl: process.env.DATABASE_SSL === 'true', max: 3 });
   const health = await fetch(BASE + '/health').catch(() => null);
-  assert.ok(health?.ok, `server neběží na ${BASE} — spusť npm start`);
+  assert.ok(health?.ok, `server neběží na ${BASE} – spusť npm start`);
 
   const r = crypto.randomBytes(4).toString('hex');
   ctx.spravce  = await zalozUzivatele(`test-admin-${r}@example.invalid`, true);
@@ -80,7 +80,7 @@ before(async () => {
   `;
   ctx.paskaId = pas.id;
 
-  // Příloha úkolu — pracovní materiál, ne osobní údaj
+  // Příloha úkolu – pracovní materiál, ne osobní údaj
   const taskId = 'test_task_' + r;
   uklid.tasks.push(taskId);
   await sql`INSERT INTO tasks (id, summary) VALUES (${taskId}, 'Testovací úkol')`;
@@ -111,7 +111,7 @@ after(async () => {
 describe('přístup k přílohám', () => {
   test('odhlášený se k dokladům nedostane ani přímo, ani přes přílohu', async () => {
     // data/media bývalo na veřejné cestě a stačilo uhodnout název souboru.
-    // Odhlášeného teď odchytí globální guard a pošle ho na přihlášení —
+    // Odhlášeného teď odchytí globální guard a pošle ho na přihlášení –
     // proto 302, ne 401 (na 401 v routě se dostane leda API klient).
     const primo = await fetch(`${BASE}/media/${uklid.soubory[0]}`, { redirect: 'manual' });
     assert.equal(primo.status, 302, '/media musí přesměrovat na přihlášení');
@@ -147,7 +147,7 @@ describe('přístup k přílohám', () => {
     assert.ok(!(await res.text()).includes('PASKA'), 'obsah se nesmí prozradit');
   });
 
-  test('příloha úkolu je pracovní materiál — vidí ji každý přihlášený', async () => {
+  test('příloha úkolu je pracovní materiál – vidí ji každý přihlášený', async () => {
     const res = await get(`/doklady/priloha/${ctx.ukolId}`, ctx.cizi.cookie);
     assert.equal(res.status, 200);
     // XML se nabídne ke stažení, ne k zobrazení v prohlížeči

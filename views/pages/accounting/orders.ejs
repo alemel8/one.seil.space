@@ -26,8 +26,8 @@
         <% orders.forEach(o => { %>
         <tr>
           <td style="font-weight:500;font-family:var(--font-mono);letter-spacing:0.3px;"><%= o.number %></td>
-          <td><%= o.subject || '—' %></td>
-          <td style="color:var(--text-muted);"><%= o.company_name || '—' %></td>
+          <td><%= o.subject || '–' %></td>
+          <td style="color:var(--text-muted);"><%= o.company_name || '–' %></td>
           <td style="font-variant-numeric:tabular-nums;"><%= o.amount.toLocaleString('cs-CZ') %> <%= o.currency %></td>
           <td>
             <span class="badge" style="background:<%= o.status === 'Dokončena' ? 'var(--success-bg)' : o.status === 'Zrušena' ? 'var(--danger-bg)' : 'var(--warning-bg)' %>;color:<%= o.status === 'Dokončena' ? '#15803D' : o.status === 'Zrušena' ? '#991B1B' : '#92400E' %>;">
@@ -85,7 +85,7 @@
           <div class="form-group col-span-2">
             <label class="form-label">Firma</label>
             <select name="company_id" class="form-select">
-              <option value="">— Bez firmy —</option>
+              <option value="">– Bez firmy –</option>
               <% (companies || []).forEach(c => { %>
                 <option value="<%= c.id %>"><%= c.name %></option>
               <% }); %>

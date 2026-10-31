@@ -1,11 +1,11 @@
 -- ============================================================
--- one.seil.space — druhý e-shop: vlastní klíče, webhook a účty po e-shopech
+-- one.seil.space – druhý e-shop: vlastní klíče, webhook a účty po e-shopech
 -- ============================================================
 -- Dílna Vlněnka má jezdit přes One SEIL přesně jako Toneráček, jen pod
 -- vlastním klíčem a s vlastními zákaznickými účty. Toneráček přitom zůstává
 -- beze změny: dál chodí na /api/toneracek s klíčem z TONERACEK_API_KEY a jeho
 -- účty dál žijí v crm_contacts. Nic tu proto nepřepisuje existující data
--- ani výchozí hodnoty existujících sloupců — jen přidává.
+-- ani výchozí hodnoty existujících sloupců – jen přidává.
 --
 -- Bezpečné na živé databázi: jen CREATE … IF NOT EXISTS a ADD COLUMN
 -- IF NOT EXISTS s konstantní (nebo stabilní) výchozí hodnotou, což Postgres
@@ -13,11 +13,11 @@
 --
 -- Pořadí je kvůli zámkům, ne kvůli čtení. Celá migrace je jedna transakce
 -- (src/migrate.js) a každý zámek drží až do COMMIT:
---   1. crm_contact_shops — na main ho nikdo nečte ani nepíše;
---   2. eshop_api_keys — cizí klíče berou na `shops` a `users` zámek, který
+--   1. crm_contact_shops – na main ho nikdo nečte ani nepíše;
+--   2. eshop_api_keys – cizí klíče berou na `shops` a `users` zámek, který
 --      blokuje jen zápis, čtení ne;
 --   3. ALTER TABLE shops úplně nakonec. Bere výhradní zámek a každý požadavek
---      Toneráčku čte `shops` (getToneracekShopId) — výhradní zámek se tak
+--      Toneráčku čte `shops` (getToneracekShopId) – výhradní zámek se tak
 --      drží milisekundy až do COMMIT, a ne po celou dobu čekání na zámky
 --      ostatních tabulek.
 -- Když ALTER na `shops` čeká za cizí transakcí (pg_dump, zapomenutá psql
@@ -42,7 +42,7 @@ SET LOCAL lock_timeout = '2s';
 --
 -- POZOR: is_registered má od migrace 001 výchozí TRUE. Výchozí hodnota se
 -- tu schválně nemění (zásah do existujícího sloupce); kód /api/eshop zapisuje
--- is_registered vždy výslovně — FALSE u hosta z objednávky, TRUE jen při
+-- is_registered vždy výslovně – FALSE u hosta z objednávky, TRUE jen při
 -- registraci.
 
 ALTER TABLE crm_contact_shops ADD COLUMN IF NOT EXISTS password_backup TEXT NOT NULL DEFAULT '';
@@ -66,7 +66,7 @@ ALTER TABLE crm_contact_shops ADD COLUMN IF NOT EXISTS zip          TEXT;
 CREATE INDEX IF NOT EXISTS crm_contact_shops_shop_idx ON crm_contact_shops (shop_id);
 
 COMMENT ON COLUMN crm_contact_shops.is_registered IS
-  'Má účet v tomhle e-shopu (/api/eshop). Výchozí TRUE je z migrace 001 — kód vždy zapisuje výslovně. Účty Toneráčku jsou v crm_contacts.is_registered.';
+  'Má účet v tomhle e-shopu (/api/eshop). Výchozí TRUE je z migrace 001 – kód vždy zapisuje výslovně. Účty Toneráčku jsou v crm_contacts.is_registered.';
 COMMENT ON COLUMN crm_contact_shops.password_backup IS
   'Záložní kopie bcrypt hashe hesla z e-shopu (PWDHASH:…), obdoba crm_contacts.notes u Toneráčku. Ven jen přes ?withNote=1.';
 COMMENT ON COLUMN crm_contact_shops.gdpr_consent_at IS
@@ -75,7 +75,7 @@ COMMENT ON COLUMN crm_contact_shops.gdpr_consent_at IS
 -- ── Klíče pro /api/eshop ──────────────────────────────────────
 -- Schválně ne `api_keys`. Starší /api/v1 přijme kterýkoli aktivní klíč
 -- z `api_keys` a jeho zákaznické endpointy čtou a mění všechny kontakty
--- v CRM — klíč Dílny uložený tam by tedy otevřel i zákazníky Toneráčku
+-- v CRM – klíč Dílny uložený tam by tedy otevřel i zákazníky Toneráčku
 -- a obchodní partnery SEILu.
 --
 -- Ukládá se jen SHA-256 otisk. Klíč se ukáže jednou při vygenerování;
@@ -97,7 +97,7 @@ CREATE TABLE IF NOT EXISTS eshop_api_keys (
 CREATE INDEX IF NOT EXISTS eshop_api_keys_shop_idx ON eshop_api_keys (shop_id);
 
 COMMENT ON TABLE eshop_api_keys IS
-  'Klíče pro /api/eshop/* — jen SHA-256 otisk (hex). Klíč určuje e-shop, každý dotaz API je omezený na jeho shop_id.';
+  'Klíče pro /api/eshop/* – jen SHA-256 otisk (hex). Klíč určuje e-shop, každý dotaz API je omezený na jeho shop_id.';
 
 -- ── Tajemství pro volání One SEIL → e-shop ────────────────────
 -- Podání balíku (POST {shops.url}/api/orders/podat-balik) se podepisuje
@@ -105,9 +105,9 @@ COMMENT ON TABLE eshop_api_keys IS
 -- všechny e-shopy, takže by Dílna musela znát tajemství Toneráčku a únik
 -- z jednoho e-shopu by otevřel podávání balíků u druhého.
 -- Toneráček sloupec nepoužívá a jede dál na globální SHOP_WEBHOOK_SECRET;
--- ostatní e-shopy jen na vlastním — prázdné = balík se nepodá.
+-- ostatní e-shopy jen na vlastním – prázdné = balík se nepodá.
 --
--- Poslední příkaz migrace — viz pořadí v hlavičce.
+-- Poslední příkaz migrace – viz pořadí v hlavičce.
 
 ALTER TABLE shops ADD COLUMN IF NOT EXISTS webhook_secret TEXT NOT NULL DEFAULT '';
 

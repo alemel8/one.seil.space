@@ -82,7 +82,7 @@ function invoiceStatus(row, today = new Date()) {
   return 'Nezaplacena';
 }
 
-// ARES lookup — vrátí {name, dic, address, city, zip} nebo null
+// ARES lookup – vrátí {name, dic, address, city, zip} nebo null
 async function aresLookup(ico, delayMs = 200) {
   await new Promise(r => setTimeout(r, delayMs));
   try {
@@ -370,7 +370,7 @@ async function importReceived() {
 // ── Hlavní ───────────────────────────────────────────────────
 
 console.log('=== Import POHODA → one.seil.space ===');
-if (DRY_RUN)   console.log('⚠  DRY RUN — nic se neukládá');
+if (DRY_RUN)   console.log('⚠  DRY RUN – nic se neukládá');
 if (WITH_ARES) console.log('★  ARES enrichment zapnut');
 
 try {

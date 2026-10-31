@@ -14,12 +14,12 @@ export const BASE   = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000';
 export const SECRET = process.env.SESSION_SECRET || 'one-seil-space-secret-change-in-production-32chars';
 export const PRESKOCIT = !process.env.DATABASE_URL && 'bez DATABASE_URL (lokální testovací databáze) se serverová část přeskakuje';
 
-/** DATABASE_URL, jen když míří na localhost — testy zakládají a mažou data. */
+/** DATABASE_URL, jen když míří na localhost – testy zakládají a mažou data. */
 export function lokalniDatabaze() {
   const url = process.env.DATABASE_URL || '';
   const host = url ? new URL(url).hostname : '';
   if (!['127.0.0.1', 'localhost'].includes(host) && process.env.TEST_DB_ALLOW_REMOTE !== '1') {
-    throw new Error(`Test zapisuje do databáze — DATABASE_URL musí mířit na 127.0.0.1/localhost, ne na "${host}"`);
+    throw new Error(`Test zapisuje do databáze – DATABASE_URL musí mířit na 127.0.0.1/localhost, ne na "${host}"`);
   }
   return url;
 }

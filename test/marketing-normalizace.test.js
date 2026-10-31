@@ -1,4 +1,4 @@
-// Jednotkový test normalizace řádků statistik z adaptérů — běží bez databáze
+// Jednotkový test normalizace řádků statistik z adaptérů – běží bez databáze
 // i serveru:
 //
 //   node --test test/marketing-normalizace.test.js
@@ -7,8 +7,8 @@
 // zlomky, záporné opravy, data mimo okno, segment u denního součtu) vznikne
 // řádek, který projde CHECK constrainty a UNIQUE indexem marketing_daily_stats,
 // že každý řádek nese platformu (Sklik a Zboží téhož dne se nikdy nesečtou
-// do jednoho) a že se nic podezřelého nezahodí potichu — ani při součtu
-// kampaní před normalizací — ale vrátí se jako varování nebo důvod.
+// do jednoho) a že se nic podezřelého nezahodí potichu – ani při součtu
+// kampaní před normalizací – ale vrátí se jako varování nebo důvod.
 // Když je v repozitáři migrace 042, kontrolují se proti ní typy sloupců
 // a číselníky; bez ní se ten test přeskočí.
 
@@ -34,14 +34,14 @@ describe('číselníky', () => {
 
   test('metriky a číselníky sedí na migraci 042 (když už je v repozitáři)', (t) => {
     const migrace = nactiMigraci042();
-    if (!migrace) { t.skip('migrations/042_marketing.sql tu ještě není — píše ji jiný krok'); return; }
+    if (!migrace) { t.skip('migrations/042_marketing.sql tu ještě není – píše ji jiný krok'); return; }
     const blok = blokTabulky(migrace, 'marketing_daily_stats');
     assert.ok(blok, 'CREATE TABLE marketing_daily_stats v migraci');
     const sloupce = sloupceTabulky(blok);
     for (const m of METRIKY) {
       assert.ok(sloupce[m], `sloupec ${m} v migraci`);
       if (DESETINNE_METRIKY.includes(m)) {
-        assert.match(sloupce[m], /^NUMERIC\(/, `${m} musí být NUMERIC — 2,5 konverze by jinak spadlo na INSERTu`);
+        assert.match(sloupce[m], /^NUMERIC\(/, `${m} musí být NUMERIC – 2,5 konverze by jinak spadlo na INSERTu`);
       } else {
         assert.match(sloupce[m], /^(INTEGER|BIGINT)$/, `${m} je počet, čeká se celé číslo`);
       }
@@ -87,7 +87,7 @@ describe('normalizujRadek', () => {
   });
 
   test('platforma: z řádku, jinak z voleb; řádek bez ní nebo s neznámou se zahodí s důvodem', () => {
-    // řádek má přednost — adaptér Skliku posílá sklik i zbozi v jedné dávce
+    // řádek má přednost – adaptér Skliku posílá sklik i zbozi v jedné dávce
     assert.equal(normalizujRadek({ date: '2026-10-05', platform: 'zbozi' }, { ...OKNO, platform: 'sklik' }).radek.platform, 'zbozi');
     assert.equal(normalizujRadek({ date: '2026-10-05', platform: ' sklik ' }, OKNO).radek.platform, 'sklik');
     assert.equal(normalizujRadek({ date: '2026-10-05', platform: '' }, OKNO).radek.platform, 'ga4');
@@ -149,7 +149,7 @@ describe('normalizujRadek', () => {
     assert.deepEqual(varovani, []);
   });
 
-  test('nečíselná hodnota (text, čárka, NaN, Infinity, objekt) je nula s varováním — chyba adaptéru má být vidět', () => {
+  test('nečíselná hodnota (text, čárka, NaN, Infinity, objekt) je nula s varováním – chyba adaptéru má být vidět', () => {
     const { radek, varovani } = normalizujRadek(
       { date: '2026-10-05', cost: NaN, clicks: Infinity, purchase: 'n/a', cost_with_vat: '149,38', sessions: { a: 1 } }, OKNO,
     );
@@ -174,7 +174,7 @@ describe('normalizujRadek', () => {
     assert.equal(s.radek.segment.includes('\u0000'), false);
   });
 
-  test('denní součet nenese segment — kdyby přišel, zahodí se s varováním', () => {
+  test('denní součet nenese segment – kdyby přišel, zahodí se s varováním', () => {
     const { radek, varovani } = normalizujRadek({ date: '2026-10-05', segment_kind: '', segment: 'Kampaň' }, OKNO);
     assert.equal(radek.segment, '');
     assert.deepEqual(varovani, ['denní součet nenese segment, „Kampaň“ zahozen']);
@@ -198,11 +198,11 @@ describe('sectiRadky', () => {
     assert.equal(radky[1].cost, 5);
     assert.equal(radky[2].cost, 1);
     assert.deepEqual(Object.keys(radky[0]), TVAR_RADKU);
-    // „x“ v sessions se nesmí ztratit v nule potichu — tohle je jediné místo, kde ji ještě někdo vidí
+    // „x“ v sessions se nesmí ztratit v nule potichu – tohle je jediné místo, kde ji ještě někdo vidí
     assert.deepEqual(varovani, ['sessions 2026-10-05 (A): nečíselná hodnota "x" nahrazena nulou']);
   });
 
-  test('Sklik a Zboží téhož dne zůstanou dva řádky — platforma je součást klíče', () => {
+  test('Sklik a Zboží téhož dne zůstanou dva řádky – platforma je součást klíče', () => {
     const { radky, varovani } = sectiRadky([
       { platform: 'sklik', date: '2026-10-05', cost: 100, clicks: 10 },
       { platform: 'zbozi', date: '2026-10-05', cost: 40, clicks: 4 },

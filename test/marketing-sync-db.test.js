@@ -1,5 +1,5 @@
 // Noční stahování marketingových statistik (src/marketing/sync.js) proti
-// testovací databázi s falešným adaptérem — bez volání skutečných platforem.
+// testovací databázi s falešným adaptérem – bez volání skutečných platforem.
 //
 // Hlídá: ruční běh uloží okno a označí běh hotovo; opakovaný zápis okna
 // nahradí staré řádky a nedotkne se řádků mimo okno; rozběhnutý zdroj druhý
@@ -17,7 +17,7 @@ import crypto from 'node:crypto';
 import postgres from 'postgres';
 import { prazskyCas, pridejDny } from '../src/prazsky-cas.js';
 // sync.js (přes alerty.js a healthcheck-worker.js) otevírá databázi už při
-// importu — bez DATABASE_URL se moduly načtou až v before(), ať soubor
+// importu – bez DATABASE_URL se moduly načtou až v before(), ať soubor
 // přeskočí místo pádu.
 let SyncBeziError, poSmycce, spustSyncRucne, tikMarketing, ulozOkno, UDALOST_PNO, UDALOST_SYNC;
 
@@ -27,7 +27,7 @@ const r = crypto.randomBytes(4).toString('hex');
 function lokalniDatabaze() {
   const host = DATABASE_URL ? new URL(DATABASE_URL).hostname : '';
   if (!['127.0.0.1', 'localhost'].includes(host) && process.env.TEST_DB_ALLOW_REMOTE !== '1') {
-    throw new Error(`Test zapisuje statistiky a objednávky — DATABASE_URL musí mířit na 127.0.0.1/localhost, ne na "${host}"`);
+    throw new Error(`Test zapisuje statistiky a objednávky – DATABASE_URL musí mířit na 127.0.0.1/localhost, ne na "${host}"`);
   }
   return DATABASE_URL;
 }

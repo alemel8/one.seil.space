@@ -1,4 +1,4 @@
-// Personální agenda — dotazy nad osobním účtem člověka.
+// Personální agenda – dotazy nad osobním účtem člověka.
 //
 // Airtable to nepojmenoval, ale je to běžný účet jednoho člověka:
 //   příjmy   = co se za jeho práci vyfakturovalo (fakturační podklady)
@@ -47,7 +47,7 @@ export async function osobniUcet(sql, userId, { rok = null } = {}) {
   };
 }
 
-/** Osobní účty všech lidí naráz — pro přehled napříč týmem. */
+/** Osobní účty všech lidí naráz – pro přehled napříč týmem. */
 export async function osobniUctyVsech(sql, { rok = null } = {}) {
   const lide = await sql`
     SELECT id, public_id, first_name, last_name, email, photo, is_active
@@ -56,12 +56,12 @@ export async function osobniUctyVsech(sql, { rok = null } = {}) {
   const ucty = await Promise.all(lide.map(u => osobniUcet(sql, u.id, { rok })));
   return lide
     .map((u, i) => ({ ...u, ucet: ucty[i] }))
-    // Kdo nemá žádná data, do přehledu ziskovosti nepatří — jen by ho ředil
+    // Kdo nemá žádná data, do přehledu ziskovosti nepatří – jen by ho ředil
     .filter(u => u.ucet.prijmyPocet || u.ucet.vydajePocet || u.ucet.ostatniPocet);
 }
 
 /**
- * Poslední pohyby na osobním účtu — sloučené ze všech tří zdrojů.
+ * Poslední pohyby na osobním účtu – sloučené ze všech tří zdrojů.
  * Bez tohohle jsou čísla v dlaždicích magie, na kterou se nedá kliknout.
  */
 export async function posledniPohyby(sql, userId, limit = 12) {
@@ -105,7 +105,7 @@ export async function podkladyUzivatele(sql, userId) {
   `;
 }
 
-/** Mzdové listy člověka. Měsíc s víc listy označíme — Airtable jich vedl víc. */
+/** Mzdové listy člověka. Měsíc s víc listy označíme – Airtable jich vedl víc. */
 export async function mzdyUzivatele(sql, userId) {
   const rows = await sql`
     SELECT r.*, r.paid_total::float8 AS paid_total, r.company_cost::float8 AS company_cost,
@@ -145,7 +145,7 @@ export async function dokumentyUzivatele(sql, userId) {
   `;
 }
 
-/** Mzdy napříč lidmi za rok — mřížka měsíc × člověk. */
+/** Mzdy napříč lidmi za rok – mřížka měsíc × člověk. */
 export async function mzdyPrehled(sql, rok) {
   const rows = await sql`
     SELECT r.id, r.user_id, r.period, r.paid, r.hours,
@@ -161,14 +161,14 @@ export async function mzdyPrehled(sql, rok) {
       FROM users u JOIN hr_payroll_runs r ON r.user_id = u.id
      ORDER BY u.id
   `;
-  // Mřížka ukáže i díru v měsíci — u souvislé řady je to to hlavní,
+  // Mřížka ukáže i díru v měsíci – u souvislé řady je to to hlavní,
   // co chcete hlídat, a plochý seznam by ji schoval.
   const mesice = [...new Set(rows.map(r => String(r.period).slice(0, 7)))].sort().reverse();
   const bunky = new Map(rows.map(r => [`${String(r.period).slice(0, 7)}|${r.user_id}`, r]));
   return { lide, mesice, bunky, rows };
 }
 
-/** Roky, ve kterých vůbec nějaká mzda je — do přepínače období. */
+/** Roky, ve kterých vůbec nějaká mzda je – do přepínače období. */
 export async function mzdoveRoky(sql) {
   const r = await sql`SELECT DISTINCT EXTRACT(YEAR FROM period)::int AS rok
                         FROM hr_payroll_runs ORDER BY rok DESC`;
@@ -248,7 +248,7 @@ export async function podkladDetail(sql, id) {
   return { podklad, lokality, soubory };
 }
 
-/** Popisky kategorií příloh — jedno místo pro celé UI. */
+/** Popisky kategorií příloh – jedno místo pro celé UI. */
 export const KATEGORIE_PRILOH = {
   vyplatni_paska:   'Výplatní páska',
   mzdovy_rozpis:    'Podklady od mzdové účetní',
@@ -288,7 +288,7 @@ export const UVAZKY = [
 
 /**
  * Naměřený čas po měsících, vedle hodin ve mzdě za tentýž měsíc.
- * Rozdíl se ZÁMĚRNĚ nedopočítává na nulu — v datech z Airtable jsou měsíce,
+ * Rozdíl se ZÁMĚRNĚ nedopočítává na nulu – v datech z Airtable jsou měsíce,
  * kde se hodiny vykázaly bez měření i naopak, a schovat to by znamenalo
  * tvářit se, že evidence sedí, když nesedí.
  */

@@ -3,7 +3,7 @@
  *
  * Merchant říká dvě věci, které nikde jinde nejsou: kolik kliků a zobrazení
  * dostal feed (zvlášť bezplatné záznamy ORGANIC a reklamy Nákupů ADS)
- * a kolik položek feedu je schválených a zamítnutých — zamítnuté položky
+ * a kolik položek feedu je schválených a zamítnutých – zamítnuté položky
  * jsou první, co se kontroluje, když Nákupy nepřinášejí. Náklady Merchant
  * nemá (ty jsou v Google Ads), konverze jen u bezplatných záznamů, proto
  * se neukládají.
@@ -15,7 +15,7 @@
  *  - `aggregateProductStatuses` → schválené (`activeCount`) a zamítnuté
  *    (`disapprovedCount`) položky; sečtou se záznamy s kontextem
  *    SHOPPING_ADS (když žádný není, všechny) a zapíší se na POSLEDNÍ den
- *    okna — API vrací jen dnešní stav, historii nemá, a přepis okna ho
+ *    okna – API vrací jen dnešní stav, historii nemá, a přepis okna ho
  *    každou noc posune. Stahuje se jen pro okno, které sahá aspoň
  *    k včerejšku: historické kusy prvního běhu (400 dní po 31 dnech) by
  *    jinak dostaly dnešní stav na konec každého kusu a přehled za minulý
@@ -25,7 +25,7 @@
  * `datumZOdpovedi()` bere i řetězec, kdyby ho API někdy vracelo tak.
  * Den je v pásmu účtu Merchant Center (`overit()` ho vypisuje).
  *
- * Scope `content` je jediný, který Merchant API má (read-only neexistuje) —
+ * Scope `content` je jediný, který Merchant API má (read-only neexistuje) –
  * klíč service accountu je proto potřeba chránit stejně jako token s právem
  * zápisu. Před prvním voláním je nutná jednorázová registrace Cloud
  * projektu u účtu (`developerRegistration:registerGcp`), viz
@@ -57,14 +57,14 @@ export function accountId(source) {
   const id = jenCislice(source?.external_id);
   if (!id) {
     throw new AdapterError(
-      `Merchant Center: číslo účtu musí být číslo, ne „${String(source?.external_id ?? '').trim()}“ — je vpravo nahoře v Merchant Center`,
+      `Merchant Center: číslo účtu musí být číslo, ne „${String(source?.external_id ?? '').trim()}“ – je vpravo nahoře v Merchant Center`,
       { permanent: true, platform },
     );
   }
   return id;
 }
 
-/** MCQL za okno — přesně podle plánu D9. */
+/** MCQL za okno – přesně podle plánu D9. */
 export function dotazVykonu(from, to) {
   return `SELECT date, marketing_method, clicks, impressions, click_through_rate FROM product_performance_view WHERE date BETWEEN '${from}' AND '${to}'`;
 }

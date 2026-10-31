@@ -1,4 +1,4 @@
-// Přístupová matice — katalog, vyhodnocení práv a mapování URL.
+// Přístupová matice – katalog, vyhodnocení práv a mapování URL.
 //
 // Nepotřebuje běžící server ani databázi:
 //   node --test test/access.test.js
@@ -61,7 +61,7 @@ describe('vyhodnocení práv', () => {
     assert.equal(isAllowed(spravce({ 'lide.mzdy': true }), 'lide.mzdy'), true);
     assert.equal(isAllowed(spravce({ 'lide.mzdy': false }), 'lide.mzdy'), false);
 
-    // Zbytek katalogu se chová dál po starém — nasazení nikoho neodřízne
+    // Zbytek katalogu se chová dál po starém – nasazení nikoho neodřízne
     assert.equal(isAllowed(spravce(), 'lide.tym'), true);
     assert.equal(isAllowed(spravce(), 'lide.podklady'), true);
 
@@ -98,7 +98,7 @@ describe('katalog odpovídá skutečným routám', () => {
     .map(f => readFileSync(new URL(`../src/routes/${f}`, import.meta.url), 'utf8'))
     .join('\n');
 
-  // Hledá se registrace routy, ne výskyt řetězce kdekoli — cesta se
+  // Hledá se registrace routy, ne výskyt řetězce kdekoli – cesta se
   // objevuje i v currentPath předávaném do šablony, což by kontrolu
   // odbylo a test by nechytil nic.
   const registrovane = new Set(

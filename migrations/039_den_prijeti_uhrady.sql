@@ -1,5 +1,5 @@
 -- ============================================================
--- one.seil.space — den přijetí úhrady a datum zdanitelného plnění
+-- one.seil.space – den přijetí úhrady a datum zdanitelného plnění
 -- ============================================================
 -- Faktura k objednávce e-shopu vzniká až přepnutím na „Vyřízena“, často dny
 -- po platbě, a okamžik platby se do té doby nikam neukládal. Karta zaplacená
@@ -9,25 +9,25 @@
 -- a vystavit se má do 15 dnů ode dne, kdy vznikla povinnost přiznat daň
 -- (§ 28 odst. 8). Bez obou sloupců nejde ani jedno.
 --
--- **`shop_orders.paid_at`** — okamžik, kdy e-shop poprvé ohlásil zaplacení
+-- **`shop_orders.paid_at`** – okamžik, kdy e-shop poprvé ohlásil zaplacení
 -- (v praxi kartou): stavem „Zaplaceno“ v PATCH payment-status nebo
 -- payment-method, nebo už při založení objednávky (POST se stavem
 -- „Zaplaceno“). Okamžik, ne datum: pražský den se z něj počítá až při
 -- vystavení faktury a v hlídání lhůty, protože platba ve 0:30 pražského času
 -- je v UTC ještě předchozí den. U převodu rozhoduje den úhrady zálohové
--- faktury (`paid_date`), u dobírky odeslání do skladu — tam se `paid_at`
+-- faktury (`paid_date`), u dobírky odeslání do skladu – tam se `paid_at`
 -- nepoužívá.
 --
--- **`accounting_invoices.taxable_date`** — DUZP vydané faktury. U karty
+-- **`accounting_invoices.taxable_date`** – DUZP vydané faktury. U karty
 -- a převodu den přijetí úplaty, u dobírky den vystavení (plnění = odeslání).
 -- Obsluha ho může opravit v úpravě faktury.
 --
--- Nic se zpětně nedoplňuje — ani `paid_at`, ani `taxable_date` už vydaných
+-- Nic se zpětně nedoplňuje – ani `paid_at`, ani `taxable_date` už vydaných
 -- faktur. Vymyšlené datum na už vydaném daňovém dokladu je horší než žádné;
 -- NULL v `taxable_date` znamená „stejné jako datum vystavení“, tak se to
 -- tisklo i exportovalo dosud. Zaplacené karty bez `paid_at`, ke kterým se
 -- faktura vystaví až po migraci, dostanou za den přijetí úplaty pražský den
--- založení objednávky (karta se platí rovnou v pokladně) — počítá se při
+-- založení objednávky (karta se platí rovnou v pokladně) – počítá se při
 -- vystavení, do databáze se nepíše. Viz denPlatbyKartou() v
 -- src/danovy-doklad.js.
 

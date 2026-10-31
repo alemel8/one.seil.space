@@ -25,7 +25,7 @@ cd "$ROOT"
 SSH_USER="${SSH_USER:-ales}"
 TUNNEL_PORT="${TUNNEL_PORT:-55433}"
 
-# Cíl tunelu se bere z DATABASE_URL v .env — hostitel databáze je i VPS,
+# Cíl tunelu se bere z DATABASE_URL v .env – hostitel databáze je i VPS,
 # kam se tuneluje, takže není co konfigurovat dvakrát.
 TUNNEL_INFO="$(TUNNEL_PORT="$TUNNEL_PORT" node --input-type=module -e '
   import "./scripts/lib/load-env.js";
@@ -47,7 +47,7 @@ ssh -M -S "$CTL" -f -N \
     -o ExitOnForwardFailure=yes -o ConnectTimeout=10 \
     -L "$TUNNEL_PORT:localhost:$DB_PORT" "$SSH_TARGET"
 
-# Zavřít tunel za sebou vždy — i při chybě, i při Ctrl-C
+# Zavřít tunel za sebou vždy – i při chybě, i při Ctrl-C
 cleanup() { ssh -S "$CTL" -O exit "$SSH_TARGET" 2>/dev/null || true; }
 trap cleanup EXIT INT TERM
 

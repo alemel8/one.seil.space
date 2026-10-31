@@ -1,11 +1,11 @@
-// Přístupová matice — katalog sekcí systému a vyhodnocení práv.
+// Přístupová matice – katalog sekcí systému a vyhodnocení práv.
 //
 // Jeden zdroj pravdy pro tři místa: matici v Lidé & Kultura → Přístupy,
 // položky v levém menu a strážce rout na serveru. Kdo přidá novou sekci do
-// sidebaru, přidá ji i sem — jinak ji matice nezná a zůstane přístupná všem.
+// sidebaru, přidá ji i sem – jinak ji matice nezná a zůstane přístupná všem.
 //
 // Práva umí jen ubírat, ne přidávat: co je adminOnly, zůstane adminOnly i
-// se zaškrtnutým políčkem. Bez uloženého záznamu platí „vidí“ — jinak by
+// se zaškrtnutým políčkem. Bez uloženého záznamu platí „vidí“ – jinak by
 // nasazení migrace odřízlo všechny od všeho. Výjimkou jsou položky
 // s defaultDeny, které se otevřou až vědomým zaškrtnutím v matici.
 //
@@ -82,7 +82,7 @@ export const ACCESS_SECTIONS = [
     key: 'prace',
     label: 'Práce',
     items: [
-      // Bez adminOnly — kdo si měří čas, musí se ke svým úkolům dostat.
+      // Bez adminOnly – kdo si měří čas, musí se ke svým úkolům dostat.
       // Že vidí jen svoje, řeší routy, ne matice; ta umí jen celou URL.
       { key: 'prace.muj-cas', label: 'Můj čas', path: '/prace', exact: true },
       { key: 'prace.ukoly',   label: 'Úkoly',   path: '/prace/ukoly' },
@@ -109,7 +109,7 @@ export const ACCESS_SECTIONS = [
       { key: 'lide.ekonomika', label: 'Ekonomika lidí',      path: '/lide/ekonomika', defaultDeny: true },
       { key: 'lide.mzdy',      label: 'Mzdy',                path: '/lide/mzdy',      defaultDeny: true },
       { key: 'lide.podklady',  label: 'Fakturační podklady', path: '/lide/podklady' },
-      // Editor přístupů si nelze odebrat — viz isAllowed()
+      // Editor přístupů si nelze odebrat – viz isAllowed()
       { key: 'lide.pristupy',  label: 'Přístupy',            path: '/lide/pristupy', locked: true },
     ],
   },
@@ -140,7 +140,7 @@ export function isAllowed(user, item) {
   const it = typeof item === 'string' ? accessItem(item) : item;
   if (!it) return true;               // co katalog nezná, to neomezuje
 
-  // Role je tvrdší než matice — zaškrtnutí nepovýší uživatele na správce.
+  // Role je tvrdší než matice – zaškrtnutí nepovýší uživatele na správce.
   if ((it.adminOnly || it.section?.adminOnly) && !user.is_admin) return false;
 
   // Pojistka proti zamčení: správce vždy dosáhne na editor přístupů.
@@ -149,7 +149,7 @@ export function isAllowed(user, item) {
   const saved = user.access?.[it.key];
   if (saved !== undefined && saved !== null) return Boolean(saved);
 
-  // Bez uloženého záznamu platí „vidí" — jinak by přidání nové sekce
+  // Bez uloženého záznamu platí „vidí" – jinak by přidání nové sekce
   // odřízlo všechny, dokud by někdo neproklikal matici. U citlivých
   // položek je to ale obráceně: výplatní pásku má vidět ten, komu ji
   // někdo vědomě zpřístupní, ne každý, kdo se náhodou stal správcem.
@@ -162,7 +162,7 @@ export function visibleItems(user, section) {
 }
 
 /**
- * Strom katalogu ořezaný na to, co uživatel vidí — pro sidebar.
+ * Strom katalogu ořezaný na to, co uživatel vidí – pro sidebar.
  * Prázdné sekce vypadnou.
  */
 export function visibleSections(user) {
@@ -182,7 +182,7 @@ function matchesPath(pathname, base, exact) {
 
 /**
  * Najde položku katalogu, pod kterou spadá URL požadavku.
- * Vrací null pro cesty mimo katalog (API, profil, statika) — ty matice neřeší.
+ * Vrací null pro cesty mimo katalog (API, profil, statika) – ty matice neřeší.
  * Při překryvu vyhrává nejdelší shoda (/nastaveni/eshopy před /nastaveni).
  */
 export function matchAccessItem(url) {

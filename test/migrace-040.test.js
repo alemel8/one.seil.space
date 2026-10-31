@@ -6,7 +6,7 @@
 //    nemění typy ani výchozí hodnoty a nepřepisuje data;
 //  - lock_timeout nejvýš 2 s;
 //  - `shops` (čte ho každý požadavek Toneráčku) se zamyká výhradně až na
-//    konci — výhradní zámek se pak drží milisekundy do COMMIT, ne po dobu
+//    konci – výhradní zámek se pak drží milisekundy do COMMIT, ne po dobu
 //    čekání na zámky ostatních tabulek.
 //
 // Databázi nepotřebuje.

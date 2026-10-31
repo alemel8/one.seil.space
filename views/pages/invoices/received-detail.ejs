@@ -6,11 +6,11 @@
                    invoice.status==='Po splatnosti' ? '#991b1b' :
                    invoice.status==='Storno'        ? '#6b7280' : '#92400e';
   const fmt = n  => Number(n||0).toLocaleString('cs-CZ', {minimumFractionDigits:2});
-  const fmtD = d => d ? new Date(d).toLocaleDateString('cs-CZ') : '—';
+  const fmtD = d => d ? new Date(d).toLocaleDateString('cs-CZ') : '–';
   const isOverdue = invoice.due_date && invoice.status !== 'Zaplacena' && invoice.status !== 'Storno' && new Date(invoice.due_date) < new Date();
   // Režim úprav (src/upravy.js): jediný formulář záznamu; bez JS otevře
   // úpravy ?upravit=1. Pole leží na kartách obou sloupců a hlásí se k němu
-  // přes form= — mezi kartami jsou formuláře příloh, párování a exportu.
+  // přes form= – mezi kartami jsou formuláře příloh, párování a exportu.
   const formular = 'formFaktura';
   const rezim = rezimUprav ? 'upravy' : 'zobrazeni';
   const urlZpet = `/ucetnictvi/prijate-faktury/${invoice.id}`;
@@ -38,7 +38,7 @@
   </div>
 </div>
 
-<%# Formulář záznamu je naschvál prázdný — formulář ve formuláři nejde a jeho
+<%# Formulář záznamu je naschvál prázdný – formulář ve formuláři nejde a jeho
     pole leží na kartách mezi formuláři příloh a akcí (form="formFaktura"). %>
 <form method="post" action="/ucetnictvi/prijate-faktury/<%= invoice.id %>/upravit" id="formFaktura" class="upravitelne"></form>
 
@@ -61,7 +61,7 @@
       </div>
       <div class="card-body">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-          <%# Číslo faktury je v zobrazení v nadpisu stránky — tady jen v úpravách. %>
+          <%# Číslo faktury je v zobrazení v nadpisu stránky – tady jen v úpravách. %>
           <%- include('../../includes/pole', { pole: { label: 'Číslo faktury', name: 'number', value: invoice.number, required: true, form: formular, trida: 'jen-upravy', styl: 'grid-column:1/-1' } }) %>
           <%- include('../../includes/pole', { pole: { label: 'Název dodavatele', name: 'supplier', value: invoice.supplier, required: true, form: formular, styl: 'grid-column:1/-1' } }) %>
           <%- include('../../includes/pole', { pole: { label: 'IČO', name: 'supplier_ico', value: invoice.supplier_ico, form: formular } }) %>
@@ -107,7 +107,7 @@
         <%- include('../../includes/pole', { pole: { label: 'D (dal)', name: 'account_credit', value: invoice.account_credit, placeholder: '321', tridaHodnoty: 'pole-mono', form: formular } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Odpočet DPH', name: 'vat_deductible', typ: 'checkbox', value: invoice.vat_deductible !== false, hodnotaVstupu: 'on', form: formular,
           popisek: 'Uplatnit nárok na odpočet DPH', zobraz: invoice.vat_deductible !== false ? 'Uplatněn' : 'Bez nároku', styl: 'grid-column:1/-1',
-          hint: 'Vypněte u reprezentace a pohoštění (§ 72 odst. 4 ZDPH) — do POHODY pak jde celá částka včetně DPH do nákladů a členění DPH „Nezahrnovat do DPH“.' } }) %>
+          hint: 'Vypněte u reprezentace a pohoštění (§ 72 odst. 4 ZDPH) – do POHODY pak jde celá částka včetně DPH do nákladů a členění DPH „Nezahrnovat do DPH“.' } }) %>
       </div>
     </div>
 
@@ -214,7 +214,7 @@
       <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
         <div>
           <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Popis</div>
-          <div style="font-weight:500;"><%= bankTx.description || bankTx.message || '—' %></div>
+          <div style="font-weight:500;"><%= bankTx.description || bankTx.message || '–' %></div>
         </div>
         <div>
           <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Částka</div>

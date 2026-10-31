@@ -11,13 +11,13 @@
  * Proč to existuje: kód dodavatele posílá e-shop až od nasazení expedice do
  * skladu (migrace 037). Objednávky přijaté dřív ho v `shop_order_items` nemají
  * a ranní e-mail by u nich vytiskl interní SKU s poznámkou „chybí kód
- * dodavatele" — sklad podle něj nic nenajde. Skript kódy dohledá v Airtable
+ * dodavatele" – sklad podle něj nic nenajde. Skript kódy dohledá v Airtable
  * a doplní; potom už je zbytečný.
  *
  * Přepisuje jen prázdné hodnoty. Co e-shop poslal, je pravda z doby
  * objednávky a nemá se přepisovat dnešním katalogem.
  *
- * Multipack vlastní kód nemá — vychystávají se jeho jednotlivé náplně, takže
+ * Multipack vlastní kód nemá – vychystávají se jeho jednotlivé náplně, takže
  * se doplní jejich kódy oddělené „+", stejně jako to nově dělá e-shop.
  *
  * Potřebuje `AIRTABLE_API_KEY` s přístupem ke katalogu Toneráčku
@@ -95,7 +95,7 @@ async function kodyProSku(skus) {
 
 async function main() {
   if (!KEY) {
-    console.error('Chybí AIRTABLE_API_KEY — bez něj se kódy nemají kde vzít.');
+    console.error('Chybí AIRTABLE_API_KEY – bez něj se kódy nemají kde vzít.');
     process.exit(1);
   }
 
@@ -113,7 +113,7 @@ async function main() {
   `;
 
   if (!polozky.length) {
-    console.log('Není co doplnit — všechny položky se SKU už kód dodavatele mají.');
+    console.log('Není co doplnit – všechny položky se SKU už kód dodavatele mají.');
     await sql.end();
     return;
   }

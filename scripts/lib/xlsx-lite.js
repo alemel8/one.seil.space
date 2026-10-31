@@ -2,13 +2,13 @@
  * Minimalistická čtečka XLSX bez externích závislostí.
  *
  * XLSX je ZIP archiv s XML uvnitř. Rozbalíme přes vestavěné zlib
- * (inflateRawSync) a XML přečteme regexem — pro exporty z POHODY
+ * (inflateRawSync) a XML přečteme regexem – pro exporty z POHODY
  * (ploché tabulky, jeden list) to plně stačí a ušetří to závislost
  * na balíčku `xlsx`, který má známé CVE.
  *
  *   readSheet('/cesta/soubor.xlsx')  →  [{ 'Číslo': '221100015', ... }, …]
  *
- * Buňky s datem vrací jako Excel sériové číslo (dny od 30.12.1899) —
+ * Buňky s datem vrací jako Excel sériové číslo (dny od 30.12.1899) –
  * na datum je převede excelDate() v importním skriptu.
  */
 
@@ -19,7 +19,7 @@ import zlib from 'node:zlib';
 
 /** Rozbalí ZIP do mapy { 'cesta/v/archivu.xml': Buffer }. */
 function unzip(buf) {
-  // End of Central Directory — hledáme od konce (max. 64 kB komentář)
+  // End of Central Directory – hledáme od konce (max. 64 kB komentář)
   let eocd = -1;
   for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65558); i--) {
     if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
@@ -40,7 +40,7 @@ function unzip(buf) {
     const localOff = buf.readUInt32LE(ptr + 42);
     const name     = buf.toString('utf8', ptr + 46, ptr + 46 + nameLen);
 
-    // Lokální hlavička má vlastní délky name/extra — datový offset se počítá z ní
+    // Lokální hlavička má vlastní délky name/extra – datový offset se počítá z ní
     const lNameLen  = buf.readUInt16LE(localOff + 26);
     const lExtraLen = buf.readUInt16LE(localOff + 28);
     const dataOff   = localOff + 30 + lNameLen + lExtraLen;

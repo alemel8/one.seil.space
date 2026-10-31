@@ -1,4 +1,4 @@
-// Jednotkový test generátoru POHODA XML — běží bez databáze i serveru:
+// Jednotkový test generátoru POHODA XML – běží bez databáze i serveru:
 //
 //   node --test test/pohoda.test.js
 //

@@ -5,7 +5,7 @@
  * Každý tik (10 min) projde aktivní zdroje aktivních e-shopů (zdroje.js) a
  * po páté hodině pražského času zajistí, že za každý zdroj proběhl dnes jeden
  * automatický běh. Běh je řádek `marketing_sync_runs`, který vzniká PŘED prací
- * a je zároveň zámkem — částečné unikátní indexy (jeden auto běh na zdroj
+ * a je zároveň zámkem – částečné unikátní indexy (jeden auto běh na zdroj
  * a den, nejvýš jeden rozběhnutý) drží i při překryvu starého a nového
  * kontejneru při nasazení, stejně jako u expedice (src/expedice.js).
  *
@@ -16,7 +16,7 @@
  * kusy po `maxDniNaDotaz`. Při prvním běhu od `since` zdroje (strop 400 dní).
  * Výsledek se ukládá v jedné transakci jako DELETE okna + INSERT: kampaň,
  * která z platformy zmizela (přejmenovaná), by jinak zůstala v okně navždy.
- * Adaptér Skliku zapisuje dvě platformy (`sklik` + `zbozi`) — maže se okno
+ * Adaptér Skliku zapisuje dvě platformy (`sklik` + `zbozi`) – maže se okno
  * všech, které deklaruje v `zapisujePlatformy`.
  *
  * ## Chyby
@@ -48,7 +48,7 @@ export class SyncBeziError extends Error {
   constructor() { super('Pro tenhle zdroj právě běží stahování'); this.name = 'SyncBeziError'; }
 }
 
-/** Sloupce INSERTu do marketing_daily_stats — tvar řádku z normalizace.js + shop_id a run_id. */
+/** Sloupce INSERTu do marketing_daily_stats – tvar řádku z normalizace.js + shop_id a run_id. */
 export const SLOUPCE_RADKU = ['shop_id', 'platform', 'date', 'segment_kind', 'segment', ...METRIKY, 'run_id'];
 
 /** Nejdelší ruční okno (stejný strop jako první běh). */
@@ -57,12 +57,12 @@ export const MAX_DNI_RUCNE = KONSTANTY.prvniBehMaxDni;
 /** Hodina pražského času, od které se hlásí PNO nad prahem (data za včerejšek už jsou stažená). */
 export const HODINA_PNO = 7;
 
-/** Click-id u objednávek se maže po 90 dnech (plán C2 — pseudonymní identifikátor nemá ležet u objednávky roky). */
+/** Click-id u objednávek se maže po 90 dnech (plán C2 – pseudonymní identifikátor nemá ležet u objednávky roky). */
 export const RETENCE_CLICK_ID_DNI = 90;
 
 const DAVKA_INSERTU = 500;
 
-/** Start tohoto procesu — dnešní chyby zapsané před ním dostanou po restartu jeden pokus navíc (sync-pravidla.js). */
+/** Start tohoto procesu – dnešní chyby zapsané před ním dostanou po restartu jeden pokus navíc (sync-pravidla.js). */
 export const START_PROCESU = new Date();
 
 let adapteryCache = null;
@@ -108,7 +108,7 @@ export async function zalozBehSyncu(sql, { zdroj, kind = 'auto', runDate, od, do
   }
 }
 
-/** Další pokus po přechodné chybě — compare-and-set, kdo neuspěje, nemá co dělat. */
+/** Další pokus po přechodné chybě – compare-and-set, kdo neuspěje, nemá co dělat. */
 export async function prevezmiBehSyncu(sql, dnesni, { od, do: do_ }) {
   try {
     const [row] = await sql`
@@ -144,7 +144,7 @@ async function dokonciBehSyncu(sql, beh, rowsSaved) {
 // ── Zápis okna ─────────────────────────────────────────────────
 
 /**
- * Nahradí řádky platforem v okně `[od, do]` novými — jedna transakce, aby
+ * Nahradí řádky platforem v okně `[od, do]` novými – jedna transakce, aby
  * přehled nikdy neviděl smazané okno bez nových dat. Řádky mimo okno nebo
  * cizí platformy se nezapíší (hlídá to už adaptér, tady je to pojistka).
  */
@@ -306,7 +306,7 @@ export async function tikMarketing(log, { adaptery, now = new Date(), fetchImpl,
     const zdroje = await aktivniZdroje(sql);
     for (const zdroj of zdroje) {
       const adapter = registr[zdroj.platform];
-      if (!adapter) continue;  // např. zbozi — plní ho adaptér Skliku
+      if (!adapter) continue;  // např. zbozi – plní ho adaptér Skliku
       try {
         await zpracujZdrojAuto(sql, log, { zdroj, adapter, prazsky, now, fetchImpl, procesOd });
       } catch (err) {

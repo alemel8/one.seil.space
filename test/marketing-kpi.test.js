@@ -1,4 +1,4 @@
-// Jednotkový test KPI marketingového přehledu — běží bez databáze i serveru:
+// Jednotkový test KPI marketingového přehledu – běží bez databáze i serveru:
 //
 //   node --test test/marketing-kpi.test.js
 //
@@ -9,7 +9,7 @@
 // rozpočítání ručního nákladu po dnech na překryv s obdobím a hlášení
 // překryvu s náklady z API, dělení nulou → null, prahy porovnání ±10/25 %
 // a nulové doplnění grafu i pro neplatné období. SQL pomocníci jedou proti
-// falešné databázi, která dotaz jen složí a vrátí připravené řádky —
+// falešné databázi, která dotaz jen složí a vrátí připravené řádky –
 // kontroluje se, že se ptají na sloupce z migrace 042 (proti souboru
 // migrace, když už je v repozitáři) a filtrují pražský den; skutečné SQL tu
 // neběží. Kopie pravidel z expedice.js (zaplaceno, pseudo-položky) se
@@ -28,7 +28,7 @@ import {
 } from '../src/marketing/kpi.js';
 import { blokTabulky, nactiMigraci042, pridaneSloupce, sloupceTabulky } from './fixtures/marketing/migrace-042.js';
 
-/** Zdrojový text expedice.js s bílými znaky sraženými na mezeru — pro kontrolu, že se místní kopie pravidel nerozešly. */
+/** Zdrojový text expedice.js s bílými znaky sraženými na mezeru – pro kontrolu, že se místní kopie pravidel nerozešly. */
 const EXPEDICE_ZDROJ = readFileSync(new URL('../src/expedice.js', import.meta.url), 'utf8').replace(/\s+/g, ' ');
 
 describe('DPH a číselníky', () => {
@@ -53,11 +53,11 @@ describe('DPH a číselníky', () => {
     assert.equal(jePseudoPolozka('T03065'), false);
     assert.equal(jePseudoPolozka(null), false);
     assert.ok(EXPEDICE_ZDROJ.includes("PSEUDO_SKU = ['SLEVA-REG', 'DOPRAVA', 'DOBIRKA']"),
-      'PSEUDO_SKU se v expedice.js změnil nebo přestěhoval — sjednotit kopii v kpi.js');
+      'PSEUDO_SKU se v expedice.js změnil nebo přestěhoval – sjednotit kopii v kpi.js');
   });
 });
 
-describe('kanalZeZdrojeAMedia — pořadí pravidel', () => {
+describe('kanalZeZdrojeAMedia – pořadí pravidel', () => {
   const pripady = [
     // click-id vyhrává nad vším
     [['seznam', 'cpc', 'www.seznam.cz', 'gclid'], 'google_ads'],
@@ -407,7 +407,7 @@ describe('rozpad GA4', () => {
     assert.equal(kanalZeSegmentuGa4('(direct) / (none)'), 'direct');
     assert.equal(kanalZeSegmentuGa4('heureka.cz / cpc'), 'heureka');
     assert.equal(kanalZeSegmentuGa4('Seznam / organic'), 'organic');
-    // skupiny GA4 se schválně nepřekládají — „Paid Search“ není ani Google Ads, ani Sklik
+    // skupiny GA4 se schválně nepřekládají – „Paid Search“ není ani Google Ads, ani Sklik
     assert.equal(kanalZeSegmentuGa4('Organic Search'), 'neznamy');
     assert.equal(kanalZeSegmentuGa4('Paid Search'), 'neznamy');
     assert.equal(kanalZeSegmentuGa4('Direct'), 'neznamy');
@@ -434,7 +434,7 @@ describe('rozpad GA4', () => {
 /**
  * `sql` jako tagged template, který dotaz jen složí: vnořené fragmenty
  * (`${podminkaObdobi(...)}`) se vloží do textu, parametry jdou do pole,
- * `sql(pole)` dá seznam pro IN. Dotaz je thenable — při `await` se zapíše
+ * `sql(pole)` dá seznam pro IN. Dotaz je thenable – při `await` se zapíše
  * a vrátí připravené řádky podle části textu.
  */
 function falesnaDatabaze(odpovedi = []) {
@@ -508,9 +508,9 @@ describe('SQL pomocníci', () => {
       "OR o.payment_method = 'Dobírka'",
     ]) {
       assert.ok(text.includes(pravidlo), `kpi.js: ${pravidlo}`);
-      assert.ok(EXPEDICE_ZDROJ.includes(pravidlo), `pravidlo se v expedice.js změnilo — sjednotit kopii v kpi.js: ${pravidlo}`);
+      assert.ok(EXPEDICE_ZDROJ.includes(pravidlo), `pravidlo se v expedice.js změnilo – sjednotit kopii v kpi.js: ${pravidlo}`);
     }
-    // Převod bez zálohovky má p.status NULL — bez COALESCE by „zaplaceno“ bylo NULL, ne FALSE.
+    // Převod bez zálohovky má p.status NULL – bez COALESCE by „zaplaceno“ bylo NULL, ne FALSE.
     assert.ok(text.startsWith('COALESCE(('), text);
     assert.ok(text.endsWith('), FALSE)'), text);
   });
@@ -543,7 +543,7 @@ describe('SQL pomocníci', () => {
     assert.ok(db.dotazy[1].text.includes("segment_kind = ''"));
     assert.ok(db.dotazy[1].text.includes('GROUP BY date ORDER BY date'));
 
-    // dny s nákladem z API — pro varování o překryvu s ručním nákladem
+    // dny s nákladem z API – pro varování o překryvu s ručním nákladem
     await dnyNakladuPlatforem(db.sql, OBDOBI);
     assert.ok(db.dotazy[2].text.includes('SELECT platform, date::text AS den FROM marketing_daily_stats'));
     assert.ok(db.dotazy[2].text.includes("segment_kind = '' AND cost > 0 AND date BETWEEN ? AND ?"));
@@ -652,7 +652,7 @@ describe('SQL pomocníci', () => {
 
   test('sloupce v dotazech existují v migraci 042 (když už je v repozitáři)', (t) => {
     const migrace = nactiMigraci042();
-    if (!migrace) { t.skip('migrations/042_marketing.sql tu ještě není — píše ji jiný krok'); return; }
+    if (!migrace) { t.skip('migrations/042_marketing.sql tu ještě není – píše ji jiný krok'); return; }
 
     const rucni = sloupceTabulky(blokTabulky(migrace, 'marketing_manual_costs'));
     for (const s of ['id', 'platform', 'date_from', 'date_to', 'amount', 'note', 'invoice_id', 'receipt_id', 'created_by', 'created_at']) {

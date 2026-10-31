@@ -93,7 +93,7 @@
 <%
   // Serverové záložky (?tab=) místo klientského přepínání. Každá si nese
   // vlastní dotaz, takže načítat všechny naráz při otevření profilu by bylo
-  // plýtvání — a jen tady jde do popisku doplnit počet.
+  // plýtvání – a jen tady jde do popisku doplnit počet.
   const zalozky = [
     ['detail',    'Detail',               true],
     ['banka',     'Bankovní účet',        true],
@@ -138,7 +138,7 @@
             zobraz: member.is_active ? 'Aktivní' : 'Neaktivní' } }) %>
         </div>
 
-        <!-- Skrytá pole pro bankovní účet — aby nepřepsala data při uložení detailu -->
+        <!-- Skrytá pole pro bankovní účet – aby nepřepsala data při uložení detailu -->
         <input type="hidden" name="bank_account" value="<%= member.bank_account || '' %>">
         <input type="hidden" name="bank_name" value="<%= member.bank_name || '' %>">
         <input type="hidden" name="iban" value="<%= member.iban || '' %>">
@@ -163,7 +163,7 @@
           <%- include('../../includes/pole', { pole: { label: 'IBAN', name: 'iban', value: member.iban, placeholder: 'CZ65 …' } }) %>
         </div>
 
-        <!-- Skrytá pole — osobní údaje (routa přepisuje celý řádek; prázdná hodnota u přepínačů = vypnuto) -->
+        <!-- Skrytá pole – osobní údaje (routa přepisuje celý řádek; prázdná hodnota u přepínačů = vypnuto) -->
         <input type="hidden" name="email" value="<%= member.email || '' %>">
         <input type="hidden" name="first_name" value="<%= member.first_name || '' %>">
         <input type="hidden" name="last_name" value="<%= member.last_name || '' %>">

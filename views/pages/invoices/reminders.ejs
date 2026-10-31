@@ -23,7 +23,7 @@
 <% } %>
 <% if (error) { %>
 <div style="padding:10px 14px;background:var(--danger-bg,#fee2e2);color:#991b1b;border-radius:8px;margin-bottom:16px;font-size:13px;">
-  Upomínku se nepodařilo odeslat — zkontrolujte e-mail klienta a historii odeslání na faktuře.
+  Upomínku se nepodařilo odeslat – zkontrolujte e-mail klienta a historii odeslání na faktuře.
 </div>
 <% } %>
 
@@ -61,7 +61,7 @@
         <td style="text-align:right;white-space:nowrap;">
           <%= Number(r.total_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= r.currency %>
         </td>
-        <td><%= r.due_date ? new Date(r.due_date).toLocaleDateString('cs-CZ') : '—' %></td>
+        <td><%= r.due_date ? new Date(r.due_date).toLocaleDateString('cs-CZ') : '–' %></td>
         <td style="text-align:right;color:#991b1b;font-weight:600;"><%= r.days_overdue %> dní</td>
         <td style="font-size:13px;<%= r.email ? '' : 'color:var(--text-muted);' %>">
           <%= r.email || 'chybí e-mail' %>

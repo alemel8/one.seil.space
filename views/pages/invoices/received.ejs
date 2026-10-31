@@ -58,20 +58,20 @@
           <td style="font-weight:600;">
             <%= inv.number %>
             <% if (inv.vat_deductible === false) { %><br><span class="badge" style="background:#fef3c7;color:#92400e;font-size:10px;font-weight:500;"
-                 title="Bez nároku na odpočet DPH — celá částka jde do nákladů">bez odpočtu</span><% } %>
+                 title="Bez nároku na odpočet DPH – celá částka jde do nákladů">bez odpočtu</span><% } %>
             <% if (inv.pohoda_exported_at) { %><br><span style="font-size:10px;color:var(--text-muted);font-weight:400;"
                  title="Naposledy exportováno do POHODY">↑ <%= new Date(inv.pohoda_exported_at).toLocaleDateString('cs-CZ') %></span><% } %>
           </td>
-          <td><%= inv.supplier || '—' %></td>
+          <td><%= inv.supplier || '–' %></td>
           <td style="color:var(--text-muted);font-size:13px;"><%= new Date(inv.issue_date).toLocaleDateString('cs-CZ') %></td>
           <td style="color:var(--text-muted);font-size:13px;<%= isOverdue ? 'color:var(--danger);font-weight:500;' : '' %>">
-            <%= inv.due_date ? new Date(inv.due_date).toLocaleDateString('cs-CZ') : '—' %>
+            <%= inv.due_date ? new Date(inv.due_date).toLocaleDateString('cs-CZ') : '–' %>
             <% if (isOverdue) { %> ⚠<% } %>
           </td>
           <td style="text-align:right;font-weight:600;"><%= Number(inv.total_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= inv.currency %></td>
           <td onclick="event.stopPropagation();">
             <% if (inv.attachment_path && inv.attachment_missing) { %>
-              <span class="doklad-thumb doklad-thumb-missing" title="Doklad chybí — soubor <%= inv.attachment_path %> na serveru není. Nahrajte jej prosím znovu.">
+              <span class="doklad-thumb doklad-thumb-missing" title="Doklad chybí – soubor <%= inv.attachment_path %> na serveru není. Nahrajte jej prosím znovu.">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
               </span>
             <% } else if (inv.attachment_path) { %>
@@ -88,7 +88,7 @@
                 <% } %>
               </a>
             <% } else { %>
-              <span style="color:var(--text-muted);font-size:13px;">—</span>
+              <span style="color:var(--text-muted);font-size:13px;">–</span>
             <% } %>
           </td>
           <td><span class="badge" style="background:<%= bg %>;color:<%= cl %>;"><%= inv.status %></span></td>
@@ -117,7 +117,7 @@ function bulkUpdate() {
   document.getElementById('bulkCount').textContent = `${cbs.length} vybráno`;
   inp.innerHTML = [...cbs].map(c => `<input type="hidden" name="ids" value="${c.value}">`).join('');
 
-  // Opakovaný import založí doklad v POHODĚ znovu — ať to není překvapení
+  // Opakovaný import založí doklad v POHODĚ znovu – ať to není překvapení
   const exported = [...cbs].filter(c => c.dataset.exported).length;
   document.getElementById('bulkSplit').textContent = exported
     ? `· ⚠ ${exported} už jednou exportováno` : '';
@@ -160,7 +160,7 @@ function bulkClearAll() {
           <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
         </svg>
         <p style="margin:12px 0 4px;font-weight:600;color:var(--text-primary);font-size:15px;">Nahrát fakturu</p>
-        <p style="margin:0;font-size:13px;color:var(--text-muted);">PDF nebo foto — přetáhněte nebo klikněte</p>
+        <p style="margin:0;font-size:13px;color:var(--text-muted);">PDF nebo foto – přetáhněte nebo klikněte</p>
       </label>
       <label for="rfFileInputCamera" class="btn btn-outline" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;cursor:pointer;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
@@ -299,7 +299,7 @@ function bulkClearAll() {
                   <input type="checkbox" name="vat_deductible" value="on" checked>
                   <span>Uplatnit nárok na odpočet DPH</span>
                 </label>
-                <small style="color:var(--text-muted);">Vypněte u reprezentace a pohoštění — § 72 odst. 4 ZDPH.</small>
+                <small style="color:var(--text-muted);">Vypněte u reprezentace a pohoštění – § 72 odst. 4 ZDPH.</small>
               </div>
               <div class="form-group">
                 <label class="form-label">Poznámka / předmět plnění</label>
@@ -360,7 +360,7 @@ function bulkClearAll() {
   border-color: var(--primary);
   background: var(--primary-light, rgba(79,70,229,0.04));
 }
-/* Dvousloupec — 50/50 */
+/* Dvousloupec – 50/50 */
 .rf-split {
   display: flex;
   flex: 1;           /* musí vyplnit #rfPhaseForm do šířky i výšky */
@@ -421,7 +421,7 @@ function bulkClearAll() {
   let currentBlobUrl = null;
 
   // ── Open / close ──────────────────────────────────────────
-  // rfOpen je voláno přímo z onclick atributu tlačítka — musí být na window
+  // rfOpen je voláno přímo z onclick atributu tlačítka – musí být na window
   window.rfOpen = function () {
     backdrop.classList.add('open');
     document.body.style.overflow = 'hidden';
@@ -470,7 +470,7 @@ function bulkClearAll() {
   });
 
   async function handleFile(rawFile) {
-    // Foto z mobilu zmenšíme rovnou v prohlížeči — do vytěžení i do archivu
+    // Foto z mobilu zmenšíme rovnou v prohlížeči – do vytěžení i do archivu
     // pak jde jeden odlehčený soubor místo několikamegového originálu.
     const res = await window.dokladFoto.prepare(rawFile);
     const file = res.file;
@@ -525,7 +525,7 @@ function bulkClearAll() {
       if (data.currency) document.getElementById('rfCurrency').value = data.currency;
 
       aiBadge.style.cssText = 'display:block;background:var(--primary-light,rgba(79,70,229,0.08));color:var(--primary-dark,var(--primary));border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;font-weight:600;margin-bottom:4px;';
-      aiBadge.textContent = '✦ Pole byla předvyplněna — zkontrolujte prosím hodnoty';
+      aiBadge.textContent = '✦ Pole byla předvyplněna – zkontrolujte prosím hodnoty';
     } catch (err) {
       aiBadge.style.cssText = 'display:block;background:var(--danger-bg);color:var(--danger);border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;font-weight:600;margin-bottom:4px;';
       aiBadge.textContent = '⚠ ' + err.message;
@@ -543,7 +543,7 @@ function bulkClearAll() {
   // Předkontace autocomplete
   fetch('/api/accounting-chart').then(r => r.json()).then(list => {
     const dl = document.getElementById('rfAcList');
-    if (dl) dl.innerHTML = list.map(a => `<option value="${a.code}">${a.code} — ${a.name}</option>`).join('');
+    if (dl) dl.innerHTML = list.map(a => `<option value="${a.code}">${a.code} – ${a.name}</option>`).join('');
   }).catch(() => {});
 
   // ── Intercept form submit → fetch FormData (pro odeslání PDF přílohy) ─

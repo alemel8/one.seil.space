@@ -3,7 +3,7 @@
  *
  * Každý všední den po šesté hodině pražského času odejde skladu jeden e-mail
  * se všemi zaplacenými objednávkami, které ještě nedostal, a se štítky
- * Zásilkovny v příloze. Co přijde v pátek po odeslání, jde v pondělí — víkend
+ * Zásilkovny v příloze. Co přijde v pátek po odeslání, jde v pondělí – víkend
  * oknem neprojde.
  *
  * ## Pořadí zápisů se nesmí měnit
@@ -15,7 +15,7 @@
  * Kdyby se to „zjednodušilo“ na „pošli a pak zapiš“, stačil by pád procesu
  * mezi přijetím e-mailu Resendem a commitem (deploy v 06:02, SIGTERM) a sklad
  * by druhý den balil tytéž objednávky podruhé. Když odeslání selže, razítko
- * se zase odvolá — proto `warehouse_sent_by IS NULL`, ať se nesmaže ruční
+ * se zase odvolá – proto `warehouse_sent_by IS NULL`, ať se nesmaže ruční
  * označení obsluhy.
  *
  * ## Pražský čas se počítá, nečte
@@ -27,7 +27,7 @@
  * ## Zaplaceno se nepozná z jednoho sloupce
  *
  * Karta: Stripe webhook zapíše `shop_orders.status = 'Zaplaceno'` a e-shop
- * hned podá balík — proto u karty platí i vyplněný tracking (obsluha může
+ * hned podá balík – proto u karty platí i vyplněný tracking (obsluha může
  * stav v administraci přepsat zpátky na „Přijata“). Převod: jediný spolehlivý
  * signál je zálohová faktura ve stavu „Zaplacena“; tracking u převodu nic
  * neznamená, protože e-shop podá balík i u nezaplacené objednávky, když
@@ -53,7 +53,7 @@ export const HODINA_EXPEDICE = 6;
 
 /**
  * Dopočtené řádky, které e-shop ukládá mezi položky objednávky (doprava,
- * dobírka, sleva za registraci). Zrcadlo `ADJUSTMENT_SKUS` v e-shopu —
+ * dobírka, sleva za registraci). Zrcadlo `ADJUSTMENT_SKUS` v e-shopu –
  * sklad je vychystávat nemá.
  */
 export const PSEUDO_SKU = ['SLEVA-REG', 'DOPRAVA', 'DOBIRKA'];
@@ -78,7 +78,7 @@ const VYCHOZI_ESHOP = 'toneracek';
 
 /** Co se stalo, řečí obsluhy. Používá UI i push. */
 export const DUVODY_POZASTAVENI = {
-  'bez-vydejniho-mista': 'objednávka nemá výdejní místo, balík nelze podat — vyřiďte ji ručně a označte',
+  'bez-vydejniho-mista': 'objednávka nemá výdejní místo, balík nelze podat – vyřiďte ji ručně a označte',
   'balik-nepodan': 'e-shop balík nepodal (Zásilkovna nebo e-shop neodpověděl), zkusí se znovu',
   'stitek-nestazen': 'štítek se nepodařilo stáhnout ze Zásilkovny, zkusí se znovu',
   'neplatne-cislo-zasilky': 'číslo zásilky není platné číslo Zásilkovny',
@@ -100,7 +100,7 @@ export function jePseudoPolozka(sku) {
 /**
  * Multipack se pozná podle SKU: v katalogu mají prefix `MC` (inkousty) nebo
  * `MT` (tonery), běžné zboží `C` nebo `T`. Sloupec `multipack_id` použít nejde
- * — je ve schématu od začátku a nikdy se neplní.
+ * – je ve schématu od začátku a nikdy se neplní.
  */
 export function jeMultipack(sku) {
   return /^M[A-Z]\d/i.test(String(sku ?? '').trim());
@@ -110,7 +110,7 @@ export function jeMultipack(sku) {
  * Číslo zásilky na jeden tvar: bez mezer, velkými písmeny, s vedoucím „Z“.
  *
  * Je to klíč, pod kterým se objednávky slučují do jedné zásilky, i název
- * přílohy. Tvar hodnoty není zaručený — e-shop ukládá čárový kód Zásilkovny
+ * přílohy. Tvar hodnoty není zaručený – e-shop ukládá čárový kód Zásilkovny
  * doslova a u objednávek přenesených z Airtable je to volný text, co kdo
  * napsal. Co nevypadá jako číslo zásilky, vrací prázdný řetězec; volající
  * takovou objednávku pozastaví, místo aby si o štítek řekl s nesmyslem.
@@ -138,7 +138,7 @@ export function formatujCisloZasilky(norm) {
  * Jeden řádek vychystávacího seznamu: „11208 - 2x - Canon CRG-737“.
  *
  * Když kód dodavatele chybí (objednávky před nasazením, multipacky), tiskne se
- * místo něj interní SKU a řádek si nese varování — sklad má poznat, že to není
+ * místo něj interní SKU a řádek si nese varování – sklad má poznat, že to není
  * kód, podle kterého vychystává.
  */
 export function radekPolozky(item) {
@@ -158,7 +158,7 @@ export function radekPolozky(item) {
 
 /**
  * Objednávky do skupin po zásilkách. Jedna zásilka = jeden nadpis v e-mailu.
- * Objednávky bez použitelného čísla zásilky sem nepatří — volající je
+ * Objednávky bez použitelného čísla zásilky sem nepatří – volající je
  * pozastaví dřív.
  */
 export function seskupPodleZasilek(objednavky, polozkyPodleObjednavky) {
@@ -208,7 +208,7 @@ export function rozhodniBeh({ dnesni, now = new Date(), bezi = false }) {
   if (dnesni.status === 'probiha') {
     if (bezi) return { akce: 'nic', duvod: 'běh právě probíhá v tomhle procesu' };
     if (stari < ZAMRZLY_BEH_MS) return { akce: 'nic', duvod: 'běh probíhá' };
-    // Zamrzlý běh, který stihl odeslat, se jen dopíše — druhý e-mail nikdy.
+    // Zamrzlý běh, který stihl odeslat, se jen dopíše – druhý e-mail nikdy.
     if (dnesni.email_sent_at) return { akce: 'dokoncit', duvod: 'e-mail odešel, chybí jen dokončení' };
     return { akce: 'oznacit-chybu', duvod: 'Běh přerušen restartem serveru' };
   }
@@ -239,7 +239,7 @@ export function zasilkyPlural(n) {
 }
 
 /**
- * Tělo e-mailu pro sklad. Nadpisem je číslo zásilky, pod ním řádky položek —
+ * Tělo e-mailu pro sklad. Nadpisem je číslo zásilky, pod ním řádky položek –
  * přesně v tom tvaru, na který je sklad zvyklý. Pozastavené objednávky se sem
  * nepíšou, to je interní věc administrace.
  */
@@ -256,7 +256,7 @@ export function sestavEmail({ shopName, obdobiOd, obdobiDo = new Date(), skupiny
       ? skupina.radky.map(r =>
           `${esc(r.text)}${r.varovani ? ` <span style="color:#b45309">(${esc(r.varovani)})</span>` : ''}`
         ).join('<br>')
-      : '<span style="color:#b45309">objednávka bez položek — zkontrolujte ji v administraci</span>';
+      : '<span style="color:#b45309">objednávka bez položek – zkontrolujte ji v administraci</span>';
 
     const cisla = skupina.orderNumbers.map(n => `#${esc(n)}`).join(', ');
 
@@ -291,7 +291,7 @@ export class ExpediceBeziError extends Error {
 
 /**
  * Podmínka „objednávka patří do skladu“. Jediná definice, kterou sdílí ranní
- * běh i seznam objednávek — kdyby si každý filtroval po svém, ikona
+ * běh i seznam objednávek – kdyby si každý filtroval po svém, ikona
  * v administraci by tvrdila něco jiného než e-mail.
  *
  * Očekává alias `o` (shop_orders) a `p` (poslední zálohová faktura).
@@ -363,7 +363,7 @@ export async function nactiPolozky(sql, orderIds) {
  * „Vyřízena“. Teď to potřebuje i ranní běh: u převodu vzniká balík až tím
  * přepnutím, takže zaplacená objednávka ráno žádný štítek nemá.
  *
- * Nikdy nevyhazuje — přepnutí stavu ani ranní běh nesmí spadnout kvůli tomu,
+ * Nikdy nevyhazuje – přepnutí stavu ani ranní běh nesmí spadnout kvůli tomu,
  * že Zásilkovna zrovna neodpovídá. Vrací i HTTP stav, aby volající poznal
  * trvalou chybu (chybí výdejní místo) od přechodné (e-shop je dole).
  */
@@ -373,8 +373,8 @@ export async function pozadejEshopOPodaniBaliku(log, brand, order) {
     const toneracek = brand?.slug === VYCHOZI_ESHOP;
     log?.warn?.({ order: order.order_number, eshop: brand?.slug },
       toneracek
-        ? 'SHOP_WEBHOOK_SECRET není nastaveno, balík se nepodal — podej ho ručně'
-        : 'E-shop nemá vlastní tajemství pro podání balíku (Nastavení → Eshopy), balík se nepodal — podej ho ručně');
+        ? 'SHOP_WEBHOOK_SECRET není nastaveno, balík se nepodal – podej ho ručně'
+        : 'E-shop nemá vlastní tajemství pro podání balíku (Nastavení → Eshopy), balík se nepodal – podej ho ručně');
     return {
       ok: false,
       error: toneracek ? 'SHOP_WEBHOOK_SECRET není nastaveno' : 'E-shop nemá tajemství pro podání balíku',
@@ -417,8 +417,8 @@ export async function pozadejEshopOPodaniBaliku(log, brand, order) {
  * Toneráček na databázi vůbec neptá.
  *
  * Ostatní e-shopy mají jen vlastní tajemství. Globální je tajemství Toneráčku
- * — kdo ho zná, nechá u Toneráčku podat balík k jakékoli objednávce, i
- * nezaplacené —, takže se jinému e-shopu nikdy neposílá: bez vlastního
+ * – kdo ho zná, nechá u Toneráčku podat balík k jakékoli objednávce, i
+ * nezaplacené –, takže se jinému e-shopu nikdy neposílá: bez vlastního
  * tajemství (i když se ho nepodaří načíst) se vrací '' a balík se nepodá
  * (volající to hlásí jako „podej ho ručně“, expedice objednávku zadrží).
  */
@@ -508,7 +508,7 @@ export async function dokonciBeh(sql, dispatch) {
   return row ?? null;
 }
 
-/** Od kdy se sbírá — začátek posledního doběhlého běhu, jinak nic. */
+/** Od kdy se sbírá – začátek posledního doběhlého běhu, jinak nic. */
 async function zacatekObdobi(sql, shop, dispatch) {
   const [row] = await sql`
     SELECT started_at FROM warehouse_dispatches
@@ -519,7 +519,7 @@ async function zacatekObdobi(sql, shop, dispatch) {
 
 /**
  * Push o objednávkách, které skladu nešly. Dedupe na sedm dní podle
- * objednávky — objednávka bez výdejního místa by jinak bzučela každé ráno.
+ * objednávky – objednávka bez výdejního místa by jinak bzučela každé ráno.
  */
 async function oznamPozastavene(sql, pozastavene, log, shop) {
   const nove = [];
@@ -542,11 +542,11 @@ async function oznamPozastavene(sql, pozastavene, log, shop) {
   if (!nove.length) return;
 
   const vypis = nove.slice(0, 5)
-    .map(p => `#${p.order.order_number} — ${DUVODY_KRATCE[p.reason] ?? p.reason}`)
+    .map(p => `#${p.order.order_number} – ${DUVODY_KRATCE[p.reason] ?? p.reason}`)
     .join('; ');
 
   // U Toneráčku beze změny; u dalších e-shopů jméno v titulku a odkaz na
-  // jejich seznam — jinak by push o objednávkách Dílny otevřel Toneráček.
+  // jejich seznam – jinak by push o objednávkách Dílny otevřel Toneráček.
   const jinyEshop = shop && shop.slug !== VYCHOZI_ESHOP;
   await sendPushToAll({
     title: jinyEshop
@@ -559,7 +559,7 @@ async function oznamPozastavene(sql, pozastavene, log, shop) {
 }
 
 /**
- * Jeden běh nad už zabraným řádkem. Vrací, co se stalo — volající to jen
+ * Jeden běh nad už zabraným řádkem. Vrací, co se stalo – volající to jen
  * ukáže obsluze, stav je vždycky v databázi.
  */
 export async function spustExpedici(sql, log, { shop, dispatch }) {
@@ -785,7 +785,7 @@ export async function tikExpedice(log) {
   bezi = true;
   try {
     const sql = getDb();
-    // E-shopy jdou po sobě a Packeta umí odpovídat po desítkách sekund —
+    // E-shopy jdou po sobě a Packeta umí odpovídat po desítkách sekund –
     // pevné pořadí s Toneráčkem první, ať mu ranní e-mail nezdrží jiný e-shop.
     // Bez adresy skladu se e-shop přeskakuje jako dřív (expedice vypnutá).
     const shopy = await sql`

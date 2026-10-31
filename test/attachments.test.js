@@ -14,7 +14,7 @@ import {
   mimeForFile, extForMime,
 } from '../src/attachments.js';
 
-// Fotka v rozlišení mobilu, plná šumu — nejhorší možný případ pro JPEG,
+// Fotka v rozlišení mobilu, plná šumu – nejhorší možný případ pro JPEG,
 // reálná účtenka je po zmenšení výrazně menší.
 async function fotoZMobilu({ orientation } = {}) {
   const W = 4032, H = 3024;
@@ -35,7 +35,7 @@ describe('přílohy dokladů', () => {
     assert.equal(mime, 'image/jpeg');
     assert.ok(buf.length <= MAX_ATTACHMENT_BYTES, `zmenšenina má ${buf.length} B`);
 
-    // Delší strana ≥ 1400 px — pod tím už drobné písmo na účtence nepřečteme
+    // Delší strana ≥ 1400 px – pod tím už drobné písmo na účtence nepřečteme
     const meta = await sharp(buf).metadata();
     assert.ok(Math.max(meta.width, meta.height) >= 1400);
   });
@@ -102,12 +102,12 @@ describe('přílohy dokladů', () => {
   });
 
   test('archivní typy projdou jen v archivním režimu', async () => {
-    // Formulář dokladu je má odmítnout — účetní tam patří sken, ne tabulka.
+    // Formulář dokladu je má odmítnout – účetní tam patří sken, ne tabulka.
     assert.equal(isSupportedMime('text/xml'), false);
     assert.equal(isArchivableMime('text/xml'), true);
     assert.equal(isArchivableMime('application/zip'), true);
     // I HTML a SVG: příloha úkolu může být cokoli a zahodit ji potichu by
-    // bylo horší. Že se nespustí, drží routa dokladů — inline pouští jen
+    // bylo horší. Že se nespustí, drží routa dokladů – inline pouští jen
     // PDF a rastrové obrázky, zbytek jde ke stažení s nosniff.
     assert.equal(isArchivableMime('text/html'), true);
 
@@ -129,7 +129,7 @@ describe('přílohy dokladů', () => {
   });
 
   test('archivní soubor se neprožene kompresí', async () => {
-    // Výplatní páska ani e-podání se nesmí přeukládat — je to důkazní materiál.
+    // Výplatní páska ani e-podání se nesmí přeukládat – je to důkazní materiál.
     const original = await fotoZMobilu();
     const saved = await saveAttachment(original, 'image/jpeg', 'pruvodka', { archive: true });
     try {
@@ -141,7 +141,7 @@ describe('přílohy dokladů', () => {
 
   test('dva soubory ve stejné milisekundě si nepřepíšou obsah', async () => {
     // Hromadný import zapisuje stovky souborů v těsné smyčce. Dřív rozhodovalo
-    // jen Date.now() a druhý zápis tiše přepsal první — bez jediné chyby.
+    // jen Date.now() a druhý zápis tiše přepsal první – bez jediné chyby.
     const dohromady = await Promise.all(
       Array.from({ length: 12 }, (_, i) =>
         saveAttachment(Buffer.from(`doklad ${i}`), 'application/pdf', 'davka', { archive: true })),
@@ -174,7 +174,7 @@ describe('přílohy dokladů', () => {
 
 describe('archivní režim', () => {
   test('vezme i typ, který formuláře nepustí', async () => {
-    // Přílohy úkolů jsou libovolné soubory — v datech z Airtable je vedle
+    // Přílohy úkolů jsou libovolné soubory – v datech z Airtable je vedle
     // PDF a XML i skript v Pythonu. Allowlist by je tiše zahodil.
     for (const mime of ['text/x-python-script', 'application/zip',
                         'application/vnd.oasis.opendocument.text']) {

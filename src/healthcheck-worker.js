@@ -56,7 +56,7 @@ async function sendEmailNotification(toEmail, subject, text) {
 
 /**
  * Rozešle upozornění podle pravidel (notification_rules) a vrátí počet
- * oslovených kanálů — marketingové alerty (src/marketing/alerty.js) bez
+ * oslovených kanálů – marketingové alerty (src/marketing/alerty.js) bez
  * pravidla posílají aspoň push všem.
  */
 export async function dispatchAlert(eventType, eventKey, message, opts = {}) {
@@ -168,7 +168,7 @@ export async function checkVpsThresholds(latest) {
 //
 // Tři kroky: přeřadit prošlé faktury do stavu "Po splatnosti", připravit
 // upomínky podle nastavených prahů a jednou denně o tom dát vědět.
-// Upomínky se odsud nikdy neodesílají — jen se zakládají ve stavu 'ceka'.
+// Upomínky se odsud nikdy neodesílají – jen se zakládají ve stavu 'ceka'.
 
 const DEFAULT_REMINDER_LEVELS = [{ level: 1, days: 3 }, { level: 2, days: 14 }, { level: 3, days: 30 }];
 
@@ -194,7 +194,7 @@ export async function prepareReminders() {
     : DEFAULT_REMINDER_LEVELS;
 
   // Faktury k dobírce do fronty nepatří. Zákazník platí dopravci při převzetí
-  // a peníze posílá Zásilkovna souhrnně — „po splatnosti“ tu znamená, že
+  // a peníze posílá Zásilkovna souhrnně – „po splatnosti“ tu znamená, že
   // dobírku ještě nikdo nespároval, ne že zákazník dluží. Upomínka by chtěla
   // zaplatit podruhé, a u nevyzvednuté zásilky za zboží, které nedostal.
   // Souhrn po splatnosti pro správce níž je ukazuje dál.
@@ -210,7 +210,7 @@ export async function prepareReminders() {
 
   let created = 0;
   for (const inv of overdue) {
-    // Jen nejvyšší dosažený stupeň — ať klientovi nechodí tři upomínky naráz
+    // Jen nejvyšší dosažený stupeň – ať klientovi nechodí tři upomínky naráz
     const reached = levels
       .filter(l => inv.days_overdue >= Number(l.days))
       .sort((a, b) => Number(b.level) - Number(a.level))[0];
@@ -243,7 +243,7 @@ export async function checkOverdueInvoices() {
   if (notified) return;
 
   const list = overdue.slice(0, 5).map(i =>
-    `• ${i.number} — ${i.client_name} — ${Number(i.total_amount).toLocaleString('cs-CZ')} ${i.currency}`
+    `• ${i.number} – ${i.client_name} – ${Number(i.total_amount).toLocaleString('cs-CZ')} ${i.currency}`
   ).join('\n');
   const [{ waiting }] = await sql`
     SELECT COUNT(*)::int AS waiting FROM invoice_reminders WHERE status = 'ceka'
@@ -265,11 +265,11 @@ export async function checkOverdueInvoices() {
 // povinnost přiznat daň vznikla dnem přijetí úplaty a doklad se má vystavit
 // do 15 dnů (§ 28 odst. 8 ZDPH). Totéž dobírka: ranní expedice ji pošle do
 // skladu sama, zásilka se doručí, a když ji nikdo nevyřídí, doklad nevznikne
-// nikdy. Upozorní se, když lhůta běží deset dní a víc — ať zbude pět dní.
+// nikdy. Upozorní se, když lhůta běží deset dní a víc – ať zbude pět dní.
 //
 // Jednou za pražský den a až ráno: klíčem je datum, ne 23h cooldown jako
 // u splatnosti, který čas odeslání každý den posune o hodinu a časem ho
-// dostane do noci. Jen push správcům — zákazník ani sklad s tím nemají co
+// dostane do noci. Jen push správcům – zákazník ani sklad s tím nemají co
 // dělat, takže žádný e-mail.
 
 const HODINA_UPOZORNENI_NA_LHUTU = 8;
@@ -285,11 +285,11 @@ export async function checkUninvoicedPaidOrders() {
   `;
   if (uz) return;
 
-  // Kandidáti: bez vydané faktury a s něčím, od čeho lhůta běží — platbou
+  // Kandidáti: bez vydané faktury a s něčím, od čeho lhůta běží – platbou
   // kartou (`paid_at`, u zaplacené karty bez něj založením objednávky),
   // zaplacenou zálohovkou nebo odesláním do skladu (dobírka). Který den
   // rozhoduje, určuje podle způsobu platby denVznikuPovinnosti()
-  // v src/danovy-doklad.js — tytéž dny, jaké jdou na fakturu, a testované.
+  // v src/danovy-doklad.js – tytéž dny, jaké jdou na fakturu, a testované.
   //
   // Karta bez `paid_at` (zaplacená před migrací 039) jen mimo objednávky
   // přenesené z Airtable: ty mají za `id` id záznamu Airtable („rec…“, viz

@@ -1,6 +1,6 @@
 // Rozložení aplikace (views/layouts/base.ejs) bez serveru i databáze:
 // šablona se vykreslí přímo přes EJS s napodobeným uživatelem. Hlídá jen
-// to, co by se v prohlížeči projevilo — pořadí inline skriptu proti stylům
+// to, co by se v prohlížeči projevilo – pořadí inline skriptu proti stylům
 // a filtrování menu podle přístupové matice.
 //
 //   node --test test/layout-sidebar.test.js
@@ -48,7 +48,7 @@ test('menu ukazuje jen sekce, které uživatel smí', async () => {
     canSection: k => k === 'prace',
   }), '/prace');
   assert.ok(html.includes('Můj čas'), 'povolená sekce je vidět');
-  assert.ok(html.includes('<span class="nav-label">Práce</span>'), 'značka nav-label má očekávaný tvar — jinak by negativní kontroly níž prošly naprázdno');
+  assert.ok(html.includes('<span class="nav-label">Práce</span>'), 'značka nav-label má očekávaný tvar – jinak by negativní kontroly níž prošly naprázdno');
   for (const text of ['Domovská stránka', 'Projekty', 'Monitoring', 'Účetnictví', 'CRM', 'Marketing', 'Nastavení', 'Lidé &amp; Kultura']) {
     assert.ok(!html.includes(`<span class="nav-label">${text}</span>`), `${text} v menu není`);
   }

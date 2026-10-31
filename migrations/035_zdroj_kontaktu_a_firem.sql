@@ -1,9 +1,9 @@
 -- ============================================================
--- one.seil.space — zdroj u kontaktů a firem
+-- one.seil.space – zdroj u kontaktů a firem
 -- ============================================================
 -- CRM sbírá kontakty z víc míst najednou: z e-shopu Toneráček, ručním
 -- zadáním v administraci a časem z dalších e-shopů. Dosud se to nedalo
--- rozlišit — jediná stopa byla poznámka „Zákazník Toneráček.cz", kterou
+-- rozlišit – jediná stopa byla poznámka „Zákazník Toneráček.cz", kterou
 -- zapisoval `upsertCustomerToCRM()` do sloupce `notes`.
 --
 -- Na `notes` se ale spolehnout nejde. E-shop si do téhož sloupce ukládá
@@ -18,7 +18,7 @@ ALTER TABLE crm_contacts  ADD COLUMN IF NOT EXISTS source TEXT;
 ALTER TABLE crm_companies ADD COLUMN IF NOT EXISTS source TEXT;
 
 -- Zpětné doplnění podle staré poznámky. Bere i kontakty, jejichž `notes`
--- mezitím přepsal PWDHASH — ty se poznají podle vazby na objednávku
+-- mezitím přepsal PWDHASH – ty se poznají podle vazby na objednávku
 -- Toneráčku.
 UPDATE crm_contacts SET source = 'Toneráček.cz'
 WHERE source IS NULL AND notes = 'Zákazník Toneráček.cz';

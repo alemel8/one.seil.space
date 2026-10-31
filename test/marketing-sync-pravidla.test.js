@@ -1,4 +1,4 @@
-// Jednotkový test rozhodovacích pravidel nočního marketingového syncu —
+// Jednotkový test rozhodovacích pravidel nočního marketingového syncu –
 // běží bez databáze i serveru:
 //
 //   node --test test/marketing-sync-pravidla.test.js
@@ -50,7 +50,7 @@ describe('konstanty a okno času', () => {
 
   test('sloupce, ze kterých se rozhoduje, jsou v migraci 042 (když už je v repozitáři)', (t) => {
     const migrace = nactiMigraci042();
-    if (!migrace) { t.skip('migrations/042_marketing.sql tu ještě není — píše ji jiný krok'); return; }
+    if (!migrace) { t.skip('migrations/042_marketing.sql tu ještě není – píše ji jiný krok'); return; }
     const behy = sloupceTabulky(blokTabulky(migrace, 'marketing_sync_runs'));
     for (const s of ['status', 'attempt', 'permanent', 'started_at', 'finished_at', 'run_date', 'kind']) assert.ok(behy[s], `marketing_sync_runs.${s}`);
     const zdroje = sloupceTabulky(blokTabulky(migrace, 'marketing_sources'));
@@ -157,7 +157,7 @@ describe('oknoSyncu', () => {
     assert.equal(oknoSyncu({ zdroj: { since: '2020-01-01', last_ok_at: undefined }, dnes: DNES }).od, '2025-09-24');
   });
 
-  test('první běh bez since bere celých 400 dní (plán D5) — historie se netahá jen po prvním úspěchu', () => {
+  test('první běh bez since bere celých 400 dní (plán D5) – historie se netahá jen po prvním úspěchu', () => {
     assert.deepEqual(oknoSyncu({ zdroj: { since: null, last_ok_at: null }, dnes: DNES }), { od: '2025-09-24', do: '2026-10-28' });
     assert.deepEqual(oknoSyncu({ zdroj: {}, dnes: DNES }), { od: '2025-09-24', do: '2026-10-28' });
     // po prvním úspěšném běhu už jen běžné okno, i bez since

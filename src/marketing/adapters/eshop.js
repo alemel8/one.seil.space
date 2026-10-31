@@ -3,22 +3,22 @@
  * a opuštěné košíky z `GET {shops.url}/api/marketing/statistika`.
  *
  * Jednotný kontrakt pro všechny e-shopy (Toneráček ho má, Dílna dostane
- * týž): `?dni=N` vrátí posledních N pražských dnů včetně dneška —
+ * týž): `?dni=N` vrátí posledních N pražských dnů včetně dneška –
  * `hledani` (celkem, dotazy bez výsledku, nejčastější), `kosiky` (počet,
  * hodnota, dokončené, připomenuté, top zboží) a `poDnech[]` s denními
  * čítači. Do tabulky jdou jen denní součty (`searches`,
- * `searches_no_result`, `carts_abandoned`, `carts_value` — Kč s DPH, jak
+ * `searches_no_result`, `carts_abandoned`, `carts_value` – Kč s DPH, jak
  * je měl košík) a seznam dotazů bez výsledku jako řádky `segment_kind =
  * 'query'` na POSLEDNÍ den okna, který má denní součet (e-shop ho neumí
  * rozložit do dnů; `n` je celkový počet hledání dotazu, který se naposledy
- * hledal v okně). Rozpad bez součtu téhož dne nevzniká — součet je
+ * hledal v okně). Rozpad bez součtu téhož dne nevzniká – součet je
  * povinný pro každý den s daty (hlavička ../normalizace.js).
  *
  * ## Okno vs. `dni`
  *
  * E-shop počítá ode dneška zpět a nejdál 90 dní, zatímco sync chce okno
  * [from, to] končící včerejškem. Volá se proto `dni = dnes − from + 1`
- * (nejvýš 90) a `parsuj()` nechá jen dny v okně — dnešek je neúplný.
+ * (nejvýš 90) a `parsuj()` nechá jen dny v okně – dnešek je neúplný.
  * Kus okna starší než 90 dní e-shop neumí vrátit: bez volání se vrátí
  * prázdno a zaloguje se to, není to chyba (první běh 400 dní zpět).
  *
@@ -27,7 +27,7 @@
  * Hlavička `x-webhook-secret`: Toneráček jede jen na `SHOP_WEBHOOK_SECRET`
  * z prostředí, ostatní e-shopy jen na `shops.webhook_secret` (pravidlo
  * `webhookSecretEshopu()` v src/expedice.js, které sem kvůli db.js
- * neimportujeme — sync ho předá v `tajemstvi`; bez něj platí tatáž volba
+ * neimportujeme – sync ho předá v `tajemstvi`; bez něj platí tatáž volba
  * nad `shop`). 401 = tajemství nesedí (trvalá), 503 s JSON chybou =
  * e-shop nemá `WEBHOOK_SECRET` v prostředí (trvalá, s návodem); 503 bez
  * JSON je výpadek proxy a opakuje se.
@@ -43,7 +43,7 @@ export const platform = 'eshop';
 export const popis = 'E-shop (hledání bez výsledku, opuštěné košíky)';
 export const zapisujePlatformy = ['eshop'];
 export const potrebujeTajemstvi = false;
-export const popisExternalId = 'Nevyplňuje se — volá se adresa e-shopu z jeho nastavení (URL)';
+export const popisExternalId = 'Nevyplňuje se – volá se adresa e-shopu z jeho nastavení (URL)';
 export const popisParentId = '';
 export const maxDniNaDotaz = 90;
 export const prepisDni = 14;
@@ -66,7 +66,7 @@ export function tajemstviEshopu(shop, tajemstvi) {
 export function adresaStatistiky(shop, dni) {
   const base = String(shop?.url ?? '').trim();
   if (!/^https?:\/\/\S+$/.test(base)) {
-    throw new AdapterError(`E-shop ${shop?.slug ?? '?'}: nemá platnou URL („${base}“) — doplňte ji v Nastavení → Eshopy`, { permanent: true, platform });
+    throw new AdapterError(`E-shop ${shop?.slug ?? '?'}: nemá platnou URL („${base}“) – doplňte ji v Nastavení → Eshopy`, { permanent: true, platform });
   }
   const u = new URL(CESTA, base);
   u.searchParams.set('dni', String(dni));
@@ -82,13 +82,13 @@ export function pocetDni(from, dnes) {
 /** Chyby, které říkají, co má obsluha udělat; ostatní projdou beze změny. */
 export function chybaEshopu(err) {
   if (err?.status === 401) {
-    return new AdapterError('e-shop odmítl tajemství (401) — x-webhook-secret se neshoduje s WEBHOOK_SECRET e-shopu', { permanent: true, status: 401, platform, cause: err });
+    return new AdapterError('e-shop odmítl tajemství (401) – x-webhook-secret se neshoduje s WEBHOOK_SECRET e-shopu', { permanent: true, status: 401, platform, cause: err });
   }
   if (err?.status === 503 && err?.body && typeof err.body === 'object' && err.body.error) {
-    return new AdapterError('e-shop nemá nastavené WEBHOOK_SECRET (odpověděl 503) — doplňte ho v prostředí e-shopu, stejné jako tajemství v One SEIL', { permanent: true, status: 503, platform, cause: err });
+    return new AdapterError('e-shop nemá nastavené WEBHOOK_SECRET (odpověděl 503) – doplňte ho v prostředí e-shopu, stejné jako tajemství v One SEIL', { permanent: true, status: 503, platform, cause: err });
   }
   if (err?.status === 404) {
-    return new AdapterError(`e-shop nemá ${CESTA} (404) — nasaďte verzi e-shopu, která statistiku pro One SEIL umí`, { permanent: true, status: 404, platform, cause: err });
+    return new AdapterError(`e-shop nemá ${CESTA} (404) – nasaďte verzi e-shopu, která statistiku pro One SEIL umí`, { permanent: true, status: 404, platform, cause: err });
   }
   return err;
 }
@@ -139,12 +139,12 @@ export async function fetchDaily({ shop, from, to, tajemstvi, log, fetchImpl, sl
   const secret = tajemstviEshopu(shop, tajemstvi);
   if (!secret) {
     const navod = shop?.slug === VYCHOZI_ESHOP ? 'nastavte SHOP_WEBHOOK_SECRET v prostředí One SEIL' : 'vyplňte tajemství v Nastavení → Eshopy → Napojení e-shopu';
-    throw new AdapterError(`E-shop ${shop?.slug ?? '?'}: chybí tajemství pro volání (x-webhook-secret) — ${navod}`, { permanent: true, platform });
+    throw new AdapterError(`E-shop ${shop?.slug ?? '?'}: chybí tajemství pro volání (x-webhook-secret) – ${navod}`, { permanent: true, platform });
   }
   const dnes = prazskyCas(now()).datum;
   const nejstarsi = pridejDny(dnes, -(MAX_DNI - 1));
   if (to < nejstarsi) {
-    log?.info?.({ from, to, nejstarsi }, `E-shop ${shop?.slug ?? ''}: okno ${from}–${to} je starší než ${MAX_DNI} dní, tak daleko statistika e-shopu nesahá — bez dat`);
+    log?.info?.({ from, to, nejstarsi }, `E-shop ${shop?.slug ?? ''}: okno ${from}–${to} je starší než ${MAX_DNI} dní, tak daleko statistika e-shopu nesahá – bez dat`);
     return [];
   }
   const url = adresaStatistiky(shop, pocetDni(from, dnes));
@@ -160,7 +160,7 @@ export async function overit({ shop, tajemstvi, log, fetchImpl, sleep } = {}) {
     const secret = tajemstviEshopu(shop, tajemstvi);
     if (!secret) {
       const navod = shop?.slug === VYCHOZI_ESHOP ? 'nastavte SHOP_WEBHOOK_SECRET v prostředí One SEIL' : 'vyplňte tajemství v Nastavení → Eshopy → Napojení e-shopu';
-      return { ok: false, zprava: `E-shop ${shop?.slug ?? '?'}: chybí tajemství pro volání (x-webhook-secret) — ${navod}` };
+      return { ok: false, zprava: `E-shop ${shop?.slug ?? '?'}: chybí tajemství pro volání (x-webhook-secret) – ${navod}` };
     }
     const url = adresaStatistiky(shop, 1);
     const json = await stahni(url, secret, { fetchImpl, log, sleep, nazev: `E-shop ${shop?.slug ?? ''} ověření` });

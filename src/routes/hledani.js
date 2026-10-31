@@ -1,6 +1,6 @@
 // Globální hledání: stránka výsledků pro pole v horní liště. Logika
 // (skupiny, dotazy, práva) je v src/hledani.js. Routa není v katalogu
-// přístupové matice — vidí ji každý přihlášený a obsah filtruje hledej()
+// přístupové matice – vidí ji každý přihlášený a obsah filtruje hledej()
 // po skupinách; do publicPaths v server.js nepatří, session guard ji chrání.
 
 import { getDb } from '../db.js';
@@ -13,7 +13,7 @@ export default async function hledaniRoutes(fastify) {
     const q = normalizujDotaz(request.query.q);
     const skupiny = await hledej(sql, request.user, q, { limitNaSkupinu: 10 });
     const celkem = skupiny.reduce((n, g) => n + g.polozky.length, 0);
-    // Výsledky nesou e-maily a jména — do cache prohlížeče nepatří.
+    // Výsledky nesou e-maily a jména – do cache prohlížeče nepatří.
     reply.header('Cache-Control', 'no-store');
     return reply.view('pages/hledani.ejs', {
       pageTitle: 'Hledání', currentPath: '/hledat', user: request.user,

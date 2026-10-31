@@ -1,5 +1,5 @@
 /* ============================================================
-   ONE.SEIL.SPACE — příprava fotky dokladu před nahráním
+   ONE.SEIL.SPACE – příprava fotky dokladu před nahráním
 
    Fotka z mobilu má 4–12 MB. Nahrávat ji v plné velikosti nemá smysl:
    zdržuje upload na datech, zbytečně zatěžuje vytěžování Claudem a v archivu
@@ -19,7 +19,7 @@
   ];
 
   function decode(file) {
-    // createImageBitmap srovná fotku podle EXIF orientace — bez toho leží
+    // createImageBitmap srovná fotku podle EXIF orientace – bez toho leží
     // účtenky vyfocené na výšku na boku.
     if (typeof createImageBitmap === 'function') {
       return createImageBitmap(file, { imageOrientation: 'from-image' })
@@ -52,7 +52,7 @@
   /**
    * Vrátí { file, originalBytes, finalBytes, changed, note }.
    * Když se cokoli nepovede (HEIC bez podpory v prohlížeči, chybějící canvas),
-   * vrací původní soubor — uložení dokladu má přednost před zmenšením.
+   * vrací původní soubor – uložení dokladu má přednost před zmenšením.
    */
   async function prepare(file) {
     var result = { file: file, originalBytes: file ? file.size : 0, finalBytes: file ? file.size : 0, changed: false, note: '' };

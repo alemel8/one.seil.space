@@ -50,16 +50,16 @@
         <tr>
           <td style="font-family:var(--font-mono);font-size:12.5px;white-space:nowrap;">
             <% if (u.bezi) { %><span class="stopky-tecka" style="margin-right:5px;"></span><% } %>
-            <a href="/prace/ukoly/<%= u.id %>" style="color:var(--primary);text-decoration:none;"><%= u.code || '—' %></a>
+            <a href="/prace/ukoly/<%= u.id %>" style="color:var(--primary);text-decoration:none;"><%= u.code || '–' %></a>
           </td>
           <td style="font-size:13.5px;">
             <a href="/prace/ukoly/<%= u.id %>" style="color:var(--text-primary);text-decoration:none;"><%= u.summary %></a>
             <span class="badge" style="background:<%= b[0] %>;color:<%= b[1] %>;margin-left:8px;"><%= stavLabel(u.status) %></span>
           </td>
-          <td style="font-size:13px;color:var(--text-muted);"><%= u.klient || '—' %></td>
-          <td style="font-size:13px;color:var(--text-muted);"><%= [u.resitel_jmeno, u.resitel_prijmeni].filter(Boolean).join(' ') || '—' %></td>
+          <td style="font-size:13px;color:var(--text-muted);"><%= u.klient || '–' %></td>
+          <td style="font-size:13px;color:var(--text-muted);"><%= [u.resitel_jmeno, u.resitel_prijmeni].filter(Boolean).join(' ') || '–' %></td>
           <td style="font-size:12.5px;white-space:nowrap;color:<%= poTerminu(u) ? 'var(--danger)' : 'var(--text-muted)' %>;">
-            <%= u.due_date ? new Date(u.due_date).toLocaleDateString('cs-CZ') : '—' %><%= poTerminu(u) ? ' ⚠' : '' %>
+            <%= u.due_date ? new Date(u.due_date).toLocaleDateString('cs-CZ') : '–' %><%= poTerminu(u) ? ' ⚠' : '' %>
           </td>
           <td style="text-align:right;font-family:var(--font-mono);font-size:13px;"><%= hodinyMinuty(u.sekund) %></td>
           <td>
@@ -103,7 +103,7 @@
           <div class="form-group">
             <label class="form-label">Klient</label>
             <select name="company_id" class="form-select">
-              <option value="">—</option>
+              <option value="">–</option>
               <% klienti.forEach(function (k) { %><option value="<%= k.id %>"><%= k.name %></option><% }) %>
             </select>
           </div>

@@ -1,27 +1,27 @@
 /**
- * API pro e-shopy napojené stejně jako Toneráček — /api/eshop/*.
+ * API pro e-shopy napojené stejně jako Toneráček – /api/eshop/*.
  *
  * Stejných 11 endpointů, těla, stavové kódy i tvary odpovědí jako
  * /api/toneracek/*, takže kopie e-shopu Toneráčku (Dílna Vlněnka) mění jen
  * cestu a klíč. Rozdíly jsou dva a oba schválně:
  *
  *  1. **E-shop určuje klíč**, ne slug v kódu. Klíč je řádek v eshop_api_keys
- *     (migrace 040) a KAŽDÝ dotaz je omezený na jeho shop_id — včetně
+ *     (migrace 040) a KAŽDÝ dotaz je omezený na jeho shop_id – včetně
  *     uživatelů a platebních údajů. Klíč Dílny tedy na objednávku, doklad ani
  *     účet Toneráčku nedosáhne a obráceně.
  *  2. **Účty jsou po e-shopech** v crm_contact_shops. Kontakt v CRM zůstává
  *     jeden na e-mail; registrace, heslo (záložní hash), souhlasy, profil
  *     a poslední přihlášení jsou zvlášť pro každý e-shop. Tenhle soubor proto
  *     NIKDY nezapisuje crm_contacts.is_registered, .notes, .marketing_consent
- *     ani .gdpr_consent_at — z nich čte své účty Toneráček (/api/toneracek
- *     i záložní přihlášení v e-shopu) — a kontakt, který je účtem Toneráčku
+ *     ani .gdpr_consent_at – z nich čte své účty Toneráček (/api/toneracek
+ *     i záložní přihlášení v e-shopu) – a kontakt, který je účtem Toneráčku
  *     (is_registered = TRUE), nemění vůbec. Sdílené jméno a telefon jinému
  *     kontaktu doplní jen objednávka, a to jen prázdné.
  *
  * /api/toneracek/* zůstává, jak je. Pomocné funkce (zálohovka, číslo
  * objednávky, CRM) jsou tu zkopírované, ne sdílené: routa Toneráčku je
  * v provozu a každá změna v ní je riziko pro e-shop, který jede. Až bude
- * Dílna stabilní, jde to sloučit — s regresními testy obou API.
+ * Dílna stabilní, jde to sloučit – s regresními testy obou API.
  */
 
 import { getDb, generateId } from '../db.js';
@@ -33,7 +33,7 @@ import { ceskeDatum } from '../prazsky-cas.js';
 import { eshopPodleKlice, zaznamenejPouziti } from '../eshop-klice.js';
 import { atribuceZTela, nakupniCenaZPolozky } from '../atribuce-objednavky.js';
 
-// Tytéž popisky, jaké ukládá Toneráček — admin, faktury (danovy-doklad.js),
+// Tytéž popisky, jaké ukládá Toneráček – admin, faktury (danovy-doklad.js),
 // expedice i párování plateb podle nich rozhodují.
 const PAYMENT_LABELS = {
   card: 'Platba kartou',
@@ -48,7 +48,7 @@ const SKRYTO = { schema: { hide: true } };
 /**
  * Objednávka tak, jak ji dostane e-shop: `invoice_number` je číslo vydané
  * faktury (`vydana_faktura` z dotazu), jinak prázdné. Kopie
- * objednavkaProEshop() z routes/toneracek.js — viz komentář tam.
+ * objednavkaProEshop() z routes/toneracek.js – viz komentář tam.
  */
 function objednavkaProEshop({ vydana_faktura, ...objednavka }) {
   return { ...objednavka, invoice_number: vydana_faktura ?? '' };
@@ -59,7 +59,7 @@ function objednavkaProEshop({ vydana_faktura, ...objednavka }) {
 /**
  * Účet tak, jak ho zná /api/toneracek (mapContact), jen z řádku e-shopu.
  * Profil: hodnota e-shopu, jinak sdílená z kontaktu. Poznámka (záložní
- * hash hesla) jen na vyžádání — viz mapContact() v routes/toneracek.js.
+ * hash hesla) jen na vyžádání – viz mapContact() v routes/toneracek.js.
  */
 function mapUser(row, { includeNote = false } = {}) {
   const user = {
@@ -117,7 +117,7 @@ const PROFIL = [
  * Kontakt, který je účtem Toneráčku (is_registered = TRUE), se nemění vůbec,
  * ani prázdné pole. Přesně tyhle sloupce vrací /api/toneracek jako účet
  * a pokladna Toneráčku z nich předvyplňuje firmu a adresu na objednávce
- * i faktuře. Objednávku na Dílně může s cizím e-mailem poslat kdokoli —
+ * i faktuře. Objednávku na Dílně může s cizím e-mailem poslat kdokoli –
  * telefon nebo firma odsud by se jinak objevily v cizím účtu na Toneráčku.
  */
 async function doplnPrazdneUdaje(sql, contactId, hodnoty) {
@@ -136,8 +136,8 @@ async function doplnPrazdneUdaje(sql, contactId, hodnoty) {
 /**
  * Obdoba upsertCustomerToCRM() z routes/toneracek.js pro e-shop z klíče.
  * Rozdíly: zdroj je název e-shopu, jméno a telefon se jen doplňují (u účtu
- * Toneráčku vůbec — viz doplnPrazdneUdaje) a registrace se z objednávky
- * nikdy nezvedá — účet vzniká jen přes POST /users. Zákazník se k e-shopu
+ * Toneráčku vůbec – viz doplnPrazdneUdaje) a registrace se z objednávky
+ * nikdy nezvedá – účet vzniká jen přes POST /users. Zákazník se k e-shopu
  * přihlásí řádkem v crm_contact_shops s výslovným is_registered = FALSE
  * (výchozí hodnota sloupce je TRUE).
  */
@@ -226,7 +226,7 @@ async function renderProformaPdf(sql, proforma) {
 }
 
 /**
- * Vystaví zálohovou fakturu a — dokud SHOP_SENDS_PAYMENT_EMAIL není zapnuté —
+ * Vystaví zálohovou fakturu a – dokud SHOP_SENDS_PAYMENT_EMAIL není zapnuté –
  * ji i odešle. Přepínač je globální a platí pro všechny e-shopy stejně
  * (viz issueProformaForOrder v routes/toneracek.js).
  */
@@ -277,7 +277,7 @@ async function prideleneCisloObjednavky(sql, shopId) {
   `;
   if (orderSeries) {
     const [updated] = await sql`UPDATE invoice_number_series SET current_number = current_number + 1 WHERE id = ${orderSeries.id} RETURNING *`;
-    // Formát s náhodnými číslicemi (X) nenese pořadí — při shodě se losuje
+    // Formát s náhodnými číslicemi (X) nenese pořadí – při shodě se losuje
     // znovu, ať UNIQUE (shop_id, order_number) nespadne až u zákazníka.
     const random = /X/.test(updated.format || '');
     for (let attempt = 0; attempt < (random ? 10 : 1); attempt++) {
@@ -343,12 +343,12 @@ export default async function eshopApiRoutes(fastify) {
 
     /*
      * Registrace v TOMHLE e-shopu. Kontakt se stejným e-mailem v CRM být
-     * může — zákazník Toneráčku, host z objednávky, obchodní partner — a to
+     * může – zákazník Toneráčku, host z objednávky, obchodní partner – a to
      * registraci nebrání. 409 znamená jen „už má účet tady“.
      *
      * Profil z registrace jde jen do účtu e-shopu (crm_contact_shops), do
      * existujícího kontaktu ne. E-shop účet zakládá dřív, než zákazník
-     * potvrdí e-mail, takže kdokoli může zkusit registraci s cizí adresou —
+     * potvrdí e-mail, takže kdokoli může zkusit registraci s cizí adresou –
      * a firma či adresa odtud by jinak doplnila účet Toneráčku a jeho pokladna
      * by je předvyplnila na další objednávku a fakturu.
      *
@@ -364,7 +364,7 @@ export default async function eshopApiRoutes(fastify) {
 
       if (!contact) {
         // Sdílené příznaky (is_registered, marketing_consent, gdpr_consent_at,
-        // notes) zůstávají na výchozích hodnotách — patří účtu Toneráčku.
+        // notes) zůstávají na výchozích hodnotách – patří účtu Toneráčku.
         [contact] = await tx`
           INSERT INTO crm_contacts
             (id, first_name, last_name, email, phone, company_name, address, city, zip,
@@ -378,7 +378,7 @@ export default async function eshopApiRoutes(fastify) {
         if (contact) novy = true;
         else [contact] = await tx`SELECT id FROM crm_contacts WHERE email = ${email} FOR UPDATE`;
       } else {
-        // Jen zdroj kontaktu, který ho nemá — a nikdy u účtu Toneráčku.
+        // Jen zdroj kontaktu, který ho nemá – a nikdy u účtu Toneráčku.
         await tx`
           UPDATE crm_contacts SET source = ${shop.name}
           WHERE id = ${contact.id} AND source IS NULL AND is_registered = FALSE
@@ -434,7 +434,7 @@ export default async function eshopApiRoutes(fastify) {
     const b = request.body || {};
     const id = request.params.id;
 
-    // Profil se mění jen v účtu e-shopu — sdílený kontakt v CRM (a s ním
+    // Profil se mění jen v účtu e-shopu – sdílený kontakt v CRM (a s ním
     // účet Toneráčku) zůstává, jak je. Viz POST /api/eshop/users.
     const sets = [];
     for (const [klic, sloupec] of PROFIL) {
@@ -510,7 +510,7 @@ export default async function eshopApiRoutes(fastify) {
     const { status } = request.body || {};
     if (!status) return reply.code(400).send({ error: 'status required' });
 
-    // Okamžik platby jen při prvním potvrzení — viz okamzikPlatbySql().
+    // Okamžik platby jen při prvním potvrzení – viz okamzikPlatbySql().
     const result = await sql`
       UPDATE shop_orders
       SET status = ${status}, paid_at = ${okamzikPlatbySql(sql, status)}, modified_at = NOW()
@@ -546,18 +546,18 @@ export default async function eshopApiRoutes(fastify) {
 
     const { customer, shipping, paymentMethod, ipAddress, status } = b;
 
-    // Celé koruny po celé soustavě — viz POST /api/toneracek/orders.
+    // Celé koruny po celé soustavě – viz POST /api/toneracek/orders.
     const totalPrice = Math.round(Number(b.totalPrice));
     const items = (b.items || []).map((i) => ({ ...i, price: Math.round(Number(i.price)) }));
 
     // Zdroj objednávky (UTM, click-id, referrer, vstupní stránka) a nákupní
-    // cena položek — volitelné; bez nich dosadí výchozí hodnoty sloupců,
+    // cena položek – volitelné; bez nich dosadí výchozí hodnoty sloupců,
     // viz src/atribuce-objednavky.js a kontrakt v docs/api.md.
     const atribuce = atribuceZTela(b.marketing);
 
     const orderNumber = await prideleneCisloObjednavky(sql, shop.id);
 
-    // Číslo faktury vzniká až při vyřízení — viz POST /api/toneracek/orders.
+    // Číslo faktury vzniká až při vyřízení – viz POST /api/toneracek/orders.
     const invoiceNumber = '';
     const orderId = generateId();
     const initialStatus = status || 'Přijata';
@@ -640,7 +640,7 @@ export default async function eshopApiRoutes(fastify) {
     }
 
     sendPushToAll({
-      title: `Nová objednávka — ${shop.name}`,
+      title: `Nová objednávka – ${shop.name}`,
       body: `#${orderNumber} · ${customer.firstName} ${customer.lastName} · ${totalPrice} CZK`,
       url: `/ucetnictvi/objednavky/${orderId}`,
     })
@@ -742,5 +742,5 @@ export default async function eshopApiRoutes(fastify) {
   });
 }
 
-/** Registrace narazila na existující účet v tomtéž e-shopu — jen pro rollback transakce. */
+/** Registrace narazila na existující účet v tomtéž e-shopu – jen pro rollback transakce. */
 class UzRegistrovan extends Error {}

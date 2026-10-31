@@ -13,7 +13,7 @@
  * každém novém e-shopu a pojmenovací schéma proměnných; v databázi leží
  * šifrovaný klíčem MARKETING_SECRETS_KEY a v administraci se ukazuje jen
  * otisk (plán D6). Google (GA4, Ads, Search Console, Merchant) token
- * nepotřebuje — jede přes firemní service account z GOOGLE_SERVICE_ACCOUNT_JSON
+ * nepotřebuje – jede přes firemní service account z GOOGLE_SERVICE_ACCOUNT_JSON
  * a e-shop si jen přidá jeho e-mail jako čtenáře.
  *
  * ## Tajemství e-shopu
@@ -22,7 +22,7 @@
  * x-webhook-secret. Toneráček podepisuje balíky i statistiku proměnnou
  * SHOP_WEBHOOK_SECRET z prostředí (stejně jako expedice), ostatní e-shopy
  * mají `shops.webhook_secret`; vlastní token ve zdroji má přednost, když
- * ho někdo vyplní — třeba pro e-shop na jiném hostingu.
+ * ho někdo vyplní – třeba pro e-shop na jiném hostingu.
  */
 
 import { jenDatum } from '../prazsky-cas.js';
@@ -37,7 +37,7 @@ export const MAX_DELKA_ID = 200;
 /**
  * Platformy v pořadí, v jakém se ukazují v nastavení. `potrebujeTajemstvi`
  * řídí pole pro token, prázdný `popisExternalId` pole skryje. `zbozi` tu
- * není — Zboží.cz API skončilo 16. 3. 2026 a statistiky Nákupů plní adaptér
+ * není – Zboží.cz API skončilo 16. 3. 2026 a statistiky Nákupů plní adaptér
  * Skliku (plán D9); vysvětluje to poznámka u Skliku.
  */
 export const PLATFORMY_NASTAVENI = [
@@ -121,7 +121,7 @@ export async function nactiZdroje(sql, shopId) {
   });
 }
 
-/** Aktivní zdroje všech aktivních e-shopů pro sync — Toneráček první (stejné pořadí jako expedice). */
+/** Aktivní zdroje všech aktivních e-shopů pro sync – Toneráček první (stejné pořadí jako expedice). */
 export async function aktivniZdroje(sql) {
   return sql`
     SELECT src.*, s.slug, s.name AS shop_name, s.url AS shop_url, s.webhook_secret AS shop_webhook_secret,
@@ -154,7 +154,7 @@ export async function ulozZdroj(sql, { shopId, platform, active, externalId, par
   const jeAktivni = active === true || active === 'on' || active === '1' || active === 'true';
 
   // Token: nový se zašifruje, prázdné pole nechá uložený, akce vymazat ho smaže.
-  // Řeší se v INSERTu i v UPDATE — první uložení řádku jde INSERTem a ON
+  // Řeší se v INSERTu i v UPDATE – první uložení řádku jde INSERTem a ON
   // CONFLICT se nespustí, takže token jen v UPDATE by se napoprvé zahodil.
   let novyToken = null;
   const vymazat = akce === 'vymazat-tajemstvi';
@@ -207,7 +207,7 @@ export async function nastavMarketingEshopu(sql, shopId, { marzePct, pnoAlertPct
  * Token pro volání platformy: dešifrované tajemství zdroje; u platformy
  * `eshop` bez vlastního tokenu tajemství e-shopu (Toneráček z prostředí,
  * ostatní `shops.webhook_secret`). Vrací '' když nic není; dešifrování
- * s cizím klíčem nechá vyhodit TajemstviError — to má sync hlásit jako
+ * s cizím klíčem nechá vyhodit TajemstviError – to má sync hlásit jako
  * trvalou chybu, ne tiše stahovat bez tokenu.
  */
 export function tajemstviZdroje(zdroj, shop, env = process.env) {

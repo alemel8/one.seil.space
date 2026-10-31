@@ -21,9 +21,9 @@ Hodnota z env proměnné `TONERACEK_API_KEY`.
 ```
 Authorization: Bearer <klíč e-shopu, 64 hex znaků>
 ```
-Klíč vydává Nastavení → Eshopy → detail e-shopu → záložka *Napojení e-shopu* — jiné
+Klíč vydává Nastavení → Eshopy → detail e-shopu → záložka *Napojení e-shopu* – jiné
 místo pro klíče už není. Ukáže se jednou, v databázi (`eshop_api_keys`) je
-jen jeho SHA-256 otisk. Klíč **určuje e-shop** — viz
+jen jeho SHA-256 otisk. Klíč **určuje e-shop** – viz
 [E-shop API](#e-shop-api-apieshop).
 
 ---
@@ -95,7 +95,7 @@ Příjem objednávky.
 ```
 
 Volitelné `status` nastaví výchozí stav objednávky (bez něj „Přijata“).
-E-shop ho posílá jako `"Čeká na platbu"` u plateb kartou — objednávka je do
+E-shop ho posílá jako `"Čeká na platbu"` u plateb kartou – objednávka je do
 potvrzení platby jen rezervací.
 
 **Response 200:**
@@ -107,9 +107,9 @@ potvrzení platby jen rezervací.
 }
 ```
 
-`invoiceNumber` je vždy prázdné — faktura vzniká až vyřízením objednávky a číslo
+`invoiceNumber` je vždy prázdné – faktura vzniká až vyřízením objednávky a číslo
 dostane z řady (např. `20260001`). Pak ho vrací `GET /api/toneracek/orders`
-(i `…/by-number/:orderNumber`) v `invoice_number` — vždy číslo vydané faktury,
+(i `…/by-number/:orderNumber`) v `invoice_number` – vždy číslo vydané faktury,
 bez ní prázdné, i u starších objednávek, které mají v databázi uložené vymyšlené
 `FV-<rok>-<objednávka>`. K tomu žádný doklad neexistoval; e-shop má řádek
 „Faktura" při prázdné hodnotě skrýt, a to dřív nebo současně s nasazením Seilu.
@@ -119,11 +119,11 @@ bez ní prázdné, i u starších objednávek, které mají v databázi uložen�
 `supplierCode` je nepovinný kód dodavatele, podle kterého vychystává sklad
 (v Toneráčku Airtable pole „ID Dodavatele"). Ranní expedice ho tiskne do
 seznamu pro sklad; když chybí, vytiskne se místo něj `sku` s poznámkou.
-**`sku` kód dodavatele není** — je to interní kód e-shopu.
+**`sku` kód dodavatele není** – je to interní kód e-shopu.
 
 ### Zdroj objednávky a nákupní cena (od migrace 042)
 
-`marketing` i `items[].costPrice` jsou **nepovinné** — e-shop, který je
+`marketing` i `items[].costPrice` jsou **nepovinné** – e-shop, který je
 neposílá, projde beze změny a objednávka dostane výchozí hodnoty (prázdné
 texty, `NULL`). Kontrakt je společný pro všechny e-shopy a platí doslova
 na obou stranách:
@@ -151,7 +151,7 @@ items[]: { …, costPrice: number|null, costPriceVatIncluded: boolean|null }
 
 Všechny texty One SEIL ořízne, zbaví řídicích znaků (C0 i C1), neviditelných
 formátovacích znaků Unicode (nulová šířka, bidi, BOM) a ``<>"'`\`` a nikdy
-kvůli nim objednávku neodmítne — e-shop má vlastní validaci (400), One SEIL
+kvůli nim objednávku neodmítne – e-shop má vlastní validaci (400), One SEIL
 jen čistí (`src/atribuce-objednavky.js`, společné pro obě API). Neznámá
 hodnota `consent` nebo `clickIdKind` se uloží jako prázdná.
 
@@ -196,7 +196,7 @@ neúspěšné platbě kartou přepne na QR / převod / dobírku.
 ```
 
 `paymentMethod` je `card` | `transfer` | `cod`. `totalPrice` a `status` jsou
-volitelné — bez nich se nemění. Přepnutí na převod vystaví a odešle zálohovou
+volitelné – bez nich se nemění. Přepnutí na převod vystaví a odešle zálohovou
 fakturu stejně jako objednávka, která s převodem přišla rovnou z pokladny
 (druhou zálohovku k téže objednávce nevystaví). `status: "Zaplaceno"` zapíše
 okamžik platby do `paid_at` stejně jako `payment-status`.
@@ -209,7 +209,7 @@ okamžik platby do `paid_at` stejně jako `payment-status`.
 
 ### GET /api/toneracek/orders/:id/payment-details
 Platební údaje k objednávce placené převodem. Jediný zdroj pravdy o tom, jak má
-zákazník zaplatit — e-shop je vykresluje do potvrzení objednávky, na děkovnou
+zákazník zaplatit – e-shop je vykresluje do potvrzení objednávky, na děkovnou
 stránku i do QR kódu.
 
 `?pdf=1` přidá zálohovou fakturu v base64. Bez něj se PDF nerenderuje (děkovná
@@ -231,7 +231,7 @@ stránka ho nepotřebuje a puppeteer render při každém načtení by byl drah�
 }
 ```
 
-`409 {"error":"not-transfer"}` u objednávky placené kartou nebo dobírkou —
+`409 {"error":"not-transfer"}` u objednávky placené kartou nebo dobírkou –
 zálohová faktura se u nich nevystavuje. Když proforma ještě neexistuje,
 endpoint ji vystaví.
 
@@ -258,7 +258,7 @@ Aktualizace čísla zásilky.
 
 Pro další e-shopy napojené stejně jako Toneráček (první je Dílna Vlněnka).
 **Stejných 11 endpointů, těla, stavové kódy i tvary odpovědí** jako
-`/api/toneracek/*` výš — e-shop, který je kopií Toneráčku, mění jen předponu
+`/api/toneracek/*` výš – e-shop, který je kopií Toneráčku, mění jen předponu
 cesty a klíč. Shodu hlídá `test/toneracek-kontrakt.test.js` (jeden scénář
 přes obě API, porovnání se vzorem z doby před zásahem).
 
@@ -281,7 +281,7 @@ Rozdíly proti `/api/toneracek` (žádný nemění tvar odpovědi):
 - **E-shop se bere z klíče** a každý dotaz je omezený na jeho `shop_id`,
   včetně uživatelů a platebních údajů. Cizí objednávka nebo účet vrací `404`.
   Bez klíče, se špatným, zrušeným klíčem nebo s klíčem vypnutého e-shopu
-  (`shops.active = FALSE`) `401 {"error":"Unauthorized"}` — ještě před
+  (`shops.active = FALSE`) `401 {"error":"Unauthorized"}` – ještě před
   čtením těla požadavku.
 - **Účty jsou po e-shopech** (`crm_contact_shops`). Kontakt v CRM je jeden na
   e-mail; registrace, záložní hash hesla, souhlasy (marketing, notifikace,
@@ -291,16 +291,16 @@ Rozdíly proti `/api/toneracek` (žádný nemění tvar odpovědi):
   `marketing_consent` ani `gdpr_consent_at` se odsud nezapisují (čte je
   Toneráček) a kontakt, který je účtem Toneráčku (`is_registered = TRUE`),
   se odsud nemění vůbec. Profil z registrace a z `PATCH` jde jen do účtu
-  e-shopu — co zákazník napíše na e-shopu, vidí jen tam. Sdílený kontakt
+  e-shopu – co zákazník napíše na e-shopu, vidí jen tam. Sdílený kontakt
   (host, obchodní partner) doplní jen objednávka: prázdné jméno a telefon.
 - `datumRegistrace` je den registrace v tomhle e-shopu, ne vznik kontaktu.
-- Registrace (`POST /users`) vymaže případný starý záložní hash hesla —
+- Registrace (`POST /users`) vymaže případný starý záložní hash hesla –
   e-shop hned po ní zapíše nový přes `PATCH … { poznamka }`.
 - Objednávka účet nezakládá ani nezvedá: `isRegistered` v těle se ignoruje,
   zákazník se k e-shopu jen přihlásí jako host. CRM zdroj = název e-shopu,
-  titulek push notifikace „Nová objednávka — <název e-shopu>“.
+  titulek push notifikace „Nová objednávka – <název e-shopu>“.
 - `POST /orders` vrátí `503`, dokud e-shop nemá vyplněnou identitu e-mailů
-  (Nastavení → Eshopy) — jinak by nešla vyrenderovat zálohovka a zákazník by
+  (Nastavení → Eshopy) – jinak by nešla vyrenderovat zálohovka a zákazník by
   dostal potvrzení bez variabilního symbolu.
 
 Postup napojení nového e-shopu je v [druhy-eshop.md](druhy-eshop.md).
@@ -352,7 +352,7 @@ Response: `{ "subscribed": true }`
 ### POST /api/push/test
 Zkušební notifikace na zařízení přihlášeného uživatele. Bez těla.
 
-Response: `{ "odeslano": 1, "selhalo": 0, "duvod": "" }` — `duvod` je vyplněný jen
+Response: `{ "odeslano": 1, "selhalo": 0, "duvod": "" }` – `duvod` je vyplněný jen
 když neodešlo nic (chybí VAPID klíče, účet nemá registrované zařízení, push
 službu odmítla). Jediný jiný spouštěč notifikace je skutečná objednávka, takže
 tudy se registrace ověří, aniž by se na ni čekalo.

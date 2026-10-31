@@ -71,16 +71,16 @@
           <td>
             <% if (company.source) { %>
               <span class="badge" style="background:var(--gray-100);color:var(--gray-600);font-size:11px;"><%= company.source %></span>
-            <% } else { %><span style="color:var(--text-muted);">—</span><% } %>
+            <% } else { %><span style="color:var(--text-muted);">–</span><% } %>
           </td>
-          <td><%= company.country || '—' %></td>
-          <td style="color:var(--text-muted);"><%= company.city || '—' %></td>
+          <td><%= company.country || '–' %></td>
+          <td style="color:var(--text-muted);"><%= company.city || '–' %></td>
           <td style="font-size:13px;">
             <% if (company.email) { %>
               <a href="mailto:<%= company.email %>" style="color:var(--primary);" onclick="event.stopPropagation()"><%= company.email %></a>
-            <% } else { %>—<% } %>
+            <% } else { %>–<% } %>
           </td>
-          <td style="font-size:13px;color:var(--text-muted);"><%= company.phone || '—' %></td>
+          <td style="font-size:13px;color:var(--text-muted);"><%= company.phone || '–' %></td>
           <td style="color:var(--text-muted);font-size:12px;"><%= new Date(company.created_at).toLocaleDateString('cs-CZ') %></td>
         </tr>
         <% }); %>
@@ -98,7 +98,7 @@
 <!-- Stránkování -->
 <% if (totalPages > 1) { %>
 <div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;font-size:13px;color:var(--text-muted);">
-  <span>Stránka <%= currentPage %> z <%= totalPages %> — celkem <%= total %> firem</span>
+  <span>Stránka <%= currentPage %> z <%= totalPages %> – celkem <%= total %> firem</span>
   <div style="display:flex;gap:6px;">
     <% if (currentPage > 1) { %>
       <a href="?page=<%= currentPage - 1 %><%= q ? '&q=' + q : '' %><%= typeFilter ? '&type=' + typeFilter : '' %><%= sourceFilter ? '&source=' + encodeURIComponent(sourceFilter) : '' %>" class="btn btn-outline btn-sm">← Předchozí</a>

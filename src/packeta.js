@@ -1,4 +1,4 @@
-// Packeta (Zásilkovna) SOAP API klient — stažení PDF štítku přímo ze serveru,
+// Packeta (Zásilkovna) SOAP API klient – stažení PDF štítku přímo ze serveru,
 // bez spoléhání na externě vygenerovaný (a časem expirující) odkaz.
 // WSDL: https://www.zasilkovna.cz/api/soap-php-bugfix.wsdl, endpoint https://www.zasilkovna.cz/api/soap
 //

@@ -1,4 +1,4 @@
-// Náklady firmy — jediné místo, kde se sčítají.
+// Náklady firmy – jediné místo, kde se sčítají.
 //
 // Dokud šlo jen o „součet přijatých faktur", vešel se vzorec do šablony
 // (prehled.ejs) a na domovskou stránku zvlášť. Se třemi zdroji by se ty
@@ -6,17 +6,17 @@
 //
 // Co do nákladů patří a co ne:
 //   přijaté faktury   ano
-//   účtenky           ano — dosud se nepočítaly vůbec, takže zisk byl nadhodnocený
+//   účtenky           ano – dosud se nepočítaly vůbec, takže zisk byl nadhodnocený
 //   mzdy              ano, ale „náklady firmy" (hrubá + odvody zaměstnavatele),
 //                     ne to, co odešlo z účtu
-//   zálohy zaměstnanci NE — je to pohledávka za zaměstnancem (335), ne náklad
+//   zálohy zaměstnanci NE – je to pohledávka za zaměstnancem (335), ne náklad
 //
 // A do cashflow se nepřidává nic: mzdy i zálohy z účtu už odešly a banka
 // je vidí, takže by se započítaly dvakrát.
 
 /**
  * Náklady za období rozpadlé podle zdroje.
- * Mzda se řadí do měsíce, ZA který je, ne podle data výplaty — mzda za
+ * Mzda se řadí do měsíce, ZA který je, ne podle data výplaty – mzda za
  * červen je nákladem června, i když se posílá v polovině července.
  */
 export async function naklady(sql, from, to) {
@@ -52,7 +52,7 @@ export async function trzby(sql, from, to) {
   return { celkem: issued.v, pocet: issued.n };
 }
 
-/** Mzdové náklady po měsících roku — třetí řada do grafu tržeb a nákladů. */
+/** Mzdové náklady po měsících roku – třetí řada do grafu tržeb a nákladů. */
 export async function mzdyPoMesicich(sql, year) {
   const rows = await sql`
     SELECT EXTRACT(MONTH FROM period)::int AS m, COALESCE(SUM(company_cost),0)::float8 AS v

@@ -4,14 +4,14 @@
 // skupinu). Od dvou znaků, debounce 250 ms; běžící požadavek se ruší
 // a odpověď se starším dotazem zahazuje. Šipky, Enter a Esc; Enter bez
 // výběru nechá formulář odejít na /hledat. Vykresluje se přes DOM API,
-// ne innerHTML — výsledky nesou uživatelská data.
+// ne innerHTML – výsledky nesou uživatelská data.
 (function () {
   const pole = document.getElementById('hledaniPole');
   const form = pole?.closest('form');
   if (!pole || !form) return;
 
   // Panel pod polem: hláška „nic“ (role=status) a seznam voleb (role=listbox)
-  // zvlášť — v listboxu smí být jen položky. Role combobox a aria-controls
+  // zvlášť – v listboxu smí být jen položky. Role combobox a aria-controls
   // má pole už v šabloně.
   const panel = document.createElement('div');
   panel.className = 'hledani-napoveda';
@@ -32,10 +32,10 @@
   let polozky = [];
   let vybrana = -1;
 
-  // Stejná normalizace jako na serveru — podle ní se pozná zastaralá odpověď.
+  // Stejná normalizace jako na serveru – podle ní se pozná zastaralá odpověď.
   const normalizuj = (s) => s.replace(/\s+/g, ' ').trim().slice(0, 100);
 
-  // Zavření ruší i čekající dotaz — jinak by doběhlá odpověď seznam zase otevřela.
+  // Zavření ruší i čekající dotaz – jinak by doběhlá odpověď seznam zase otevřela.
   function zavri() {
     clearTimeout(casovac);
     ridic?.abort();

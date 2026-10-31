@@ -1,4 +1,4 @@
-# one.seil.space — Přehled systému
+# one.seil.space – Přehled systému
 
 Interní webová aplikace pro správu e-shopů, účetnictví, CRM, týmu a infrastruktury seil.space.
 Přístup je chráněn přihlášením; existuje role uživatel a administrátor.
@@ -68,7 +68,7 @@ one.seil.space/
 ├── migrations/             # Číslované SQL migrace (001–010)
 ├── docs/                   # Tato dokumentace
 ├── scripts/                # Pomocné skripty (migrace dat, superuser)
-├── data/                   # Runtime data (media, PDF) — není v gitu
+├── data/                   # Runtime data (media, PDF) – není v gitu
 ├── Dockerfile
 ├── docker-compose.yml
 └── .env.example

@@ -10,7 +10,7 @@ export default async function monitoringRoutes(fastify) {
     const channels = await sql`SELECT * FROM notification_channels ORDER BY name`;
     const rules    = await sql`SELECT r.*, c.name AS channel_name FROM notification_rules r LEFT JOIN notification_channels c ON r.channel_id = c.id ORDER BY r.event_type`;
     return reply.view('pages/monitoring/settings.ejs', {
-      pageTitle: 'Monitoring — nastavení', currentPath: '/nastaveni/healthchecky',
+      pageTitle: 'Monitoring – nastavení', currentPath: '/nastaveni/healthchecky',
       user: request.user, checks, channels, rules,
     }, { layout: 'layouts/base.ejs' });
   });
@@ -85,6 +85,6 @@ export default async function monitoringRoutes(fastify) {
     return checks;
   });
 
-  // Upomínky faktur řeší src/routes/invoices.js — mají tři stupně důrazu,
+  // Upomínky faktur řeší src/routes/invoices.js – mají tři stupně důrazu,
   // evidenci v invoice_reminders a log odeslání.
 }

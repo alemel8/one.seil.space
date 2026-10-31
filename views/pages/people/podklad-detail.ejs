@@ -1,6 +1,6 @@
 <%
   const kc = n => Number(n || 0).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const den = d => d ? new Date(d).toLocaleDateString('cs-CZ') : '—';
+  const den = d => d ? new Date(d).toLocaleDateString('cs-CZ') : '–';
   const jmeno = ((podklad.first_name || '') + ' ' + (podklad.last_name || '')).trim();
   const mista = lokality.map(l => [l.city, l.country].filter(Boolean).join(', '));
 %>
@@ -36,7 +36,7 @@
       <div class="card-body">
         <pre style="white-space:pre-wrap;font-family:var(--font-mono);font-size:12.5px;line-height:1.6;margin:0;color:var(--text-primary);"><%= podklad.breakdown %></pre>
         <div style="margin-top:12px;font-size:12px;color:var(--text-muted);">
-          Text tak, jak byl v Airtable — záměrně se nepřepisoval do řádků,
+          Text tak, jak byl v Airtable – záměrně se nepřepisoval do řádků,
           aby se u starých podkladů nezkomolila čísla.
         </div>
       </div>
@@ -50,9 +50,9 @@
       <div class="card-body">
         <dl style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13.5px;margin:0;">
           <dt style="color:var(--text-muted);">Čísla projektů</dt>
-          <dd style="font-family:var(--font-mono);font-size:12.5px;"><%= (podklad.kody || []).join(', ') || '—' %></dd>
+          <dd style="font-family:var(--font-mono);font-size:12.5px;"><%= (podklad.kody || []).join(', ') || '–' %></dd>
           <dt style="color:var(--text-muted);">Lokalita</dt>
-          <dd><%= mista.join(' · ') || '—' %></dd>
+          <dd><%= mista.join(' · ') || '–' %></dd>
           <dt style="color:var(--text-muted);">Datum</dt>
           <dd><%= den(podklad.report_date) %></dd>
           <dt style="color:var(--text-muted);">Stav</dt>
@@ -80,7 +80,7 @@
           </dl>
           <% if (Math.abs(Number(podklad.faktura_castka) - Number(podklad.total_amount)) > 1) { %>
           <div style="margin-top:12px;background:var(--info-bg);color:var(--info);border-radius:8px;padding:10px 12px;font-size:12.5px;">
-            Faktura klientovi je na jinou částku než podklad — to je běžné,
+            Faktura klientovi je na jinou částku než podklad – to je běžné,
             klientovi se účtuje jiná sazba než technikovi.
           </div>
           <% } %>

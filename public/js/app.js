@@ -1,5 +1,5 @@
 /* ============================================================
-   ONE.SEIL.SPACE — Main app JS
+   ONE.SEIL.SPACE – Main app JS
    ============================================================ */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -23,20 +23,20 @@ document.addEventListener('DOMContentLoaded', () => {
     html.setAttribute('data-theme', theme);
   }
 
-  // ── Sidebar — sbalený pruh na desktopu ────────────────────
+  // ── Sidebar – sbalený pruh na desktopu ────────────────────
   // Stav drží <html data-sidebar="collapsed"> (nastavuje ho inline skript
   // v base.ejs ještě před vykreslením) a localStorage 'seil-sidebar'.
   // Hranice 768 px je stejná jako mobilní blok v layout.css.
   const mqMobil = window.matchMedia('(max-width: 768px)');
   const jeSbaleno = () => html.getAttribute('data-sidebar') === 'collapsed';
 
-  // ── Sidebar nav — accordion ───────────────────────────────
+  // ── Sidebar nav – accordion ───────────────────────────────
   document.querySelectorAll('.nav-link[data-toggle="sub"]').forEach(link => {
     link.addEventListener('click', e => {
       e.preventDefault();
       const item = link.closest('.nav-item');
       // Sbalený pruh: skupina je jedna ikona a vede na svou první
-      // podstránku (jako v GrapeNetu) — rozbalovat není kam.
+      // podstránku (jako v GrapeNetu) – rozbalovat není kam.
       if (!mqMobil.matches && jeSbaleno()) {
         const prvni = item.querySelector('.nav-sub-link');
         if (prvni) window.location.href = prvni.getAttribute('href');
@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
     link.setAttribute('aria-expanded', String(link.closest('.nav-item')?.classList.contains('open') ?? false));
   });
 
-  // ── Záložky detailu — aktivní do zorného pole ─────────────
+  // ── Záložky detailu – aktivní do zorného pole ─────────────
   // Šest záložek detailu e-shopu je přes 600 px; na telefonu by aktivní
   // zůstala za okrajem a uživatel by nevěděl, kde je.
   document.querySelector('.tabs .tab.active')?.scrollIntoView({ inline: 'center', block: 'nearest' });
@@ -133,7 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Některé šablony zavírají modal inline onclick (classList.remove('open')),
-  // který overflow těla nevrátí — stránka pak po zavření křížkem nejde
+  // který overflow těla nevrátí – stránka pak po zavření křížkem nejde
   // scrollovat. Inline obsluha proběhne dřív než tenhle posluchač na
   // dokumentu, takže stačí po každém kliku ověřit, že žádný modal není otevřený.
   document.addEventListener('click', () => {
@@ -142,7 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // ── Sidebar — přepínač (desktop sbalí pruh, mobil otevře drawer) ──
+  // ── Sidebar – přepínač (desktop sbalí pruh, mobil otevře drawer) ──
   const sidebarToggle = document.getElementById('sidebarToggle');
   const sidebar = document.getElementById('sidebar');
   const sidebarOverlay = document.getElementById('sidebarOverlay');
@@ -176,7 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Tooltipy jen ve sbaleném stavu — v rozbaleném menu by překážely.
+  // Tooltipy jen ve sbaleném stavu – v rozbaleném menu by překážely.
   // Zároveň dají odkazu přístupný název, když je jeho popisek skrytý.
   function nastavSidebar(sbalit) {
     if (sbalit) html.setAttribute('data-sidebar', 'collapsed');

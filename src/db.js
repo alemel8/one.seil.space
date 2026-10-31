@@ -7,7 +7,7 @@ import { existsSync } from 'node:fs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
 
-// Monitoring data (SQLite, readonly — plní collector, nezávislé na PG)
+// Monitoring data (SQLite, readonly – plní collector, nezávislé na PG)
 const STATS_DIR = process.env.STATS_DIR || path.join(projectRoot, 'data');
 
 let _sql = null;
@@ -29,7 +29,7 @@ export function getDb() {
   return _sql;
 }
 
-// Zpětná kompatibilita — starý název
+// Zpětná kompatibilita – starý název
 export const getAppDb = getDb;
 
 export async function closeAll() {

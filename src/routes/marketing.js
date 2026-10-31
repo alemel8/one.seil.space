@@ -8,7 +8,7 @@
  * spotřebovává kvóty API platforem.
  *
  * E-shop se volí `?eshop=<slug>` jako u objednávek (toneracek.js); výchozí
- * je Toneráček. Nikdy se nemíchají data dvou e-shopů — každý dotaz nese shop_id.
+ * je Toneráček. Nikdy se nemíchají data dvou e-shopů – každý dotaz nese shop_id.
  */
 
 import { getDb } from '../db.js';
@@ -22,7 +22,7 @@ import { isConfigured as maGoogleServiceAccount } from '../google-auth.js';
 
 const VYCHOZI_ESHOP = 'toneracek';
 
-/** Platformy ručních nákladů — stejný seznam jako CHECK v migraci 042. */
+/** Platformy ručních nákladů – stejný seznam jako CHECK v migraci 042. */
 export const RUCNI_PLATFORMY = ['google_ads', 'sklik', 'zbozi', 'heureka', 'meta', 'ostatni'];
 
 /** Nejvyšší ruční náklad za jedno období; víc je skoro jistě překlep (haléře, částka za rok). */
@@ -170,12 +170,12 @@ export default async function marketingRoutes(fastify) {
   });
 
   /**
-   * Ruční běh (jen správce — čerpá kvóty API). Samotný worker je
+   * Ruční běh (jen správce – čerpá kvóty API). Samotný worker je
    * v src/marketing/sync.js; dokud není nasazený, tlačítko vrátí
    * srozumitelnou chybu místo 500.
    */
   fastify.post('/marketing/sync/spustit', async (request, reply) => {
-    if (!request.user?.is_admin) return reply.code(403).send('Přístup odepřen — pouze administrátor');
+    if (!request.user?.is_admin) return reply.code(403).send('Přístup odepřen – pouze administrátor');
     const b = request.body || {};
     const { shop } = await eshopZDotazu({ eshop: b.eshop });
     if (!shop) return reply.code(400).send('Neznámý e-shop');

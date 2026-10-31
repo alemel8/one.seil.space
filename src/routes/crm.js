@@ -17,7 +17,7 @@ export default async function crmRoutes(fastify) {
     const conditions = [];
     if (q)          conditions.push(sql`(name ILIKE ${'%' + q + '%'} OR city ILIKE ${'%' + q + '%'} OR country ILIKE ${'%' + q + '%'} OR ico ILIKE ${'%' + q + '%'})`);
     if (typeFilter) conditions.push(sql`company_type = ${typeFilter}`);
-    // „(bez zdroje)" je vlastní volba, aby šlo najít ručně založené záznamy —
+    // „(bez zdroje)" je vlastní volba, aby šlo najít ručně založené záznamy –
     // prázdný řetězec znamená „nefiltrovat", takže NULL potřebuje svůj klíč.
     if (sourceFilter === '-') conditions.push(sql`source IS NULL`);
     else if (sourceFilter)    conditions.push(sql`source = ${sourceFilter}`);
@@ -113,7 +113,7 @@ export default async function crmRoutes(fastify) {
   });
 
   // Záložka Poznámky má formulář jen s textarea. Přes POST /crm/firmy/:id, který
-  // přepisuje celý řádek, by musela posílat zbytek firmy v hidden polích — a když
+  // přepisuje celý řádek, by musela posílat zbytek firmy v hidden polích – a když
   // se některé zapomnělo (web), každé uložení poznámek ho firmě smazalo.
   fastify.post('/crm/firmy/:id/poznamky', async (request, reply) => {
     const b = request.body || {};
@@ -179,7 +179,7 @@ export default async function crmRoutes(fastify) {
     /*
      * Zákazník e-shopu má v Seilu i doklady, jen se sem dosud netahaly.
      * Objednávka a faktura na sebe navazují, takže je užitečné vidět obojí
-     * na jednom místě — kolik toho u nás nakoupil a co za to bylo vystaveno.
+     * na jednom místě – kolik toho u nás nakoupil a co za to bylo vystaveno.
      *
      * Doklady se hledají i přes objednávky: `accounting_invoices` sice má
      * `crm_contact_id`, ale u dokladů vystavených ke starším objednávkám
@@ -201,7 +201,7 @@ export default async function crmRoutes(fastify) {
       `,
     ]);
 
-    // „Zaplaceno" se počítá z dokladů, ne z objednávek — objednávka může být
+    // „Zaplaceno" se počítá z dokladů, ne z objednávek – objednávka může být
     // přijatá a nezaplacená a sečíst ji jako tržbu by bylo zavádějící.
     const souhrn = {
       objednavek: orders.length,

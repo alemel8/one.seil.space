@@ -1,10 +1,10 @@
 /* ============================================================
-   ONE.SEIL.SPACE — náhled dokladu v popup okně
+   ONE.SEIL.SPACE – náhled dokladu v popup okně
 
    Doklad se dosud otevíral v novém panelu prohlížeče, čímž člověk ztratil
    kontext seznamu. Tohle ho ukáže rovnou nad stránkou, se stažením po ruce.
 
-   Použití deklarativně — stačí atributy, obsluha je delegovaná, takže
+   Použití deklarativně – stačí atributy, obsluha je delegovaná, takže
    funguje i na řádcích vykreslených dodatečně:
 
      <a href="/doklady/soubor/x.jpg"
@@ -19,7 +19,7 @@
   var parts = {};
   var state = { url: '', name: '', zoom: false };
 
-  // V nainstalované PWA má aplikace vlastní úložiště cookies — odkaz otevřený
+  // V nainstalované PWA má aplikace vlastní úložiště cookies – odkaz otevřený
   // v systémovém prohlížeči tam session nemá a skončí na přihlašovací stránce.
   // Proto tam nabízíme jen náhled a stažení.
   function isStandalone() {
@@ -77,7 +77,7 @@
     el.querySelector('.dn-close').addEventListener('click', close);
     parts.img.addEventListener('click', toggleZoom);
 
-    // Ve fázi capture, aby se Escape nedostal k obsluze modalů v app.js —
+    // Ve fázi capture, aby se Escape nedostal k obsluze modalů v app.js –
     // jinak by zavřel i rozepsaný formulář účtenky pod náhledem.
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape' || !el.classList.contains('open')) return;
@@ -117,7 +117,7 @@
     parts.img.style.display = parts.frame.style.display = parts.fallback.style.display = 'none';
     parts.img.src = ''; parts.frame.src = 'about:blank';
 
-    // Typ neznáme jen u blob: URL z právě vybraného souboru — dopadneme na příponu
+    // Typ neznáme jen u blob: URL z právě vybraného souboru – dopadneme na příponu
     var isImage = mime.indexOf('image/') === 0 || (!mime && /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(name));
     var isPdf   = mime === 'application/pdf' || (!mime && /\.pdf$/i.test(name));
 
@@ -151,11 +151,11 @@
     el.classList.remove('open');
     parts.frame.src = 'about:blank';   // ať PDF v pozadí needitujeme dál
     parts.img.src = '';
-    // Popup může běžet nad jiným modalem — scroll vracíme jen když už žádný není
+    // Popup může běžet nad jiným modalem – scroll vracíme jen když už žádný není
     if (!document.querySelector('.modal-backdrop.open')) document.body.style.overflow = '';
   }
 
-  // Delegovaná obsluha — funguje i na dodatečně vykreslených prvcích.
+  // Delegovaná obsluha – funguje i na dodatečně vykreslených prvcích.
   // Ve fázi capture záměrně: v přehledech visí proklik na detail na celém
   // řádku a buňky ho brzdí přes stopPropagation, takže do bublání by se klik
   // na miniaturu nedostal a odkaz by místo náhledu otevřel soubor napřímo.

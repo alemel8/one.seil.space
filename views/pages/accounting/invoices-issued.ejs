@@ -26,14 +26,14 @@
         <% invoices.forEach(inv => { %>
         <tr>
           <td style="font-weight:500;font-family:var(--font-mono);letter-spacing:0.3px;"><%= inv.number %></td>
-          <td><%= inv.client || '—' %></td>
+          <td><%= inv.client || '–' %></td>
           <td style="font-variant-numeric:tabular-nums;"><%= inv.amount.toLocaleString('cs-CZ') %> <%= inv.currency %></td>
           <td>
             <span class="badge" style="background:<%= inv.status === 'Zaplacena' ? 'var(--success-bg)' : inv.status === 'Po splatnosti' ? 'var(--danger-bg)' : 'var(--warning-bg)' %>;color:<%= inv.status === 'Zaplacena' ? '#15803D' : inv.status === 'Po splatnosti' ? '#991B1B' : '#92400E' %>;">
               <%= inv.status %>
             </span>
           </td>
-          <td style="color:var(--text-muted);"><%= inv.due_date ? new Date(inv.due_date).toLocaleDateString('cs-CZ') : '—' %></td>
+          <td style="color:var(--text-muted);"><%= inv.due_date ? new Date(inv.due_date).toLocaleDateString('cs-CZ') : '–' %></td>
           <td style="color:var(--text-muted);font-size:12px;"><%= new Date(inv.date).toLocaleDateString('cs-CZ') %></td>
         </tr>
         <% }); %>

@@ -3,12 +3,12 @@
  *
  * Záměrně kopíruje tvar `src/lib/email.ts` e-shopu řádek po řádku (560px
  * tabulka na #f1f5f9, přechodová hlavička, barevný pruh, bílé tělo, patička
- * s wordmarkem) — cílem je, aby zákazník nepoznal, který systém e-mail
+ * s wordmarkem) – cílem je, aby zákazník nepoznal, který systém e-mail
  * odeslal. Když se jedna strana změní, druhá se má dát doladit očima nad
  * diffem, ne překladem mezi dvěma jazyky šablon.
  *
  * Všechny barvy a texty jdou ze značky e-shopu (src/brand.js), nic tu není
- * natvrdo. Jediná výjimka je právní řádka o vystavovateli — ta patří SEILu.
+ * natvrdo. Jediná výjimka je právní řádka o vystavovateli – ta patří SEILu.
  */
 
 const FONT = 'Inter,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif';
@@ -89,7 +89,7 @@ export function banner({ tone = 'green', icon, title, subtitle }) {
 export const sectionLabel = (text) =>
   `<div style="font-size:10px;font-weight:700;color:#a1a1aa;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px">${esc(text)}</div>`;
 
-/** `value` se nezescapuje — volající sem posílá i odkazy a zvýraznění. */
+/** `value` se nezescapuje – volající sem posílá i odkazy a zvýraznění. */
 export const infoRow = (label, value) =>
   `<tr>
     <td style="padding:4px 0;font-size:13px;color:#71717a;width:140px;vertical-align:top">${esc(label)}</td>
@@ -110,7 +110,7 @@ export const cta = (brand, href, label) => `
 export const note = (text) =>
   `<div style="text-align:center;font-size:12px;color:#94a3b8">${text}</div>`;
 
-/** Sledování zásilky. Odkaz dodá volající — dopravce není vlastnost šablony. */
+/** Sledování zásilky. Odkaz dodá volající – dopravce není vlastnost šablony. */
 export const trackingBlock = (brand, trackingNumber, trackingUrl) => `
         <div style="background:#eff6ff;border-radius:10px;padding:16px 20px;margin-bottom:20px">
           ${sectionLabel('Sledování zásilky')}
@@ -123,7 +123,7 @@ export const trackingBlock = (brand, trackingNumber, trackingUrl) => `
 /**
  * Platební údaje, volitelně s QR kódem pod nimi.
  *
- * `qrImageUrl` musí být veřejná adresa obrázku, ne data: URI — Gmail data:
+ * `qrImageUrl` musí být veřejná adresa obrázku, ne data: URI – Gmail data:
  * v `<img>` zahazuje, takže vložený QR kód by se u většiny příjemců
  * nezobrazil. Adresu skládá volající, viz qrPaymentImageUrl() v email.js.
  */

@@ -12,14 +12,14 @@ import { okamzikPlatbySql, zobrazeniUhrady } from '../danovy-doklad.js';
 import { ceskeDatum } from '../prazsky-cas.js';
 import { atribuceZTela, nakupniCenaZPolozky } from '../atribuce-objednavky.js';
 
-/** Hodnoty sloupce „Sklad" v seznamu objednávek — filtr bere jen tyhle. */
+/** Hodnoty sloupce „Sklad" v seznamu objednávek – filtr bere jen tyhle. */
 const SKLAD_STAVY = ['odeslano', 'ceka', 'blokovano', 'neplati'];
 
 const ORDER_STATUSES = ['Přijata', 'Vyřízena', 'Stornována'];
 
 /**
  * Zdroj kontaktu a firmy pro CRM. Až přibude druhý e-shop, dostane vlastní
- * hodnotu — filtr v `/crm/kontakty` a `/crm/firmy` je na ni postavený.
+ * hodnotu – filtr v `/crm/kontakty` a `/crm/firmy` je na ni postavený.
  *
  * Dřív se zdroj psal do `notes` jako „Zákazník Toneráček.cz". Nešlo se na to
  * spolehnout: do téhož sloupce si e-shop ukládá záložní hash hesla
@@ -84,7 +84,7 @@ async function upsertCustomerToCRM(sql, { email, firstName, lastName, company, p
   return { contactId, companyId };
 }
 
-// ── Ověření API klíče (Toneráček — env var Bearer) ───────────
+// ── Ověření API klíče (Toneráček – env var Bearer) ───────────
 
 function verifyApiKey(request) {
   const auth = request.headers['authorization'] || '';
@@ -95,7 +95,7 @@ function verifyApiKey(request) {
 
 // ── Helper: toneráček shop ────────────────────────────────────
 //
-// Podání balíku u Zásilkovny se přestěhovalo do src/expedice.js — potřebuje ho
+// Podání balíku u Zásilkovny se přestěhovalo do src/expedice.js – potřebuje ho
 // i ranní expedice, protože u převodu vzniká zásilka až přepnutím na
 // „Vyřízena", takže zaplacená objednávka ráno štítek nemá.
 
@@ -115,7 +115,7 @@ async function getToneracekShopId(sql) {
 /** E-shop, který seznam objednávek ukáže bez ?eshop=. */
 const VYCHOZI_ESHOP = 'toneracek';
 
-/** Celý řádek e-shopu — nastavení expedice i stav skladu ho potřebují. */
+/** Celý řádek e-shopu – nastavení expedice i stav skladu ho potřebují. */
 async function shopPodleSlugu(sql, slug) {
   const [shop] = await sql`SELECT * FROM shops WHERE slug = ${slug} LIMIT 1`;
   return shop ?? null;
@@ -149,7 +149,7 @@ function seznamObjednavek(shop, ...parametry) {
  * faktury (`vydana_faktura` z dotazu), jinak prázdné.
  *
  * `shop_orders.invoice_number` se zákazníkovi neposílá. Objednávky z doby
- * před migrací 039 v něm nesou vymyšlené „FV-<rok>-<objednávka>“ — i ty, ke
+ * před migrací 039 v něm nesou vymyšlené „FV-<rok>-<objednávka>“ – i ty, ke
  * kterým mezitím vznikla faktura s číslem z řady (2026NNNN), takže e-shop
  * ukazoval jiné číslo, než nese PDF. Data se kvůli tomu nepřepisují.
  */
@@ -207,7 +207,7 @@ export default async function toneracekRoutes(fastify) {
       LIMIT 1
     `;
     if (!rows[0]) return reply.code(404).send({ error: 'Not found' });
-    // Poznámku se záložním hashem hesla dostane jen ten, kdo si o ni řekne —
+    // Poznámku se záložním hashem hesla dostane jen ten, kdo si o ni řekne –
     // v praxi přihlášení v e-shopu, které si jinak hash nemá kde vzít.
     const includeNote = request.query.withNote === '1';
     return reply.send(mapContact(rows[0], { includeNote }));
@@ -230,12 +230,12 @@ export default async function toneracekRoutes(fastify) {
     const email = b.email.toLowerCase();
 
     /*
-     * Kontakt se stejným e-mailem už v CRM být může, aniž by měl účet —
+     * Kontakt se stejným e-mailem už v CRM být může, aniž by měl účet –
      * objednávka hosta ho založí s `is_registered = FALSE`.
      *
      * Dřív to tady skončilo tvrdým 409 pro obojí. GET výš přitom filtruje na
      * `is_registered = TRUE`, takže e-shop hosta neviděl, usoudil „účet
-     * neexistuje" a poslal POST — a 409 neuměl odlišit od chyby, takže
+     * neexistuje" a poslal POST – a 409 neuměl odlišit od chyby, takže
      * zákazník dostal „Chyba serveru". Kdo si u nás jednou objednal jako
      * host, se pak nemohl zaregistrovat.
      *
@@ -300,8 +300,8 @@ export default async function toneracekRoutes(fastify) {
 
     if (sets.length === 0) {
       // Jen registrovaný účet, stejně jako GET /users/:id a úprava s poli
-      // níž. Bez podmínky vracel kterýkoli kontakt v CRM podle id — i
-      // zákazníka jen jiného e-shopu (Dílny) nebo obchodního partnera SEILu —
+      // níž. Bez podmínky vracel kterýkoli kontakt v CRM podle id – i
+      // zákazníka jen jiného e-shopu (Dílny) nebo obchodního partnera SEILu –
       // a na neexistující id padal na 500. E-shop Toneráčku sem posílá jen
       // přihlášené, tedy registrované zákazníky; těm se nic nemění.
       const [row] = await sql`
@@ -325,7 +325,7 @@ export default async function toneracekRoutes(fastify) {
   // ── API: Dotazy na objednávky ──────────────────────────────
 
   // Číslo vydané faktury k objednávce `o`. E-shop ho ukazuje zákazníkovi,
-  // proto jde z faktury, ne z `o.invoice_number` — viz objednavkaProEshop().
+  // proto jde z faktury, ne z `o.invoice_number` – viz objednavkaProEshop().
   const vydanaFakturaSql = () => sql`(
     SELECT number FROM accounting_invoices
     WHERE order_id = o.id AND type = 'issued'
@@ -381,7 +381,7 @@ export default async function toneracekRoutes(fastify) {
 
     const shopId = await getToneracekShopId(sql);
     // Okamžik platby si Seil musí uložit sám: faktura vzniká až při vyřízení
-    // a den přijetí úplaty se z ní tiskne jako DUZP. Jen první potvrzení —
+    // a den přijetí úplaty se z ní tiskne jako DUZP. Jen první potvrzení –
     // viz okamzikPlatbySql().
     const result = await sql`
       UPDATE shop_orders
@@ -397,7 +397,7 @@ export default async function toneracekRoutes(fastify) {
   // Rozdělené na „vystav" a „odešli" schválně: platební údaje si od migrace
   // na jeden variabilní symbol tahá e-shop přes /payment-details a posílá je
   // zákazníkovi v jednom e-mailu spolu s potvrzením objednávky. Vystavení
-  // proformy ale musí proběhnout tak jako tak — účetnictví na ni čeká.
+  // proformy ale musí proběhnout tak jako tak – účetnictví na ni čeká.
 
   /** Vystaví zálohovou fakturu, pokud k objednávce ještě není. Nic neposílá. */
   async function ensureProformaForOrder(order) {
@@ -420,10 +420,10 @@ export default async function toneracekRoutes(fastify) {
     const [ord] = await sql`SELECT order_number FROM shop_orders WHERE id = ${proforma.order_id} LIMIT 1`;
 
     // Dřív se tu rekapitulace DPH skládala ručně a chyběl jí klíč `total`,
-    // takže šablona tiskla "NaN Kč" — na každém dokladu, který odešel
+    // takže šablona tiskla "NaN Kč" – na každém dokladu, který odešel
     // zákazníkovi. Kopie otevřená adminem šla jinudy a byla v pořádku, proto
     // si toho nikdo nevšiml. calcVatSummary() ten klíč má.
-    // Zálohovka je pořád k úhradě, takže platební instrukce zůstávají —
+    // Zálohovka je pořád k úhradě, takže platební instrukce zůstávají –
     // mění se jen značka v záhlaví, aby doklad zákazník poznal.
     return renderInvoicePdf({
       invoice: proforma, items, issuer: issuer || {}, vatSummary: calcVatSummary(items),
@@ -433,12 +433,12 @@ export default async function toneracekRoutes(fastify) {
   }
 
   /**
-   * Vystaví zálohovou fakturu a — dokud SHOP_SENDS_PAYMENT_EMAIL není zapnuté —
+   * Vystaví zálohovou fakturu a – dokud SHOP_SENDS_PAYMENT_EMAIL není zapnuté –
    * ji i odešle.
    *
    * Přepínač existuje kvůli pořadí nasazení. Kdyby Seil přestal posílat dřív,
    * než e-shop umí platební údaje vykreslit, dostal by zákazník u převodu jen
-   * starý e-mail s variabilním symbolem = číslem objednávky a bez faktury —
+   * starý e-mail s variabilním symbolem = číslem objednávky a bez faktury –
    * tedy platbu, kterou banka nespáruje. Opačné pořadí znamená jen jednu
    * duplicitu navíc, což je výrazně levnější. Po nasazení obou stran se
    * přepínač i tahle větev smažou.
@@ -508,11 +508,11 @@ export default async function toneracekRoutes(fastify) {
     const items = (b.items || []).map((i) => ({ ...i, price: Math.round(Number(i.price)) }));
 
     // Zdroj objednávky (UTM, click-id, referrer, vstupní stránka) a nákupní
-    // cena položek — volitelné; bez nich dosadí výchozí hodnoty sloupců,
+    // cena položek – volitelné; bez nich dosadí výchozí hodnoty sloupců,
     // viz src/atribuce-objednavky.js a kontrakt v docs/api.md.
     const atribuce = atribuceZTela(b.marketing);
 
-    // Číslo objednávky — výchozí číselná řada eshopu (pokud nastavena), jinak per-shop sekvence
+    // Číslo objednávky – výchozí číselná řada eshopu (pokud nastavena), jinak per-shop sekvence
     const [orderSeries] = await sql`
       SELECT * FROM invoice_number_series
       WHERE shop_id = ${shopId} AND entity_type = 'objednavka' AND active = TRUE
@@ -524,7 +524,7 @@ export default async function toneracekRoutes(fastify) {
       // Formát s náhodnými číslicemi (token X, např. YYMMXXXX) nenese pořadí,
       // takže si dvě objednávky ve stejném měsíci mohou vylosovat totéž číslo.
       // UNIQUE (shop_id, order_number) by to zachytil až výjimkou v INSERTu,
-      // tedy chybou u zákazníka v pokladně — levnější je přelosovat.
+      // tedy chybou u zákazníka v pokladně – levnější je přelosovat.
       const random = /X/.test(updated.format || '');
       for (let attempt = 0; attempt < (random ? 10 : 1); attempt++) {
         const candidate = renderSeriesNumber(updated);
@@ -544,7 +544,7 @@ export default async function toneracekRoutes(fastify) {
       orderNumber = last ? String(parseInt(last.order_number, 10) + 1) : '10001';
     }
 
-    // Číslo faktury tu ještě neexistuje — faktura vzniká až při vyřízení
+    // Číslo faktury tu ještě neexistuje – faktura vzniká až při vyřízení
     // objednávky a číslo dostane z řady. Dřív se sem skládalo „FV-<rok>-<číslo
     // objednávky>“ a e-shop ho zákazníkovi ukazoval jako „Faktura: …“, ačkoli
     // žádný takový doklad nikdy nevznikl. Skutečné číslo do objednávky zapíše
@@ -636,7 +636,7 @@ export default async function toneracekRoutes(fastify) {
     // Objednávku push nesmí shodit, ale mlčet taky nesmí: „notifikace nepřišla"
     // se jinak nedá odlišit od „notifikace se ani nepokusila odejít".
     sendPushToAll({
-      title: 'Nová objednávka — Toneráček',
+      title: 'Nová objednávka – Toneráček',
       body: `#${orderNumber} · ${customer.firstName} ${customer.lastName} · ${totalPrice} CZK`,
       url: `/ucetnictvi/objednavky/${orderId}`,
     })
@@ -673,7 +673,7 @@ export default async function toneracekRoutes(fastify) {
     if (!order) return reply.code(404).send({ error: 'Not found' });
 
     // Stav sem může přijít i jako „Zaplaceno“ (přepnutí na kartu, která rovnou
-    // projde) — pak se okamžik platby zapíše stejně jako v payment-status,
+    // projde) – pak se okamžik platby zapíše stejně jako v payment-status,
     // jinak by faktura dostala DUZP až v den vyřízení.
     await sql`
       UPDATE shop_orders SET
@@ -715,7 +715,7 @@ export default async function toneracekRoutes(fastify) {
   // Jediný zdroj pravdy o tom, jak má zákazník zaplatit. Dřív si e-shop
   // variabilní symbol i číslo účtu držel sám (číslo objednávky + env
   // proměnná), zatímco Seil posílal zálohovou fakturu s jiným VS a účtem
-  // z company_settings — takže k jedné platbě chodily dva různé symboly
+  // z company_settings – takže k jedné platbě chodily dva různé symboly
   // a platba se nespárovala. Teď oboje odsud.
 
   fastify.get('/api/toneracek/orders/:id/payment-details', async (request, reply) => {
@@ -740,7 +740,7 @@ export default async function toneracekRoutes(fastify) {
       const proforma = await ensureProformaForOrder(order);
       const [issuer] = await sql`SELECT * FROM company_settings LIMIT 1`;
 
-      // PDF jen na vyžádání — děkovná stránka ho nepotřebuje a puppeteer
+      // PDF jen na vyžádání – děkovná stránka ho nepotřebuje a puppeteer
       // render při každém načtení stránky by byl zbytečně drahý.
       let pdf = null;
       if (request.query.pdf === '1') {
@@ -823,14 +823,14 @@ export default async function toneracekRoutes(fastify) {
       SELECT status, COUNT(*)::int AS n FROM shop_orders WHERE shop_id = ${shop.id} GROUP BY status
     `;
     // Počty pro chipy se počítají nad celým e-shopem, ne nad vyfiltrovaným
-    // výběrem — jinak by po kliknutí na „nešlo do skladu" ostatní chipy zmizely.
+    // výběrem – jinak by po kliknutí na „nešlo do skladu" ostatní chipy zmizely.
     const skladCounts = await sql`
       SELECT x.sklad_stav, COUNT(*)::int AS n
       FROM (${objednavkySeStavemSkladu(sql, shop, sql`WHERE o.shop_id = ${shop.id}`)}) x
       GROUP BY x.sklad_stav
     `;
 
-    // Výsledek ručního běhu se čte z databáze, ne z query parametru — takhle
+    // Výsledek ručního běhu se čte z databáze, ne z query parametru – takhle
     // banner sedí, i když požadavek spadl uprostřed expedice.
     const [expedice] = request.query.expedice
       ? await sql`
@@ -884,7 +884,7 @@ export default async function toneracekRoutes(fastify) {
 
   fastify.get('/ucetnictvi/objednavky/:id/stitek', async (request, reply) => {
     if (!request.user) return reply.redirect('/prihlasit');
-    // E-shop z objednávky samé — štítek stahuje jedno heslo Packety pro
+    // E-shop z objednávky samé – štítek stahuje jedno heslo Packety pro
     // všechny e-shopy (Dílna je druhý odesílatel na témž účtu).
     const [order] = await sql`
       SELECT tracking_number FROM shop_orders WHERE id = ${request.params.id}
@@ -930,7 +930,7 @@ export default async function toneracekRoutes(fastify) {
         }
 
         /*
-         * Teprve tady je jisté, že jsou peníze na účtu — u převodu to hlídá
+         * Teprve tady je jisté, že jsou peníze na účtu – u převodu to hlídá
          * kontrola zálohovky o pár řádků výš, u karty Stripe webhook, který
          * balík podal už dřív. Proto se zásilka zakládá až v tuhle chvíli.
          *
@@ -964,13 +964,13 @@ export default async function toneracekRoutes(fastify) {
             // u dobírky založení objednávky a u převodu ho pár řádků výš
             // dožádal pozadejEshopOPodaniBaliku(). Jde ven jedním e-mailem
             // spolu s fakturou.
-            // Bez brandu by tenhle e-mail — nejdůležitější zpráva celé
-            // objednávky — odešel jako SEIL s.r.o. <noreply@seil.cz>, tedy
+            // Bez brandu by tenhle e-mail – nejdůležitější zpráva celé
+            // objednávky – odešel jako SEIL s.r.o. <noreply@seil.cz>, tedy
             // od firmy, o které zákazník e-shopu nikdy neslyšel.
             const brand = await brandForShopId(order.shop_id);
             // Karta a převod jsou v tuhle chvíli zaplacené a doklad nevyzývá
             // k další platbě. Dobírka ne: zákazník platí až při převzetí,
-            // takže razítko ZAPLACENO by u nevyzvednuté zásilky lhalo — PDF
+            // takže razítko ZAPLACENO by u nevyzvednuté zásilky lhalo – PDF
             // místo něj i místo čísla účtu napíše, že se platí dobírkou.
             const uhrada = zobrazeniUhrady({ invoice, paymentMethod: order.payment_method });
             const pdfBuffer = await renderInvoicePdf({
@@ -1001,7 +1001,7 @@ export default async function toneracekRoutes(fastify) {
     // Zákazníka o stavu vyrozumí e-mail jen u storna.
     //
     // "Vyřízena" hlásí e-mail s fakturou a sledovacím číslem výš. "Přijata"
-    // by duplikovala děkovný e-mail z e-shopu — a přišla by z druhé identity
+    // by duplikovala děkovný e-mail z e-shopu – a přišla by z druhé identity
     // o pár minut později, což byla ta nejviditelnější stopa "dva systémy".
     if ((send_email === 'on' || send_email === '1') && status === 'Stornována' && order.email) {
       try {
@@ -1048,7 +1048,7 @@ export default async function toneracekRoutes(fastify) {
         shop, kind: 'rucni', runDate: prazskyCas().datum, userId: request.user.id,
       });
     } catch (err) {
-      // Zámek drží automat nebo druhý operátor — ať se sklad nedozví totéž dvakrát.
+      // Zámek drží automat nebo druhý operátor – ať se sklad nedozví totéž dvakrát.
       if (err instanceof ExpediceBeziError) {
         return reply.redirect(seznamObjednavek(shop, 'error=expedice-bezi'));
       }
@@ -1077,7 +1077,7 @@ export default async function toneracekRoutes(fastify) {
         WHERE id = ${request.params.id}
       `;
     } else {
-      // Podmínka na NULL drží čas skutečného odeslání — opakovaný klik ho nepřepíše.
+      // Podmínka na NULL drží čas skutečného odeslání – opakovaný klik ho nepřepíše.
       await sql`
         UPDATE shop_orders
         SET warehouse_sent_at = NOW(), warehouse_sent_by = ${request.user.id},

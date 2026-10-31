@@ -1,7 +1,7 @@
 /**
  * KPI marketingového přehledu: čisté výpočty + SQL, které jim dodává čísla
  * (plán D4). Databázi berou SQL pomocníci parametrem `sql`, nic se tu
- * neimportuje — přehled i testy si ji podstrčí.
+ * neimportuje – přehled i testy si ji podstrčí.
  *
  * ## Definice (jediné místo, kde platí)
  *
@@ -14,19 +14,19 @@
  *   ZONE 'Europe/Prague')`, horní mez obdobně s `do + 1`. Rozsah na
  *   `created_at` využije index.
  * - **Stavy**: počítá se všechno kromě `Stornována` a `Platba se nezdařila`.
- *   `Čeká na platbu` zůstává — je to konverze; když ji storno vyřadí, zmizí
+ *   `Čeká na platbu` zůstává – je to konverze; když ji storno vyřadí, zmizí
  *   zpětně. Vedle toho „z toho zaplaceno“ (`zaplaceno` u řádku, vždy
  *   TRUE/FALSE, nikdy NULL) podle `podminkaZaplaceno()`.
  * - **Náklady** = Σ `marketing_daily_stats.cost` (bez DPH, jen `segment_kind
  *   = ''`) + ruční náklady z `marketing_manual_costs` rozpočítané rovnoměrně
- *   po dnech na překryv s obdobím. Obojí se sčítá — ruční náklad za dny,
+ *   po dnech na překryv s obdobím. Obojí se sčítá – ruční náklad za dny,
  *   které má platforma už z API, je v součtu dvakrát a `prekryvRucnichNakladu()`
  *   to hlásí, aby to přehled ukázal.
  * - **PNO** = náklady / tržby bez DPH × 100 (česká praxe: obojí bez DPH).
  *   **ROAS** = tržby / náklady. **CPA** = náklady / počet objednávek.
  *   **Průměrná objednávka** = tržby / počet. **Zisk** = marže − náklady.
- *   **ROI** = zisk / náklady × 100. Dělení nulou → `null` (UI ukáže „—“).
- * - **Marže** z položek bez pseudo-řádků (SLEVA-REG, DOPRAVA, DOBIRKA —
+ *   **ROI** = zisk / náklady × 100. Dělení nulou → `null` (UI ukáže „–“).
+ * - **Marže** z položek bez pseudo-řádků (SLEVA-REG, DOPRAVA, DOBIRKA –
  *   `jePseudoPolozka`, místní kopie z expedice.js): s `cost_price` → (price/1,21 − nákupní bez DPH) × qty
  *   (nákupní s DPH se nejdřív dělí 1,21); bez ní → price/1,21 × qty ×
  *   `shops.marketing_margin_pct`/100; bez obojího nic, jen do koše
@@ -65,7 +65,7 @@ export function bezDph(sDph) {
 
 /**
  * Dopočtené řádky e-shopu mezi položkami objednávky (doprava, dobírka,
- * sleva za registraci) — do tržeb za zboží ani do marže nepatří.
+ * sleva za registraci) – do tržeb za zboží ani do marže nepatří.
  *
  * sjednotit s expedice.js: kopie `PSEUDO_SKU` a `jePseudoPolozka`
  * (src/expedice.js:59,96-98). Import odtamtud by do čistého modulu i do
@@ -100,7 +100,7 @@ export const KANAL_POPIS = {
   neznamy: 'Neznámý (bez atribuce)',
 };
 
-/** Kanály, za které se platí — mají řádek nákladů i vlastní platformu. */
+/** Kanály, za které se platí – mají řádek nákladů i vlastní platformu. */
 export const KANALY_PLACENE = ['google_ads', 'sklik', 'zbozi', 'heureka', 'meta', 'placene_jine'];
 
 /** Stavy objednávek, které do tržeb nepatří. */
@@ -151,7 +151,7 @@ function kanalZHostu(host) {
  * Placený zdroj ve tvaru hostu → platforma: `utm_source=google.com` nebo
  * `seznam.cz` s `cpc` je běžné při kopírování šablon sledování a jsou to
  * tytéž kampaně jako `google` / `seznam`. '' pro host bez vlastní platformy
- * (bing.com) — ten zůstává „placené ostatní“.
+ * (bing.com) – ten zůstává „placené ostatní“.
  */
 function placenyKanalZHostu(host) {
   if (HOST_GOOGLE.test(host)) return 'google_ads';
@@ -197,7 +197,7 @@ export function kanalObjednavky(o) {
   return kanalZeZdrojeAMedia(o.utm_source_last, o.utm_medium_last, o.referrer_host_last, o.click_id_kind_last);
 }
 
-/** Totéž pro první dotyk — jen informativně (plán D4). */
+/** Totéž pro první dotyk – jen informativně (plán D4). */
 export function kanalPrvnihoDotyku(o) {
   if (o?.touch_first_at == null) return 'neznamy';
   return kanalZeZdrojeAMedia(o.utm_source_first, o.utm_medium_first, o.referrer_host_first, o.click_id_kind_first);
@@ -207,7 +207,7 @@ export function kanalPrvnihoDotyku(o) {
  * Objednávky → `{ kanaly: { [kanal]: { pocet, trzbyBezDph } }, pokrytiAtribuce }`.
  * Všechny kanály jsou v mapě i s nulou, ať má tabulka stálé řádky.
  * `pokrytiAtribuce` = podíl objednávek s `touch_last_at` (0..1; bez
- * objednávek 0 — přehled pak ukáže i sloupec GA4).
+ * objednávek 0 – přehled pak ukáže i sloupec GA4).
  */
 export function rozdelPodleKanalu(objednavky) {
   const kanaly = Object.fromEntries(KANALY.map(k => [k, { pocet: 0, trzbyBezDph: 0 }]));
@@ -314,7 +314,7 @@ export function rozpoctiManualniNakladPoDnech(naklad, od, do_) {
  * řádky `{ platform, den }` z `dnyNakladuPlatforem()`. Vrací
  * `[{ platform, dny, idNakladu }]` jen pro platformy s překryvem, dny
  * vzestupně a jen v `[od, do]`, platformy abecedně. Součet nákladů se tím
- * nemění — obojí se počítá, a právě proto to má být vidět.
+ * nemění – obojí se počítá, a právě proto to má být vidět.
  */
 export function prekryvRucnichNakladu(rucniNaklady, apiDny, od, do_) {
   const apiPodlePlatformy = new Map();
@@ -352,7 +352,7 @@ export function prekryvRucnichNakladu(rucniNaklady, apiDny, od, do_) {
 const podil = (citatel, jmenovatel) => (jmenovatel > 0 ? zaokrouhli2(citatel / jmenovatel) : null);
 
 /**
- * `{ pno, roas, cpa, prumerna, zisk, roi }` — PNO a ROI v procentech,
+ * `{ pno, roas, cpa, prumerna, zisk, roi }` – PNO a ROI v procentech,
  * dělení nulou → null, `marze` null → zisk i roi null.
  */
 export function spoctiKpi({ trzbyBezDph, pocetObjednavek, naklady, marze = null }) {
@@ -437,7 +437,7 @@ export function radyProGraf({ od, do: do_, trzbyPoDnech, nakladyPoDnech }) {
  * jádrem jako objednávky; cokoli jiného je 'neznamy'. Názvy výchozích
  * skupin kanálů GA4 se schválně nepřekládají: „Paid Search“ by skončilo
  * v „placené ostatní“, i když je to Google Ads nebo Sklik, a srovnání se
- * Seilem by bylo špatně už z principu — kdyby je někdy adaptér ukládal,
+ * Seilem by bylo špatně už z principu – kdyby je někdy adaptér ukládal,
  * přeloží si je sám nad fixturou.
  */
 export function kanalZeSegmentuGa4(segment) {
@@ -447,7 +447,7 @@ export function kanalZeSegmentuGa4(segment) {
   return kanalZeZdrojeAMedia(source, medium);
 }
 
-/** Řádky `kanalyGa4()` sečtené do našich kanálů — všechny kanály, i nulové. */
+/** Řádky `kanalyGa4()` sečtené do našich kanálů – všechny kanály, i nulové. */
 export function seskupKanalyGa4(radky) {
   const vysledek = Object.fromEntries(KANALY.map(k => [k, { sessions: 0, total_users: 0, purchase: 0, purchase_revenue: 0 }]));
   for (const r of radky ?? []) {
@@ -463,7 +463,7 @@ export function seskupKanalyGa4(radky) {
 
 // ── SQL ────────────────────────────────────────────────────────
 
-/** Pražský den `created_at` v `[od, do]` — rozsah na sloupci, ať se použije index (alias `o`). */
+/** Pražský den `created_at` v `[od, do]` – rozsah na sloupci, ať se použije index (alias `o`). */
 export function podminkaObdobi(sql, od, do_) {
   return sql`o.created_at >= (${od}::date::timestamp AT TIME ZONE 'Europe/Prague')
     AND o.created_at < ((${do_}::date + 1)::timestamp AT TIME ZONE 'Europe/Prague')`;
@@ -476,13 +476,13 @@ export function podminkaObdobi(sql, od, do_) {
  * při převzetí. Očekává aliasy `o` (shop_orders) a `p` (poslední zálohovka).
  *
  * sjednotit s expedice.js: řádek se stavy i tři větve platby jsou doslovná
- * kopie z `podminkaKExpedici` (src/expedice.js:306-311) — expedice.js právě
+ * kopie z `podminkaKExpedici` (src/expedice.js:306-311) – expedice.js právě
  * upravuje jiný agent; až bude mít `podminkaZaplaceno(sql)`, vzít ji
  * odtamtud. Stavy jsou v kopii schválně: stornovaná objednávka kartou
  * s číslem zásilky ani „Čeká na platbu“ nesmí vyjít jako zaplacená, ať se
  * výraz použije v kterémkoli dotazu. COALESCE kvůli převodu bez zálohovky:
  * `p.status` je z LEFT JOIN NULL a `NULL = 'Zaplacena'` by dalo NULL místo
- * FALSE — dlaždice „z toho zaplaceno“ by takové objednávky neuměla ani
+ * FALSE – dlaždice „z toho zaplaceno“ by takové objednávky neuměla ani
  * vyloučit. Test hlídá, že se kopie od expedice.js neliší.
  */
 export function podminkaZaplaceno(sql) {
@@ -558,7 +558,7 @@ export async function nakladyPoDnech(sql, { shopId, od, do: do_ }) {
     ORDER BY date`;
 }
 
-/** Dny, za které má platforma náklad z API (`cost > 0`, jen denní součty): `{ platform, den }` — pro `prekryvRucnichNakladu()`. */
+/** Dny, za které má platforma náklad z API (`cost > 0`, jen denní součty): `{ platform, den }` – pro `prekryvRucnichNakladu()`. */
 export async function dnyNakladuPlatforem(sql, { shopId, od, do: do_ }) {
   return sql`
     SELECT platform, date::text AS den
@@ -592,7 +592,7 @@ export async function rucniNaklady(sql, { shopId, od, do: do_ }) {
     ORDER BY date_from, id`;
 }
 
-/** Funnel GA4 za období (součet denních řádků) — jeden objekt, `dni` = kolik dní má data. */
+/** Funnel GA4 za období (součet denních řádků) – jeden objekt, `dni` = kolik dní má data. */
 export async function funnelGa4(sql, { shopId, od, do: do_ }) {
   const [row] = await sql`
     SELECT COUNT(*)::int AS dni,
@@ -623,7 +623,7 @@ export async function kanalyGa4(sql, { shopId, od, do: do_ }) {
 
 /**
  * Organika ze Search Console: `{ celkem: { dni, clicks, impressions, pozice },
- * dotazy: [{ dotaz, clicks, impressions, pozice }] }` — top 20 dotazů podle
+ * dotazy: [{ dotaz, clicks, impressions, pozice }] }` – top 20 dotazů podle
  * kliků. `position_sum` je Σ(pozice × imprese), průměrná pozice tedy
  * position_sum / impressions.
  */

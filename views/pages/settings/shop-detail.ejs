@@ -1,4 +1,4 @@
-<%# Záložky (?tab=) přepíná server — `tab` i `zalozky` dává routa
+<%# Záložky (?tab=) přepíná server – `tab` i `zalozky` dává routa
     (src/routes/settings.js), načtená jsou jen data otevřené záložky. %>
 <%
   // Režim úprav (src/upravy.js): tužka v hlavičce jen u záložky, která má
@@ -41,7 +41,7 @@
 
 <% if (typeof error !== 'undefined' && error === 'firemni-adresa') { %>
 <div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
-  Odesílatel e-shopu nesmí být na doméně <code>seil.cz</code> — zákazník by dostal e-mail od firmy, kterou nezná.
+  Odesílatel e-shopu nesmí být na doméně <code>seil.cz</code> – zákazník by dostal e-mail od firmy, kterou nezná.
 </div>
 <% } %>
 
@@ -71,13 +71,13 @@
 
 <% if (typeof error !== 'undefined' && error === 'webhook-secret-toneracek') { %>
 <div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
-  Toneráček podepisuje podání balíku proměnnou <code>SHOP_WEBHOOK_SECRET</code> z prostředí One SEIL — vlastní tajemství se mu tady nenastavuje.
+  Toneráček podepisuje podání balíku proměnnou <code>SHOP_WEBHOOK_SECRET</code> z prostředí One SEIL – vlastní tajemství se mu tady nenastavuje.
 </div>
 <% } %>
 
 <% if (typeof error !== 'undefined' && error === 'eshop-klic-toneracek') { %>
 <div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
-  Toneráček má vlastní API (<code>/api/toneracek</code>, klíč v <code>TONERACEK_API_KEY</code>) — klíč pro <code>/api/eshop</code> se mu nevydává.
+  Toneráček má vlastní API (<code>/api/toneracek</code>, klíč v <code>TONERACEK_API_KEY</code>) – klíč pro <code>/api/eshop</code> se mu nevydává.
 </div>
 <% } %>
 
@@ -124,9 +124,9 @@
 
 <% if (novyEshopKlic) { %>
 <div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:16px;margin-bottom:20px;">
-  <strong>Nový klíč pro <code>/api/eshop</code><%= novyEshopKlic.label ? ' — ' + novyEshopKlic.label : '' %> (zobrazí se pouze jednou!):</strong><br>
+  <strong>Nový klíč pro <code>/api/eshop</code><%= novyEshopKlic.label ? ' – ' + novyEshopKlic.label : '' %> (zobrazí se pouze jednou!):</strong><br>
   <code style="font-family:var(--font-mono);font-size:14px;word-break:break-all;display:block;margin-top:8px;padding:8px;background:white;border-radius:4px;border:1px solid #e5e7eb;"><%= novyEshopKlic.klic %></code>
-  <small style="color:var(--text-muted);">Vložte ho do prostředí e-shopu jako <code>SEIL_API_KEY</code>. One SEIL si drží jen otisk <code><%= novyEshopKlic.otisk %></code> — klíč už znovu ukázat nejde, jen vydat nový.</small>
+  <small style="color:var(--text-muted);">Vložte ho do prostředí e-shopu jako <code>SEIL_API_KEY</code>. One SEIL si drží jen otisk <code><%= novyEshopKlic.otisk %></code> – klíč už znovu ukázat nejde, jen vydat nový.</small>
 </div>
 <% } %>
 
@@ -156,16 +156,16 @@
         <div class="form-group pole pole-stale">
           <span class="form-label">Slug (ID)</span>
           <div class="pole-hodnota"><code class="kod"><%= shop.slug %></code></div>
-          <small class="form-hint jen-upravy">Identifikátor v adresách (<code>?eshop=<%= shop.slug %></code>) i v API. Nejde změnit — pod jiným slugem by vznikl jiný e-shop.</small>
+          <small class="form-hint jen-upravy">Identifikátor v adresách (<code>?eshop=<%= shop.slug %></code>) i v API. Nejde změnit – pod jiným slugem by vznikl jiný e-shop.</small>
         </div>
         <%- include('../../includes/pole', { pole: { label: 'Stav', name: 'active', typ: 'toggle', value: shop.active, popisek: 'Aktivní e-shop',
           zobraz: shop.active ? 'Aktivní' : 'Neaktivní', disabled: tajemstviZProstredi,
           hint: tajemstviZProstredi
-            ? 'Toneráček se vypnout nedá — jeho API klíč z prostředí stav nečte, ale expedice a noční stahování ano, vypnutí by ho rozpůlilo.'
+            ? 'Toneráček se vypnout nedá – jeho API klíč z prostředí stav nečte, ale expedice a noční stahování ano, vypnutí by ho rozpůlilo.'
             : 'Neaktivní e-shop přeskočí ranní expedice i noční stahování marketingu a jeho klíče pro /api/eshop přestanou platit.' } }) %>
       </div>
       <div class="upravit-radek">
-        <span style="font-size:12px;color:var(--text-muted);">Založen <%= shop.created_at ? ceskeDatum(shop.created_at) : '—' %></span>
+        <span style="font-size:12px;color:var(--text-muted);">Založen <%= shop.created_at ? ceskeDatum(shop.created_at) : '–' %></span>
         <%- include('../../includes/upravit', { paticka: true, formular: 'formZakladni', urlZpet: urlZalozky }) %>
       </div>
     </form>
@@ -180,22 +180,22 @@
       <div class="card-body">
         <p style="font-size:13px;color:var(--text-muted);margin:0 0 16px;">
           Odsud se berou odesílatel, barvy a kontakty ve všech e-mailech, které
-          tomuhle e-shopu chodí zákazníkům — potvrzení objednávky, faktura
+          tomuhle e-shopu chodí zákazníkům – potvrzení objednávky, faktura
           i storno. Zákazník nemá poznat, že část z nich odesílá One SEIL.
         </p>
 
         <% if (!shop.email_from_address || !shop.email_from_name) { %>
         <div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:13px;">
           <strong>Identita není vyplněná.</strong> Dokud tu nebude odesílatel,
-          zákaznické e-maily tohohle e-shopu se neodešlou — raději nic než
+          zákaznické e-maily tohohle e-shopu se neodešlou – raději nic než
           zpráva od cizí firmy.
         </div>
         <% } %>
 
         <form method="post" action="/nastaveni/eshopy/<%= shop.id %>/identita" id="formIdentita" class="upravitelne">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-            <%- include('../../includes/pole', { pole: { label: 'Odesílatel — jméno', name: 'email_from_name', value: shop.email_from_name, required: true, placeholder: 'Toneráček.cz' } }) %>
-            <%- include('../../includes/pole', { pole: { label: 'Odesílatel — adresa', name: 'email_from_address', typ: 'email', value: shop.email_from_address, required: true, placeholder: 'noreply@toneracek.cz' } }) %>
+            <%- include('../../includes/pole', { pole: { label: 'Odesílatel – jméno', name: 'email_from_name', value: shop.email_from_name, required: true, placeholder: 'Toneráček.cz' } }) %>
+            <%- include('../../includes/pole', { pole: { label: 'Odesílatel – adresa', name: 'email_from_address', typ: 'email', value: shop.email_from_address, required: true, placeholder: 'noreply@toneracek.cz' } }) %>
             <%- include('../../includes/pole', { pole: { label: 'Odpovědi na', name: 'email_reply_to', typ: 'email', value: shop.email_reply_to, placeholder: 'ahoj@toneracek.cz' } }) %>
             <%- include('../../includes/pole', { pole: { label: 'Kontaktní e-mail', name: 'support_email', typ: 'email', value: shop.support_email, placeholder: 'ahoj@toneracek.cz' } }) %>
             <%- include('../../includes/pole', { pole: { label: 'Telefon (zobrazený)', name: 'support_phone', value: shop.support_phone, placeholder: '728 749 931' } }) %>
@@ -205,12 +205,12 @@
             <%- include('../../includes/pole', { pole: { label: 'Logo v hlavičce (URL)', name: 'logo_mark_url', typ: 'url', value: shop.logo_mark_url, styl: 'grid-column:1 / -1' } }) %>
             <%- include('../../includes/pole', { pole: { label: 'Logo v patičce (URL)', name: 'logo_wordmark_url', typ: 'url', value: shop.logo_wordmark_url, styl: 'grid-column:1 / -1' } }) %>
             <%# Barvy ručně: v zobrazení vzorek barvy, jen když je hodnota platný hex. %>
-            <% [['Hlavní barva', 'color_primary', '#0891b2'], ['Přechod — tmavší', 'color_primary_dark', '#0e7490'],
-                ['Přechod — světlejší', 'color_primary_light', '#06b6d4'], ['Podtitul na barvě', 'color_on_primary_soft', '#cffafe']]
+            <% [['Hlavní barva', 'color_primary', '#0891b2'], ['Přechod – tmavší', 'color_primary_dark', '#0e7490'],
+                ['Přechod – světlejší', 'color_primary_light', '#06b6d4'], ['Podtitul na barvě', 'color_on_primary_soft', '#cffafe']]
                .forEach(([label, name, ph]) => { const v = shop[name] || ''; const hex = /^#[0-9a-fA-F]{3,8}$/.test(v) ? v : null; %>
             <div class="form-group pole">
               <label class="form-label" for="pole-<%= name %>"><%= label %></label>
-              <div class="pole-hodnota"><% if (hex) { %><span class="barva-vzorek" style="background:<%= hex %>;"></span><code><%= v %></code><% } else if (v) { %><%= v %><% } else { %><span class="pole-prazdne">—<span class="sr-only"> nevyplněno</span></span><% } %></div>
+              <div class="pole-hodnota"><% if (hex) { %><span class="barva-vzorek" style="background:<%= hex %>;"></span><code><%= v %></code><% } else if (v) { %><%= v %><% } else { %><span class="pole-prazdne">–<span class="sr-only"> nevyplněno</span></span><% } %></div>
               <input type="text" id="pole-<%= name %>" name="<%= name %>" class="form-control" value="<%= v %>" placeholder="<%= ph %>">
             </div>
             <% }) %>
@@ -242,7 +242,7 @@
           <tbody>
             <% eshopKlice.forEach(k => { %>
             <tr>
-              <td><%= k.label || '—' %><% if (k.vytvoril) { %><br><span style="font-size:11px;color:var(--text-muted);"><%= k.vytvoril %></span><% } %></td>
+              <td><%= k.label || '–' %><% if (k.vytvoril) { %><br><span style="font-size:11px;color:var(--text-muted);"><%= k.vytvoril %></span><% } %></td>
               <td><code class="kod"><%= k.otisk %></code></td>
               <td style="color:var(--text-muted);"><%= new Date(k.created_at).toLocaleString('cs-CZ') %></td>
               <td style="color:var(--text-muted);"><%= k.last_used_at ? new Date(k.last_used_at).toLocaleString('cs-CZ') : 'nikdy' %></td>
@@ -261,7 +261,7 @@
             </tr>
             <% }) %>
             <% if (!eshopKlice.length) { %>
-            <tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted);">Žádný klíč — e-shop se k One SEIL zatím nepřipojí.</td></tr>
+            <tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted);">Žádný klíč – e-shop se k One SEIL zatím nepřipojí.</td></tr>
             <% } %>
           </tbody>
         </table>
@@ -277,7 +277,7 @@
         <p style="font-size:13px;color:var(--text-muted);margin:0 0 20px;">
           Toneráček jede přes <code>/api/toneracek</code> s klíčem v proměnné
           <code>TONERACEK_API_KEY</code> a jeho zákaznické účty jsou v CRM
-          kontaktech. Klíč pro <code>/api/eshop</code> se mu nevydává — založil
+          kontaktech. Klíč pro <code>/api/eshop</code> se mu nevydává – založil
           by mu druhou, oddělenou sadu účtů.
         </p>
         <% } %>
@@ -289,14 +289,14 @@
           (<code><%= shop.url || 'URL e-shopu' %>/api/orders/podat-balik</code>, hlavička
           <code>x-webhook-secret</code>) proměnnou <code>SHOP_WEBHOOK_SECRET</code>
           z prostředí One SEIL; v e-shopu Toneráčku je stejná hodnota
-          v <code>WEBHOOK_SECRET</code>. Vlastní tajemství se mu tady nenastavuje —
+          v <code>WEBHOOK_SECRET</code>. Vlastní tajemství se mu tady nenastavuje –
           měnit ho jde jen v prostředí obou aplikací zároveň.
         </p>
         <p style="font-size:13px;margin:0;">
           <% if (maWebhookSecret) { %>
             <code>SHOP_WEBHOOK_SECRET</code>: <strong>nastaveno</strong>
           <% } else { %>
-            <span style="color:#b91c1c;"><code>SHOP_WEBHOOK_SECRET</code> není nastavené — balík se u převodu nepodá.</span>
+            <span style="color:#b91c1c;"><code>SHOP_WEBHOOK_SECRET</code> není nastavené – balík se u převodu nepodá.</span>
           <% } %>
         </p>
         <% } else { %>
@@ -313,7 +313,7 @@
             <code class="kod"><%= otiskWebhookSecret %></code>
             <span style="color:var(--text-muted);">(prvních 8 znaků SHA-256)</span>
           <% } else { %>
-            <span style="color:#b91c1c;"><strong>Chybí tajemství — balíky se u převodu nepodají.</strong> Vygenerujte ho a vložte do e-shopu jako <code>WEBHOOK_SECRET</code>.</span>
+            <span style="color:#b91c1c;"><strong>Chybí tajemství – balíky se u převodu nepodají.</strong> Vygenerujte ho a vložte do e-shopu jako <code>WEBHOOK_SECRET</code>.</span>
           <% } %>
         </p>
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
@@ -445,17 +445,17 @@
       <div class="card-body">
         <p style="font-size:13px;color:var(--text-muted);margin:0 0 16px;">
           Odkud se každou noc stahují náklady a statistiky. Každá platforma se ukládá
-          a ověřuje zvlášť — tužka nahoře se jich netýká.
+          a ověřuje zvlášť – tužka nahoře se jich netýká.
         </p>
 
         <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Google</div>
         <% if (maGoogleSa) { %>
-        <p style="font-size:13px;margin:0 0 16px;">Service account <code class="kod"><%= serviceAccountEmail %></code> — přidejte ho jako Čtenáře do GA4, Jen pro čtení do Google Ads, uživatele do Search Console a Merchant Center (Výkon a statistiky).</p>
+        <p style="font-size:13px;margin:0 0 16px;">Service account <code class="kod"><%= serviceAccountEmail %></code> – přidejte ho jako Čtenáře do GA4, Jen pro čtení do Google Ads, uživatele do Search Console a Merchant Center (Výkon a statistiky).</p>
         <% } else { %>
-        <p style="font-size:13px;color:#b91c1c;margin:0 0 16px;"><code>GOOGLE_SERVICE_ACCOUNT_JSON</code> není v prostředí One SEIL — GA4, Google Ads, Search Console ani Merchant Center se nestáhnou.</p>
+        <p style="font-size:13px;color:#b91c1c;margin:0 0 16px;"><code>GOOGLE_SERVICE_ACCOUNT_JSON</code> není v prostředí One SEIL – GA4, Google Ads, Search Console ani Merchant Center se nestáhnou.</p>
         <% } %>
         <% if (!maSecretsKey) { %>
-        <p style="font-size:13px;color:#854d0e;background:#fef9c3;border:1px solid #fde047;padding:10px 12px;border-radius:8px;margin:0 0 16px;"><code>MARKETING_SECRETS_KEY</code> není nastavený — tokeny Skliku, Heureky a Mety nejde uložit (<code>node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"</code>).</p>
+        <p style="font-size:13px;color:#854d0e;background:#fef9c3;border:1px solid #fde047;padding:10px 12px;border-radius:8px;margin:0 0 16px;"><code>MARKETING_SECRETS_KEY</code> není nastavený – tokeny Skliku, Heureky a Mety nejde uložit (<code>node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"</code>).</p>
         <% } %>
 
         <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Napojené platformy</div>
@@ -498,7 +498,7 @@
                 <% if (z.potrebujeTajemstvi) { %>
                 <div class="form-group" style="margin:0;min-width:220px;">
                   <label class="form-label" style="font-size:12px;"><%= z.popisTajemstvi %></label>
-                  <input type="password" name="secret" class="form-control" autocomplete="off" placeholder="<%= z.maTajemstvi ? 'nastaveno, otisk ' + z.otisk + ' — vložením přepíšete' : 'vložit token' %>">
+                  <input type="password" name="secret" class="form-control" autocomplete="off" placeholder="<%= z.maTajemstvi ? 'nastaveno, otisk ' + z.otisk + ' – vložením přepíšete' : 'vložit token' %>">
                 </div>
                 <% } %>
                 <button type="submit" name="akce" value="ulozit" class="btn btn-outline btn-sm">Uložit</button>
@@ -570,7 +570,7 @@
                     <span class="badge" style="background:var(--gray-100);color:var(--gray-500);">Čeká se</span>
                   <% } %>
                 </td>
-                <td style="font-size:12px;color:var(--text-muted);"><%= c.checked_at ? new Date(c.checked_at).toLocaleString('cs-CZ') : '—' %></td>
+                <td style="font-size:12px;color:var(--text-muted);"><%= c.checked_at ? new Date(c.checked_at).toLocaleString('cs-CZ') : '–' %></td>
                 <td style="display:flex;gap:6px;">
                   <form method="post" action="/nastaveni/healthchecky/<%= c.id %>/toggle" style="display:inline;">
                     <input type="hidden" name="returnTo" value="/nastaveni/eshopy/<%= shop.id %>?tab=healthchecky">
@@ -584,7 +584,7 @@
               </tr>
               <% }) %>
             <% } else { %>
-              <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-muted);">Žádný healthcheck — přidej URL pro sledování dostupnosti.</td></tr>
+              <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-muted);">Žádný healthcheck – přidej URL pro sledování dostupnosti.</td></tr>
             <% } %>
           </tbody>
         </table>
@@ -597,7 +597,7 @@
         <span>Alerty při výpadku (App down)</span>
         <button class="btn btn-outline btn-sm" data-modal-open="modalAddRule">+ Přidat</button>
       </div>
-      <div class="card-body" style="font-size:12px;color:var(--text-muted);padding-bottom:0;">Pravidlo je globální — platí pro výpadek libovolné sledované aplikace.</div>
+      <div class="card-body" style="font-size:12px;color:var(--text-muted);padding-bottom:0;">Pravidlo je globální – platí pro výpadek libovolné sledované aplikace.</div>
       <div class="table-wrapper" style="border:none;border-radius:0;">
         <table class="data-table">
           <thead><tr><th>Kanál</th><th></th></tr></thead>
@@ -605,7 +605,7 @@
             <% if (rules.length > 0) { %>
               <% rules.forEach(r => { %>
               <tr>
-                <td><%= r.channel_name || '—' %></td>
+                <td><%= r.channel_name || '–' %></td>
                 <td>
                   <form method="post" action="/nastaveni/notifikace/pravidlo/<%= r.id %>/smazat" style="display:inline;" onsubmit="return confirm('Smazat?')">
                     <input type="hidden" name="returnTo" value="/nastaveni/eshopy/<%= shop.id %>?tab=healthchecky">
@@ -615,7 +615,7 @@
               </tr>
               <% }) %>
             <% } else { %>
-              <tr><td colspan="2" style="text-align:center;padding:24px;color:var(--text-muted);">Žádná pravidla — výpadek se nikam neodesílá.</td></tr>
+              <tr><td colspan="2" style="text-align:center;padding:24px;color:var(--text-muted);">Žádná pravidla – výpadek se nikam neodesílá.</td></tr>
             <% } %>
           </tbody>
         </table>
@@ -630,7 +630,7 @@
       <div class="card-header">Jak to funguje</div>
       <div class="card-body" style="font-size:12px;color:var(--text-secondary);line-height:1.7;">
         <p>Worker pinguje URL každých <strong>5 minut</strong>.</p>
-        <p style="margin-top:8px;">Při výpadku se odešle alert podle pravidel výše — e-mail, Discord nebo <strong>push notifikace</strong> do prohlížeče přihlášených uživatelů (cooldown 1 h).</p>
+        <p style="margin-top:8px;">Při výpadku se odešle alert podle pravidel výše – e-mail, Discord nebo <strong>push notifikace</strong> do prohlížeče přihlášených uživatelů (cooldown 1 h).</p>
         <p style="margin-top:8px;">Kanály se správují centrálně v <a href="/nastaveni/healthchecky">Nastavení → Healthchecky</a>.</p>
       </div>
     </div>

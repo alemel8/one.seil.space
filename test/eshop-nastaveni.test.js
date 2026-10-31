@@ -2,9 +2,9 @@
 //
 // Klíč se ukáže jednou přímo v odpovědi (ne v URL, kde by skončil v logu)
 // a v databázi zůstane jen jeho SHA-256 otisk. Toneráčku se klíč pro
-// /api/eshop nevydává — má vlastní API a účty v crm_contacts — a ani
+// /api/eshop nevydává – má vlastní API a účty v crm_contacts – a ani
 // tajemství pro balíky: jede na SHOP_WEBHOOK_SECRET z prostředí. Starší
-// klíče z api_keys a /api/v1 jsou od 26. 10. 2026 pryč — klíče se vydávají
+// klíče z api_keys a /api/v1 jsou od 26. 10. 2026 pryč – klíče se vydávají
 // jen tady.
 //
 // Jede proti běžícímu serveru a testovací databázi; přihlášení obchází
@@ -26,7 +26,7 @@ function lokalniDatabaze() {
   const url = process.env.DATABASE_URL || '';
   const host = url ? new URL(url).hostname : '';
   if (!['127.0.0.1', 'localhost'].includes(host) && process.env.TEST_DB_ALLOW_REMOTE !== '1') {
-    throw new Error(`Test zakládá e-shopy a klíče — DATABASE_URL musí mířit na 127.0.0.1/localhost, ne na "${host}"`);
+    throw new Error(`Test zakládá e-shopy a klíče – DATABASE_URL musí mířit na 127.0.0.1/localhost, ne na "${host}"`);
   }
   return url;
 }
@@ -159,7 +159,7 @@ describe('nastavení: klíče pro /api/eshop a tajemství pro balíky', () => {
 
   test('tajemství pro podání balíku: vygenerovat, odmítnout krátké, smazat', async () => {
     const bez = await (await get(`/nastaveni/eshopy/${ctx.shop.id}?tab=napojeni`)).text();
-    assert.ok(bez.includes('Chybí tajemství — balíky se u převodu nepodají'), 'e-shop bez tajemství vidí varování');
+    assert.ok(bez.includes('Chybí tajemství – balíky se u převodu nepodají'), 'e-shop bez tajemství vidí varování');
     assert.ok(!bez.includes('Použít globální'), 'globální tajemství (Toneráčku) se jinému e-shopu nenabízí');
 
     const res = await post(`/nastaveni/eshopy/${ctx.shop.id}/webhook-secret`, { akce: 'vygenerovat' });
@@ -188,7 +188,7 @@ describe('nastavení: klíče pro /api/eshop a tajemství pro balíky', () => {
     assert.equal(s.webhook_secret, '');
   });
 
-  test('starší API klíče a /api/v1 jsou pryč — klíč se vydává jen v detailu e-shopu', async () => {
+  test('starší API klíče a /api/v1 jsou pryč – klíč se vydává jen v detailu e-shopu', async () => {
     // Vydání i deaktivace starého klíče už neexistují a nic nezaloží.
     assert.equal((await post('/nastaveni/eshopy/api-klic/vytvorit', { shop_id: String(ctx.shop.id) })).status, 404);
     assert.equal((await post('/nastaveni/eshopy/api-klic/1/deaktivovat')).status, 404);
@@ -269,7 +269,7 @@ describe('detail e-shopu po záložkách', () => {
       assert.ok(html.includes('data-rezim="zobrazeni"') && !html.includes('upravit-otevrit') && !html.includes('upravit-ulozit'), `${q}: bez formuláře záznamu není tužka ani úpravy`);
     }
 
-    // chyba formuláře platformy nesmí otevřít formulář marže — režim se bere jen z upravit=1
+    // chyba formuláře platformy nesmí otevřít formulář marže – režim se bere jen z upravit=1
     html = await detail('?tab=marketing&error=marketing-platforma');
     assert.ok(html.includes('data-rezim="zobrazeni"'), 'chyba cizího formuláře úpravy neotevře');
   });
@@ -315,7 +315,7 @@ describe('detail e-shopu po záložkách', () => {
     assert.equal(n, 0, 'e-shop s neplatným slugem nevznikl');
     assert.ok((await (await get('/nastaveni/eshopy?error=missing')).text()).includes('slug smí mít jen malá písmena'));
 
-    // Databáze slug nehlídá (starší řádky) — šablona ho musí escapovat sama.
+    // Databáze slug nehlídá (starší řádky) – šablona ho musí escapovat sama.
     const [divny] = await sql`INSERT INTO shops (slug, name, url, active) VALUES (${`x<b>${r}`}, 'Divný slug', '', TRUE) RETURNING id`;
     uklid.shops.push(divny.id);
     const html = await (await get(`/nastaveni/eshopy/${divny.id}`)).text();

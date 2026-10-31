@@ -1,7 +1,7 @@
 // Úkoly a měření času.
 //
 // Zdrojem pravdy o běžících stopkách je řádek v time_entries s ended_at IS NULL.
-// Žádný stav v prohlížeči ani v session — zavření okna, pád notebooku ani
+// Žádný stav v prohlížeči ani v session – zavření okna, pád notebooku ani
 // restart telefonu měření neztratí a napříč zařízeními vidí člověk totéž.
 // Že běží nejvýš jedny stopky, hlídá částečný unikátní index v databázi.
 
@@ -34,7 +34,7 @@ export async function beziciMereni(sql, userId) {
 }
 
 /**
- * Spustí stopky. Případné rozjeté měření se nejdřív zastaví — jinak by
+ * Spustí stopky. Případné rozjeté měření se nejdřív zastaví – jinak by
  * INSERT spadl na unikátním indexu a uživatel by viděl jen chybu.
  */
 export async function spustStopky(sql, userId, { taskId = null, note = '' } = {}) {
@@ -79,7 +79,7 @@ export async function zaznamyDne(sql, userId, den) {
   `;
 }
 
-/** Měření, která běží podezřele dlouho — nabídneme je k dořešení. */
+/** Měření, která běží podezřele dlouho – nabídneme je k dořešení. */
 export async function zapomenuteStopky(sql, userId = null) {
   const kdo = userId ? sql`AND t.user_id = ${userId}` : sql``;
   return sql`
@@ -156,7 +156,7 @@ export async function vykaz(sql, userId, rok, mesic) {
   return { od, do: do_, poDnech, poUkolech, souhrn, problemy: problemy[0] };
 }
 
-/** Sekundy na „3:20" — hodiny a minuty, ne desetinná čísla. */
+/** Sekundy na „3:20" – hodiny a minuty, ne desetinná čísla. */
 export function hodinyMinuty(sekund) {
   const s = Math.max(0, Number(sekund) || 0);
   return `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}`;

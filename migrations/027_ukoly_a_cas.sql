@@ -1,5 +1,5 @@
 -- ============================================================
--- one.seil.space — úkoly a měření času (stopky)
+-- one.seil.space – úkoly a měření času (stopky)
 -- ============================================================
 -- Nahrazuje Airtable tabulky Tasks a Timetracker. Cílem není archiv,
 -- ale živý nástroj: z naměřeného času se počítá měsíční odměna
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   kind            TEXT NOT NULL DEFAULT 'ukol',
   status          TEXT NOT NULL DEFAULT 'todo'
                   CHECK (status IN ('todo','in_progress','testing','on_hold','done')),
-  -- Airtable mělo „6 | Needed " — číslo řadí, text popisuje.
+  -- Airtable mělo „6 | Needed " – číslo řadí, text popisuje.
   priority        SMALLINT CHECK (priority BETWEEN 1 AND 10),
   priority_label  TEXT NOT NULL DEFAULT '',
 
@@ -79,7 +79,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS time_entries_airtable_idx
 CREATE INDEX IF NOT EXISTS time_entries_user_idx ON time_entries (user_id, started_at DESC);
 CREATE INDEX IF NOT EXISTS time_entries_task_idx ON time_entries (task_id);
 
--- Jedny běžící stopky na člověka. Hlídá to databáze, ne session — funguje
+-- Jedny běžící stopky na člověka. Hlídá to databáze, ne session – funguje
 -- to napříč zařízeními a nejde to obejít dvojklikem ani druhou záložkou.
 CREATE UNIQUE INDEX IF NOT EXISTS time_entries_running_idx
   ON time_entries (user_id) WHERE ended_at IS NULL;

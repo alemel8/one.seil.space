@@ -3,20 +3,20 @@
  * a přechodné.
  *
  * Sync (plán D5) se podle jediného příznaku rozhoduje, co s neúspěšným
- * během: `permanent` = špatný token, chybějící oprávnění, neexistující ID —
+ * během: `permanent` = špatný token, chybějící oprávnění, neexistující ID –
  * opakovat nemá smysl, zdroj čeká na obsluhu a jde alert; všechno ostatní
  * (429, 5xx, síť, timeout) dostane backoff 10/20/30 minut. Každý adaptér
  * přitom volá jiné API s jinou třídou chyb (HttpError z ../http.js,
  * GoogleApiError z ../../google-auth.js, TajemstviError při chybějícím
- * šifrovacím klíči), takže se tu všechny převádějí na jeden tvar —
- * AdapterError { permanent, status } — a sync nemusí znát nic jiného
+ * šifrovacím klíči), takže se tu všechny převádějí na jeden tvar –
+ * AdapterError { permanent, status } – a sync nemusí znát nic jiného
  * (`jeTrvalaChyba()` v ../sync-pravidla.js čte právě `permanent` a `status`).
  *
  * ## Co je trvalé
  *
  * HTTP 4xx kromě 429 (kvóta) a 408 (timeout na straně serveru): 400 je
  * chybný dotaz nebo ID, 401 neplatný token, 403 chybějící právo, 404
- * neexistující objekt. Chybějící šifrovací klíč (TajemstviError) také —
+ * neexistující objekt. Chybějící šifrovací klíč (TajemstviError) také –
  * bez něj token nejde přečíst a příští pokus dopadne stejně. Chyba bez
  * HTTP stavu (síť, timeout, neznámá výjimka) trvalá není: nevíme, a šest
  * pokusů s backoffem je levnější než zbytečně zastavený zdroj, který čeká
@@ -77,7 +77,7 @@ export function adapterChyba(err, { platform = '', kontext = '', napoveda } = {}
     chyba = new AdapterError(kontext ? `${kontext}: ${text}` : text, { permanent, status, platform, cause: err });
   }
   const dovetek = typeof napoveda === 'function' ? String(napoveda(chyba) ?? '').trim() : '';
-  if (dovetek && !chyba.message.includes(dovetek)) chyba.message = `${chyba.message} — ${dovetek}`;
+  if (dovetek && !chyba.message.includes(dovetek)) chyba.message = `${chyba.message} – ${dovetek}`;
   return chyba;
 }
 
@@ -97,5 +97,5 @@ export async function sPrevodemChyb(fn, { platform = '', nazev = 'volání', log
 /** Text pro `overit()`: hláška chyby, u přechodné s dovětkem, že má smysl to zkusit znovu. */
 export function zpravaOvereni(err, { platform = '' } = {}) {
   const chyba = adapterChyba(err, { platform });
-  return chyba.permanent ? chyba.message : `${chyba.message} (přechodná chyba — zkuste to za chvíli znovu)`;
+  return chyba.permanent ? chyba.message : `${chyba.message} (přechodná chyba – zkuste to za chvíli znovu)`;
 }

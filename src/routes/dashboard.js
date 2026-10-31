@@ -78,7 +78,7 @@ export default async function dashboardRoutes(fastify) {
         WHERE created_at BETWEEN ${mStart} AND ${mEnd}::date + INTERVAL '1 day'
         GROUP BY order_city
       `,
-      // Upomínky se neváží na vybraný měsíc — je to fronta k vyřízení teď
+      // Upomínky se neváží na vybraný měsíc – je to fronta k vyřízení teď
       sql`SELECT COUNT(*)::int AS n FROM invoice_reminders WHERE status = 'ceka'`,
     ]);
 
@@ -110,7 +110,7 @@ export default async function dashboardRoutes(fastify) {
       selectedMonth, monthOptions,
       kpi: {
         issuedMonth: Number(issued.v), issuedCount: issued.n,
-        // „Náklady" nejsou jen přijaté faktury — mzdy a účtenky patří do
+        // „Náklady" nejsou jen přijaté faktury – mzdy a účtenky patří do
         // zisku taky, jinak je nadhodnocený. Rozpad viz src/finance.js.
         receivedMonth: mNaklady.celkem, receivedCount: received.n,
         naklady: mNaklady, nakladyPopis: popisNakladu(mNaklady),

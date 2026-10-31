@@ -1,5 +1,5 @@
 -- ============================================================
--- one.seil.space — přílohy k záznamům (1..N na doklad)
+-- one.seil.space – přílohy k záznamům (1..N na doklad)
 -- ============================================================
 -- Doposud uměl systém právě JEDNU přílohu na doklad, uloženou ve sloupcích
 -- attachment_path/_mime/_size přímo na tabulce (migrace 022). Mzdový balíček
@@ -8,7 +8,7 @@
 --
 -- Vlastník se drží „výlučným obloukem": jeden sloupec z pěti je vyplněný,
 -- ostatní NULL. Proti dvojici (entity_type, entity_id) to má skutečné cizí
--- klíče a kaskádu — smazaný mzdový list po sobě nenechá 17 osiřelých řádků.
+-- klíče a kaskádu – smazaný mzdový list po sobě nenechá 17 osiřelých řádků.
 -- Cenou je jeden sloupec navíc při každé nové entitě; u pěti entit je to
 -- levnější než ztráta integrity u mzdových dokladů.
 --
@@ -69,7 +69,7 @@ CREATE INDEX IF NOT EXISTS attachments_sha_idx
 
 -- ── Jedno místo, kde se hledají všechny soubory ───────────────
 -- checkAttachments() dnes UNIONuje tři tabulky natvrdo v JS. S další entitou
--- by to bylo pět větví a při každé příští by se na to zapomnělo — pohled
+-- by to bylo pět větví a při každé příští by se na to zapomnělo – pohled
 -- drží ten kontrakt v databázi.
 CREATE OR REPLACE VIEW attachment_files AS
   SELECT 'receipts'::text AS entita, id::text AS entita_id, attachment_path AS path

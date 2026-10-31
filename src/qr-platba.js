@@ -6,7 +6,7 @@ import QRCode from 'qrcode';
  * Do PDF se vkládá přímo, ne odkazem: renderuje se přes puppeteer, takže
  * externí obrázek by znamenal síťový požadavek uprostřed vystavování dokladu
  * a další věc, která může spadnout, zatímco zákazník čeká v pokladně.
- * (V e-mailu je to naopak — tam data: URI nefunguje, Gmail je zahazuje,
+ * (V e-mailu je to naopak – tam data: URI nefunguje, Gmail je zahazuje,
  * proto qrPaymentImageUrl() v src/email.js míří na veřejný endpoint.)
  *
  * Vrací null, když chybí cokoli podstatného. Doklad bez QR kódu je pořád

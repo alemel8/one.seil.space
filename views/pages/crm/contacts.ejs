@@ -63,20 +63,20 @@
           <td style="color:var(--text-muted);">
             <% if (contact.company_name) { %>
               <a href="/crm/firmy/<%= contact.company_id %>" style="color:var(--primary);" onclick="event.stopPropagation()"><%= contact.company_name %></a>
-            <% } else { %>—<% } %>
+            <% } else { %>–<% } %>
           </td>
           <td>
             <% if (contact.source) { %>
               <span class="badge" style="background:var(--gray-100);color:var(--gray-600);font-size:11px;"><%= contact.source %></span>
-            <% } else { %><span style="color:var(--text-muted);">—</span><% } %>
+            <% } else { %><span style="color:var(--text-muted);">–</span><% } %>
           </td>
-          <td style="color:var(--text-muted);font-size:13px;"><%= contact.title || '—' %></td>
+          <td style="color:var(--text-muted);font-size:13px;"><%= contact.title || '–' %></td>
           <td style="font-size:13px;">
             <% if (contact.email) { %>
               <a href="mailto:<%= contact.email %>" style="color:var(--primary);" onclick="event.stopPropagation()"><%= contact.email %></a>
-            <% } else { %>—<% } %>
+            <% } else { %>–<% } %>
           </td>
-          <td style="font-size:13px;color:var(--text-muted);"><%= contact.phone || '—' %></td>
+          <td style="font-size:13px;color:var(--text-muted);"><%= contact.phone || '–' %></td>
           <td style="color:var(--text-muted);font-size:12px;"><%= new Date(contact.created_at).toLocaleDateString('cs-CZ') %></td>
         </tr>
         <% }); %>
@@ -114,7 +114,7 @@
           <div class="form-group col-span-2">
             <label class="form-label">Firma</label>
             <select name="company_id" class="form-select">
-              <option value="">— Bez firmy —</option>
+              <option value="">– Bez firmy –</option>
               <% companies.forEach(c => { %>
                 <option value="<%= c.id %>"><%= c.name %></option>
               <% }); %>

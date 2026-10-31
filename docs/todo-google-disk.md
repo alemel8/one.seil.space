@@ -1,4 +1,4 @@
-# TODO — zprovoznění importu faktur z Google Disku
+# TODO – zprovoznění importu faktur z Google Disku
 
 Faktura uložená do složky na Disku se sama vytěží a založí v One SEIL. Než je
 přístup hotový, stránka `/ucetnictvi/prijate-faktury/gdrive` hlásí, co konkrétně
@@ -25,7 +25,7 @@ chybí, a ukazuje čas i chybu poslední automatické kontroly.
 - [ ] Na Google Disku u složky **SEIL - účetnictví** → *Sdílet*
 - [ ] Vložit `client_email` service accountu, právo **Čtenář**
 
-> Stačí nasdílet kořenovou složku — podsložky rok / měsíc / Přijaté faktury
+> Stačí nasdílet kořenovou složku – podsložky rok / měsíc / Přijaté faktury
 > dědí přístup automaticky.
 
 ## 4. Nastavení v aplikaci
@@ -47,12 +47,12 @@ chybí, a ukazuje čas i chybu poslední automatické kontroly.
 ## Jak to funguje
 
 Prochází se struktura `<sdílená složka> / <rok> / <měsíc> / Přijaté faktury`.
-Názvy měsíců se poznávají tolerantně — `7. Červenec`, `07 - červenec`
+Názvy měsíců se poznávají tolerantně – `7. Červenec`, `07 - červenec`
 i `Červenec` fungují, u podsložky stačí, že název obsahuje „přijaté“
 (bez ohledu na diakritiku a velikost písmen).
 
 Každý soubor se páruje přes Drive file ID (`accounting_invoices.gdrive_file_id`,
-unikátní index), takže opakovaný import nic nezduplikuje — ani po přejmenování
+unikátní index), takže opakovaný import nic nezduplikuje – ani po přejmenování
 nebo přesunu souboru na Disku.
 
 **Automatika** (`src/gdrive-import.js`) kontroluje každých 5 minut letošní
@@ -73,7 +73,7 @@ přijde push a zbývá ruční import ze stránky. Za jednu kontrolu se zpracuje
 Ruční výběr na stránce běží na pozadí s ukazatelem průběhu; vytěžení jedné
 faktury přes Claude trvá zhruba 10 sekund.
 
-Přístup je **jen pro čtení** (scope `drive.readonly`) — aplikace na Disku nic
+Přístup je **jen pro čtení** (scope `drive.readonly`) – aplikace na Disku nic
 nemění ani nemaže.
 
 ---
@@ -87,13 +87,13 @@ proti čisté databázi a vykreslení stránky.
 
 ## Možné rozšíření
 
-- [ ] **Předkontace** u importovaných faktur — teď se zakládají prázdné
+- [ ] **Předkontace** u importovaných faktur – teď se zakládají prázdné
 
 ---
 
 ## Hotovo
 
-- [x] Export účtenek do POHODY (agenda Pokladna) — opraveno a ověřeno v provozu
+- [x] Export účtenek do POHODY (agenda Pokladna) – opraveno a ověřeno v provozu
 - [x] Rychlý odkaz na Účtenky na homepage
-- [x] Import z Google Disku — kód, stránka, dedup, běh na pozadí
+- [x] Import z Google Disku – kód, stránka, dedup, běh na pozadí
 - [x] Automatický import nových dokladů a push o výsledku

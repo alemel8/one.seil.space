@@ -1,9 +1,9 @@
 -- ============================================================
--- one.seil.space — přepsat formát čísla objednávky na YYMMXXXX
+-- one.seil.space – přepsat formát čísla objednávky na YYMMXXXX
 -- ============================================================
 -- Migrace 031 i 033 zakládaly řadu typu 'objednavka' jen tehdy, když ještě
 -- žádná neexistovala. Toneráček ji ale měl už dřív, s formátem YYMMXXXDD
--- (rok, měsíc, tři náhodné číslice, den) — devět číslic, například
+-- (rok, měsíc, tři náhodné číslice, den) – devět číslic, například
 -- 260819926 pro 26. 8. 2026. Obě migrace ji proto tiše přeskočily a čísla
 -- zůstala v původním tvaru.
 --

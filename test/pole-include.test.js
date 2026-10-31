@@ -25,7 +25,7 @@ test('textové pole: popisek, hodnota i vstup, všechno escapované', async () =
 test('prázdná hodnota ukáže pomlčku s textem pro čtečku, vstup zůstane prázdný', async () => {
   for (const value of ['', null, undefined]) {
     const html = await vykresli({ label: 'Web', name: 'website', typ: 'url', value });
-    assert.match(html, /<span class="pole-prazdne">—<span class="sr-only"> nevyplněno<\/span><\/span>/);
+    assert.match(html, /<span class="pole-prazdne">–<span class="sr-only"> nevyplněno<\/span><\/span>/);
     assert.match(html, /<input type="url" class="form-control" value="" id="pole-website" name="website">/);
   }
 });
@@ -54,20 +54,20 @@ test('datum: vstup YYYY-MM-DD, zobrazení česky, nezávisle na typu hodnoty', a
 });
 
 test('select: popisek vybrané možnosti, porovnání jako řetězec, prázdná volba', async () => {
-  let html = await vykresli({ label: 'E-shop', name: 'shop_id', typ: 'select', value: 7, prazdna: '— žádný —', moznosti: [[7, 'Toneráček'], [8, 'Vlněnka']] });
+  let html = await vykresli({ label: 'E-shop', name: 'shop_id', typ: 'select', value: 7, prazdna: '– žádný –', moznosti: [[7, 'Toneráček'], [8, 'Vlněnka']] });
   assert.match(html, /<div class="pole-hodnota">Toneráček<\/div>/);
   assert.match(html, /<option value="7" selected>Toneráček<\/option>/);
   assert.match(html, /<option value="8">Vlněnka<\/option>/);
-  assert.match(html, /<option value="">— žádný —<\/option>/);
-  html = await vykresli({ label: 'E-shop', name: 'shop_id', typ: 'select', value: null, prazdna: '— žádný —', moznosti: ['A', 'B'] });
+  assert.match(html, /<option value="">– žádný –<\/option>/);
+  html = await vykresli({ label: 'E-shop', name: 'shop_id', typ: 'select', value: null, prazdna: '– žádný –', moznosti: ['A', 'B'] });
   assert.match(html, /pole-prazdne/);
-  assert.match(html, /<option value="" selected>— žádný —<\/option>/);
+  assert.match(html, /<option value="" selected>– žádný –<\/option>/);
   assert.match(html, /<option value="A">A<\/option>/);
 });
 
 test('přepínač a zaškrtávátko: Ano/Ne nebo vlastní text, value="1", checked podle hodnoty', async () => {
   let html = await vykresli({ label: 'Stav', name: 'active', typ: 'toggle', value: true, popisek: 'Aktivní e-shop', zobraz: 'Aktivní', disabled: true });
-  assert.match(html, /<span class="form-label">Stav<\/span>/, 'popisek pole není <label> — ten patří přepínači');
+  assert.match(html, /<span class="form-label">Stav<\/span>/, 'popisek pole není <label> – ten patří přepínači');
   assert.match(html, /<div class="pole-hodnota">Aktivní<\/div>/);
   assert.match(html, /<input type="checkbox" class="toggle-input" value="1" id="pole-active" name="active" disabled checked>/);
   assert.match(html, /<span class="toggle-text">Aktivní e-shop<\/span>/);

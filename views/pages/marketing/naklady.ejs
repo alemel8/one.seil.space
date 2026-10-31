@@ -1,7 +1,7 @@
 <%
   // Ruční náklady na reklamu: pro platformy bez napojeného API a za období
   // před napojením. Částka bez DPH se rozpočítá rovnoměrně po dnech období.
-  const kc = v => v == null ? '—' : Number(v).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Kč';
+  const kc = v => v == null ? '–' : Number(v).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Kč';
   const ceskeDatum = d => { const [r, m, den] = String(d).slice(0, 10).split('-'); return `${Number(den)}. ${Number(m)}. ${r}`; };
 %>
 <div class="page-header">
@@ -41,7 +41,7 @@
       <div class="form-group" style="margin:0;grid-column:span 2;"><label class="form-label">Poznámka</label><input type="text" name="note" class="form-control" maxlength="300" placeholder="kredit Heureka, faktura 2026-10-…"></div>
       <div><button type="submit" class="btn btn-primary">Přidat</button></div>
     </form>
-    <p style="font-size:12px;color:var(--text-muted);margin:12px 0 0;">Částka se v přehledu rozpočítá rovnoměrně na dny období. Když má platforma za tytéž dny i data z API, přehled na překryv upozorní — náklad pak smažte, ať se nepočítá dvakrát.</p>
+    <p style="font-size:12px;color:var(--text-muted);margin:12px 0 0;">Částka se v přehledu rozpočítá rovnoměrně na dny období. Když má platforma za tytéž dny i data z API, přehled na překryv upozorní – náklad pak smažte, ať se nepočítá dvakrát.</p>
   </div>
 </div>
 
@@ -60,7 +60,7 @@
           <td><%= ceskeDatum(n.date_from) %><%= n.date_from !== n.date_to ? ' – ' + ceskeDatum(n.date_to) : '' %></td>
           <td style="text-align:right;"><%= kc(n.amount) %></td>
           <td style="color:var(--text-muted);"><%= n.note || '' %></td>
-          <td style="color:var(--text-muted);font-size:12px;"><%= n.zadal || '—' %></td>
+          <td style="color:var(--text-muted);font-size:12px;"><%= n.zadal || '–' %></td>
           <td>
             <form method="post" action="/marketing/naklady/<%= n.id %>/smazat" style="display:inline;" onsubmit="return confirm('Smazat náklad?')">
               <input type="hidden" name="eshop" value="<%= shop.slug %>">

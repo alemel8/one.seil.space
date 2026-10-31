@@ -1,7 +1,7 @@
 // Nastavení firmy (views/pages/settings/company.ejs) vykreslené bez serveru
 // a databáze: jeden formulář přes pět karet v režimu úprav, tužka v hlavičce
 // a každý sloupec, který POST /nastaveni/firma zapisuje, má ve formuláři
-// pole. Serverová část jede proti běžícímu serveru a lokální databázi —
+// pole. Serverová část jede proti běžícímu serveru a lokální databázi –
 // company_settings je jednořádková a sdílená, po POSTu se řádek obnoví.
 //
 //   DATABASE_URL=postgresql://…@127.0.0.1/… TEST_BASE_URL=http://127.0.0.1:3999 \

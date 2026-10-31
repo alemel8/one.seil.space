@@ -1,5 +1,5 @@
 -- ============================================================
--- one.seil.space — mzdové účty do účetní osnovy
+-- one.seil.space – mzdové účty do účetní osnovy
 -- ============================================================
 -- Osnova ze seedu v migraci 007 má nákladové účty 521, 527 a 528, ale
 -- chybí jí rozvahové účty, na kterých mzda skutečně sedí: závazek vůči

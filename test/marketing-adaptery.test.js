@@ -1,10 +1,10 @@
-// Jednotkový test adaptérů marketingových platforem — běží bez databáze,
+// Jednotkový test adaptérů marketingových platforem – běží bez databáze,
 // serveru i sítě (fetch i googleJson jsou falešné, prodlevy vstříknuté):
 //
 //   env -u DATABASE_URL node --test test/marketing-adaptery.test.js
 //
 // Hlídá: parsuj() všech osmi adaptérů nad fixturami ve tvaru skutečných
-// odpovědí (test/fixtures/marketing/<platforma>-*.json) — převody jednotek
+// odpovědí (test/fixtures/marketing/<platforma>-*.json) – převody jednotek
 // (mikro-koruny Google Ads, haléře Skliku), povinný denní součet pro každý
 // den s daty, kam jde Zboží.cz, ořez rozpadu na 50 řádků na den, dopočet
 // chybějícího součtu; fetchDaily() posílá správné adresy, hlavičky a těla,
@@ -263,9 +263,9 @@ describe('chyby.js', () => {
     const e = adapterChyba(puvodni, { platform: 'heureka', napoveda: () => 'zkontrolujte klíč' });
     assert.equal(e, puvodni);
     assert.equal(e.platform, 'heureka');
-    assert.equal(e.message, 'chybí klíč — zkontrolujte klíč');
+    assert.equal(e.message, 'chybí klíč – zkontrolujte klíč');
     adapterChyba(e, { napoveda: () => 'zkontrolujte klíč' });
-    assert.equal(e.message, 'chybí klíč — zkontrolujte klíč');
+    assert.equal(e.message, 'chybí klíč – zkontrolujte klíč');
     assert.equal(adapterChyba(httpChyba(500), { napoveda: () => '' }).message, 'HTTP 500');
   });
 
@@ -291,7 +291,7 @@ describe('chyby.js', () => {
 
   test('zpravaOvereni přidá u přechodné chyby dovětek', () => {
     assert.equal(zpravaOvereni(httpChyba(401)), 'HTTP 401');
-    assert.match(zpravaOvereni(httpChyba(503)), /HTTP 503 \(přechodná chyba — zkuste to za chvíli znovu\)$/);
+    assert.match(zpravaOvereni(httpChyba(503)), /HTTP 503 \(přechodná chyba – zkuste to za chvíli znovu\)$/);
   });
 });
 
@@ -854,7 +854,7 @@ describe('sklik', () => {
     assert.equal(sklik.platformaKampane({}), 'sklik');
   });
 
-  test('parsuj: plochá odpověď (kampaň × den v items) — jedna stránka, holé pole řádků, řádek bez firstDate se přeskočí s varováním', () => {
+  test('parsuj: plochá odpověď (kampaň × den v items) – jedna stránka, holé pole řádků, řádek bez firstDate se přeskočí s varováním', () => {
     const jedna = sklik.parsuj(fixture('sklik-kampane-1'));
     assert.equal(soucty(jedna).length, 3);                                   // sklik 5. a 6. 10., zbozi 5. 10.
     const hole = sklik.parsuj(fixture('sklik-kampane-1').items);
@@ -941,7 +941,7 @@ describe('sklik', () => {
     assert.equal(err.permanent, true);
     assert.equal(err.status, 401);
     assert.match(err.message, /API Fénix/);
-    assert.equal(stale401.volani.length, 4, 'token, data 401, nový token, data 401 — pak konec');
+    assert.equal(stale401.volani.length, 4, 'token, data 401, nový token, data 401 – pak konec');
   });
 
   test('chyby: neplatný klíč u tokenu je trvalá, 429/5xx/síť přechodné; bez klíče se nevolá nic', async () => {

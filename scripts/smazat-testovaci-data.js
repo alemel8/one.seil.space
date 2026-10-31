@@ -1,7 +1,7 @@
 /**
  * Smaže testovací objednávky e-shopu a registrace zákazníků.
  *
- * Bez `--smazat` jen vypíše, co by zmizelo — spouštěj vždycky nejdřív takhle.
+ * Bez `--smazat` jen vypíše, co by zmizelo – spouštěj vždycky nejdřív takhle.
  *
  * V produkčním kontejneru bez --env-file: Dockerfile .env maže a proměnné
  * vkládá Coolify rovnou do prostředí procesu.
@@ -16,27 +16,27 @@
  * Volby:
  *   --eshop <slug>   povinné, aby nešlo omylem sáhnout na cizí e-shop
  *   --do <YYYY-MM-DD>  jen objednávky vytvořené PŘED tímhle dnem
- *   --cisla 1,2,3    jen vyjmenovaná čísla objednávek — a jen zákazníci
+ *   --cisla 1,2,3    jen vyjmenovaná čísla objednávek – a jen zákazníci
  *                    těchto objednávek, nikdo jiný
  *   --smazat         provede mazání (jinak jen výpis)
  *   --rady           vrátí čítače číselných řad e-shopu na nulu
  *
- * Kterých zákazníků se úklid týká — jen zákazníků TOHOTO e-shopu:
+ * Kterých zákazníků se úklid týká – jen zákazníků TOHOTO e-shopu:
  *   • kontaktů z mazaných objednávek,
  *   • bez --cisla navíc účtů a zákazníků e-shopu: řádek v crm_contact_shops
  *     (účty /api/eshop), zdroj = název e-shopu a u Toneráčku i registrace
  *     v crm_contacts (jeho účty z /api/toneracek tam žijí odjakživa).
  *
  * Co skript NEDĚLÁ schválně:
- *   • nemaže bankovní transakce — ty jsou skutečná data z výpisu; jen u nich
+ *   • nemaže bankovní transakce – ty jsou skutečná data z výpisu; jen u nich
  *     zruší napárování na mazanou fakturu,
  *   • nemaže kontakt, který má i CRM historii (smlouvu, projekt, fakturu mimo
  *     e-shop), objednávku, účet nebo vazbu hosta v jiném e-shopu, ani
  *     objednávku v tomhle e-shopu, která se nemaže. Objednávky se k němu
- *     počítají podle vazby i podle e-mailu — vazba (crm_contact_id) chybí,
+ *     počítají podle vazby i podle e-mailu – vazba (crm_contact_id) chybí,
  *     když se zápis do CRM při objednávce nepovedl (jen se zaloguje).
  *     Takovému kontaktu zruší nanejvýš účet v tomhle e-shopu, a to jen když
- *     mu tu po úklidu žádná objednávka nezůstane — skutečnému zákazníkovi
+ *     mu tu po úklidu žádná objednávka nezůstane – skutečnému zákazníkovi
  *     úklid jedné testovací objednávky účet nevezme,
  *   • nesahá na účty jiných e-shopů: příznak crm_contacts.is_registered patří
  *     Toneráčku a při úklidu jiného e-shopu se nemění; maže se jen řádek
@@ -116,13 +116,13 @@ try {
   }
 
   /*
-   * Zákazníci e-shopu — registrovaní i hosté, ale jen TOHOTO e-shopu.
+   * Zákazníci e-shopu – registrovaní i hosté, ale jen TOHOTO e-shopu.
    *
    * Dřív tu bylo `WHERE c.is_registered = TRUE OR c.source = <e-shop>`.
    * `is_registered` ale na e-shop vázané není, takže výběr bral registrované
    * zákazníky všech e-shopů a `--cisla` omezovalo jen objednávky. Ostré
    * spuštění by smazalo zákazníky Toneráčku bez objednávek a těm
-   * s objednávkami zrušilo registraci — i při úklidu jediné objednávky
+   * s objednávkami zrušilo registraci – i při úklidu jediné objednávky
    * samotného Toneráčku.
    *
    * Kde má e-shop účty: Toneráček v crm_contacts (/api/toneracek, příznak
@@ -207,7 +207,7 @@ try {
   }
 
   if (!apply) {
-    console.log('\nNanečisto — nic se nesmazalo. Ostré spuštění: přidej --smazat');
+    console.log('\nNanečisto – nic se nesmazalo. Ostré spuštění: přidej --smazat');
     console.log('E-shop si drží hesla a tokeny zvlášť, ty smaž skriptem na jeho straně.');
     process.exit(0);
   }
@@ -246,7 +246,7 @@ try {
       if (uctyVKontaktech) {
         await tx`UPDATE crm_contacts SET is_registered = FALSE WHERE id = ${c.id}`;
       } else {
-        // Účet (nebo jen vazba hosta) i se záložním hashem hesla a souhlasy —
+        // Účet (nebo jen vazba hosta) i se záložním hashem hesla a souhlasy –
         // jen v tomhle e-shopu; účty jiných e-shopů a Toneráčku zůstávají.
         await tx`DELETE FROM crm_contact_shops WHERE contact_id = ${c.id} AND shop_id = ${shop.id}`;
       }
@@ -262,7 +262,7 @@ try {
     console.log(`  Kontakt zůstal (mezitím přibyla objednávka nebo vazba na jiný e-shop), jen odpojen: ${zustaly.map((c) => c.email).join(', ')}`);
   }
   if (kOdregistrovani.length) {
-    console.log(`  ${uctyVKontaktech ? 'Odregistrováno' : 'Odpojeno od e-shopu (účet i souhlasy)'} — kontakt zůstal: ${kOdregistrovani.length}`);
+    console.log(`  ${uctyVKontaktech ? 'Odregistrováno' : 'Odpojeno od e-shopu (účet i souhlasy)'} – kontakt zůstal: ${kOdregistrovani.length}`);
   }
   if (kPonechani.length) console.log(`  Ponecháno beze změny: ${kPonechani.length}`);
   if (resetSeries) console.log('  Čítače číselných řad e-shopu vynulovány.');

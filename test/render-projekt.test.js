@@ -41,7 +41,7 @@ const healthchecks = [{ id: 3, name: 'Web Vlněnka' }];
 const shops = [{ id: 7, name: 'Dílna' }];
 const item = {
   id: 'item1', project_id: 'proj1', project_name: project.name, company_id: 'firma1', company_name: project.company_name,
-  type: 'web', name: 'Prezentace <b>webu</b>', status: 'Aktivní', description: '', hosting_provider: 'Coolify — VPS #1',
+  type: 'web', name: 'Prezentace <b>webu</b>', status: 'Aktivní', description: '', hosting_provider: 'Coolify – VPS #1',
   production_url: 'https://dilnavlnenka.cz', staging_url: '', repo_url: '', tech_stack: '', shop_id: 7, healthcheck_id: null,
   go_live_date: DATUM, notes: '', created_at: DATUM, modified_at: DATUM,
 };
@@ -95,7 +95,7 @@ test('projekt: hodnoty jako text, vzorek barvy jen u platného hexu, modal úpra
   assert.ok(html.includes('>tmavě modrá<'), 'ale je vidět jako text');
   assert.match(html, /<a href="https:\/\/drive\.example\.invalid\/brand" target="_blank" rel="noopener noreferrer">/, 'brand manuál jako odkaz');
   assert.match(html, /<div class="form-group pole jen-upravy">\s*<label class="form-label required" for="pole-name">/, 'název je v kartě jen při úpravách (v zobrazení je v hlavičce)');
-  assert.match(html, /<input type="hidden" name="tab" value="prehled">/, 'hidden tab zůstává — POST podle něj přesměruje');
+  assert.match(html, /<input type="hidden" name="tab" value="prehled">/, 'hidden tab zůstává – POST podle něj přesměruje');
   assert.ok(html.includes('href="?tab=prehled&amp;upravit=1"'), 'tužka bez JS otevře úpravy na téže záložce');
   assert.ok(html.includes('href="?tab=prehled" class="btn btn-ghost upravit-zrusit"'), 'Zrušit vede zpět bez upravit');
   assert.match(html, /class="jen-zobrazeni"[^>]*>✓ Uloženo</, 'banner Uloženo je jen pro režim zobrazení');
@@ -117,8 +117,8 @@ test('podprojekt: odkazy, prázdné karty, napojení jen v úpravách, modal úp
   assert.match(html, /<a href="https:\/\/dilnavlnenka\.cz" target="_blank" rel="noopener noreferrer">https:\/\/dilnavlnenka\.cz<\/a>/, 'produkční URL jako odkaz');
   assert.ok(html.includes('<strong>Popis</strong>') && html.includes('<strong>Poznámky</strong>'), 'karty Popis a Poznámky i bez hodnoty');
   assert.match(html, /<div class="form-group pole jen-upravy">\s*<label class="form-label" for="pole-shop_id">/, 'napojený eshop je v kartě jen při úpravách (v zobrazení ho ukazuje karta vpravo)');
-  assert.match(html, /<select class="form-select" id="pole-shop_id" name="shop_id">\s*<option value="">— žádný —<\/option>\s*<option value="7" selected>Dílna<\/option>/, 'eshop je ve výběru předvybraný');
-  assert.match(html, /<select class="form-select" id="pole-healthcheck_id" name="healthcheck_id">\s*<option value="" selected>— žádný —<\/option>/, 'bez healthchecku je vybraná prázdná volba');
+  assert.match(html, /<select class="form-select" id="pole-shop_id" name="shop_id">\s*<option value="">– žádný –<\/option>\s*<option value="7" selected>Dílna<\/option>/, 'eshop je ve výběru předvybraný');
+  assert.match(html, /<select class="form-select" id="pole-healthcheck_id" name="healthcheck_id">\s*<option value="" selected>– žádný –<\/option>/, 'bez healthchecku je vybraná prázdná volba');
   assert.ok(html.includes('Přidejte ho tužkou nahoře.'), 'text o healthchecku neodkazuje na tlačítko Upravit');
   assert.ok(html.includes('href="?upravit=1" class="btn btn-outline btn-ikona upravit-otevrit"'), 'tužka bez JS');
   assert.ok(html.includes(`href="/projekty/podprojekty/${item.id}" class="btn btn-ghost upravit-zrusit"`), 'Zrušit vede na kanonickou cestu stránky');

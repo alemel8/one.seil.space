@@ -1,10 +1,10 @@
-// Test výběru objednávek k expedici a zámků běhu — potřebuje databázi,
+// Test výběru objednávek k expedici a zámků běhu – potřebuje databázi,
 // běžící server ne:
 //
 //   DATABASE_URL=postgresql://… node --test test/expedice-db.test.js
 //
 // Testuje se proti databázi z .env stejně jako test/finance.test.js. Zakládá
-// si vlastní e-shop s náhodným slugem a po sobě ho uklidí — nikdy nesahá na
+// si vlastní e-shop s náhodným slugem a po sobě ho uklidí – nikdy nesahá na
 // data, která nevytvořil.
 // Hlídá dvě věci, které by v provozu bolely nejvíc: aby se skladu neposlala
 // nezaplacená objednávka, a aby dva souběžné běhy nikdy neodeslaly totéž

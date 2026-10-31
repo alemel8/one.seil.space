@@ -28,7 +28,7 @@
  *   (částečná úhrada, poplatek).
  */
 
-import './lib/load-env.js';   // musí být první — plní process.env z .env
+import './lib/load-env.js';   // musí být první – plní process.env z .env
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -49,7 +49,7 @@ const sql = postgres(process.env.DATABASE_URL, {
 
 // ── Helpers ───────────────────────────────────────────────────
 
-/** Číslo faktury i VS na společný tvar — bez oddělovačů a úvodních nul. */
+/** Číslo faktury i VS na společný tvar – bez oddělovačů a úvodních nul. */
 function normalizeVs(v) {
   return String(v ?? '').replace(/[\s\-/]/g, '').replace(/^0+(?=\d)/, '');
 }
@@ -115,7 +115,7 @@ function findInvoice(invoiceIndex, tx) {
     if (candidates.length > 1) {
       warnings.push(
         `VS ${tx.vs} (${tx.date}, ${money(tx.amount)} ${tx.currency}): odpovídá více fakturám ` +
-        `(${candidates.map(c => c.number).join(', ')}) — nespárováno, dohledat ručně`
+        `(${candidates.map(c => c.number).join(', ')}) – nespárováno, dohledat ručně`
       );
     }
     return null;
@@ -130,7 +130,7 @@ async function importStatement(file, seenIds, accounts, invoiceIndex) {
   try {
     statement = parseStatement(path.join(IMPORT_DIR, file));
   } catch (err) {
-    warnings.push(`${file}: nelze přečíst — ${err.message}`);
+    warnings.push(`${file}: nelze přečíst – ${err.message}`);
     console.log(`  ⚠ ${file}: ${err.message}`);
     return;
   }
@@ -144,7 +144,7 @@ async function importStatement(file, seenIds, accounts, invoiceIndex) {
 
   if (!fresh.length) {
     stats.filesSkipped++;
-    console.log(`  = ${label} — vše už v systému, přeskočeno`);
+    console.log(`  = ${label} – vše už v systému, přeskočeno`);
     return;
   }
 
@@ -152,7 +152,7 @@ async function importStatement(file, seenIds, accounts, invoiceIndex) {
   console.log(`\n  ${label}`);
   console.log(`    účet: ${account.name} | nových ${fresh.length}, duplicit ${dupes}`);
 
-  // Co se má vložit — spočítá se dopředu, aby se stav v paměti (seenIds,
+  // Co se má vložit – spočítá se dopředu, aby se stav v paměti (seenIds,
   // stats) měnil až po úspěšném commitu.
   const plan = fresh.map(tx => ({
     tx,
@@ -164,7 +164,7 @@ async function importStatement(file, seenIds, accounts, invoiceIndex) {
   let paidNow = 0;
 
   /**
-   * Celý výpis jednou transakcí — když spojení spadne v půlce souboru,
+   * Celý výpis jednou transakcí – když spojení spadne v půlce souboru,
    * nezůstane v accounting_bank_imports záznam bez pohybů a další běh
    * soubor naimportuje celý znovu a čistě.
    */
@@ -205,7 +205,7 @@ async function importStatement(file, seenIds, accounts, invoiceIndex) {
         if (Math.abs(Number(invoice.total) - tx.amount) > 0.01) {
           warnings.push(
             `${invoice.number}: platba ${money(tx.amount)} ${tx.currency} z ${tx.date} ` +
-            `neodpovídá částce faktury ${money(invoice.total)} — spárováno, zkontrolovat`
+            `neodpovídá částce faktury ${money(invoice.total)} – spárováno, zkontrolovat`
           );
         }
         if (db) {
@@ -243,7 +243,7 @@ async function importStatement(file, seenIds, accounts, invoiceIndex) {
   if (DRY_RUN) await run(null);
   else         await sql.begin(run);
 
-  // Až po commitu — dokud transakce neprojde, tvařme se, že se nic nestalo
+  // Až po commitu – dokud transakce neprojde, tvařme se, že se nic nestalo
   for (const { tx, invoice } of plan) {
     seenIds.add(tx.externalId);
     if (invoice) invoice.status = 'Zaplacena';
@@ -257,13 +257,13 @@ async function importStatement(file, seenIds, accounts, invoiceIndex) {
 // ── Hlavní ────────────────────────────────────────────────────
 
 console.log('=== Import bankovních výpisů z Fio ===');
-if (DRY_RUN)  console.log('⚠  DRY RUN — nic se neukládá');
-if (NO_MATCH) console.log('⚠  --no-match — transakce se nepárují s fakturami');
+if (DRY_RUN)  console.log('⚠  DRY RUN – nic se neukládá');
+if (NO_MATCH) console.log('⚠  --no-match – transakce se nepárují s fakturami');
 
 try {
   const files = fs.readdirSync(IMPORT_DIR)
     .filter(f => /^Vypis_z_uctu.*\.csv$/i.test(f))
-    // podle čísla výpisu, ne podle názvu — "cislo-10" je až za "cislo-9"
+    // podle čísla výpisu, ne podle názvu – "cislo-10" je až za "cislo-9"
     .sort((a, b) => {
       const key = f => {
         const acct = f.match(/Vypis_z_uctu-(\d+)/)?.[1] ?? '';
@@ -279,7 +279,7 @@ try {
   }
   console.log(`\nSouborů k načtení: ${files.length}`);
 
-  // Existující external_id — hlavní ochrana proti duplicitám
+  // Existující external_id – hlavní ochrana proti duplicitám
   const seenIds = new Set(
     (await sql`SELECT external_id FROM accounting_bank_transactions WHERE external_id IS NOT NULL`)
       .map(r => r.external_id)

@@ -1,8 +1,8 @@
 -- ============================================================
--- one.seil.space — skrytá kopie ranní expedice
+-- one.seil.space – skrytá kopie ranní expedice
 -- ============================================================
 -- Expedice odcházela jen na adresu skladu a nikdo z firmy neviděl, co sklad
--- ráno dostal — kontrolovat to šlo jen zpětně podle `resend_id` v běhu.
+-- ráno dostal – kontrolovat to šlo jen zpětně podle `resend_id` v běhu.
 -- Adresa kopie patří k e-shopu, ne do prostředí: `EMAIL_BCC` je kopie
 -- zákaznické pošty a míchat tyhle dva toky by znamenalo, že se kopie skladu
 -- nedá zapnout bez kopie všeho ostatního.

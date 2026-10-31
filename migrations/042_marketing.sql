@@ -1,12 +1,12 @@
 -- ============================================================
--- one.seil.space — marketing: zdroj objednávky, nákupní cena a statistiky platforem
+-- one.seil.space – marketing: zdroj objednávky, nákupní cena a statistiky platforem
 -- ============================================================
 -- Toneráček rozjíždí reklamu (Google, Sklik + Zboží.cz, Heureka, Meta)
 -- a One SEIL má ukazovat, co stojí a co přináší: PNO, ROAS a marži po
 -- kanálech, zvlášť pro každý e-shop. K tomu dnes chybí tři věci:
 --
 --   1. objednávka nenese, odkud zákazník přišel (UTM, click-id, referrer,
---      vstupní stránka) — za běžících kampaní je každá objednávka bez
+--      vstupní stránka) – za běžících kampaní je každá objednávka bez
 --      atribuce ztracené číslo, proto jde tahle migrace na produkci DŘÍV
 --      než e-shop, který pole začne posílat;
 --   2. položka objednávky nenese nákupní cenu, takže se marže jen odhaduje;
@@ -14,7 +14,7 @@
 --      ruční náklady za období, kdy API ještě nebylo napojené.
 --
 -- Nic tu nepřepisuje existující data ani výchozí hodnoty existujících
--- sloupců — jen přidává. Objednávky z doby před nasazením mají atribuci
+-- sloupců – jen přidává. Objednávky z doby před nasazením mají atribuci
 -- prázdnou ('' a NULL) a attribution_consent = '' (= před nasazením);
 -- /api/toneracek i /api/eshop zapisují nové sloupce vždy a bez `marketing`
 -- v těle dosadí tytéž výchozí hodnoty (src/atribuce-objednavky.js).
@@ -28,11 +28,11 @@
 --
 -- Pořadí je kvůli zámkům, ne kvůli čtení. Celá migrace je jedna transakce
 -- (src/migrate.js) a každý zámek drží až do COMMIT:
---   1. nové tabulky marketing_* — na ně zatím nikdo nesahá;
---   2. shop_order_items — čte se při detailu objednávky a v expedici;
---   3. shop_orders — 21 sloupců, každý ALTER bere výhradní zámek, ale
+--   1. nové tabulky marketing_* – na ně zatím nikdo nesahá;
+--   2. shop_order_items – čte se při detailu objednávky a v expedici;
+--   3. shop_orders – 21 sloupců, každý ALTER bere výhradní zámek, ale
 --      s konstantní výchozí hodnotou trvá milisekundy;
---   4. ALTER TABLE shops úplně nakonec — čte ho každý požadavek Toneráčku
+--   4. ALTER TABLE shops úplně nakonec – čte ho každý požadavek Toneráčku
 --      (getToneracekShopId), výhradní zámek se tak drží jen do COMMIT, ne
 --      po dobu čekání na zámky ostatních tabulek.
 -- lock_timeout 2 s: když ALTER čeká za cizí transakcí (pg_dump, zapomenutá
@@ -47,7 +47,7 @@ SET LOCAL lock_timeout = '2s';
 -- GOOGLE_SERVICE_ACCOUNT_JSON, tady je jen ID (property GA4, zákaznické
 -- číslo Ads, adresa webu v Search Console, číslo účtu Merchant). Sklik
 -- (klíč API Fénix s právem r), Heureka (API klíč) a Meta (token System
--- User) mají tajemství v secret_enc — šifrované AES-256-GCM klíčem
+-- User) mají tajemství v secret_enc – šifrované AES-256-GCM klíčem
 -- MARKETING_SECRETS_KEY z env, ven jde jen otisk. Zboží.cz vlastní zdroj
 -- nemá: jeho statistiky jsou od října 2026 jen ve Skliku, zapisuje je
 -- adaptér sklik. Platforma eshop = vlastní endpoint e-shopu
@@ -443,7 +443,7 @@ COMMENT ON COLUMN shop_orders.attribution_consent IS
   'Kategorie souhlasu z lišty e-shopu při objednávce: none, analytics, marketing nebo all. Prázdné = objednávka z doby před nasazením atribuce.';
 
 -- ── Nastavení e-shopu ─────────────────────────────────────────
--- Poslední příkazy migrace — viz pořadí v hlavičce.
+-- Poslední příkazy migrace – viz pořadí v hlavičce.
 
 ALTER TABLE shops ADD COLUMN IF NOT EXISTS marketing_margin_pct    NUMERIC(5,2) NOT NULL DEFAULT 0;
 ALTER TABLE shops ADD COLUMN IF NOT EXISTS marketing_pno_alert_pct NUMERIC(5,2) NOT NULL DEFAULT 0;

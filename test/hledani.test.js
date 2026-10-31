@@ -79,7 +79,7 @@ function lokalniDatabaze() {
   const url = process.env.DATABASE_URL || '';
   const host = url ? new URL(url).hostname : '';
   if (!['127.0.0.1', 'localhost'].includes(host) && process.env.TEST_DB_ALLOW_REMOTE !== '1') {
-    throw new Error(`Test zakládá firmy a objednávky — DATABASE_URL musí mířit na 127.0.0.1/localhost, ne na "${host}"`);
+    throw new Error(`Test zakládá firmy a objednávky – DATABASE_URL musí mířit na 127.0.0.1/localhost, ne na "${host}"`);
   }
   return url;
 }
@@ -130,7 +130,7 @@ describe('hledání proti serveru', { skip: !process.env.DATABASE_URL && 'bez DA
               VALUES (${ctx.kontakt}, 'Kontakt', ${T}, ${`k-${r}@example.invalid`}, ${ctx.firma})`;
     await sql`INSERT INTO shop_orders (id, shop_id, order_number, status, email, first_name, last_name, total_price)
               VALUES (${ctx.objednavka}, ${shop.id}, ${T}, 'Přijata', ${`o-${r}@example.invalid`}, 'Objednávka', 'Test', 100)`;
-    // Šest objednávek celkem — našeptávač má limit 5 na skupinu, stránka 10.
+    // Šest objednávek celkem – našeptávač má limit 5 na skupinu, stránka 10.
     for (let i = 1; i <= 5; i++) {
       await sql`INSERT INTO shop_orders (id, shop_id, order_number, status, email, first_name, last_name, total_price)
                 VALUES (${`${ctx.objednavka}-${i}`}, ${shop.id}, ${`${T}-${i}`}, 'Přijata', ${`o-${r}@example.invalid`}, 'Objednávka', 'Test', 100)`;
@@ -195,7 +195,7 @@ describe('hledání proti serveru', { skip: !process.env.DATABASE_URL && 'bez DA
     for (const k of ['firmy', 'kontakty', 'objednavky']) assert.ok(klice.includes(k), k);
     const objednavky = data.skupiny.find((g) => g.klic === 'objednavky');
     assert.equal(objednavky.polozky.length, 5, 'limit 5 na skupinu');
-    assert.equal(objednavky.plny, true, 'šest objednávek — seznam má víc');
+    assert.equal(objednavky.plny, true, 'šest objednávek – seznam má víc');
     assert.equal(data.skupiny.find((g) => g.klic === 'firmy').plny, false, 'jedna firma limit nedosáhne');
     assert.equal(data.skupiny.find((g) => g.klic === 'firmy').polozky[0].url, `/crm/firmy/${ctx.firma}`);
 

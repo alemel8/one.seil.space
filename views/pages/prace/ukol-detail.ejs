@@ -105,11 +105,11 @@
       </form>
       <dl style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13.5px;margin:0;">
         <dt style="color:var(--text-muted);">Řešitel</dt>
-        <dd><%= [ukol.first_name, ukol.last_name].filter(Boolean).join(' ') || '—' %></dd>
+        <dd><%= [ukol.first_name, ukol.last_name].filter(Boolean).join(' ') || '–' %></dd>
         <dt style="color:var(--text-muted);">Klient</dt>
-        <dd><%= ukol.klient || '—' %></dd>
+        <dd><%= ukol.klient || '–' %></dd>
         <dt style="color:var(--text-muted);">Termín</dt>
-        <dd><%= ukol.due_date ? new Date(ukol.due_date).toLocaleDateString('cs-CZ') : '—' %></dd>
+        <dd><%= ukol.due_date ? new Date(ukol.due_date).toLocaleDateString('cs-CZ') : '–' %></dd>
         <% if (ukol.priority_label) { %>
         <dt style="color:var(--text-muted);">Priorita</dt>
         <dd><%= ukol.priority_label %></dd>

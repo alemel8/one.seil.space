@@ -1,7 +1,7 @@
 // Sekce Marketing: přehled, ruční náklady, synchronizace a přístupová matice
 // (src/routes/marketing.js, src/marketing/prehled.js).
 //
-// Čísla v přehledu se počítají z objednávek a nákladů konkrétního e-shopu —
+// Čísla v přehledu se počítají z objednávek a nákladů konkrétního e-shopu –
 // test si založí vlastní e-shop s objednávkami (zaplacená kartou s gclid,
 // stornovaná, čekající na platbu bez atribuce), řádkem statistik Skliku
 // a ručním nákladem Heureky a kontroluje tržby bez DPH, PNO, kanály a marži
@@ -28,7 +28,7 @@ const r = crypto.randomBytes(4).toString('hex');
 function lokalniDatabaze() {
   const host = DATABASE_URL ? new URL(DATABASE_URL).hostname : '';
   if (!['127.0.0.1', 'localhost'].includes(host) && process.env.TEST_DB_ALLOW_REMOTE !== '1') {
-    throw new Error(`Test zakládá e-shopy a objednávky — DATABASE_URL musí mířit na 127.0.0.1/localhost, ne na "${host}"`);
+    throw new Error(`Test zakládá e-shopy a objednávky – DATABASE_URL musí mířit na 127.0.0.1/localhost, ne na "${host}"`);
   }
   return DATABASE_URL;
 }
@@ -49,7 +49,7 @@ async function prihlas(userId) {
 }
 
 const get  = (p, cookie = ctx.cookie) => fetch(BASE + p, { headers: { cookie }, redirect: 'manual' });
-// Čísla v HTML mají české oddělovače tisíců jako U+00A0 — pro porovnání se sjednotí na mezeru.
+// Čísla v HTML mají české oddělovače tisíců jako U+00A0 – pro porovnání se sjednotí na mezeru.
 const text = async (res) => (await res.text()).replace(/\u00a0/g, ' ');
 const post = (p, body = {}, cookie = ctx.cookie) => fetch(BASE + p, {
   method: 'POST', redirect: 'manual',
@@ -159,7 +159,7 @@ describe('sekce Marketing', { skip: !DATABASE_URL && 'bez DATABASE_URL' }, () =>
     assert.equal(res.status, 200);
     const html = await text(res);
     assert.ok(html.includes(ctx.shop.name), 'přepínač/nadpis nese e-shop');
-    // (1210 + 605) / 1,21 = 1 500,00 — stornovaná za 5 000 se nepočítá
+    // (1210 + 605) / 1,21 = 1 500,00 – stornovaná za 5 000 se nepočítá
     assert.ok(html.includes('1 500,00 Kč'), 'tržby bez DPH');
     assert.ok(!html.includes('5 000,00'), 'storno nepatří do tržeb');
     // náklady 100 (Sklik z API) + 62 (Heureka ručně, celé období) = 162 → PNO 10,8 %

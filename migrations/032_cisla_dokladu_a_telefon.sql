@@ -1,5 +1,5 @@
 -- ============================================================
--- one.seil.space — formáty čísel dokladů e-shopu a kontaktní telefon
+-- one.seil.space – formáty čísel dokladů e-shopu a kontaktní telefon
 -- ============================================================
 -- Číslo dokladu se skládalo z prefixu, roku a pořadí oddělených pomlčkami
 -- (ZF-2026-0042). Pomlčky nesou nulovou informaci, ale rozbíjejí variabilní
@@ -11,7 +11,7 @@
 --   vydaná faktura     20260001      (rok + pořadí od jedné)
 --
 -- Rozsah: záměrně jen řady e-shopu (shop_id vyplněné). Řady, kterými SEIL
--- fakturuje mimo e-shop (shop_id IS NULL), zůstávají beze změny — změna
+-- fakturuje mimo e-shop (shop_id IS NULL), zůstávají beze změny – změna
 -- číslování B2B faktur uprostřed roku je účetní rozhodnutí, ne důsledek
 -- úprav e-mailů e-shopu.
 

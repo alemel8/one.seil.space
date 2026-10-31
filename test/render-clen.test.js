@@ -1,7 +1,7 @@
 // Detail člena týmu (views/pages/people/member-detail.ejs) vykreslený bez
 // serveru a databáze: režim úprav na záložkách Detail a Bankovní účet, tužka
 // jen tam, a každý sloupec, který POST /lide/tym/:id zapisuje, má v obou
-// formulářích pole — routa přepisuje všech šestnáct sloupců naráz, druhá
+// formulářích pole – routa přepisuje všech šestnáct sloupců naráz, druhá
 // záložka je posílá skrytě. Serverová část jede proti běžícímu serveru
 // a lokální testovací databázi (test/pomocnici/server.js).
 //
@@ -43,7 +43,7 @@ function vykresli(currentTab, prepis = {}) {
   });
 }
 
-// Sloupce z UPDATE users v POST /lide/tym/:id — oba formuláře posílají všech šestnáct (+ tab).
+// Sloupce z UPDATE users v POST /lide/tym/:id – oba formuláře posílají všech šestnáct (+ tab).
 const SLOUPCE = ['tab', 'email', 'first_name', 'last_name', 'title', 'phone', 'position', 'bio', 'address', 'city', 'zip', 'country',
   'bank_account', 'bank_name', 'iban', 'is_admin', 'is_active'];
 

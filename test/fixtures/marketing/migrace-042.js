@@ -1,5 +1,5 @@
 // Pomocník testů marketingu: přečte migrations/042_marketing.sql, když už
-// v repozitáři je, a vytáhne z ní sloupce tabulek. Migraci píše jiný krok —
+// v repozitáři je, a vytáhne z ní sloupce tabulek. Migraci píše jiný krok –
 // testy, které ji chtějí, se bez ní přeskočí (`t.skip`), místo aby názvy
 // a typy sloupců hádaly. Jakmile je migrace v repozitáři, hlídá se, že
 // METRIKY, číselníky a SELECTy v kpi.js sedí na skutečné schéma: překlep

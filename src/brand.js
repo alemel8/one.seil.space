@@ -13,7 +13,7 @@ import { getDb } from './db.js';
 // poslat ručně z administrace; prozrazenou cizí identitu vzít zpět nejde.
 const IDENTITY_FIELDS = ['name', 'url', 'email_from_name', 'email_from_address'];
 
-// Kosmetika — když chybí, e-mail vypadá stroze, ale je správně podepsaný.
+// Kosmetika – když chybí, e-mail vypadá stroze, ale je správně podepsaný.
 const COSMETIC_DEFAULTS = {
   support_email: '',
   support_phone: '',
@@ -47,7 +47,7 @@ export function invalidateBrandCache(shopId) {
 
 /**
  * Vrátí značku e-shopu, nebo vyhodí BrandIncompleteError. Volající chybu
- * nesmí spolknout do fallbacku — smyslem je e-mail raději neposlat.
+ * nesmí spolknout do fallbacku – smyslem je e-mail raději neposlat.
  */
 export async function shopBrand(shopId) {
   const id = Number(shopId);

@@ -2,7 +2,7 @@
  * Období marketingového přehledu: tento měsíc, minulý měsíc, posledních
  * 30 dní, vlastní rozsah.
  *
- * Čisté funkce nad řetězci „YYYY-MM-DD“ — bez databáze a bez `Date` v lokálním
+ * Čisté funkce nad řetězci „YYYY-MM-DD“ – bez databáze a bez `Date` v lokálním
  * pásmu. Přehled dostane z URL `?obdobi=…&od=…&do=…`, tady se z toho udělá
  * uzavřený interval [od, do] a český popisek do nadpisu.
  *
@@ -20,14 +20,14 @@
  *
  * Vlastní rozsah smí mít nejvýš 400 dní rozdílu (stejný strop jako první
  * běh syncu), aby jeden odkaz nevytáhl z databáze roky objednávek.
- * Neplatný vstup se nehlásí chybou — přehled se ukáže za tento měsíc
+ * Neplatný vstup se nehlásí chybou – přehled se ukáže za tento měsíc
  * a v popisku stojí proč, ať se uživatel nedívá na prázdnou stránku.
  *
  * ## Výčet dní nevěří vstupu
  *
  * `vyctiDny()` nejdřív obě meze ověří přes `jenDatum()` a na neplatné vrátí
  * prázdné pole: řetězcové porovnání by „9999-99-99“ pustilo do smyčky,
- * která by se točila miliony dní, než Date přeteče — a graf i rozpočítání
+ * která by se točila miliony dní, než Date přeteče – a graf i rozpočítání
  * nákladů dostávají meze i odjinud než z `vyhodnotObdobi()`.
  */
 
@@ -52,7 +52,7 @@ export function prvniDenMesice(datum) {
 
 /**
  * „2026-02-10“ → „2026-02-28“ (v přestupném roce „-29“). Z prvního dne
- * měsíce skočí 31 dní dopředu — to je vždycky v následujícím měsíci —,
+ * měsíce skočí 31 dní dopředu – to je vždycky v následujícím měsíci –,
  * vezme jeho první den a vrátí se o den zpět.
  */
 export function posledniDenMesice(datum) {
@@ -106,7 +106,7 @@ function chybaVlastnihoObdobi(od, do_) {
 
 /**
  * Z parametrů URL udělá uzavřený interval. `dnes` je pražské datum
- * (`prazskyCas().datum`) — předává se, aby šel přehled testovat s pevným dnem.
+ * (`prazskyCas().datum`) – předává se, aby šel přehled testovat s pevným dnem.
  *
  * Vrací `{ od, do, preset, popis }`; `preset` je to, co se skutečně použilo
  * (po neplatném vlastním období tedy 'tento-mesic').
@@ -135,7 +135,7 @@ export function vyhodnotObdobi({ obdobi, od, do: doQ } = {}, dnes = prazskyCas()
     if (!chyba) return { od: vOd, do: vDo, preset, popis: rozsahCesky(vOd, vDo) };
     return {
       od: prvniDenMesice(den), do: den, preset: 'tento-mesic',
-      popis: `${popisMesice(den)} — vlastní období se nepoužilo: ${chyba}`,
+      popis: `${popisMesice(den)} – vlastní období se nepoužilo: ${chyba}`,
     };
   }
 

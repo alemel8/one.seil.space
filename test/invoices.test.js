@@ -1,4 +1,4 @@
-// Funkční test vydaných faktur — vytvoření, PDF, odeslání, upomínky.
+// Funkční test vydaných faktur – vytvoření, PDF, odeslání, upomínky.
 //
 // Testy jedou proti běžícímu serveru a reálné databázi z .env; přihlášení
 // obchází vložením session přímo do DB (stejný podpis cookie jako @fastify/cookie).
@@ -76,7 +76,7 @@ before(async () => {
   `;
 
   const health = await fetch(BASE + '/health').catch(() => null);
-  assert.ok(health?.ok, `server neběží na ${BASE} — spusť npm start`);
+  assert.ok(health?.ok, `server neběží na ${BASE} – spusť npm start`);
 });
 
 after(async () => {

@@ -25,7 +25,7 @@ function lokalniDatabaze() {
   const url = process.env.DATABASE_URL || '';
   const host = url ? new URL(url).hostname : '';
   if (!['127.0.0.1', 'localhost'].includes(host) && process.env.TEST_DB_ALLOW_REMOTE !== '1') {
-    throw new Error(`Test zakládá e-shopy a objednávky — DATABASE_URL musí mířit na 127.0.0.1/localhost, ne na "${host}"`);
+    throw new Error(`Test zakládá e-shopy a objednávky – DATABASE_URL musí mířit na 127.0.0.1/localhost, ne na "${host}"`);
   }
   return url;
 }
@@ -134,7 +134,7 @@ describe('seznam objednávek po e-shopech', () => {
     assert.ok(!html.includes(`#${ctx.cislo.karta}`), 'objednávka jiného e-shopu v seznamu Toneráčku není');
     assert.ok(html.includes('href="/ucetnictvi/objednavky?status='), 'chipy stavů beze změny');
     assert.ok(!html.includes('name="shop_id"'), 'expedice Toneráčku bez skrytého e-shopu');
-    // Přepínač — v testovací databázi je e-shopů víc.
+    // Přepínač – v testovací databázi je e-shopů víc.
     assert.ok(html.includes(`href="/ucetnictvi/objednavky?eshop=${ctx.shop.slug}"`));
   });
 
@@ -223,7 +223,7 @@ describe('detail a akce berou e-shop z objednávky', () => {
 
   test('štítek: bez zásilky 404, se zásilkou jde na Packetu (bez hesla v testu 502)', async () => {
     assert.equal((await get(`/ucetnictvi/objednavky/${ctx.sklad}/stitek`)).status, 404);
-    // PACKETA_API_PASSWORD test nemá — chyba vznikne dřív, než by šel požadavek ven.
+    // PACKETA_API_PASSWORD test nemá – chyba vznikne dřív, než by šel požadavek ven.
     assert.equal((await get(`/ucetnictvi/objednavky/${ctx.karta}/stitek`)).status, 502);
   });
 

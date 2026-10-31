@@ -1,5 +1,5 @@
 /**
- * Načte .env do process.env — bez závislosti na `node --env-file`.
+ * Načte .env do process.env – bez závislosti na `node --env-file`.
  *
  * Ten přepínač umí až Node 20.6+, na VPS ale bývá starší node a hlásí
  * "bad option: --env-file". Skripty si proto .env načtou samy:
@@ -7,7 +7,7 @@
  *   import './lib/load-env.js';   // musí být první import
  *
  * Proměnné, které v prostředí už jsou (docker, systemd, `export`, nebo
- * právě `--env-file`), se nepřepisují — prostředí má vždy přednost.
+ * právě `--env-file`), se nepřepisují – prostředí má vždy přednost.
  */
 
 import fs from 'node:fs';
@@ -22,7 +22,7 @@ export function loadEnv(file = path.join(ROOT, '.env')) {
   try {
     text = fs.readFileSync(file, 'utf8');
   } catch {
-    return 0;   // .env nemusí existovat — v kontejneru chodí proměnné z prostředí
+    return 0;   // .env nemusí existovat – v kontejneru chodí proměnné z prostředí
   }
 
   let loaded = 0;

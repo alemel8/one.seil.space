@@ -1,5 +1,5 @@
 -- ============================================================
--- one.seil.space — rozšíření tabulky users o HR sloupce
+-- one.seil.space – rozšíření tabulky users o HR sloupce
 -- ============================================================
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS title        TEXT DEFAULT '';

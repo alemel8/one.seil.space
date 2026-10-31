@@ -146,7 +146,7 @@ describe('stopky', () => {
 
     await post(`/prace/zaznamy/${cizi.id}/smazat`, {}, cookieJiny);
     const [zbylo] = await sql`SELECT COUNT(*)::int n FROM time_entries WHERE id = ${cizi.id}`;
-    assert.equal(zbylo.n, 1, 'záznam musí zůstat — patří někomu jinému');
+    assert.equal(zbylo.n, 1, 'záznam musí zůstat – patří někomu jinému');
   });
 
   test('sekundy se zobrazují jako hodiny a minuty', () => {

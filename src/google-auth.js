@@ -14,8 +14,8 @@
  *
  * Chyby se vracejí jako GoogleApiError { status, retryable }: 429, 5xx
  * a síťová chyba se smí zkusit znovu (sync má backoff), 400/401/403/404 ne.
- * U 403 text říká operátorovi, co udělat — přidat e-mail service accountu
- * jako čtenáře — protože to je zdaleka nejčastější příčina.
+ * U 403 text říká operátorovi, co udělat – přidat e-mail service accountu
+ * jako čtenáře – protože to je zdaleka nejčastější příčina.
  *
  * Nastavení: GOOGLE_SERVICE_ACCOUNT_JSON = celý obsah JSON klíče service
  * accountu v jedné env proměnné (escapovaná \n v privátním klíči se
@@ -92,7 +92,7 @@ function popisSitoveChyby(err, timeoutMs) {
   return err?.cause?.message || err?.message || 'síťová chyba';
 }
 
-/** Zahodí tokeny v paměti — po změně klíče v env nebo v testech. */
+/** Zahodí tokeny v paměti – po změně klíče v env nebo v testech. */
 export function vymazTokeny() {
   tokeny.clear();
 }
@@ -165,7 +165,7 @@ function zpravaChyby(status, host, detail) {
  * `params` jde do query stringu (null a undefined se vynechají), `body` se
  * posílá jako JSON. Vrací rozparsovanou odpověď (204 → null). Chyba HTTP
  * i sítě je GoogleApiError, stejně tak 2xx s nečitelným tělem (HTML místo
- * JSON od proxy nebo z hrany Googlu — k opakování); po 401 se token dané
+ * JSON od proxy nebo z hrany Googlu – k opakování); po 401 se token dané
  * sady scope zahodí, ať si příští volání vezme nový.
  */
 export async function googleJson(url, { scopes, params = {}, method = 'GET', body, headers = {}, timeoutMs = 30_000 } = {}) {

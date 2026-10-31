@@ -1,4 +1,4 @@
-// Jednotkový test HTTP vrstvy marketingových adaptérů — běží bez databáze
+// Jednotkový test HTTP vrstvy marketingových adaptérů – běží bez databáze
 // a serveru (fetch je falešný, prodleva vstříknutá); jediný test si zvedne
 // lokální HTTP server na 127.0.0.1, aby ověřil skutečný fetch:
 //
@@ -6,9 +6,9 @@
 //
 // Hlídá, že se opakuje jen přechodná chyba (429, 5xx, síť, timeout), nikdy
 // 4xx s chybným tokenem, že prodleva roste a Retry-After ji umí jen
-// prodloužit (strop 60 s), že timeout opravdu přeruší zaseklý hovor — i
+// prodloužit (strop 60 s), že timeout opravdu přeruší zaseklý hovor – i
 // takový, který se zasekne až uprostřed těla odpovědi 200, ten nesmí
-// vypadat jako prázdný report — a že chybová hláška neprozradí query
+// vypadat jako prázdný report – a že chybová hláška neprozradí query
 // string s tokenem.
 
 import { test, describe } from 'node:test';
@@ -106,7 +106,7 @@ describe('fetchJson', () => {
     assert.equal(err.retryable, false);
     assert.equal(err.retryAfterMs, null);
     assert.deepEqual(err.body, { error: { message: 'Invalid OAuth access token' } });
-    assert.match(err.message, /^GET https:\/\/graph\.facebook\.com\/v26\.0\/act_1\/insights: HTTP 403 — /);
+    assert.match(err.message, /^GET https:\/\/graph\.facebook\.com\/v26\.0\/act_1\/insights: HTTP 403 – /);
     assert.equal(err.message.includes('TAJNE'), false);
     assert.equal(err.url, 'https://graph.facebook.com/v26.0/act_1/insights');
   });
@@ -148,7 +148,7 @@ describe('fetchJson', () => {
       signal.addEventListener('abort', () => reject(signal.reason));
     });
     // Časovač AbortSignal.timeout() je unref'd a falešný fetch nedrží žádný
-    // socket — bez vlastního časovače by smyčka událostí skončila dřív, než
+    // socket – bez vlastního časovače by smyčka událostí skončila dřív, než
     // timeout stihne vystřelit (skutečný fetch drží spojení, tam to nenastane).
     const drzak = setTimeout(() => {}, 5000);
     const zacatek = Date.now();
@@ -178,7 +178,7 @@ describe('fetchJson', () => {
     assert.match(err2.message, /síťová chyba: terminated/);
   });
 
-  test('u chybového stavu se nečitelné tělo spolkne — stav rozhoduje a chyba 503 se neztratí', async () => {
+  test('u chybového stavu se nečitelné tělo spolkne – stav rozhoduje a chyba 503 se neztratí', async () => {
     const fetchImpl = async () => ({ status: 503, headers: { 'retry-after': '3' }, text: () => Promise.reject(new DOMException('x', 'TimeoutError')) });
     const err = await fetchJson('https://api.example.test/x', { fetchImpl }).catch(e => e);
     assert.ok(err instanceof HttpError);
@@ -193,7 +193,7 @@ describe('fetchJson', () => {
     const sockety = new Set();
     const server = createServer((_req, res) => {
       res.writeHead(200, { 'content-type': 'application/json' });
-      res.write('{"rows":[1,2,3');   // a dál nic — spojení visí
+      res.write('{"rows":[1,2,3');   // a dál nic – spojení visí
     });
     server.on('connection', (s) => sockety.add(s));
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));

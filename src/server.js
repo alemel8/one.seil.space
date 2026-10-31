@@ -82,7 +82,7 @@ await fastify.register(staticPlugin, {
 fastify.addHook('preHandler', async (request) => {
   request.user = null;
   if (request.session.userId) {
-    // Přístupová matice se veze s uživatelem — sidebar i strážce rout ji
+    // Přístupová matice se veze s uživatelem – sidebar i strážce rout ji
     // potřebují na každý požadavek, druhý dotaz by byl zbytečný.
     const rows = await sql`
       SELECT u.id, u.public_id, u.email, u.first_name, u.last_name,
@@ -106,7 +106,7 @@ fastify.addHook('preHandler', async (request) => {
       };
 
       // Běžící stopky se vezou s uživatelem, aby je topbar viděl na každé
-      // stránce — jinak by je musela předávat každá routa zvlášť. Je to
+      // stránce – jinak by je musela předávat každá routa zvlášť. Je to
       // jeden dotaz nad částečným indexem, kde jsou vždy jednotky řádků.
       if (request.user.can('prace.muj-cas')) {
         const [bezi] = await sql`
@@ -121,7 +121,7 @@ fastify.addHook('preHandler', async (request) => {
 });
 
 // ── Strážce přístupů ──────────────────────────────────────────
-// Skrytá položka v menu nestačí — bez tohohle by se na ni dalo dostat
+// Skrytá položka v menu nestačí – bez tohohle by se na ni dalo dostat
 // napsáním URL. Cesty mimo katalog (API, profil, statika) neřeší.
 
 fastify.addHook('preHandler', async (request, reply) => {
@@ -158,7 +158,7 @@ fastify.addHook('onRequest', async (request, reply) => {
   // (data/media), takže veřejná cesta by dávala účtenky, faktury a nově
   // i výplatní pásky komukoli, kdo uhodne název souboru. Profilové fotky
   // se z něj berou jen na stránkách za přihlášením.
-  // '/api/eshop' si klíč ověřuje sám (src/eshop-klice.js) — bez session.
+  // '/api/eshop' si klíč ověřuje sám (src/eshop-klice.js) – bez session.
   const publicPaths = ['/prihlasit', '/health', '/static', '/health/api', '/api/toneracek', '/api/eshop', '/health/cookie-test', '/api/webhook'];
   const isPublic = publicPaths.some(
     p => request.url === p || request.url.startsWith(p + '/') || request.url.startsWith(p + '?')

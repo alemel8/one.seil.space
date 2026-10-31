@@ -1,12 +1,12 @@
 -- ============================================================
--- one.seil.space — ranní expedice zaplacených objednávek do skladu
+-- one.seil.space – ranní expedice zaplacených objednávek do skladu
 -- ============================================================
 -- Sklad se o zaplacených objednávkách dozvídal ručně: někdo musel projít
 -- administraci, stáhnout štítky a napsat e-mail. Nově to každý všední den
 -- ráno udělá Seil sám. Aby to šlo, chybí v databázi tři věci.
 --
 -- **Značka „sklad už o tom ví“.** Bez ní by automat každé ráno posílal
--- tytéž objednávky znovu. Ukládá se čas, ne ano/ne — v UI je vidět, kdy to
+-- tytéž objednávky znovu. Ukládá se čas, ne ano/ne – v UI je vidět, kdy to
 -- skladu odešlo, a ručně označená objednávka se pozná podle `warehouse_sent_by`.
 --
 -- **Stavový řádek běhu** (`warehouse_dispatches`). Není to jen historie:
@@ -14,7 +14,7 @@
 -- → dokončení, takže pád procesu uprostřed (deploy v 07:02, SIGTERM) nikdy
 -- nevede k druhému e-mailu skladu. Dva částečné unikátní indexy zajistí, že
 -- na e-shop připadá jeden automatický běh na pražský den a nejvýš jeden
--- rozběhnutý běh vůbec — i kdyby klikli dva operátoři naráz.
+-- rozběhnutý běh vůbec – i kdyby klikli dva operátoři naráz.
 --
 -- **Kód dodavatele u položky.** `shop_order_items.sku` je interní kód
 -- Toneráčku (T03065); sklad vychystává podle kódu dodavatele (5–6 číslic),
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS warehouse_dispatches (
 COMMENT ON TABLE warehouse_dispatches IS
   'Jeden běh ranní expedice. Zároveň zámek: řádek vzniká PŘED prací, email_sent_at je bod, za kterým se běh už nikdy neposílá znovu.';
 COMMENT ON COLUMN warehouse_dispatches.run_date IS
-  'Pražské datum běhu. Pražské, ne serverové — kontejner nemá nastavené TZ.';
+  'Pražské datum běhu. Pražské, ne serverové – kontejner nemá nastavené TZ.';
 COMMENT ON COLUMN warehouse_dispatches.email_sent_at IS
   'Kdy Resend zprávu přijal. Vyplněné = e-mail odešel; obnova po pádu už jen dokončí evidenci a nikdy neposílá znovu.';
 
@@ -79,7 +79,7 @@ COMMENT ON COLUMN shop_orders.warehouse_sent_at IS
 COMMENT ON COLUMN shop_orders.warehouse_dispatch_id IS
   'Běh, který objednávku skladu poslal. NULL u ručního označení.';
 COMMENT ON COLUMN shop_orders.warehouse_sent_by IS
-  'Kdo objednávku označil ručně. Automat sem nezapisuje — a podle toho se pozná, které razítko smí odvolat neúspěšné odeslání.';
+  'Kdo objednávku označil ručně. Automat sem nezapisuje – a podle toho se pozná, které razítko smí odvolat neúspěšné odeslání.';
 COMMENT ON COLUMN shop_orders.warehouse_hold_reason IS
   'Proč objednávka do skladu nešla (chybí výdejní místo, balík se nepodal, štítek se nestáhl). Prázdné = v pořádku.';
 
@@ -92,7 +92,7 @@ CREATE INDEX IF NOT EXISTS shop_orders_warehouse_pending_idx
 ALTER TABLE shop_order_items ADD COLUMN IF NOT EXISTS supplier_code TEXT NOT NULL DEFAULT '';
 
 COMMENT ON COLUMN shop_order_items.supplier_code IS
-  'Kód dodavatele, podle kterého sklad vychystává (Airtable Produkty „ID Dodavatele“). Posílá ho e-shop při založení objednávky. NENÍ to sku — to je interní kód Toneráčku. Prázdné = neznámý (objednávky před nasazením, multipacky).';
+  'Kód dodavatele, podle kterého sklad vychystává (Airtable Produkty „ID Dodavatele“). Posílá ho e-shop při založení objednávky. NENÍ to sku – to je interní kód Toneráčku. Prázdné = neznámý (objednávky před nasazením, multipacky).';
 
 -- ── Nastavení expedice na e-shopu ─────────────────────────────
 
@@ -102,4 +102,4 @@ ALTER TABLE shops ADD COLUMN IF NOT EXISTS warehouse_dispatch_since DATE NOT NUL
 COMMENT ON COLUMN shops.warehouse_email IS
   'Adresa skladu pro ranní expedici. Prázdné = expedice pro tenhle e-shop vypnutá (výchozí stav po nasazení).';
 COMMENT ON COLUMN shops.warehouse_dispatch_since IS
-  'Objednávky přijaté před tímhle dnem se skladu neposílají — vyřídil je ručně, než automat existoval. Při nasazení se nastaví na den migrace.';
+  'Objednávky přijaté před tímhle dnem se skladu neposílají – vyřídil je ručně, než automat existoval. Při nasazení se nastaví na den migrace.';

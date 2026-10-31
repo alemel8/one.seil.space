@@ -36,7 +36,7 @@
           <td>
             <code style="background:var(--gray-100);padding:2px 6px;border-radius:4px;font-size:12px;"><%= s.example %></code>
           </td>
-          <td><%= s.shop_name || '—' %></td>
+          <td><%= s.shop_name || '–' %></td>
           <td><%= s.current_number %></td>
           <td><%= s.start_number %></td>
           <td>
@@ -98,7 +98,7 @@
             <code>X</code> náhodná číslice (např. <code>XXX</code> = 3 znaky), <code>N</code> pořadové číslo (např. <code>NNN</code> = 001).
             Pokud je vyplněno, má přednost před prefixem/rokem/počtem číslic níže.
           </small>
-          <div style="margin-top:6px;font-size:12px;color:var(--text-muted);">Náhled: <code id="seriesFormatPreview">—</code></div>
+          <div style="margin-top:6px;font-size:12px;color:var(--text-muted);">Náhled: <code id="seriesFormatPreview">–</code></div>
         </div>
 
         <div class="form-group">
@@ -131,7 +131,7 @@
         <div class="form-group" style="grid-column:1/-1;">
           <label class="form-label">Přiřadit k eshopu (nepovinné)</label>
           <select name="shop_id" class="form-select">
-            <option value="">— Obecná řada —</option>
+            <option value="">– Obecná řada –</option>
             <% shops.forEach(sh => { %>
             <option value="<%= sh.id %>"><%= sh.name %></option>
             <% }) %>
@@ -161,7 +161,7 @@ function seriesFormatPreview() {
   const out = document.getElementById('seriesFormatPreview');
   prefixInput.required = !format;
   prefixReq.style.display = format ? 'none' : 'inline';
-  if (!format) { out.textContent = '—'; return; }
+  if (!format) { out.textContent = '–'; return; }
   const now = new Date();
   out.textContent = format.replace(/Y{4}|Y{2}|M{2}|D{2}|X+|N+/g, token => {
     if (token === 'YYYY') return String(now.getFullYear());

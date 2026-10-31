@@ -2,7 +2,7 @@
 // a databáze: režim úprav na záložkách Základní informace a Poznámky, tužka
 // jen tam, a každý sloupec, který POST /crm/firmy/:id zapisuje, má ve
 // formuláři pole. Druhá část jede proti serveru a lokální databázi: detail
-// v obou režimech a POST /crm/firmy/:id/poznamky, který mění jen poznámku —
+// v obou režimech a POST /crm/firmy/:id/poznamky, který mění jen poznámku –
 // dřív šly poznámky přes formulář s hidden poli, kde chyběl web, a každé
 // uložení poznámek ho firmě smazalo.
 //
@@ -67,7 +67,7 @@ test('základní informace: hodnoty jako text a odkaz, datum nezávisle na pásm
   assert.match(html, /<div class="pole-hodnota">15\. 1\. 2020<\/div>/, 'datum vzniku česky');
   assert.match(html, /<input type="date"[^>]*value="2020-01-15"[^>]*name="founded_date"/, 'vstup data ve tvaru YYYY-MM-DD');
   assert.match(html, /<input type="text"[^>]*value="Česká republika"[^>]*name="country"/, 'prázdný stát má ve vstupu výchozí Českou republiku');
-  assert.match(html, /<div class="form-group pole jen-upravy" style="grid-column:1\/-1">\s*<label class="form-label required" for="pole-name">Název<\/label>/, 'název je povinný a jen v úpravách — v zobrazení je v hlavičce');
+  assert.match(html, /<div class="form-group pole jen-upravy" style="grid-column:1\/-1">\s*<label class="form-label required" for="pole-name">Název<\/label>/, 'název je povinný a jen v úpravách – v zobrazení je v hlavičce');
   assert.match(html, /<div class="form-group pole jen-upravy">\s*<label class="form-label" for="pole-company_type">Typ<\/label>/, 'typ jen v úpravách');
   assert.match(html, /<option value="Zákazník" selected>Zákazník<\/option>/, 'typ má předvybranou hodnotu');
   assert.ok(html.includes('href="?tab=zakladni&amp;upravit=1"'), 'tužka bez JS otevře úpravy na téže záložce');
@@ -75,15 +75,15 @@ test('základní informace: hodnoty jako text a odkaz, datum nezávisle na pásm
   assert.match(html, /<button type="button" class="btn btn-outline" onclick="syncAres\(\)">/, 'Sync ARES v plné velikosti vedle tužky');
   assert.ok(!html.includes('modalEdit') && !html.includes('✏️ Upravit'), 'modal úprav i jeho tlačítko jsou pryč');
   assert.ok(html.includes('<div class="upravit-paticka jen-upravy">'), 'dlouhý formulář má patičku');
-  // první </form> patří skrytému aresForm v hlavičce — hledá se až od formuláře záznamu
+  // první </form> patří skrytému aresForm v hlavičce – hledá se až od formuláře záznamu
   const zacatekFormulare = html.indexOf('id="formFirma"');
   assert.ok(zacatekFormulare > -1 && html.indexOf('</form>', zacatekFormulare) > html.indexOf('Ověřit v ARES'), 'formulář obaluje celý grid záložky včetně pravého sloupce');
 });
 
 test('karta Poznámky je vidět i bez poznámky, hláška Uloženo se v úpravách skryje', async () => {
   const html = await vykresli('zakladni', { company: { ...company, notes: '', ares_synced_at: new Date('2026-09-09T08:00:00Z') }, saved: true });
-  assert.match(html, /<strong>Poznámky<\/strong>/, 'karta je vždy — jinak by poznámka nešla poprvé vyplnit');
-  assert.match(html, /<div class="pole-hodnota pole-hodnota-blok"><span class="pole-prazdne">—/, 'prázdná poznámka ukáže pomlčku');
+  assert.match(html, /<strong>Poznámky<\/strong>/, 'karta je vždy – jinak by poznámka nešla poprvé vyplnit');
+  assert.match(html, /<div class="pole-hodnota pole-hodnota-blok"><span class="pole-prazdne">–/, 'prázdná poznámka ukáže pomlčku');
   assert.match(html, /class="jen-zobrazeni"[^>]*>✓ Uloženo</, 'banner Uloženo je jen pro režim zobrazení');
   assert.ok(html.includes('ARES naposledy synchronizován:'), 'řádek o synchronizaci zůstal');
 });
@@ -92,7 +92,7 @@ test('záložka poznámky: vlastní routa, jen textarea, žádná hidden pole', 
   const html = await vykresli('poznamky');
   const form = html.match(/<form method="post" action="\/crm\/firmy\/firmatest01\/poznamky" id="formPoznamky" class="upravitelne">([\s\S]*?)<\/form>/);
   assert.ok(form, 'formulář poznámek míří na /crm/firmy/:id/poznamky');
-  assert.ok(!form[1].includes('type="hidden"'), 'bez hidden polí — routa přepisuje jen poznámku');
+  assert.ok(!form[1].includes('type="hidden"'), 'bez hidden polí – routa přepisuje jen poznámku');
   assert.match(form[1], /<textarea class="form-control" rows="10"[^>]*name="notes"/, 'textarea má 10 řádků');
   assert.ok(!html.includes('name="website"'), 'web se z poznámek neposílá');
   assert.ok(html.includes('href="?tab=poznamky&amp;upravit=1"'), 'tužka vede na záložku poznámek');
@@ -174,7 +174,7 @@ describe('proti serveru', { skip: PRESKOCIT }, () => {
     }
   });
 
-  test('POST /crm/firmy/:id/poznamky uloží jen poznámku — web zůstane', async () => {
+  test('POST /crm/firmy/:id/poznamky uloží jen poznámku – web zůstane', async () => {
     const res = await ctx.api.post(`/crm/firmy/${ctx.firmaId}/poznamky`, { notes: `  Nová poznámka ${r}  ` });
     assert.equal(res.status, 302);
     assert.equal(res.headers.get('location'), `/crm/firmy/${ctx.firmaId}?tab=poznamky&saved=1`, 'vrátí na záložku poznámek bez upravit');

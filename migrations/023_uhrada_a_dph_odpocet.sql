@@ -1,6 +1,6 @@
 -- Připomínky účetní k účtenkám (srpen 2026):
 --
---  1. „vymazala jsem z pokladny doklady na repre a PHM — toto je hrazeno kartou
+--  1. „vymazala jsem z pokladny doklady na repre a PHM – toto je hrazeno kartou
 --     z banky, tedy v pokladně nemá být a navíc já už to měla nahrané
 --     v ostatních závazcích“
 --     → účtenka nese formu úhrady; do agendy Pokladna jde jen hotovost,
@@ -19,7 +19,7 @@ ALTER TABLE accounting_invoices
   ADD COLUMN IF NOT EXISTS vat_deductible     BOOLEAN     NOT NULL DEFAULT TRUE,
   ADD COLUMN IF NOT EXISTS pohoda_exported_at TIMESTAMPTZ;
 
--- Reprezentace nárok na odpočet nikdy nemá — srovnáme i historii.
+-- Reprezentace nárok na odpočet nikdy nemá – srovnáme i historii.
 -- Repre se dosud zadávalo bez vlastní kategorie, proto i podle textu.
 UPDATE receipts
 SET vat_deductible = FALSE

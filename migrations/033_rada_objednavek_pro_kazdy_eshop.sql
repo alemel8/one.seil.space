@@ -1,11 +1,11 @@
 -- ============================================================
--- one.seil.space — číselná řada objednávek nezávisle na slugu
+-- one.seil.space – číselná řada objednávek nezávisle na slugu
 -- ============================================================
 -- Migrace 031 zakládala řadu typu 'objednavka' podmíněně na `slug =
 -- 'toneracek'`. Ukázalo se, že se to netrefilo: první objednávka po nasazení
 -- dostala číslo 260819926, tedy devět číslic z nouzové větve "poslední + 1"
 -- v toneracek.js, ne osmiznakové YYMMXXXX z řady. Zálohová faktura přitom
--- nový formát dostala — migrace 032 ji hledá přes entity_type, ne přes slug.
+-- nový formát dostala – migrace 032 ji hledá přes entity_type, ne přes slug.
 --
 -- Slug je konfigurace, ne identita. Řadu proto dostane každý e-shop, který
 -- ji nemá, a pojmenuje se podle sebe. Druhý e-shop tak nemůže zůstat bez

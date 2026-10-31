@@ -1,5 +1,5 @@
 <%
-  const fmtD = d => d ? new Date(d).toLocaleDateString('cs-CZ') : '—';
+  const fmtD = d => d ? new Date(d).toLocaleDateString('cs-CZ') : '–';
   const currentTab = tab || 'prehled';
   const statusColor = s => ({
     'Aktivní':      ['var(--success-bg)', '#166534'],
@@ -58,12 +58,12 @@
     <div class="card">
       <div class="card-header"><strong>Základní informace</strong></div>
       <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <%# Název a stav jsou v zobrazení v hlavičce stránky — v kartě jen při úpravách. %>
+        <%# Název a stav jsou v zobrazení v hlavičce stránky – v kartě jen při úpravách. %>
         <%- include('../../includes/pole', { pole: { label: 'Název projektu', name: 'name', value: project.name, required: true, trida: 'jen-upravy' } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Stav', name: 'status', typ: 'select', value: project.status, moznosti: PROJECT_STATUSES, trida: 'jen-upravy' } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Kontaktní osoba', name: 'primary_contact_id', typ: 'select', value: project.primary_contact_id,
           zobraz: (function () { const k = contacts.find(c => c.id === project.primary_contact_id); return k ? [k.first_name, k.last_name].filter(Boolean).join(' ') : ''; })(),
-          moznosti: contacts.map(c => [c.id, [c.first_name, c.last_name].filter(Boolean).join(' ')]), prazdna: '— nevybráno —' } }) %>
+          moznosti: contacts.map(c => [c.id, [c.first_name, c.last_name].filter(Boolean).join(' ')]), prazdna: '– nevybráno –' } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Datum zahájení', name: 'start_date', typ: 'date', value: project.start_date } }) %>
       </div>
     </div>
@@ -76,7 +76,7 @@
            .forEach(([label, name, ph]) => { const v = project[name] || ''; const hex = /^#[0-9a-fA-F]{3,8}$/.test(v) ? v : null; %>
         <div class="form-group pole">
           <label class="form-label" for="pole-<%= name %>"><%= label %></label>
-          <div class="pole-hodnota"><% if (hex) { %><span class="barva-vzorek" style="background:<%= hex %>;"></span><code><%= v %></code><% } else if (v) { %><%= v %><% } else { %><span class="pole-prazdne">—<span class="sr-only"> nevyplněno</span></span><% } %></div>
+          <div class="pole-hodnota"><% if (hex) { %><span class="barva-vzorek" style="background:<%= hex %>;"></span><code><%= v %></code><% } else if (v) { %><%= v %><% } else { %><span class="pole-prazdne">–<span class="sr-only"> nevyplněno</span></span><% } %></div>
           <input type="text" id="pole-<%= name %>" name="<%= name %>" class="form-control" value="<%= v %>" placeholder="<%= ph %>">
         </div>
         <% }) %>
@@ -198,7 +198,7 @@
           </div>
           <div class="form-group"><label class="form-label">Datum spuštění</label><input type="date" name="go_live_date" class="form-control"></div>
           <div class="form-group col-span-2"><label class="form-label">Popis</label><textarea name="description" class="form-control" rows="2" placeholder="Co tento podprojekt zahrnuje…"></textarea></div>
-          <div class="form-group col-span-2"><label class="form-label">Kde to běží (hosting)</label><input type="text" name="hosting_provider" class="form-control" placeholder="např. Coolify — VPS #1"></div>
+          <div class="form-group col-span-2"><label class="form-label">Kde to běží (hosting)</label><input type="text" name="hosting_provider" class="form-control" placeholder="např. Coolify – VPS #1"></div>
           <div class="form-group"><label class="form-label">Produkční URL</label><input type="url" name="production_url" class="form-control" placeholder="https://…"></div>
           <div class="form-group"><label class="form-label">Staging URL</label><input type="url" name="staging_url" class="form-control" placeholder="https://staging…"></div>
           <div class="form-group"><label class="form-label">Repozitář</label><input type="url" name="repo_url" class="form-control" placeholder="https://github.com/…"></div>
@@ -206,14 +206,14 @@
           <div class="form-group">
             <label class="form-label">Napojený eshop</label>
             <select name="shop_id" class="form-select">
-              <option value="">— žádný —</option>
+              <option value="">– žádný –</option>
               <% shops.forEach(s => { %><option value="<%= s.id %>"><%= s.name %></option><% }) %>
             </select>
           </div>
           <div class="form-group">
             <label class="form-label">Napojený healthcheck</label>
             <select name="healthcheck_id" class="form-select">
-              <option value="">— žádný —</option>
+              <option value="">– žádný –</option>
               <% healthchecks.forEach(h => { %><option value="<%= h.id %>"><%= h.name %></option><% }) %>
             </select>
           </div>

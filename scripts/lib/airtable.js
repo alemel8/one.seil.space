@@ -1,6 +1,6 @@
 // Minimální klient k Airtable REST API.
 //
-// Bez knihovny, jen fetch — stejně jako scripts/migrate-airtable-orders.js.
+// Bez knihovny, jen fetch – stejně jako scripts/migrate-airtable-orders.js.
 // Pole se čtou přes ID (returnFieldsByFieldId=true), takže přejmenování
 // sloupce v Airtable import nerozbije.
 //
@@ -52,9 +52,9 @@ async function zavolej(url, { pokus = 0 } = {}) {
   }
   if (!res.ok) {
     const telo = await res.text().catch(() => '');
-    if (res.status === 401) throw new Error('Airtable odmítl token (401) — zkontroluj AIRTABLE_API_KEY.');
-    if (res.status === 403) throw new Error(`Token nemá přístup k ${url.pathname} (403) — přidej základnu do jeho scope.`);
-    if (res.status === 404) throw new Error(`Airtable nenašel ${url.pathname} (404) — sedí ID základny a tabulky?`);
+    if (res.status === 401) throw new Error('Airtable odmítl token (401) – zkontroluj AIRTABLE_API_KEY.');
+    if (res.status === 403) throw new Error(`Token nemá přístup k ${url.pathname} (403) – přidej základnu do jeho scope.`);
+    if (res.status === 404) throw new Error(`Airtable nenašel ${url.pathname} (404) – sedí ID základny a tabulky?`);
     throw new Error(`Airtable ${res.status}: ${telo.slice(0, 300)}`);
   }
   return res.json();
@@ -78,7 +78,7 @@ export async function* zaznamy(baseId, tableId, { fieldIds } = {}) {
   } while (offset);
 }
 
-/** Jeden záznam — používá se k obnovení propadlých odkazů na přílohy. */
+/** Jeden záznam – používá se k obnovení propadlých odkazů na přílohy. */
 export async function zaznam(baseId, tableId, recordId) {
   const url = new URL(`${API}/${baseId}/${tableId}/${recordId}`);
   url.searchParams.set('returnFieldsByFieldId', 'true');
@@ -87,7 +87,7 @@ export async function zaznam(baseId, tableId, recordId) {
 
 /**
  * Stáhne přílohu. Když odkaz propadl, vytáhne si čerstvý ze zdrojového
- * záznamu a zkusí to ještě jednou — jinak by delší běh skončil sérií
+ * záznamu a zkusí to ještě jednou – jinak by delší běh skončil sérií
  * chyb jen proto, že mezitím uplynuly dvě hodiny.
  */
 export async function stahniPrilohu(priloha, { baseId, tableId, recordId, fieldId, bezObnovy = false }) {
@@ -103,12 +103,12 @@ export async function stahniPrilohu(priloha, { baseId, tableId, recordId, fieldI
   let r = await zkus(priloha.url);
   if (r.ok) return r.buf;
 
-  // Bez tokenu si čerstvý odkaz vyžádat nejde — v režimu ze souborů se dá
+  // Bez tokenu si čerstvý odkaz vyžádat nejde – v režimu ze souborů se dá
   // jen říct, že export je starý a musí se udělat znovu.
   if (bezObnovy) {
     throw new Error(
       `Odkaz na ${priloha.filename} propadl (${r.status}). ` +
-      'Export z Airtable je starší než dvě hodiny — udělej ho znovu.'
+      'Export z Airtable je starší než dvě hodiny – udělej ho znovu.'
     );
   }
 

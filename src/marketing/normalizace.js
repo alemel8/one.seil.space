@@ -1,7 +1,7 @@
 /**
  * Jednotný tvar denního řádku statistik pro `marketing_daily_stats`.
  *
- * Každý adaptér (GA4, Google Ads, Sklik, Heureka, …) vrací data jinak —
+ * Každý adaptér (GA4, Google Ads, Sklik, Heureka, …) vrací data jinak –
  * haléře, mikro-koruny, řetězce, záporné „opravy“ z restatementu, data mimo
  * vyžádané okno. Tady se z toho udělá řádek, který jde rovnou do INSERTu,
  * a všechno podezřelé se vrátí jako varování pro log běhu, místo aby to
@@ -9,20 +9,20 @@
  *
  * ## Platforma
  *
- * Každý řádek nese `platform` z PLATFORMY — UNIQUE index tabulky i
+ * Každý řádek nese `platform` z PLATFORMY – UNIQUE index tabulky i
  * DELETE + INSERT syncu jsou per platforma a adaptér Skliku zapisuje dvě
  * (`sklik` pro vyhledávání, `zbozi` pro kampaně Nákupů; plán D2). Adaptér
  * s jedinou platformou ji nemusí psát do každého řádku: předá ji jako
  * `platform` ve volbách a doplní se tam, kde chybí. Řádek bez platformy
- * nebo s neznámou se zahodí s důvodem — kdyby se platforma cestou ztratila,
+ * nebo s neznámou se zahodí s důvodem – kdyby se platforma cestou ztratila,
  * sečetly by se řádky Skliku a Zboží do jednoho, dlaždice Zboží.cz by
  * ukazovala nulu, celkový součet by přitom seděl a nikdo by si nevšiml.
  *
  * ## Co platí pro čísla
  *
- * - chybějící (null, undefined, '') → 0 potichu — metrika pro platformu
+ * - chybějící (null, undefined, '') → 0 potichu – metrika pro platformu
  *   neexistuje,
- * - nečíselné (text, NaN, Infinity, objekt) → 0 s varováním — to je chyba
+ * - nečíselné (text, NaN, Infinity, objekt) → 0 s varováním – to je chyba
  *   adaptéru a má být vidět v logu běhu,
  * - záporné → 0 s varováním (Google Ads i Sklik umí poslat zápornou opravu;
  *   do denního součtu nepatří, celý den se stejně přepisuje znovu),
@@ -31,14 +31,14 @@
  *   hlásí 2,5 konverze a zaokrouhlením by se měsíc rozešel s účtem.
  *   Migrace 042 má tytéž sloupce jako NUMERIC; test to proti ní hlídá.
  *
- * Převod haléřů a mikro-korun na Kč dělá adaptér, ne tenhle modul — ten
+ * Převod haléřů a mikro-korun na Kč dělá adaptér, ne tenhle modul – ten
  * dostává už koruny bez DPH (viz hlavička kpi.js).
  *
  * ## Součet před normalizací
  *
  * `sectiRadky()` sčítá surové řádky (kampaně → den) ještě před
  * zaokrouhlením, ať se haléře nenasčítají; proto i ono hlásí nečíselné
- * hodnoty jako varování — jinak by „1 234,50“ z Heureky zmizelo v nule
+ * hodnoty jako varování – jinak by „1 234,50“ z Heureky zmizelo v nule
  * dřív, než ho normalizace uvidí, a běh by skončil „hotovo“ s nulovými
  * náklady.
  *
@@ -46,7 +46,7 @@
  *
  * `segment_kind = ''` je denní součet platformy a jediný řádek, který
  * vstupuje do KPI; rozpady (kampaň, kanál, dotaz, stránka, země, produkt)
- * jsou doplňkové. Součet proto nikdy nenese segment — kdyby ho adaptér
+ * jsou doplňkové. Součet proto nikdy nenese segment – kdyby ho adaptér
  * omylem poslal, zahodí se s varováním, jinak by UNIQUE index pustil do
  * tabulky dva „součty“ téhož dne.
  */
@@ -75,12 +75,12 @@ export function zaokrouhli2(n) {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
-/** Všechny metriky nulové — základ řádku, do kterého adaptér doplní, co má. */
+/** Všechny metriky nulové – základ řádku, do kterého adaptér doplní, co má. */
 export function prazdneMetriky() {
   return Object.fromEntries(METRIKY.map(m => [m, 0]));
 }
 
-/** Číslo, nebo null, když hodnota není číselná (řetězec s čárkou je schválně nečíselný — „1,000“ je dvojznačné). */
+/** Číslo, nebo null, když hodnota není číselná (řetězec s čárkou je schválně nečíselný – „1,000“ je dvojznačné). */
 function cislo(hodnota) {
   if (hodnota == null || hodnota === '') return 0;
   const n = typeof hodnota === 'string' ? Number(hodnota.trim()) : typeof hodnota === 'number' ? hodnota : NaN;
@@ -104,7 +104,7 @@ function zaokrouhliMetriku(metrika, n) {
   return DESETINNE_METRIKY.includes(metrika) ? zaokrouhli2(n) : Math.round(n);
 }
 
-/** „2026-10-05 (Tonery)“ — kde se varování stalo; den a segment stačí, běh je per zdroj. */
+/** „2026-10-05 (Tonery)“ – kde se varování stalo; den a segment stačí, běh je per zdroj. */
 function kdeVRadku(date, segment) {
   return `${date}${segment ? ` (${segment})` : ''}`;
 }
@@ -161,7 +161,7 @@ export function normalizujRadek(radek, { from, to, platform: vychoziPlatforma } 
 /**
  * Sečte metriky řádků se stejným klíčem (platform, date, segment_kind,
  * segment) → `{ radky, varovani }`. Pro adaptéry, které vrací tentýž den
- * víckrát — Sklik po kampaních, když se chce součet, Heureka po produktech.
+ * víckrát – Sklik po kampaních, když se chce součet, Heureka po produktech.
  * Pořadí prvního výskytu se drží. Nečíselná hodnota se do součtu nepočítá
  * a ohlásí se stejně jako v `normalizujRadek()` (viz hlavička); řádek bez
  * platformy má `platform: ''` a doplní ji až normalizace z voleb.

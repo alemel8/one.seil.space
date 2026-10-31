@@ -238,7 +238,7 @@ body.auth-body {
     overflow: hidden;
   }
 
-  /* Skryj tmavou levou část — !important přebíjí případné inline styly */
+  /* Skryj tmavou levou část – !important přebíjí případné inline styly */
   .auth-image { display: none !important; }
 
   .auth-wrapper {

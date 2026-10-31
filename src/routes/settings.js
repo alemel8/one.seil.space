@@ -17,11 +17,11 @@ import { idSlozky } from '../gdrive.js';
 const ESHOP_S_VLASTNIM_API = 'toneracek';
 
 /**
- * Záložky detailu e-shopu (?tab=). Jediný seznam klíčů i popisků — šablona
+ * Záložky detailu e-shopu (?tab=). Jediný seznam klíčů i popisků – šablona
  * dostává totéž pole, aby se nerozešly. Neznámý klíč (i pole z ?tab=a&tab=b)
  * padá na první záložku.
  */
-// Klíč, popisek a id upravitelného formuláře — tužka v hlavičce se ukáže
+// Klíč, popisek a id upravitelného formuláře – tužka v hlavičce se ukáže
 // jen u záložek, které formulář záznamu mají (src/upravy.js).
 const ZALOZKY_ESHOPU = [
   ['zakladni',     'Základní informace', 'formZakladni'],
@@ -38,7 +38,7 @@ export default async function settingsRoutes(fastify) {
 
   // Pouze admin
   fastify.addHook('preHandler', async (request, reply) => {
-    if (!request.user?.is_admin) return reply.code(403).send('Přístup odepřen — pouze administrátor');
+    if (!request.user?.is_admin) return reply.code(403).send('Přístup odepřen – pouze administrátor');
   });
 
   // ── Nastavení firmy ──────────────────────────────────────────
@@ -183,7 +183,7 @@ export default async function settingsRoutes(fastify) {
   });
 
   // Slug je identifikátor v adresách (?eshop=) i v API a vypisuje se do
-  // šablon — hlídá se serverově stejně jako klientský pattern v shops.ejs
+  // šablon – hlídá se serverově stejně jako klientský pattern v shops.ejs
   // (ten jde obejít): malá písmena, číslice, pomlčky.
   const SLUG_ESHOPU = /^[a-z0-9][a-z0-9-]{0,39}$/;
 
@@ -204,7 +204,7 @@ export default async function settingsRoutes(fastify) {
   // ── Detail eshopu (healthcheck + alerty) ──────────────────────
 
   /**
-   * Detail e-shopu. Vykresluje ho i POST, který vydává klíč nebo tajemství —
+   * Detail e-shopu. Vykresluje ho i POST, který vydává klíč nebo tajemství –
    * ty se ukážou jednou přímo v odpovědi. Přesměrování s klíčem v URL
    * (?newKey=…) by ho zapsalo do logu požadavků i do historie prohlížeče.
    */
@@ -268,7 +268,7 @@ export default async function settingsRoutes(fastify) {
     return reply.view('pages/settings/shop-detail.ejs', {
       pageTitle: shop.name, currentPath: '/nastaveni/eshopy',
       user: request.user, shop, tab, zalozky: ZALOZKY_ESHOPU, ...data,
-      // Bez těchhle tajemství expedice objednávky jen zadrží — ať to admin
+      // Bez těchhle tajemství expedice objednávky jen zadrží – ať to admin
       // vidí tady, a ne až v pushi o zadržených objednávkách. Tajemství pro
       // podání balíku bere Toneráček jen z prostředí a ostatní e-shopy jen
       // vlastní (webhookSecretEshopu v expedice.js).
@@ -296,9 +296,9 @@ export default async function settingsRoutes(fastify) {
   // ── Základní informace e-shopu ────────────────────────────────
   //
   // Název, URL a stav. Slug se nemění: je to identifikátor v adresách
-  // (?eshop=<slug>) i v API — pod jiným slugem by vznikl jiný e-shop, proto
+  // (?eshop=<slug>) i v API – pod jiným slugem by vznikl jiný e-shop, proto
   // se z těla ani nečte. Toneráček se vypnout nedá: jeho API klíč z prostředí
-  // stav nečte, ale expedice a noční stahování ano — vypnutí by ho rozpůlilo.
+  // stav nečte, ale expedice a noční stahování ano – vypnutí by ho rozpůlilo.
 
   fastify.post('/nastaveni/eshopy/:id/zakladni', async (request, reply) => {
     const shopId = parseInt(request.params.id, 10);
@@ -363,9 +363,9 @@ export default async function settingsRoutes(fastify) {
   // ── Tajemství pro podání balíku (One SEIL → e-shop) ───────────
   //
   // Hlavička x-webhook-secret u POST {url e-shopu}/api/orders/podat-balik.
-  // Každý e-shop kromě Toneráčku má vlastní; bez něj se jeho balík nepodá —
+  // Každý e-shop kromě Toneráčku má vlastní; bez něj se jeho balík nepodá –
   // globální SHOP_WEBHOOK_SECRET je tajemství Toneráčku a jinam se neposílá.
-  // Hodnota se v administraci neukazuje, jen otisk — ať jde porovnat
+  // Hodnota se v administraci neukazuje, jen otisk – ať jde porovnat
   // s WEBHOOK_SECRET v e-shopu, aniž by ležela v HTML.
 
   fastify.post('/nastaveni/eshopy/:id/webhook-secret', async (request, reply) => {
@@ -376,7 +376,7 @@ export default async function settingsRoutes(fastify) {
 
     // Toneráček jede jen na SHOP_WEBHOOK_SECRET z prostředí, stejně jako jeho
     // API klíč. Dřív tu šlo jedním kliknutím nastavit mu vlastní tajemství,
-    // které e-shop Toneráčku nezná — podání balíku by pak vracelo 401
+    // které e-shop Toneráčku nezná – podání balíku by pak vracelo 401
     // a převody by se vyřizovaly bez zásilky.
     if (shop.slug === ESHOP_S_VLASTNIM_API) {
       return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=napojeni&error=webhook-secret-toneracek`);
@@ -415,7 +415,7 @@ export default async function settingsRoutes(fastify) {
     if (!shopId) return reply.code(400).send('Neplatný eshop');
 
     const from = (b.email_from_address || '').trim().toLowerCase();
-    // Stejná podmínka hlídá i CHECK constraint v migraci 030 — tohle jen
+    // Stejná podmínka hlídá i CHECK constraint v migraci 030 – tohle jen
     // vrátí srozumitelnou chybu místo pádu na databázi.
     if (from.endsWith('@seil.cz')) {
       return reply.redirect(`/nastaveni/eshopy/${shopId}?tab=identita&error=firemni-adresa&upravit=1`);
@@ -445,7 +445,7 @@ export default async function settingsRoutes(fastify) {
 
   // ── Expedice do skladu ───────────────────────────────────────
   //
-  // Prázdná adresa znamená vypnuto — po nasazení tedy automat mlčí, dokud si
+  // Prázdná adresa znamená vypnuto – po nasazení tedy automat mlčí, dokud si
   // ho někdo vědomě nezapne. `warehouse_dispatch_since` chrání první ráno:
   // starší objednávky vyřídil sklad ručně a nemá je dostat znovu.
 
@@ -519,7 +519,7 @@ export default async function settingsRoutes(fastify) {
   });
 
   // Zkusí platformu zavolat (adaptér overit()) a výsledek vykreslí rovnou
-  // v detailu — bez uložení, bez redirectu (zpráva by se do URL nevešla).
+  // v detailu – bez uložení, bez redirectu (zpráva by se do URL nevešla).
   fastify.post('/nastaveni/eshopy/:id/marketing/zdroj/:platform/overit', async (request, reply) => {
     const shopId = parseInt(request.params.id, 10);
     if (!shopId) return reply.code(400).send('Neplatný eshop');
@@ -530,7 +530,7 @@ export default async function settingsRoutes(fastify) {
 
     let overeni;
     if (!zdroj) {
-      overeni = { platform, ok: false, zprava: 'Napojení není uložené — nejdřív ho uložte.' };
+      overeni = { platform, ok: false, zprava: 'Napojení není uložené – nejdřív ho uložte.' };
     } else {
       try {
         const { ADAPTERS } = await import('../marketing/adapters/index.js');
@@ -563,7 +563,7 @@ export default async function settingsRoutes(fastify) {
             if (err instanceof sync.SyncBeziError) return;
             request.log.error({ err, shopId, platform }, 'Marketing: stažení po ověření selhalo');
           });
-        overeni.zprava = `${overeni.zprava} Stahování dat běží na pozadí — průběh v Marketing › Synchronizace.`;
+        overeni.zprava = `${overeni.zprava} Stahování dat běží na pozadí – průběh v Marketing › Synchronizace.`;
       } catch (err) {
         request.log.warn({ err, shopId, platform }, 'Marketing sync není k dispozici');
       }
@@ -571,7 +571,7 @@ export default async function settingsRoutes(fastify) {
     return vykresliDetail(request, reply, shopId, { overeni, tab: 'marketing' });
   });
 
-  // Náhled bez odesílání — ať se barvy a loga dají zkontrolovat v prohlížeči
+  // Náhled bez odesílání – ať se barvy a loga dají zkontrolovat v prohlížeči
   // dřív, než odejdou zákazníkovi.
   fastify.get('/nastaveni/eshopy/:id/nahled-emailu', async (request, reply) => {
     const { emailShell, banner, infoBlock, infoRow } = await import('../email-templates.js');

@@ -4,13 +4,13 @@
   CSS podle data-rezim obalu ukáže jen jedno z toho.
 
     include('../../includes/pole', { pole: { label: 'Název', name: 'name', value: shop.name, required: true } })
-    (v šabloně uvnitř značky s pomlčkou — výstup includu se nesmí escapovat)
+    (v šabloně uvnitř značky s pomlčkou – výstup includu se nesmí escapovat)
 
   pole:
     label, name, value
     typ        'text' | 'email' | 'url' | 'tel' | 'number' | 'date' | 'textarea' | 'select' | 'toggle' | 'checkbox'
     id         výchozí 'pole-' + name (pro label for= a pro skripty stránky)
-    form       atribut form= — vstup může ležet mimo <form> (formulář přes víc karet bez vnořování)
+    form       atribut form= – vstup může ležet mimo <form> (formulář přes víc karet bez vnořování)
     placeholder, required, disabled, readonly, maxlength, min, max, step, autocomplete, list
     rows       textarea, výchozí 3
     moznosti   select: [[hodnota, popisek], …] nebo ['A', 'B']; porovnává se jako řetězec
@@ -20,7 +20,7 @@
     zobraz     text pro režim zobrazení místo výchozího (např. „33 %“, „Expedice vypnutá“)
     hint       nápověda pod vstupem, jen v úpravách
     stale      true → jen hodnota bez vstupu, zůstává vidět i v úpravách (slug, e-mail v profilu)
-    vychozi    hodnota jen pro vstup, když je value prázdné („Česká republika“) — zobrazení ukáže „—“
+    vychozi    hodnota jen pro vstup, když je value prázdné („Česká republika“) – zobrazení ukáže „–“
     tridaHodnoty  další třídy .pole-hodnota: 'pole-mono' (IČO, předkontace), 'pole-varovani', 'pole-uspech'
     skrytyPopisek true → popisek jen pro čtečku (karta s jediným polem, kde se nadpis karty rovná popisku)
     trida      další třídy .form-group (např. 'col-span-2'); styl → inline style (např. 'grid-column:1/-1')
@@ -28,7 +28,7 @@
   Zobrazení: date → „1. 10. 2026“ (prazsky-cas.js, nezávisle na TZ procesu; vstup dostane
   YYYY-MM-DD), number → cs-CZ s nejvýš dvěma desetinnými místy, select → popisek vybrané
   možnosti, toggle/checkbox → „Ano“/„Ne“, url/email/tel → odkaz (url jen s http(s)://),
-  prázdná hodnota → „—“. Všechno escapované; atributy skládá esc() níž.
+  prázdná hodnota → „–“. Všechno escapované; atributy skládá esc() níž.
 %>
 <%
   const p = pole;
@@ -41,7 +41,7 @@
   const zaskrtavaci = typ === 'toggle' || typ === 'checkbox';
 
   const moznosti = (p.moznosti || []).map(m => Array.isArray(m) ? [String(m[0]), String(m[1])] : [String(m), String(m)]);
-  // Hodnota mimo nabídku (starší data, kontakt z jiné firmy) zůstane vybraná —
+  // Hodnota mimo nabídku (starší data, kontakt z jiné firmy) zůstane vybraná –
   // jinak by uložení formuláře potichu přepsalo sloupec první volbou.
   if (typ === 'select' && maHodnotu && !moznosti.some(([v]) => v === String(hodnota))) moznosti.unshift([String(hodnota), String(hodnota)]);
   const vybrana = maHodnotu ? moznosti.find(([v]) => v === String(hodnota)) : undefined;
@@ -91,7 +91,7 @@
   <% } else { %>
   <span class="<%= tridaPopisku %>"><%= p.label %></span>
   <% } %>
-  <div class="pole-hodnota<%= typ === 'textarea' ? ' pole-hodnota-blok' : '' %><%= p.tridaHodnoty ? ' ' + p.tridaHodnoty : '' %>"><% if (prazdne) { %><span class="pole-prazdne">—<span class="sr-only"> nevyplněno</span></span><% } else if (href) { %><a href="<%= href %>"<% if (typ === 'url') { %> target="_blank" rel="noopener noreferrer"<% } %>><%= text %></a><% } else { %><%= text %><% } %></div>
+  <div class="pole-hodnota<%= typ === 'textarea' ? ' pole-hodnota-blok' : '' %><%= p.tridaHodnoty ? ' ' + p.tridaHodnoty : '' %>"><% if (prazdne) { %><span class="pole-prazdne">–<span class="sr-only"> nevyplněno</span></span><% } else if (href) { %><a href="<%= href %>"<% if (typ === 'url') { %> target="_blank" rel="noopener noreferrer"<% } %>><%= text %></a><% } else { %><%= text %><% } %></div>
   <% if (!stale) { %>
     <% if (typ === 'textarea') { %>
   <textarea class="form-control" rows="<%= p.rows || 3 %>"<%- spolecne %><%- textove %>><%= vstupniHodnota %></textarea>

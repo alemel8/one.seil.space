@@ -1,4 +1,4 @@
-// API pro další e-shopy (/api/eshop/*) — klíč určuje e-shop, každý dotaz
+// API pro další e-shopy (/api/eshop/*) – klíč určuje e-shop, každý dotaz
 // je omezený na jeho data a zákaznické účty jsou po e-shopech.
 //
 // Jede proti běžícímu serveru a testovací databázi; zakládá si vlastní
@@ -10,7 +10,7 @@
 //   DATABASE_URL=postgresql://…@127.0.0.1/… TEST_BASE_URL=http://127.0.0.1:3999 \
 //   TONERACEK_API_KEY=<tentýž jako u serveru> node --test test/eshop-api.test.js
 //
-// Databáze musí být lokální (127.0.0.1/localhost) — test zakládá e-shopy,
+// Databáze musí být lokální (127.0.0.1/localhost) – test zakládá e-shopy,
 // objednávky a doklady. Jinou jen s TEST_DB_ALLOW_REMOTE=1.
 
 import { test, describe, before, after } from 'node:test';
@@ -27,7 +27,7 @@ function lokalniDatabaze() {
   const url = process.env.DATABASE_URL || '';
   const host = url ? new URL(url).hostname : '';
   if (!['127.0.0.1', 'localhost'].includes(host) && process.env.TEST_DB_ALLOW_REMOTE !== '1') {
-    throw new Error(`Test zakládá e-shopy a objednávky — DATABASE_URL musí mířit na 127.0.0.1/localhost, ne na "${host}"`);
+    throw new Error(`Test zakládá e-shopy a objednávky – DATABASE_URL musí mířit na 127.0.0.1/localhost, ne na "${host}"`);
   }
   return url;
 }
@@ -56,7 +56,7 @@ async function call(key, method, path, body) {
 /**
  * E-shop s vyplněnou identitou, klíčem a třemi řadami. Doklady mají
  * v čísle písmeno podle pořadí založení (Alfa = A, Beta = B…) a náhodnou
- * část běhu — čísla dokladů jsou jedinečná napříč e-shopy.
+ * část běhu – čísla dokladů jsou jedinečná napříč e-shopy.
  */
 async function zalozEshop(nazev, cislice, { identita = true, aktivni = true } = {}) {
   const slug = `test-${nazev.toLowerCase()}-${r}`;
@@ -124,7 +124,7 @@ const POLOZKY_S_NAKUPNI_CENOU = [
   { sku: 'PRIZE-1', supplierCode: '', name: 'Merino příze', quantity: 2, price: 149.4, costPrice: 210.456, costPriceVatIncluded: false },
   { sku: 'DOPRAVA', name: 'Doprava', quantity: 1, price: 79, costPrice: null, costPriceVatIncluded: null },
 ];
-/** Sloupce položky, které by-number smí vrátit — bez cost_price a cost_price_vat_included. */
+/** Sloupce položky, které by-number smí vrátit – bez cost_price a cost_price_vat_included. */
 const SLOUPCE_POLOZKY = ['id', 'order_id', 'sku', 'name', 'quantity', 'price', 'product_id', 'multipack_id', 'supplier_code'];
 
 /**
@@ -554,7 +554,7 @@ describe('zákaznické účty po e-shopech', { skip: !TONERACEK_KEY && 'chybí T
     assert.equal(reg.body.telefon, '606');
     assert.equal(reg.body.ulice, 'Pletená 1');
     let [c] = await sql`SELECT phone, address, is_registered FROM crm_contacts WHERE LOWER(email) = ${mail}`;
-    assert.equal(c.phone, '', 'registrace sdílený kontakt nemění — e-mail ještě nikdo neověřil');
+    assert.equal(c.phone, '', 'registrace sdílený kontakt nemění – e-mail ještě nikdo neověřil');
     assert.equal(c.address, '');
     assert.equal(c.is_registered, false);
     assert.equal((await call(ctx.a.klic, 'GET', `/api/eshop/users?email=${encodeURIComponent(mail)}`)).status, 200);

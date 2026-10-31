@@ -13,7 +13,7 @@
  *   --sync-status  u faktur, které už v DB jsou, srovná stav úhrady
  *                  a datum zaplacení podle POHODY (jinak se nesahá).
  *                  Fakturu s navázaným bankovním pohybem ale nikdy
- *                  neshodí na nezaplacenou — viz syncStatus().
+ *                  neshodí na nezaplacenou – viz syncStatus().
  *
  * Zdroje (adresář import/):
  *   FA vyd*.xlsx   → accounting_invoices (type='issued')
@@ -23,15 +23,15 @@
  *   "FA prijate.xlsx"), soubor se proto hledá podle názvu bez mezer a diakritiky.
  *
  * Hlídání duplicit:
- *   1. Číslo dokladu (POHODA "Číslo") proti number v DB — hlavní klíč.
- *   2. Variabilní symbol proti number v DB — zachytí faktury, které do
+ *   1. Číslo dokladu (POHODA "Číslo") proti number v DB – hlavní klíč.
+ *   2. Variabilní symbol proti number v DB – zachytí faktury, které do
  *      systému přitekly jinou cestou (import z Disku) a jsou vedené pod
  *      číslem dodavatele. Ty se ve výchozím stavu sloučí do existujícího
  *      záznamu (zůstane id i příloha), s --no-merge se jen přeskočí.
- *   3. Kontrolně dodavatel+datum+částka — jen varování do logu.
+ *   3. Kontrolně dodavatel+datum+částka – jen varování do logu.
  */
 
-import './lib/load-env.js';   // musí být první — plní process.env z .env
+import './lib/load-env.js';   // musí být první – plní process.env z .env
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -155,9 +155,9 @@ function fileKey(name) {
  * Najde v import/ exporty daného druhu. POHODA umí vyvézt buď všechno
  * najednou, nebo po letech, takže se počítá s obojím pojmenováním:
  *
- *   FAvyd.xlsx / FApri.xlsx   — jeden export; víc shod = radši spadnout,
+ *   FAvyd.xlsx / FApri.xlsx   – jeden export; víc shod = radši spadnout,
  *                               ať se nenaimportuje omylem starší soubor
- *   FA24v.xlsx / FA24p.xlsx   — export po letech; těch je klidně víc,
+ *   FA24v.xlsx / FA24p.xlsx   – export po letech; těch je klidně víc,
  *                               jsou to různá data, ne konkurenční verze
  *
  * Roční exporty se vrací od nejnovějšího. Stejná faktura se totiž objeví
@@ -177,13 +177,13 @@ function findImportFiles(kind, label) {
 
   if (legacy.length && yearly.length) {
     throw new Error(
-      `v import/ jsou obě pojmenování ${label}: ${[...legacy, ...yearly].join(', ')} — ` +
+      `v import/ jsou obě pojmenování ${label}: ${[...legacy, ...yearly].join(', ')} – ` +
       'nech jen jedno, ať se stejná faktura neimportuje ze dvou zdrojů'
     );
   }
   if (legacy.length > 1) {
     throw new Error(
-      `v import/ je více exportů ${label}: ${legacy.join(', ')} — ` +
+      `v import/ je více exportů ${label}: ${legacy.join(', ')} – ` +
       'nech jen ten aktuální, ať se nenaimportuje starší'
     );
   }
@@ -199,7 +199,7 @@ function findImportFiles(kind, label) {
 
 /**
  * Načte řádky ze všech exportů daného druhu. Doklad, který je ve víc
- * ročních souborech, se vezme jen jednou — z toho nejnovějšího, protože
+ * ročních souborech, se vezme jen jednou – z toho nejnovějšího, protože
  * ten má aktuální stav úhrady.
  */
 function readImport(kind, label) {
@@ -217,10 +217,10 @@ function readImport(kind, label) {
       rows.push(row);
       nove++;
     }
-    console.log(`  Soubor: import/${path.basename(file)} — ${part.length} řádků, ${nove} nových`);
+    console.log(`  Soubor: import/${path.basename(file)} – ${part.length} řádků, ${nove} nových`);
   }
   if (prekryv) {
-    console.log(`  (${prekryv}× stejný doklad ve více letech — brán z nejnovějšího exportu)`);
+    console.log(`  (${prekryv}× stejný doklad ve více letech – brán z nejnovějšího exportu)`);
   }
   return rows;
 }
@@ -233,7 +233,7 @@ const stats = {
 const warnings = [];
 
 /**
- * Existující faktura — srovnat stav úhrady s POHODOU.
+ * Existující faktura – srovnat stav úhrady s POHODOU.
  * POHODA je zdroj pravdy pro platby, DB se od ní rozejde vždy, když
  * platba dorazí až po předchozím importu.
  */
@@ -248,17 +248,17 @@ async function syncStatus(existing, f) {
     stats.statusProtected++;
     warnings.push(
       `${f.number}: v POHODĚ "${f.status}", ale úhradu potvrzuje bankovní pohyb ` +
-      `(uhrazeno ${paidDbe ?? '—'}) — ponecháno "Zaplacena", chybí likvidace v POHODĚ`
+      `(uhrazeno ${paidDbe ?? '–'}) – ponecháno "Zaplacena", chybí likvidace v POHODĚ`
     );
     return;
   }
 
   stats.statusDrift++;
   const desc = `${f.number}: stav "${existing.status}" → "${f.status}"` +
-               (f.paidDate !== paidDbe ? `, uhrazeno ${paidDbe ?? '—'} → ${f.paidDate ?? '—'}` : '');
+               (f.paidDate !== paidDbe ? `, uhrazeno ${paidDbe ?? '–'} → ${f.paidDate ?? '–'}` : '');
 
   if (!SYNC_STATUS) {
-    warnings.push(`${desc} — v POHODĚ jinak, spusť s --sync-status pro srovnání`);
+    warnings.push(`${desc} – v POHODĚ jinak, spusť s --sync-status pro srovnání`);
     return;
   }
   if (!DRY_RUN) {
@@ -358,7 +358,7 @@ async function importReceived(icoToCompany, today) {
     if (underVs) {
       if (NO_MERGE) {
         stats.receivedSkip++;
-        warnings.push(`${f.number}: již v DB pod VS ${f.varsym} (id ${underVs.id}) — přeskočeno`);
+        warnings.push(`${f.number}: již v DB pod VS ${f.varsym} (id ${underVs.id}) – přeskočeno`);
         continue;
       }
       if (!DRY_RUN) {
@@ -379,18 +379,18 @@ async function importReceived(icoToCompany, today) {
       stats.receivedMerged++;
       warnings.push(
         `${f.number}: sloučeno s existujícím záznamem "${underVs.number}" ` +
-        `(${underVs.supplier}, ${underVs.issue_date}, ${num(underVs.total_amount)} Kč) — příloha zachována`
+        `(${underVs.supplier}, ${underVs.issue_date}, ${num(underVs.total_amount)} Kč) – příloha zachována`
       );
       console.log(`  ~ ${f.number} | sloučeno se záznamem pod VS ${f.varsym}`);
       continue;
     }
 
-    // 3) kontrolní shoda datum+částka — jen upozornění
+    // 3) kontrolní shoda datum+částka – jen upozornění
     const fuzzy = byDateAmount.get(`${f.issueDate}|${f.total.toFixed(2)}`);
     if (fuzzy?.length) {
       warnings.push(
         `${f.number} (${f.name}, ${f.issueDate}, ${f.total} Kč): stejné datum i částka jako ` +
-        fuzzy.map(r => `${r.number} (${r.supplier})`).join(', ') + ' — zkontrolovat ručně'
+        fuzzy.map(r => `${r.number} (${r.supplier})`).join(', ') + ' – zkontrolovat ručně'
       );
     }
 
@@ -428,9 +428,9 @@ async function importReceived(icoToCompany, today) {
 // ── Hlavní ────────────────────────────────────────────────────
 
 console.log('=== Import faktur z POHODY ===');
-if (DRY_RUN)     console.log('⚠  DRY RUN — nic se neukládá');
-if (NO_MERGE)    console.log('⚠  --no-merge — shody přes VS se jen přeskočí');
-if (SYNC_STATUS) console.log('★  --sync-status — u existujících faktur se srovná stav úhrady');
+if (DRY_RUN)     console.log('⚠  DRY RUN – nic se neukládá');
+if (NO_MERGE)    console.log('⚠  --no-merge – shody přes VS se jen přeskočí');
+if (SYNC_STATUS) console.log('★  --sync-status – u existujících faktur se srovná stav úhrady');
 
 try {
   const today = new Date();

@@ -1,7 +1,7 @@
 /**
  * Adaptér Google Ads (Google Ads API v26, GAQL přes searchStream).
  *
- * Náklady a konverze kampaní po dnech přímo z účtu — ne přes propojení
+ * Náklady a konverze kampaní po dnech přímo z účtu – ne přes propojení
  * s GA4, které náklady ukazuje jen po kampaních a jen pro přihlášené
  * property. Od 9. 9. 2026 Google Ads API nevyžaduje developer token:
  * úroveň přístupu je vlastnost Cloud projektu (Test → Explorer přes „Apply
@@ -28,7 +28,7 @@
  * ## MCC
  *
  * Hlavička `login-customer-id` jde jen tehdy, když je v `parent_external_id`
- * správcovský účet (agentura, MCC) — u přímo spravovaného účtu by Google
+ * správcovský účet (agentura, MCC) – u přímo spravovaného účtu by Google
  * vrátil chybu. Zákaznické číslo se posílá bez pomlček.
  */
 
@@ -41,7 +41,7 @@ export const popis = 'Google Ads';
 export const zapisujePlatformy = ['google_ads'];
 export const potrebujeTajemstvi = false;
 export const popisExternalId = 'Zákaznické číslo účtu (10 číslic, pomlčky nevadí)';
-export const popisParentId = 'Číslo správcovského účtu (MCC) — jen když účet spravuje agentura, jinak prázdné';
+export const popisParentId = 'Číslo správcovského účtu (MCC) – jen když účet spravuje agentura, jinak prázdné';
 export const maxDniNaDotaz = 31;
 export const prepisDni = 30;
 
@@ -49,7 +49,7 @@ export const SCOPE = 'https://www.googleapis.com/auth/adwords';
 export const VERZE = 'v26';
 export const API = `https://googleads.googleapis.com/${VERZE}`;
 
-/** GAQL za okno — přesně podle plánu D9. */
+/** GAQL za okno – přesně podle plánu D9. */
 export function gaql(from, to) {
   return 'SELECT segments.date, campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type, '
     + 'metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions, metrics.conversions_value, metrics.all_conversions '
@@ -69,7 +69,7 @@ export function customerId(source) {
   const cid = jenCislice(source?.external_id);
   if (cid.length !== 10) {
     throw new AdapterError(
-      `Google Ads: zákaznické číslo musí mít 10 číslic (např. 882-718-1396), ne „${String(source?.external_id ?? '').trim()}“ — je vpravo nahoře v Google Ads`,
+      `Google Ads: zákaznické číslo musí mít 10 číslic (např. 882-718-1396), ne „${String(source?.external_id ?? '').trim()}“ – je vpravo nahoře v Google Ads`,
       { permanent: true, platform },
     );
   }
@@ -128,8 +128,8 @@ export async function overit({ source, log, googleJsonImpl } = {}) {
   try {
     const odpoved = await searchStream(source, GAQL_UCET, { log, googleJsonImpl, nazev: 'Google Ads účet' });
     const c = vysledky(odpoved)[0]?.customer;
-    if (!c) return { ok: false, zprava: 'Google Ads: dotaz na účet neprošel — odpověď neobsahuje customer (zkontrolujte zákaznické číslo a přístup service accountu)' };
-    const mena = c.currencyCode && c.currencyCode !== 'CZK' ? ` — pozor, účet je v ${c.currencyCode}, náklady se čekají v CZK` : `, měna ${c.currencyCode || '?'}`;
+    if (!c) return { ok: false, zprava: 'Google Ads: dotaz na účet neprošel – odpověď neobsahuje customer (zkontrolujte zákaznické číslo a přístup service accountu)' };
+    const mena = c.currencyCode && c.currencyCode !== 'CZK' ? ` – pozor, účet je v ${c.currencyCode}, náklady se čekají v CZK` : `, měna ${c.currencyCode || '?'}`;
     return { ok: true, zprava: `Účet ${formatujCid(c.id ?? customerId(source))}${c.descriptiveName ? ` (${c.descriptiveName})` : ''}${mena}, pásmo ${c.timeZone || 'neznámé'}` };
   } catch (err) {
     return { ok: false, zprava: zpravaOvereni(err, { platform }) };

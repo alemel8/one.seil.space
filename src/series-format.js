@@ -1,12 +1,12 @@
-// Vykreslení čísla z číselné řady — buď podle volného formátu (tokeny), nebo
+// Vykreslení čísla z číselné řady – buď podle volného formátu (tokeny), nebo
 // podle starého schématu prefix/year/padding (zpětná kompatibilita).
 //
 // Tokeny ve formátu:
-//   YYYY / YY  — rok (4 / 2 číslice)
-//   MM         — měsíc (01–12)
-//   DD         — den (01–31)
-//   X...       — náhodné číslice, počet X určuje počet znaků
-//   N...       — pořadové číslo řady, zero-padded na počet N
+//   YYYY / YY  – rok (4 / 2 číslice)
+//   MM         – měsíc (01–12)
+//   DD         – den (01–31)
+//   X...       – náhodné číslice, počet X určuje počet znaků
+//   N...       – pořadové číslo řady, zero-padded na počet N
 //
 // Rok, měsíc a den jsou pražské, ne podle pásma procesu: kontejner může běžet
 // v UTC a faktura vystavená na Nový rok ve 0:30 by nesla v čísle loňský rok,
@@ -46,7 +46,7 @@ export function renderSeriesNumber(series, date = new Date()) {
  * Variabilní symbol z čísla faktury.
  *
  * Banky přijímají nejvýše 10 číslic, takže z čísla vezmeme číslice a necháme
- * posledních 10 — konec čísla nese pořadí, začátek jen prefix a rok. Zůstává
+ * posledních 10 – konec čísla nese pořadí, začátek jen prefix a rok. Zůstává
  * tak podřetězcem čísla faktury, na kterém stojí auto-párování plateb
  * v src/routes/accounting.js.
  */
@@ -58,13 +58,13 @@ export function invoiceVs(number) {
 /**
  * Variabilní symbol k úhradě dokladu.
  *
- * Zálohová faktura k objednávce e-shopu se platí pod číslem objednávky — to
+ * Zálohová faktura k objednávce e-shopu se platí pod číslem objednávky – to
  * je jediné číslo, které zákazník zná ještě než mu doklad dorazí, a vidí ho
  * na děkovné stránce i v potvrzení. Běžná faktura se platí pod svým číslem.
  *
  * Pozor: auto-párování v accounting.js hledalo VS jako podřetězec čísla
  * faktury. Číslo objednávky v čísle zálohovky není, takže tam kvůli téhle
- * výjimce přibyla druhá větev — přes order_id. Kdo mění tohle, musí projít
+ * výjimce přibyla druhá větev – přes order_id. Kdo mění tohle, musí projít
  * i ji, jinak platby přestanou párovat.
  */
 export function paymentVs(invoice, orderNumber) {

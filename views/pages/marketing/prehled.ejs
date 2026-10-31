@@ -2,10 +2,10 @@
   // Marketingový přehled e-shopu: čísla skládá src/marketing/prehled.js,
   // definice KPI jsou v hlavičce src/marketing/kpi.js. Každá dlaždice nese
   // v kpi-formula svou definici, ať nikdo nehádá, co číslo znamená.
-  const kc   = v => v == null ? '—' : Number(v).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Kč';
-  const cele = v => v == null ? '—' : Math.round(Number(v)).toLocaleString('cs-CZ');
-  const pct  = (v, d = 1) => v == null ? '—' : Number(v).toLocaleString('cs-CZ', { minimumFractionDigits: d, maximumFractionDigits: d }) + ' %';
-  const des  = (v, d = 2) => v == null ? '—' : Number(v).toLocaleString('cs-CZ', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const kc   = v => v == null ? '–' : Number(v).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Kč';
+  const cele = v => v == null ? '–' : Math.round(Number(v)).toLocaleString('cs-CZ');
+  const pct  = (v, d = 1) => v == null ? '–' : Number(v).toLocaleString('cs-CZ', { minimumFractionDigits: d, maximumFractionDigits: d }) + ' %';
+  const des  = (v, d = 2) => v == null ? '–' : Number(v).toLocaleString('cs-CZ', { minimumFractionDigits: d, maximumFractionDigits: d });
   const badgeStav = s => ({ ok: 'background:#dcfce7;color:#166534', varovani: 'background:#fef3c7;color:#b45309', chyba: 'background:#fee2e2;color:#991b1b' })[s] || 'background:var(--gray-100);color:var(--gray-500)';
   const stavText = p => !p ? '' : p.rozdilPct == null ? 'Seil 0' : (p.rozdilPct > 0 ? '+' : '') + des(p.rozdilPct, 1) + ' %';
   const qsObdobi = obdobi ? `obdobi=${obdobi.preset}${obdobi.preset === 'vlastni' ? `&od=${obdobi.od}&do=${obdobi.do}` : ''}` : '';
@@ -29,7 +29,7 @@
 <%- include('../../includes/eshop-prepinac', { eshopy, shop, basePath: '/marketing', qs: qsObdobi, vychoziEshop }) %>
 
 <% if (!shop || !p) { %>
-<div class="card"><div class="card-body" style="color:var(--text-muted);">Žádný aktivní e-shop — založte ho v Nastavení → Eshopy.</div></div>
+<div class="card"><div class="card-body" style="color:var(--text-muted);">Žádný aktivní e-shop – založte ho v Nastavení → Eshopy.</div></div>
 <% } else { %>
 
 <!-- Období -->
@@ -82,7 +82,7 @@
   </div>
   <div class="kpi-card">
     <div class="kpi-label">ROAS</div>
-    <div class="kpi-value" style="font-size:28px;"><%= p.kpi.roas == null ? '—' : des(p.kpi.roas) + '×' %></div>
+    <div class="kpi-value" style="font-size:28px;"><%= p.kpi.roas == null ? '–' : des(p.kpi.roas) + '×' %></div>
     <div class="kpi-formula">tržby bez DPH / náklady</div>
   </div>
   <div class="kpi-card">
@@ -92,7 +92,7 @@
   </div>
   <div class="kpi-card">
     <div class="kpi-label">Marže<%= p.marze.maMarzi && p.marze.podilOdhadu > 0 ? ' (odhad ' + pct(p.marze.podilOdhadu * 100, 0) + ')' : '' %></div>
-    <div class="kpi-value" style="font-size:20px;"><%= p.marze.maMarzi ? kc(p.marze.marze) : '—' %></div>
+    <div class="kpi-value" style="font-size:20px;"><%= p.marze.maMarzi ? kc(p.marze.marze) : '–' %></div>
     <div class="kpi-formula"><%= p.marze.maMarzi ? 'zboží bez DPH − nákupní cena' + (p.marze.odhadnute > 0 ? '; bez nákupní ceny ' + pct(p.marze.odhadPct, 0) + ' z ceny' : '') : (p.marze.odhadPct > 0 ? 'bez položek' : 'bez nákupních cen a odhadu marže') %></div>
   </div>
   <div class="kpi-card">
@@ -133,10 +133,10 @@
           <td style="font-weight:600;"><%= r.popis %></td>
           <td style="text-align:right;"><%= cele(r.pocet) %></td>
           <td style="text-align:right;"><%= kc(r.trzbyBezDph) %></td>
-          <td style="text-align:right;"><%= r.naklady > 0 ? kc(r.naklady) : '—' %></td>
+          <td style="text-align:right;"><%= r.naklady > 0 ? kc(r.naklady) : '–' %></td>
           <td style="text-align:right;"><%= pct(r.pno) %></td>
-          <td style="text-align:right;color:var(--text-muted);"><%= r.platforma ? des(r.platforma.conversions, 1) : '—' %></td>
-          <td style="text-align:right;color:var(--text-muted);"><%= r.platforma ? kc(r.platforma.conversion_value) : '—' %></td>
+          <td style="text-align:right;color:var(--text-muted);"><%= r.platforma ? des(r.platforma.conversions, 1) : '–' %></td>
+          <td style="text-align:right;color:var(--text-muted);"><%= r.platforma ? kc(r.platforma.conversion_value) : '–' %></td>
           <td>
             <% if (r.porovnaniTrzeb) { %>
               <span class="badge" style="<%- badgeStav(r.porovnaniTrzeb.stav) %>" title="hodnota dle platformy proti tržbám Seilu"><%= stavText(r.porovnaniTrzeb) %></span>
@@ -178,7 +178,7 @@
   <!-- Kanály podle GA4 -->
   <% if (p.ga4.ukazatKanaly) { %>
   <div class="card">
-    <div class="card-header">Kanály podle GA4 <span style="font-size:12px;font-weight:400;color:var(--text-muted);">— doplněk, kde objednávky zdroj neznají</span></div>
+    <div class="card-header">Kanály podle GA4 <span style="font-size:12px;font-weight:400;color:var(--text-muted);">– doplněk, kde objednávky zdroj neznají</span></div>
     <div class="table-wrapper" style="border:none;border-radius:0;">
       <table class="data-table" style="font-size:13px;">
         <thead><tr><th>Kanál</th><th style="text-align:right;">Návštěvy</th><th style="text-align:right;">Nákupy</th><th style="text-align:right;">Tržby GA4</th></tr></thead>
@@ -231,7 +231,7 @@
         <div><div class="kpi-label">Schválené položky</div><div style="font-size:20px;font-weight:700;color:var(--success);"><%= cele(p.merchant.approved_items) %></div></div>
         <div><div class="kpi-label">Zamítnuté položky</div><div style="font-size:20px;font-weight:700;<%= p.merchant.disapproved_items > 0 ? 'color:var(--danger);' : '' %>"><%= cele(p.merchant.disapproved_items) %></div></div>
       </div>
-      <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">Stav položek k <%= p.merchant.den || '—' %>. Náklady Nákupů jsou v Google Ads.</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">Stav položek k <%= p.merchant.den || '–' %>. Náklady Nákupů jsou v Google Ads.</div>
       <% } %>
     </div>
   </div>
@@ -260,10 +260,10 @@
         <thead><tr><th>Platforma</th><th style="text-align:right;">Z API</th><th style="text-align:right;">Ručně</th><th style="text-align:right;">Celkem</th></tr></thead>
         <tbody>
           <% if (!p.naklady.radky.length) { %>
-          <tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted);">Žádné náklady — <a href="/marketing/naklady<%- dotaz(shop) %>">zadat ručně</a>.</td></tr>
+          <tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted);">Žádné náklady – <a href="/marketing/naklady<%- dotaz(shop) %>">zadat ručně</a>.</td></tr>
           <% } %>
           <% p.naklady.radky.forEach(r => { %>
-          <tr><td><%= r.popis %></td><td style="text-align:right;"><%= r.api > 0 ? kc(r.api) : '—' %></td><td style="text-align:right;"><%= r.rucni > 0 ? kc(r.rucni) : '—' %></td><td style="text-align:right;font-weight:600;"><%= kc(r.celkem) %></td></tr>
+          <tr><td><%= r.popis %></td><td style="text-align:right;"><%= r.api > 0 ? kc(r.api) : '–' %></td><td style="text-align:right;"><%= r.rucni > 0 ? kc(r.rucni) : '–' %></td><td style="text-align:right;font-weight:600;"><%= kc(r.celkem) %></td></tr>
           <% }) %>
         </tbody>
       </table>

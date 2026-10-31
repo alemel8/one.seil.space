@@ -1,5 +1,5 @@
 /**
- * Složení marketingového přehledu z načtených dat — čistá funkce bez
+ * Složení marketingového přehledu z načtených dat – čistá funkce bez
  * databáze, aby šla stránka /marketing otestovat nad připravenými řádky
  * a aby routa jen načítala a vykreslovala.
  *
@@ -7,7 +7,7 @@
  * API, ruční náklady, řady po dnech, funnel GA4, rozpad kanálů GA4,
  * organika, Merchant, konverze platforem, statistiky e-shopu) a zdroje
  * z zdroje.js; výstup jsou hotová čísla pro dlaždice, tabulky, graf
- * a varování. Definice KPI jsou v hlavičce kpi.js — tady se jen skládají.
+ * a varování. Definice KPI jsou v hlavičce kpi.js – tady se jen skládají.
  *
  * ## Kanál × platforma
  *
@@ -69,14 +69,14 @@ export function varovaniZdroju(zdroje, dnes) {
   const varovani = [];
   const aktivni = (zdroje ?? []).filter(z => z.zdroj && z.zdroj.active);
   if (!aktivni.length) {
-    varovani.push({ typ: 'nenastaveno', text: 'Žádná platforma není napojená — čísla jsou jen z objednávek a ručních nákladů.' });
+    varovani.push({ typ: 'nenastaveno', text: 'Žádná platforma není napojená – čísla jsou jen z objednávek a ručních nákladů.' });
     return varovani;
   }
   const hranice = pridejDny(dnes, -ZASTARALY_PO_DNECH);
   for (const z of aktivni) {
     const okDen = z.zdroj.last_ok_at ? jenDatum(z.zdroj.last_ok_at) : null;
     if (z.zdroj.last_error) {
-      varovani.push({ typ: 'chyba', platform: z.platform, text: `${z.popis}: poslední stažení selhalo — ${String(z.zdroj.last_error).slice(0, 160)}` });
+      varovani.push({ typ: 'chyba', platform: z.platform, text: `${z.popis}: poslední stažení selhalo – ${String(z.zdroj.last_error).slice(0, 160)}` });
     } else if (!okDen) {
       varovani.push({ typ: 'bez-dat', platform: z.platform, text: `${z.popis}: zatím nic nestaženo (první běh proběhne v noci, nebo spusťte ručně v Synchronizaci).` });
     } else if (okDen < hranice) {
@@ -187,7 +187,7 @@ export function sestavPrehled({
   // Varování
   const varovani = varovaniZdroju(zdroje, dnes);
   for (const p of prekryvRucnichNakladu(rucni, apiDny, od, do_)) {
-    varovani.push({ typ: 'prekryv', platform: p.platform, text: `${PLATFORMA_POPIS[p.platform] ?? p.platform}: ruční náklad i data z API pro ${p.dny.length} ${p.dny.length === 1 ? 'den' : 'dní'} (${p.dny[0]}–${p.dny[p.dny.length - 1]}) — v součtu je obojí.` });
+    varovani.push({ typ: 'prekryv', platform: p.platform, text: `${PLATFORMA_POPIS[p.platform] ?? p.platform}: ruční náklad i data z API pro ${p.dny.length} ${p.dny.length === 1 ? 'den' : 'dní'} (${p.dny[0]}–${p.dny[p.dny.length - 1]}) – v součtu je obojí.` });
   }
 
   return {

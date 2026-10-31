@@ -10,7 +10,7 @@ let configured = false;
 function ensureConfigured() {
   if (configured) return;
   if (!VAPID_PUBLIC || !VAPID_PRIVATE) {
-    console.warn('[push] VAPID klíče nejsou nastaveny — push notifikace vypnuty');
+    console.warn('[push] VAPID klíče nejsou nastaveny – push notifikace vypnuty');
     return;
   }
   webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC, VAPID_PRIVATE);
@@ -30,7 +30,7 @@ export function getVapidPublicKey() {
  * notifikace nepřišla. Dřív to zjistit nešlo: funkce mlčky skončila bez VAPID
  * klíčů i bez jediné subscription a obě volání u nové objednávky měla
  * `.catch(() => {})`, takže „push nikomu nechodí“, „nikdo nemá registrované
- * zařízení“ a „Apple to odmítl“ vypadaly v logu stejně — totiž nijak.
+ * zařízení“ a „Apple to odmítl“ vypadaly v logu stejně – totiž nijak.
  *
  * `duvod` je prázdný, když aspoň jedna notifikace odešla.
  */
@@ -62,7 +62,7 @@ export async function sendPushToAll(payload, type = 'new_order') {
 
 /**
  * Notifikace jen na zařízení jednoho uživatele. Pohání zkušební odeslání
- * v nastavení — bez něj je jediný spouštěč push notifikace skutečná
+ * v nastavení – bez něj je jediný spouštěč push notifikace skutečná
  * objednávka, takže se registrace zařízení nedá ověřit jinak než čekáním.
  */
 export async function sendPushToUser(userId, payload) {
@@ -97,7 +97,7 @@ async function odesli(sql, subs, payload) {
         odeslano++;
       } catch (err) {
         selhalo++;
-        // 410/404 je odhlášené zařízení — úklid, ne chyba k řešení. Cokoli
+        // 410/404 je odhlášené zařízení – úklid, ne chyba k řešení. Cokoli
         // jiného (401 za špatné VAPID klíče, 413 za velký payload) si zaslouží
         // dostat se ven, jinak se hledá po hmatu.
         if (err.statusCode === 410 || err.statusCode === 404) {

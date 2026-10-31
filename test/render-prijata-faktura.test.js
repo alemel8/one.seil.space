@@ -1,6 +1,6 @@
 // Detail přijaté faktury (views/pages/invoices/received-detail.ejs) vykreslený
 // bez serveru a databáze: formulář záznamu je naschvál prázdný a pole na kartách
-// obou sloupců se k němu hlásí přes form= — mezi kartami leží formuláře příloh,
+// obou sloupců se k němu hlásí přes form= – mezi kartami leží formuláře příloh,
 // párování a exportu, takže je obalit nejde (formulář ve formuláři). Serverová
 // část (jen s DATABASE_URL) ověří GET v obou režimech a že POST uloží a vrátí
 // na ?saved=1.
@@ -16,7 +16,7 @@ import postgres from 'postgres';
 import { vykresliStranku, zkontrolujDetail } from './pomocnici/render.js';
 import { PRESKOCIT, lokalniDatabaze, serverBezi, prihlas, pozadavky } from './pomocnici/server.js';
 
-// Stejné pole jako v src/routes/invoices.js — není exportované a routa tahá PDF, e-mail i Claude SDK.
+// Stejné pole jako v src/routes/invoices.js – není exportované a routa tahá PDF, e-mail i Claude SDK.
 const STATUSES_RECEIVED = ['Nezaplacena', 'Zaplacena', 'Po splatnosti', 'Storno'];
 const FORMULAR = 'formFaktura';
 
@@ -114,7 +114,7 @@ test('bez nároku na odpočet: žlutý box jen v zobrazení; zaplaceno jen pro �
 
   const bez = await vykresli({ invoice: { ...invoice, notes: '', account_debit: '', account_credit: '', supplier_dic: '' } });
   assert.ok(bez.includes('Účtování (předkontace)') && bez.includes('Poznámka / předmět plnění'), 'karty se vykreslí i prázdné, jinak nejde hodnotu poprvé vyplnit');
-  assert.ok((bez.match(/<span class="pole-prazdne">—/g) || []).length >= 4, 'prázdná pole ukážou pomlčku');
+  assert.ok((bez.match(/<span class="pole-prazdne">–/g) || []).length >= 4, 'prázdná pole ukážou pomlčku');
 });
 
 // ── Proti běžícímu serveru a lokální databázi ──────────────────

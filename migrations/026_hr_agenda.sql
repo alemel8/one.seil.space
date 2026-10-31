@@ -1,5 +1,5 @@
 -- ============================================================
--- one.seil.space — personální a fakturační agenda
+-- one.seil.space – personální a fakturační agenda
 -- ============================================================
 -- Přebírá to, co dosud žilo v Airtable základnách „Lukáš Trojek"
 -- a „SEIL s.r.o.", které se ruší. Tři toky kolem jednoho člověka:
@@ -7,7 +7,7 @@
 -- a co dostal mimo mzdu. Rozdíl je jeho zůstatek.
 --
 -- Konvence: TEXT PK z generateId() jako u projects a accounting_invoices,
--- peníze NUMERIC(12,2), FK na users s RESTRICT — mzdový list se archivuje
+-- peníze NUMERIC(12,2), FK na users s RESTRICT – mzdový list se archivuje
 -- 30 let a nesmí zmizet se smazaným uživatelem.
 
 -- ── Zaměstnanecký poměr ──────────────────────────────────────
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS hr_work_reports (
   title          TEXT NOT NULL DEFAULT '',
 
   -- Volný rozpad hodin a výdajů, u každého záznamu jinak formátovaný
-  -- („Práce 135h x 320 = 43 200,-"). Ukládá se doslova — parsovat ho
+  -- („Práce 135h x 320 = 43 200,-"). Ukládá se doslova – parsovat ho
   -- by u části záznamů tiše zkomolilo čísla.
   breakdown      TEXT NOT NULL DEFAULT '',
 
@@ -76,7 +76,7 @@ CREATE INDEX IF NOT EXISTS hr_work_reports_invoice_idx ON hr_work_reports (invoi
 
 -- Čísla zakázek a lokality jsou v Airtable vícehodnotová (jeden podklad
 -- pokrývá i tři projekty ve dvou zemích). Nejsou to projekty SEIL, ale
--- zakázková čísla odběratele — proto vlastní tabulka, ne vazba na projects.
+-- zakázková čísla odběratele – proto vlastní tabulka, ne vazba na projects.
 CREATE TABLE IF NOT EXISTS hr_work_report_projects (
   report_id    TEXT NOT NULL REFERENCES hr_work_reports(id) ON DELETE CASCADE,
   project_code TEXT NOT NULL,
@@ -94,7 +94,7 @@ CREATE INDEX IF NOT EXISTS hr_work_report_locations_country_idx ON hr_work_repor
 
 -- ── Mzdový list za jeden měsíc ───────────────────────────────
 -- Jedna tabulka pro HPP i dohody: liší se vyplněná pole, ne rytmus.
--- Bez unikátního klíče na (user_id, period) — Airtable vede na některé
+-- Bez unikátního klíče na (user_id, period) – Airtable vede na některé
 -- měsíce dva řádky (jeden s hodinami, druhý jen s hrubou mzdou) a sloučit
 -- je při importu by byla interpretace, ne převod. UI takový měsíc označí.
 CREATE TABLE IF NOT EXISTS hr_payroll_runs (
@@ -120,12 +120,12 @@ CREATE TABLE IF NOT EXISTS hr_payroll_runs (
   accident_insurance NUMERIC(12,2) NOT NULL DEFAULT 0,  -- Kooperativa
 
   -- Skutečný náklad zaměstnavatele (hrubá + odvody firmy). Ukládá se tak,
-  -- jak přišel z mzdové účtárny, a NEDOPOČÍTÁVÁ se — u části měsíců se
+  -- jak přišel z mzdové účtárny, a NEDOPOČÍTÁVÁ se – u části měsíců se
   -- s dopočtem rozchází a je to skutečnost, ne chyba. Tohle číslo jde
   -- do nákladů a hrubého zisku.
   company_cost       NUMERIC(12,2) NOT NULL DEFAULT 0,
 
-  -- Airtable „UHRAZENO" — co reálně odešlo z účtu. Generovaný sloupec se
+  -- Airtable „UHRAZENO" – co reálně odešlo z účtu. Generovaný sloupec se
   -- nemůže rozejít se svými složkami, takže kontrolní součet ověřuje všech
   -- sedm částek naráz. Tohle číslo jde do osobního zůstatku, ne do nákladů.
   paid_total         NUMERIC(12,2) GENERATED ALWAYS AS (

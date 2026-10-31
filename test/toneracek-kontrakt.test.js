@@ -2,15 +2,15 @@
 // a /api/eshop/* musí odpovídat úplně stejně.
 //
 // Jeden scénář (uživatelé, objednávky, platby, platební údaje, chyby) projde
-// oběma API. Odpovědi se znormalizují — id, čísla objednávek a dokladů, časy
-// a data nahradí zástupné značky — a porovnají se celé: stavové kódy, klíče
+// oběma API. Odpovědi se znormalizují – id, čísla objednávek a dokladů, časy
+// a data nahradí zástupné značky – a porovnají se celé: stavové kódy, klíče
 // i hodnoty. Vzor (test/fixtures/toneracek-kontrakt.json) vznikl během scénáře
 // proti main před zásahem pro druhý e-shop:
 //
 //   KONTRAKT_ZAPSAT=1 TEST_BASE_URL=<server z main> DATABASE_URL=… \
 //   TONERACEK_API_KEY=… node --test test/toneracek-kontrakt.test.js
 //
-// (v režimu zápisu běží jen část Toneráčku — main /api/eshop nemá).
+// (v režimu zápisu běží jen část Toneráčku – main /api/eshop nemá).
 //
 // Vzor byl znovu zapsaný 29. 10. 2026 po migraci 042: objednávka v odpovědi
 // nese i 21 sloupců atribuce (*_first, *_last, attribution_consent), u
@@ -39,7 +39,7 @@ function lokalniDatabaze() {
   const url = process.env.DATABASE_URL || '';
   const host = url ? new URL(url).hostname : '';
   if (!['127.0.0.1', 'localhost'].includes(host) && process.env.TEST_DB_ALLOW_REMOTE !== '1') {
-    throw new Error(`Test zakládá objednávky a doklady — DATABASE_URL musí mířit na 127.0.0.1/localhost, ne na "${host}"`);
+    throw new Error(`Test zakládá objednávky a doklady – DATABASE_URL musí mířit na 127.0.0.1/localhost, ne na "${host}"`);
   }
   return url;
 }
@@ -153,8 +153,8 @@ const CASY = new Set(['created_at', 'modified_at', 'paid_at', 'datumRegistrace',
 
 /**
  * Nahradí hodnoty, které se mezi běhy a mezi e-shopy liší, zástupnými
- * značkami. Před nahrazením ověří tvar — čísla objednávek jen z číslic,
- * časy parsovatelné, variabilní symbol z čísla objednávky —, takže se tím
+ * značkami. Před nahrazením ověří tvar – čísla objednávek jen z číslic,
+ * časy parsovatelné, variabilní symbol z čísla objednávky –, takže se tím
  * neschová rozbitá hodnota.
  */
 function normalizuj({ kroky, run }) {

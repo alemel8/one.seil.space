@@ -6,14 +6,14 @@
  * e-shop). Každé z nich občas vrátí 429 nebo 5xx, spadne spojení nebo se
  * odpověď táhne minuty. Kdyby si každý adaptér řešil timeout a retry po
  * svém, chovaly by se pokaždé jinak a jeden zaseklý hovor by zdržel celou
- * noc (vzor src/packeta.js:34-44 — `AbortSignal.timeout`, bez něj fetch
+ * noc (vzor src/packeta.js:34-44 – `AbortSignal.timeout`, bez něj fetch
  * čeká neomezeně).
  *
  * ## Co se opakuje a co ne
  *
  * Opakuje se jen to, co má `retryable === true`: 429, 5xx, síťová chyba,
  * timeout. 400/401/403 se opakováním nespraví (špatný token, chybějící
- * právo) — ty sync označí jako trvalou chybu a čeká na obsluhu (plán D5).
+ * právo) – ty sync označí jako trvalou chybu a čeká na obsluhu (plán D5).
  * Prodleva roste 2 s, 4 s, 8 s… a `Retry-After` z odpovědi ji může jen
  * prodloužit, nikdy zkrátit; strop 60 s, ať se běh nezasekne na hodinu
  * kvůli jedné hlavičce. Heureka i Sklik `Retry-After` při 429 posílají.
@@ -23,7 +23,7 @@
  * `AbortSignal.timeout` ruší i čtení těla: odpověď 200, která se zasekne
  * uprostřed JSONu (nebo spojení, které server uprostřed těla resetuje), je
  * stejná přechodná chyba jako timeout před hlavičkami. Kdyby se místo toho
- * vrátilo prázdné tělo, vypadal by zaseklý report jako prázdný report —
+ * vrátilo prázdné tělo, vypadal by zaseklý report jako prázdný report –
  * sync by smazal celé okno, nic nevložil a skončil „hotovo“ s nulou řádků,
  * bez opakování a bez alertu. Jen u chybového stavu (≥ 400) je tělo pouhý
  * úryvek do hlášky a chyba čtení se spolkne: stav sám říká, co se stalo,
@@ -48,7 +48,7 @@ export class HttpError extends Error {
   }
 }
 
-/** Adresa bez query stringu a bez přihlašovacích údajů — jen pro hlášky a log. */
+/** Adresa bez query stringu a bez přihlašovacích údajů – jen pro hlášky a log. */
 export function adresaProLog(url) {
   try {
     const u = new URL(String(url));
@@ -71,7 +71,7 @@ export function retryAfterMs(hodnota, now = Date.now()) {
   return Math.max(0, okamzik - now);
 }
 
-/** Hlavičky odpovědi jako obyčejný objekt s malými názvy — z `Headers` i z plain objektu falešného fetche. */
+/** Hlavičky odpovědi jako obyčejný objekt s malými názvy – z `Headers` i z plain objektu falešného fetche. */
 function hlavickyJakoObjekt(headers) {
   const vysledek = {};
   if (!headers) return vysledek;
@@ -90,7 +90,7 @@ function jeSuroveTelo(body) {
  * `fetch` s timeoutem, který vrátí `{ status, ok, json, text, headers }`
  * a pro stav ≥ 400 vyhodí `HttpError`. Objektové `body` se pošle jako JSON.
  * `json` je null, když odpověď není JSON (HTML chybová stránka proxy).
- * Síťová chyba a timeout — před hlavičkami i uprostřed čtení těla — jsou
+ * Síťová chyba a timeout – před hlavičkami i uprostřed čtení těla – jsou
  * `HttpError{ status: 0, retryable: true }`.
  *
  * `fetchImpl` a `now` jsou tu kvůli testům.
@@ -107,7 +107,7 @@ export async function fetchJson(url, {
   }
 
   const adresa = adresaProLog(url);
-  /** Timeout nebo pád spojení jako přechodná HttpError — tatáž hláška před hlavičkami i uprostřed těla. */
+  /** Timeout nebo pád spojení jako přechodná HttpError – tatáž hláška před hlavičkami i uprostřed těla. */
   const prechodnaChyba = (err) => {
     const timeout = err?.name === 'TimeoutError' || err?.name === 'AbortError';
     const popis = timeout ? `odpověď nepřišla do ${timeoutMs / 1000} s` : `síťová chyba: ${err?.message ?? err}`;
@@ -140,7 +140,7 @@ export async function fetchJson(url, {
 
   if (status >= 400) {
     const uryvek = text.replace(/\s+/g, ' ').trim().slice(0, 200);
-    throw new HttpError(`${method} ${adresa}: HTTP ${status}${uryvek ? ` — ${uryvek}` : ''}`, {
+    throw new HttpError(`${method} ${adresa}: HTTP ${status}${uryvek ? ` – ${uryvek}` : ''}`, {
       status,
       retryable: status === 429 || status >= 500,
       body: json ?? text,
@@ -158,7 +158,7 @@ export const MAX_PRODLEVA_MS = 60_000;
 const spi = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * Zavolá `fn(pokus)` a při chybě s `retryable === true` to zkusí znovu —
+ * Zavolá `fn(pokus)` a při chybě s `retryable === true` to zkusí znovu –
  * celkem nejvýš `pokusy`×. Prodleva před i-tým opakováním je
  * `max(prodlevaMs · 2^(i−1), err.retryAfterMs)`, nejvýš MAX_PRODLEVA_MS.
  * Každé opakování zapíše `log.warn`; poslední chyba se vyhodí dál.

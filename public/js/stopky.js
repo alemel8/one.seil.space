@@ -1,7 +1,7 @@
 // Tikající počítadlo běžících stopek.
 //
 // Server vyrenderuje čas spuštění do data-start, prohlížeč jen dopočítává
-// rozdíl. Nedrží žádný stav — zavření okna, restart ani přepnutí zařízení
+// rozdíl. Nedrží žádný stav – zavření okna, restart ani přepnutí zařízení
 // nic neztratí, protože pravda je řádek v databázi.
 
 (function () {

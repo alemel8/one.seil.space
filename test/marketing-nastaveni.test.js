@@ -4,7 +4,7 @@
 // Token platformy se do databáze ukládá jen šifrovaný (tajemstvi.js) a v
 // administraci se ukazuje otiskem; prázdné pole token nechá, akce
 // vymazat-tajemstvi ho smaže. Testy s tokenem potřebují, aby server i test
-// měly tentýž MARKETING_SECRETS_KEY — bez něj se přeskočí.
+// měly tentýž MARKETING_SECRETS_KEY – bez něj se přeskočí.
 //
 //   DATABASE_URL=postgresql://…@127.0.0.1/… TEST_BASE_URL=http://127.0.0.1:3999 \
 //   MARKETING_SECRETS_KEY=<64 hex> node --test test/marketing-nastaveni.test.js
@@ -23,7 +23,7 @@ const r = crypto.randomBytes(4).toString('hex');
 function lokalniDatabaze() {
   const host = DATABASE_URL ? new URL(DATABASE_URL).hostname : '';
   if (!['127.0.0.1', 'localhost'].includes(host) && process.env.TEST_DB_ALLOW_REMOTE !== '1') {
-    throw new Error(`Test zakládá e-shopy — DATABASE_URL musí mířit na 127.0.0.1/localhost, ne na "${host}"`);
+    throw new Error(`Test zakládá e-shopy – DATABASE_URL musí mířit na 127.0.0.1/localhost, ne na "${host}"`);
   }
   return DATABASE_URL;
 }

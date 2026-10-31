@@ -82,13 +82,13 @@
         <div class="form-group">
           <label class="form-label required">Klient (z CRM)</label>
           <select name="company_id" class="form-select" required>
-            <option value="">— vyberte firmu —</option>
+            <option value="">– vyberte firmu –</option>
             <% companies.forEach(c => { %>
             <option value="<%= c.id %>"><%= c.name %></option>
             <% }) %>
           </select>
           <% if (companies.length === 0) { %>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Žádné firmy v CRM — <a href="/crm/firmy" style="color:var(--primary);">nejprve založte firmu</a>.</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Žádné firmy v CRM – <a href="/crm/firmy" style="color:var(--primary);">nejprve založte firmu</a>.</div>
           <% } %>
         </div>
         <div class="form-group">

@@ -12,7 +12,7 @@
  *
  * `cislo()` vrací NaN pro nečíselný text („1 234,50“, „n/a“) a 0 jen pro
  * chybějící hodnotu. NaN projde až do `normalizujRadek()`, které ho ohlásí
- * jako varování a nahradí nulou — kdyby `cislo()` vracelo 0 rovnou, hodnota
+ * jako varování a nahradí nulou – kdyby `cislo()` vracelo 0 rovnou, hodnota
  * by zmizela beze stopy (hlavička ../normalizace.js). Součet před
  * normalizací (`sectiRadky`) NaN přeskočí a ohlásí; adaptéry proto sbírají
  * jeho varování do `ctx.varovani` a `normalizujRadky()` je zapíše do logu
@@ -29,7 +29,7 @@
  *
  * Platformy posílají den jako „YYYY-MM-DD“ (Ads, Search Console, Meta,
  * e-shop), „YYYYMMDD“ (GA4), objekt { year, month, day } (Merchant) nebo
- * ISO čas s pásmem (Sklik může). Čas s pásmem se převede na pražský den —
+ * ISO čas s pásmem (Sklik může). Čas s pásmem se převede na pražský den –
  * „2026-10-04T22:00:00Z“ je pražská půlnoc 5. 10., ne 4. 10.
  */
 
@@ -41,7 +41,7 @@ export const TOP_SEGMENTU = 50;
 
 /**
  * Číslo z hodnoty API: chybějící (null, undefined, '') → 0, řetězec →
- * Number (nečíselný → NaN, schválně — viz hlavička), cokoli jiného než
+ * Number (nečíselný → NaN, schválně – viz hlavička), cokoli jiného než
  * číslo → NaN.
  */
 export function cislo(hodnota) {
@@ -81,7 +81,7 @@ export function sectiSVarovanim(radky, ctx) {
 }
 
 /**
- * Denní součty (`segment_kind = ''`) z řádků rozpadu — jeden na (platforma,
+ * Denní součty (`segment_kind = ''`) z řádků rozpadu – jeden na (platforma,
  * den). Záporná hodnota (Sklik a Google Ads umí poslat zápornou opravu
  * konverzí) do součtu nevstoupí: řádek rozpadu si ji nese dál a normalizace
  * ji ohlásí, součet by s ní ale ukázal míň konverzí, než mají kampaně
@@ -130,7 +130,7 @@ export function topNaDen(radky, metriky, n = TOP_SEGMENTU) {
 /**
  * Řádky adaptéru → řádky pro INSERT přes `normalizujRadek()`. Zahozené
  * řádky (datum mimo okno, neznámý segment) a varování (záporné, nečíselné,
- * zkrácený segment) jdou do logu souhrnně — jeden záznam s počtem a prvními
+ * zkrácený segment) jdou do logu souhrnně – jeden záznam s počtem a prvními
  * ukázkami, ne tisíc řádků za noc. `varovani` jsou varování ze součtů
  * v `parsuj()`, která se připojí.
  */

@@ -38,18 +38,18 @@ async function getBrowser() {
 }
 
 /**
- * HTML faktury — totéž, co jde do PDF, jen bez prohlížeče. Odděleně proto,
+ * HTML faktury – totéž, co jde do PDF, jen bez prohlížeče. Odděleně proto,
  * aby se obsah dokladu (razítko, platební instrukce, DUZP) dal otestovat bez
  * puppeteeru.
  *
  * `data.brand` vykreslí v záhlaví značku e-shopu místo vystavitele, `data.paid`
  * schová štítek „k úhradě" i platební instrukce. `data.paymentMethod` je způsob
- * platby objednávky — faktura ho sama nenese a bez něj by se dobírka tiskla
- * s číslem účtu a QR kódem jako doklad k převodu. Všechno je volitelné —
+ * platby objednávky – faktura ho sama nenese a bez něj by se dobírka tiskla
+ * s číslem účtu a QR kódem jako doklad k převodu. Všechno je volitelné –
  * faktury mimo e-shop to nemají a vypadají jako dřív.
  *
  * `data.vs` přebije výchozí odvození z čísla dokladu. Používá ho zálohová
- * faktura k objednávce, která se platí pod číslem objednávky — PDF musí
+ * faktura k objednávce, která se platí pod číslem objednávky – PDF musí
  * tisknout tentýž symbol jako e-mail a QR kód, jinak jsme zpátky u tří
  * různých variabilních symbolů k jedné platbě.
  */
@@ -63,7 +63,7 @@ export async function renderInvoiceHtml(data) {
   });
 
   // QR jen na dokladu, který se platí převodem. Na zaplacené faktuře ani na
-  // dobírce nemá co dělat — mizí i platební instrukce, do kterých patří.
+  // dobírce nemá co dělat – mizí i platební instrukce, do kterých patří.
   const qrDataUri = uhrada.instrukce ? await qrPlatbaDataUri({
     iban: data.issuer?.iban,
     amount: data.invoice?.total_amount,

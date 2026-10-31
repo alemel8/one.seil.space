@@ -1,7 +1,7 @@
 // Graf marketingového přehledu: tržby bez DPH (sloupce), náklady na reklamu
 // (čára) a PNO dne (čára na pravé ose). Data nese <script type="application/json"
 // id="marketing-data"> ze src/marketing/kpi.js radyProGraf(); Chart.js je
-// vendorovaný v /static/chart.umd.min.js. Barvy jen jako hex — canvas
+// vendorovaný v /static/chart.umd.min.js. Barvy jen jako hex – canvas
 // CSS proměnné nezná.
 (function () {
   var el = document.getElementById('marketing-data');
@@ -11,8 +11,8 @@
   try { data = JSON.parse(el.textContent); } catch (e) { return; }
   if (!data || !data.dny || !data.dny.length) return;
 
-  var kc = function (v) { return v == null ? '—' : Number(v).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Kč'; };
-  var pct = function (v) { return v == null ? '—' : Number(v).toLocaleString('cs-CZ', { maximumFractionDigits: 1 }) + ' %'; };
+  var kc = function (v) { return v == null ? '–' : Number(v).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Kč'; };
+  var pct = function (v) { return v == null ? '–' : Number(v).toLocaleString('cs-CZ', { maximumFractionDigits: 1 }) + ' %'; };
 
   new Chart(canvas, {
     data: {

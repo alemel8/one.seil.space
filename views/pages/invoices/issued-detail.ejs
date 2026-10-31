@@ -34,15 +34,15 @@
         <span style="color:var(--text-muted);font-size:13px;">#<%= invoice.id %></span>
       </div>
       <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div><div style="color:var(--text-muted);font-size:12px;">Klient</div><div style="font-weight:500;"><%= invoice.client_name || '—' %></div></div>
-        <div><div style="color:var(--text-muted);font-size:12px;">IČO / DIČ</div><div><%= invoice.client_ico || '—' %> / <%= invoice.client_dic || '—' %></div></div>
-        <div><div style="color:var(--text-muted);font-size:12px;">Adresa</div><div><%= invoice.client_address || '—' %></div></div>
+        <div><div style="color:var(--text-muted);font-size:12px;">Klient</div><div style="font-weight:500;"><%= invoice.client_name || '–' %></div></div>
+        <div><div style="color:var(--text-muted);font-size:12px;">IČO / DIČ</div><div><%= invoice.client_ico || '–' %> / <%= invoice.client_dic || '–' %></div></div>
+        <div><div style="color:var(--text-muted);font-size:12px;">Adresa</div><div><%= invoice.client_address || '–' %></div></div>
         <div><div style="color:var(--text-muted);font-size:12px;">Měna</div><div><%= invoice.currency %></div></div>
         <%# Data přes ceskeDatum() jako v PDF: toLocaleDateString() čte sloupec DATE
             v pásmu procesu a západně od UTC by ukázal o den dřív. %>
         <div><div style="color:var(--text-muted);font-size:12px;">Datum vystavení</div><div><%= ceskeDatum(invoice.issue_date) %></div></div>
-        <div><div style="color:var(--text-muted);font-size:12px;">Splatnost</div><div><%= invoice.due_date ? ceskeDatum(invoice.due_date) : '—' %></div></div>
-        <%# Totéž DUZP, které tiskne PDF a jde do POHODY — bez taxable_date je to datum vystavení. %>
+        <div><div style="color:var(--text-muted);font-size:12px;">Splatnost</div><div><%= invoice.due_date ? ceskeDatum(invoice.due_date) : '–' %></div></div>
+        <%# Totéž DUZP, které tiskne PDF a jde do POHODY – bez taxable_date je to datum vystavení. %>
         <% if (invoice.type === 'issued') { %>
         <div><div style="color:var(--text-muted);font-size:12px;">DUZP</div><div><%= ceskeDatum(invoice.taxable_date || invoice.issue_date) %></div></div>
         <% } %>
@@ -65,11 +65,11 @@
       <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
         <div>
           <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Způsob platby</div>
-          <div style="font-weight:500;"><%= order.payment_method || '—' %></div>
+          <div style="font-weight:500;"><%= order.payment_method || '–' %></div>
         </div>
         <div>
           <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Způsob dopravy</div>
-          <div style="font-weight:500;"><%= order.shipping_method || '—' %></div>
+          <div style="font-weight:500;"><%= order.shipping_method || '–' %></div>
         </div>
         <% if (order.tracking_number) { %>
         <div>
@@ -151,11 +151,11 @@
           📄 Stáhnout PDF
         </a>
         <button class="btn btn-ghost" data-modal-open="modalEmail" style="width:100%;">✉️ Odeslat emailem</button>
-        <%# Dobírku zákazník platí dopravci a peníze posílá Zásilkovna — „po
+        <%# Dobírku zákazník platí dopravci a peníze posílá Zásilkovna – „po
             splatnosti“ u ní znamená nespárovanou dobírku, ne dluh zákazníka.
             Server upomínku k dobírce odmítne i tak (deliverReminder()). %>
         <% if (invoice.status === 'Po splatnosti' && order && order.payment_method === 'Dobírka') { %>
-        <p style="margin:0;font-size:12px;color:var(--text-muted);line-height:1.5;">Dobírka se neupomíná — spárujte ji s platbou od Zásilkovny, nebo objednávku stornujte, pokud se zásilka vrátila.</p>
+        <p style="margin:0;font-size:12px;color:var(--text-muted);line-height:1.5;">Dobírka se neupomíná – spárujte ji s platbou od Zásilkovny, nebo objednávku stornujte, pokud se zásilka vrátila.</p>
         <% } else if (invoice.status === 'Po splatnosti') { %>
         <button class="btn btn-ghost" data-modal-open="modalUpominka" style="width:100%;color:var(--warning);">⚠️ Odeslat upomínku</button>
         <% } %>
@@ -178,7 +178,7 @@
             </div>
             <div style="color:var(--text-muted);font-size:12px;">
               <%= new Date(e.sent_at).toLocaleString('cs-CZ') %>
-              <% if (e.status !== 'odeslano' && e.error) { %> — <%= e.error %><% } %>
+              <% if (e.status !== 'odeslano' && e.error) { %> – <%= e.error %><% } %>
             </div>
           </div>
         </div>
@@ -193,7 +193,7 @@
       <div class="card-body" style="display:flex;flex-direction:column;gap:8px;font-size:13px;">
         <% reminders.forEach(r => { %>
         <div style="display:flex;justify-content:space-between;gap:8px;">
-          <span><%= r.level %>. stupeň — <%= r.days_overdue %> dní po splatnosti</span>
+          <span><%= r.level %>. stupeň – <%= r.days_overdue %> dní po splatnosti</span>
           <span style="color:var(--text-muted);">
             <%= r.status === 'ceka' ? 'čeká na odeslání' : r.status === 'odeslana' ? 'odeslána' : 'zrušena' %>
           </span>
@@ -217,7 +217,7 @@
           <option value="<%= s %>" <%= invoice.status===s?'selected':'' %>><%= s %></option>
           <% }) %>
         </select>
-        <%# Den, kdy peníze přišly, ne den kliknutí — u zálohové faktury z něj
+        <%# Den, kdy peníze přišly, ne den kliknutí – u zálohové faktury z něj
             vystavená faktura bere DUZP. %>
         <div class="form-group" id="denUhrady" style="margin-top:12px;">
           <label class="form-label">Datum úhrady</label>
@@ -301,7 +301,7 @@
           <input type="date" name="due_date" class="form-control"
                  value="<%= invoice.due_date ? new Date(invoice.due_date).toISOString().split('T')[0] : '' %>">
         </div>
-        <%# DUZP jen u vydané faktury — zálohová daňovým dokladem není. Oprava
+        <%# DUZP jen u vydané faktury – zálohová daňovým dokladem není. Oprava
             pro objednávky, u kterých Seil den platby nezná (před migrací 039). %>
         <% if (invoice.type === 'issued') { %>
         <div class="form-group">
@@ -351,9 +351,9 @@
         <div class="form-group">
           <label class="form-label">Důraz upomínky</label>
           <select name="level" class="form-select">
-            <option value="1">1 — zdvořilé upozornění</option>
-            <option value="2" selected>2 — upomínka</option>
-            <option value="3">3 — předžalobní výzva</option>
+            <option value="1">1 – zdvořilé upozornění</option>
+            <option value="2" selected>2 – upomínka</option>
+            <option value="3">3 – předžalobní výzva</option>
           </select>
         </div>
         <div style="background:var(--warning-bg);border-radius:var(--radius-sm);padding:10px 12px;font-size:12px;color:#92400e;line-height:1.5;">

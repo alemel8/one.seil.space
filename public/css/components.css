@@ -1,5 +1,5 @@
 /* ============================================================
-   COMPONENTS — buttons, badges, modals, forms, tables
+   COMPONENTS – buttons, badges, modals, forms, tables
    ============================================================ */
 
 /* ── Buttons ──────────────────────────────────────────────── */
@@ -336,7 +336,7 @@
 }
 
 /* ── Toggle switch ────────────────────────────────────────── */
-/* Přihlašovací stránka má vlastní kopii v auth.css — jako jediná
+/* Přihlašovací stránka má vlastní kopii v auth.css – jako jediná
    nenačítá tenhle soubor. */
 
 .toggle-label {
@@ -536,7 +536,7 @@ table.data-table {
 [data-theme="dark"] .data-table tbody tr:hover { background: var(--sidebar-hover); }
 
 /* Řádek s proklikem na detail. Třída se ve views používala už dřív, ale
-   v CSS chyběla — na vydaných fakturách proto řádky neměly ani kurzor. */
+   v CSS chyběla – na vydaných fakturách proto řádky neměly ani kurzor. */
 .clickable-row { cursor: pointer; }
 
 /* ── Page header ──────────────────────────────────────────── */
@@ -563,7 +563,7 @@ table.data-table {
 
 /* ── Záložky detailu (serverové ?tab=) ────────────────────── */
 /* Jeden vzhled pro detail e-shopu, firmy, projektu i člena týmu. Aktivní
-   záložka má tmavý text a cyan jen jako podtržení — cyan jako barva textu
+   záložka má tmavý text a cyan jen jako podtržení – cyan jako barva textu
    na bílé není čitelná a brand manuál ho chce jen jako akcent. */
 .tabs {
   display: flex;
@@ -626,7 +626,7 @@ table.data-table {
 [data-rezim="upravy"] .upravit-otevrit { display: none; }
 
 /* V zobrazení zmizí vstupy upravitelného formuláře a vše .jen-upravy; v úpravách
-   hodnoty polí (kromě .pole-stale — slug, e-mail profilu) a vše .jen-zobrazeni.
+   hodnoty polí (kromě .pole-stale – slug, e-mail profilu) a vše .jen-zobrazeni.
    Ostatní formuláře na stránce (heslo, klíče, platformy) režim nezná. */
 [data-rezim="zobrazeni"] .upravitelne :is(.form-control, .form-select, .toggle-label, .pole-zaskrtavaci),
 [data-rezim="zobrazeni"] .pole :is(.form-control, .form-select, .toggle-label, .pole-zaskrtavaci),
@@ -639,7 +639,7 @@ table.data-table {
 [data-rezim="zobrazeni"] .pole .form-label.required::after { content: none; }
 
 /* Stejná výška jako textový .form-control, aby přepnutí neposkočilo; text je
-   zarovnaný s popiskem, ne s textem inputu (ten má vnitřní odsazení 12 px) —
+   zarovnaný s popiskem, ne s textem inputu (ten má vnitřní odsazení 12 px) –
    vědomě, hodnoty se čtou jako seznam pod popisky. */
 .pole-hodnota {
   min-height: 37px;
@@ -673,7 +673,7 @@ table.data-table {
 .barva-vzorek { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--border); display: inline-block; flex-shrink: 0; }
 
 /* ============================================================
-   RESPONSIVE — mobile overrides (≤ 768px)
+   RESPONSIVE – mobile overrides (≤ 768px)
    ============================================================ */
 @media (max-width: 768px) {
 
@@ -695,16 +695,16 @@ table.data-table {
   .pole-hodnota { min-height: 44px; } /* .form-control má na mobilu 44 px */
   .card-header-akce .btn-ikona { width: 40px; height: 40px; min-height: 40px; }
 
-  /* ── KPI grid — 2 × 2 ────────────────────────────────────── */
+  /* ── KPI grid – 2 × 2 ────────────────────────────────────── */
   .kpi-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 12px; }
   .kpi-value { font-size: 18px; }
   .kpi-formula { display: none; }
 
-  /* ── Tables — horizontal scroll ──────────────────────────── */
+  /* ── Tables – horizontal scroll ──────────────────────────── */
   .table-wrapper { -webkit-overflow-scrolling: touch; }
   .data-table { min-width: 560px; }
 
-  /* ── Modals — slide up from bottom ───────────────────────── */
+  /* ── Modals – slide up from bottom ───────────────────────── */
   .modal-backdrop {
     align-items: flex-end;
     padding: 0;
@@ -769,7 +769,7 @@ table.data-table {
   /* ── Compact badge spacing on mobile ──────────────────────── */
   .badge { font-size: 11px; padding: 3px 8px; }
 
-  /* ── Záložky — těsnější, posouvají se prstem ──────────────── */
+  /* ── Záložky – těsnější, posouvají se prstem ──────────────── */
   .tabs { margin-bottom: 16px; }
   .tab { padding: 10px 14px; font-size: 13px; }
 
@@ -817,7 +817,7 @@ table.data-table {
 .doklad-thumb-empty { border-style: dashed; }
 .doklad-thumb-busy { opacity: 0.5; pointer-events: none; }
 
-/* Záznam odkazuje na soubor, který na disku není — bez tohohle by se
+/* Záznam odkazuje na soubor, který na disku není – bez tohohle by se
    uživateli ukázala jen rozbitá miniatura bez vysvětlení. */
 .doklad-thumb-missing {
   border-style: dashed; border-color: var(--danger); color: var(--danger);
@@ -842,7 +842,7 @@ table.data-table {
   opacity: 0;
   visibility: hidden;
   /* Bez pointer-events by zhasínající backdrop polykal kliknutí ještě po dobu
-     přechodu (visibility se přepíná až na jeho konci) — 200 ms mrtvé stránky. */
+     přechodu (visibility se přepíná až na jeho konci) – 200 ms mrtvé stránky. */
   pointer-events: none;
   transition: opacity var(--transition-base), visibility var(--transition-base);
 }
@@ -898,7 +898,7 @@ table.data-table {
   overflow: auto;
 }
 
-/* Centrování přes auto margin, ne justify/align — vycentrovaný flex item,
+/* Centrování přes auto margin, ne justify/align – vycentrovaný flex item,
    který je větší než rám, jinak nejde doscrollovat k hornímu okraji. */
 .dn-img {
   margin: auto;
@@ -907,7 +907,7 @@ table.data-table {
   cursor: zoom-in;
   display: block;
 }
-/* Přiblížení na 100 % — u účtenky je drobné písmo jinak nečitelné */
+/* Přiblížení na 100 % – u účtenky je drobné písmo jinak nečitelné */
 .dn-img.dn-zoomed {
   max-width: none;
   max-height: none;
@@ -940,7 +940,7 @@ table.data-table {
 }
 
 /* ── Stopky ───────────────────────────────────────────────── */
-/* Pilulka v topbaru — na každé stránce je vidět, že něco běží. */
+/* Pilulka v topbaru – na každé stránce je vidět, že něco běží. */
 
 .stopky-pilulka {
   display: flex;
@@ -1015,7 +1015,7 @@ table.data-table {
 }
 .stopky-stop:hover { filter: brightness(0.92); }
 
-/* Na úzkém displeji zbyde jen tečka a čas — název úkolu se nevejde */
+/* Na úzkém displeji zbyde jen tečka a čas – název úkolu se nevejde */
 @media (max-width: 720px) {
   .stopky-ukol { display: none; }
   .stopky-pilulka { margin-right: 6px; }
@@ -1025,7 +1025,7 @@ table.data-table {
 .hledani-formular { margin-bottom: 24px; }
 .hledani-skupina { margin-bottom: 16px; }
 
-/* Řádek výsledku je odkaz přes celou šířku — tapovatelný i na telefonu. */
+/* Řádek výsledku je odkaz přes celou šířku – tapovatelný i na telefonu. */
 .hledani-radek {
   display: grid;
   grid-template-columns: 1fr auto;

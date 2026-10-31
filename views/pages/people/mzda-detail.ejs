@@ -1,10 +1,10 @@
 <%
   const kc = n => Number(n || 0).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const den = d => d ? new Date(d).toLocaleDateString('cs-CZ') : '—';
+  const den = d => d ? new Date(d).toLocaleDateString('cs-CZ') : '–';
   const mesic = new Date(mzda.period).toLocaleDateString('cs-CZ', { month: 'long', year: 'numeric' });
   const jmeno = ((mzda.first_name || '') + ' ' + (mzda.last_name || '')).trim();
 
-  // Kontrola, že zadaná čísla drží pohromadě. Nepřepisuje se nic —
+  // Kontrola, že zadaná čísla drží pohromadě. Nepřepisuje se nic –
   // jen se řekne, že něco nesedí, ať se to dá dohledat.
   const srazky = Number(mzda.social) + Number(mzda.health) + Number(mzda.insolvency)
                + Number(mzda.garnishment) + Number(mzda.tax) + Number(mzda.accident_insurance);
@@ -70,14 +70,14 @@
 
         <% if (Math.abs(rozdil) > 0.01) { %>
         <div style="margin-top:14px;background:var(--warning-bg);color:#92400e;border-radius:8px;padding:10px 12px;font-size:12.5px;">
-          Čistá mzda plus srážky dávají <%= kc(dopocet) %> Kč, uhrazeno je <%= kc(mzda.paid_total) %> Kč —
+          Čistá mzda plus srážky dávají <%= kc(dopocet) %> Kč, uhrazeno je <%= kc(mzda.paid_total) %> Kč –
           rozdíl <%= kc(Math.abs(rozdil)) %> Kč. Nic se nepřepisuje, jen upozorňujeme.
         </div>
         <% } %>
 
         <div style="margin-top:14px;font-size:12px;color:var(--text-muted);line-height:1.5;">
           Do hrubého zisku firmy jde <strong>náklad firmy</strong>.
-          Do osobního zůstatku naopak <strong>uhrazeno</strong> — to, co reálně odešlo z účtu.
+          Do osobního zůstatku naopak <strong>uhrazeno</strong> – to, co reálně odešlo z účtu.
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-// Náklady firmy — co do nich patří a co ne.
+// Náklady firmy – co do nich patří a co ne.
 //
 // Testuje se proti databázi z .env; všechna vytvořená data se na konci mažou.
 //   TEST_BASE_URL=… node --test test/finance.test.js
@@ -73,7 +73,7 @@ describe('náklady firmy', () => {
 
   test('do zisku jde náklad firmy, ne to, co odešlo z účtu', async () => {
     // Mzdový list má uhrazeno 700 (400+200+100), ale zaměstnavatele stál 900.
-    // Účetní náklad je těch 900 — a právě to je rozdíl, kvůli kterému se
+    // Účetní náklad je těch 900 – a právě to je rozdíl, kvůli kterému se
     // osobní zůstatek a hrubý zisk nesmí počítat ze stejného čísla.
     const n = await naklady(sql, OD, DO);
     assert.equal(n.mzdy, 900);

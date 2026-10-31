@@ -12,10 +12,10 @@ import { prazskeDatum } from '../prazsky-cas.js';
  * symbol sedí na víc dokladů: vydaná faktura e-shopu 20260042, zálohovka
  * ZF-20260042 i B2B faktura ve starém tvaru FV-2026-0042 mají všechny VS
  * 20260042. Dřív se vzal kterýkoli z nich (LIMIT 1 bez pořadí) a platba
- * skončila u cizího dokladu — ten, kdo zaplatil, pak dostal upomínku.
+ * skončila u cizího dokladu – ten, kdo zaplatil, pak dostal upomínku.
  *
  * Páruje se proto jen jednoznačná shoda. Víc kandidátů znamená, že platba
- * zůstane nespárovaná a rozhodne obsluha v přehledu banky — ani shoda částky
+ * zůstane nespárovaná a rozhodne obsluha v přehledu banky – ani shoda částky
  * nerozhoduje: dvě objednávky na stejnou částku jsou u e-shopu běžné a chybné
  * spárování je dražší než ruční. Jediný kandidát se páruje jako dřív, i když
  * částka nesedí (doplatek, zaokrouhlení).
@@ -26,7 +26,7 @@ export function vyberDokladKPlatbe(kandidati) {
 
 /**
  * Ručně spárovaný doklad je zaplacený ke dni pohybu na účtu, ne ke dni, kdy
- * ho obsluha spárovala — u zálohovky z něj vystavená faktura bere DUZP
+ * ho obsluha spárovala – u zálohovky z něj vystavená faktura bere DUZP
  * a hlídání lhůty den, od kterého lhůta běží. Stejně jako automatické
  * párování ve webhooku. Pražský dnešek jen jako pojistka pro případ, že by
  * pohyb mezitím zmizel (sloupec `transaction_date` je NOT NULL).
@@ -220,24 +220,24 @@ export default async function accountingRoutes(fastify) {
       //
       // Dvě větve, protože doklady nemají jednotný symbol: běžná faktura se
       // platí pod svým číslem, ale zálohová faktura k objednávce e-shopu pod
-      // číslem objednávky — to je jediné číslo, které zákazník zná dřív, než
+      // číslem objednávky – to je jediné číslo, které zákazník zná dřív, než
       // mu doklad dorazí. Číslo objednávky v čísle zálohovky není, takže samo
       // hledání v `number` by tyhle platby nechalo nespárované. Viz
       // paymentVs() v src/series-format.js.
       //
       // Jen příchozí platby: odchozí platba dodavateli nese VS jeho faktury
-      // a ten se snadno trefí do čísla naší (20260042) — zálohovka by se
+      // a ten se snadno trefí do čísla naší (20260042) – zálohovka by se
       // „zaplatila“ a objednávka odešla do skladu bez peněz.
       //
       // Faktury k dobírce se podle čísla nepárují. Zákazník platí dopravci
       // a Zásilkovna posílá peníze souhrnně pod vlastním symbolem; shoda VS
       // s číslem dobírkové faktury je vždycky náhoda. Dřív byly tyhle faktury
       // od vystavení „Zaplacena“ a do hledání nespadaly. Stornované doklady
-      // taky ne — platba k nim nepatří a jen by dělaly z jednoznačné shody
+      // taky ne – platba k nim nepatří a jen by dělaly z jednoznačné shody
       // nejednoznačnou.
       //
       // Víc kandidátů = žádné párování, viz vyberDokladKPlatbe(). Druhá větev
-      // (číslo objednávky) se zkouší jen tehdy, když první nenašla nic —
+      // (číslo objednávky) se zkouší jen tehdy, když první nenašla nic –
       // nejednoznačná první větev nechá platbu obsluze.
       let matchedInvoiceId = null;
       if (vs && type === 'credit') {
@@ -402,7 +402,7 @@ export default async function accountingRoutes(fastify) {
 
     // Měsíc
     const [mIssued]   = await sql`SELECT COALESCE(SUM(total_amount),0)::numeric AS v FROM accounting_invoices WHERE type='issued'   AND issue_date BETWEEN ${mStart} AND ${mEnd}`;
-    // Náklady už nejsou jen přijaté faktury — viz src/finance.js
+    // Náklady už nejsou jen přijaté faktury – viz src/finance.js
     const mNaklady = await naklady(sql, mStart, mEnd);
     const [mVatOut]   = await sql`SELECT COALESCE(SUM(vat_amount),0)::numeric   AS v FROM accounting_invoices WHERE type='issued'   AND issue_date BETWEEN ${mStart} AND ${mEnd}`;
     const [mVatIn]    = await sql`SELECT COALESCE(SUM(vat_amount),0)::numeric   AS v FROM accounting_invoices WHERE type='received' AND issue_date BETWEEN ${mStart} AND ${mEnd}`;
@@ -419,7 +419,7 @@ export default async function accountingRoutes(fastify) {
     const pendingIssued   = await sql`SELECT COUNT(*)::int AS n, COALESCE(SUM(total_amount),0)::numeric AS v FROM accounting_invoices WHERE type='issued'   AND status='Nezaplacena'`;
     const pendingReceived = await sql`SELECT COUNT(*)::int AS n, COALESCE(SUM(total_amount),0)::numeric AS v FROM accounting_invoices WHERE type='received' AND status='Nezaplacena'`;
 
-    // Graf — měsíce roku
+    // Graf – měsíce roku
     const monthlyChart = await sql`
       SELECT
         EXTRACT(MONTH FROM issue_date)::int AS m,

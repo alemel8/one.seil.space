@@ -1,17 +1,17 @@
 <%
   // Datové záložky osobního účtu. Oddělený soubor, aby member-detail.ejs
-  // nenarostl do nečitelna — obsah je řízený stejným ?tab= jako zbytek.
+  // nenarostl do nečitelna – obsah je řízený stejným ?tab= jako zbytek.
   const kc  = n => Number(n || 0).toLocaleString('cs-CZ', { maximumFractionDigits: 0 });
   const kc2 = n => Number(n || 0).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const den = d => d ? new Date(d).toLocaleDateString('cs-CZ') : '—';
-  const mesic = d => d ? new Date(d).toLocaleDateString('cs-CZ', { month: 'long', year: 'numeric' }) : '—';
+  const den = d => d ? new Date(d).toLocaleDateString('cs-CZ') : '–';
+  const mesic = d => d ? new Date(d).toLocaleDateString('cs-CZ', { month: 'long', year: 'numeric' }) : '–';
 %>
 
 <% if (currentTab === 'ekonomika') { %>
   <%
     // Zůstatek má smysl jen tam, kde je proti výplatám i příjmová strana.
     // U dohodáře žádné fakturační podklady nejsou a rozdíl by byl jen
-    // záporným součtem výplat — číslo, které nic neříká. Místo něj se
+    // záporným součtem výplat – číslo, které nic neříká. Místo něj se
     // ukazuje odpracovaný čas a odměna, ze které mzda vznikla.
     const maPodklady = ucet.prijmyPocet > 0;
   %>
@@ -56,7 +56,7 @@
 
   <% if (ucet.nakladFirmy && Math.abs(ucet.nakladFirmy - ucet.vydaje) > 0.5) { %>
   <div style="background:var(--info-bg);color:var(--info);border-radius:8px;padding:10px 16px;margin-bottom:24px;font-size:13px;">
-    Do nákladů firmy a hrubého zisku vstupuje jiné číslo — <strong><%= kc2(ucet.nakladFirmy) %> Kč</strong>
+    Do nákladů firmy a hrubého zisku vstupuje jiné číslo – <strong><%= kc2(ucet.nakladFirmy) %> Kč</strong>
     (hrubá mzda plus odvody zaměstnavatele). Zůstatek nahoře počítá s tím, co reálně odešlo z účtu.
   </div>
   <% } %>
@@ -109,8 +109,8 @@
           <% podklady.forEach(function (w) { %>
           <tr>
             <td style="color:var(--text-muted);font-size:13px;white-space:nowrap;"><%= den(w.report_date) %></td>
-            <td style="font-family:var(--font-mono);font-size:12.5px;"><%= (w.kody || []).join(', ') || '—' %></td>
-            <td style="font-size:13px;"><%= (w.lokality || []).join(', ') || '—' %></td>
+            <td style="font-family:var(--font-mono);font-size:12.5px;"><%= (w.kody || []).join(', ') || '–' %></td>
+            <td style="font-size:13px;"><%= (w.lokality || []).join(', ') || '–' %></td>
             <td style="font-size:12.5px;white-space:nowrap;">
               <a href="/lide/podklady/<%= w.id %>" style="color:var(--primary);text-decoration:none;">
                 <% if (w.priloh_rozpis) { %>📄 <%= w.priloh_rozpis %><% } %>
@@ -124,7 +124,7 @@
                 <span style="color:var(--text-muted);"> · <%= w.faktura_stav %></span>
               <% } else if (w.invoice_number) { %>
                 <span title="Faktura tohoto čísla není v systému" style="color:var(--warning);"><%= w.invoice_number %> ⚠</span>
-              <% } else { %>—<% } %>
+              <% } else { %>–<% } %>
             </td>
             <td><span class="badge" style="background:var(--gray-100);color:var(--text-secondary);"><%= (PODKLAD_STAVY.find(s => s[0] === w.status) || [,w.status])[1] %></span></td>
             <td style="text-align:right;font-family:var(--font-mono);font-size:13px;"><%= kc2(w.total_amount) %></td>
@@ -156,10 +156,10 @@
             <td style="white-space:nowrap;">
               <%= mesic(r.period) %>
               <% if (r.mesic_ma_vic_listu) { %>
-                <span class="badge" style="background:var(--warning-bg);color:#92400e;margin-left:6px;" title="Za tento měsíc jsou evidované dva listy — přeneseno z Airtable, zkontrolujte">2×</span>
+                <span class="badge" style="background:var(--warning-bg);color:#92400e;margin-left:6px;" title="Za tento měsíc jsou evidované dva listy – přeneseno z Airtable, zkontrolujte">2×</span>
               <% } %>
             </td>
-            <td style="text-align:right;font-size:13px;"><%= r.hours ? Number(r.hours).toLocaleString('cs-CZ') + ' h' : '—' %></td>
+            <td style="text-align:right;font-size:13px;"><%= r.hours ? Number(r.hours).toLocaleString('cs-CZ') + ' h' : '–' %></td>
             <td style="text-align:right;font-family:var(--font-mono);font-size:13px;"><%= kc(r.gross) %></td>
             <td style="text-align:right;font-family:var(--font-mono);font-size:13px;"><%= kc(r.net) %></td>
             <td style="text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:600;"><%= kc(r.paid_total) %></td>
@@ -202,8 +202,8 @@
                 <%= (PLATBA_DRUHY.find(d => d[0] === pl.kind) || [,pl.kind])[1] %>
               </span>
             </td>
-            <td><%= pl.description || '—' %></td>
-            <td style="font-size:12.5px;color:var(--text-muted);"><%= pl.priloh ? '📎 ' + pl.priloh : '—' %></td>
+            <td><%= pl.description || '–' %></td>
+            <td style="font-size:12.5px;color:var(--text-muted);"><%= pl.priloh ? '📎 ' + pl.priloh : '–' %></td>
             <td style="text-align:right;font-family:var(--font-mono);font-size:13px;"><%= kc2(pl.amount) %></td>
             <td>
               <form method="post" action="/lide/tym/<%= member.public_id %>/platby/<%= pl.id %>/smazat" onsubmit="return confirm('Opravdu smazat tuto platbu?');">
@@ -216,7 +216,7 @@
       </table>
     </div>
     <div class="card-body" style="border-top:1px solid var(--border);font-size:12.5px;color:var(--text-muted);">
-      Záloha není náklad firmy — je to pohledávka za zaměstnancem. Do nákladů a hrubého zisku
+      Záloha není náklad firmy – je to pohledávka za zaměstnancem. Do nákladů a hrubého zisku
       vstupují jen proplacené náklady, proto na druhu záleží.
     </div>
   </div>
@@ -280,8 +280,8 @@
           <tr>
             <td style="color:var(--text-muted);font-size:13px;white-space:nowrap;"><%= den(d.document_date) %></td>
             <td><%= d.title %></td>
-            <td style="font-size:13px;color:var(--text-muted);"><%= d.category || '—' %></td>
-            <td style="font-size:12.5px;color:var(--text-muted);"><%= d.priloh ? '📎 ' + d.priloh : '—' %></td>
+            <td style="font-size:13px;color:var(--text-muted);"><%= d.category || '–' %></td>
+            <td style="font-size:12.5px;color:var(--text-muted);"><%= d.priloh ? '📎 ' + d.priloh : '–' %></td>
             <td>
               <% if (d.signed) { %><span class="badge" style="background:var(--success-bg);color:#15803D;">Vyřízeno</span>
               <% } else { %><span class="badge" style="background:var(--gray-100);color:var(--text-secondary);">Nevyřízeno</span><% } %>
@@ -382,9 +382,9 @@
             <td><%= mesic(m.obdobi) %><% if (m.bezi) { %> <span class="badge" style="background:var(--danger-bg);color:var(--danger);">běží <%= m.bezi %></span><% } %></td>
             <td style="text-align:right;color:var(--text-muted);"><%= m.zaznamu %></td>
             <td style="text-align:right;font-variant-numeric:tabular-nums;"><%= hod(m.namereno) %></td>
-            <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text-muted);"><%= má ? hod(m.ve_mzde) : '—' %></td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text-muted);"><%= má ? hod(m.ve_mzde) : '–' %></td>
             <td style="text-align:right;font-variant-numeric:tabular-nums;color:<%= r == null ? 'var(--text-muted)' : Math.abs(r) < 0.01 ? 'var(--success)' : 'var(--danger)' %>;">
-              <%= r == null ? '—' : (r > 0 ? '+' : '') + hod(r) %>
+              <%= r == null ? '–' : (r > 0 ? '+' : '') + hod(r) %>
             </td>
           </tr>
           <% }); %>

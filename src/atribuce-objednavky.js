@@ -1,5 +1,5 @@
 /**
- * Atribuce objednávky a nákupní cena položky z těla POST …/orders — sdílené
+ * Atribuce objednávky a nákupní cena položky z těla POST …/orders – sdílené
  * oběma order API (/api/toneracek/orders i /api/eshop/orders), čisté funkce
  * bez databáze, ať se pravidla dají otestovat.
  *
@@ -8,8 +8,8 @@
  * Jakmile běží kampaně, je každá objednávka bez zdroje ztracené číslo:
  * sekce Marketing počítá PNO a ROAS po kanálech z objednávek v One SEIL,
  * ne z GA4 (tam chybí nákupy bez souhlasu). E-shop proto s objednávkou
- * posílá `marketing` — první a poslední dotyk (UTM, click-id, referrer,
- * vstupní stránka, čas) a kategorii souhlasu z lišty — a u položek
+ * posílá `marketing` – první a poslední dotyk (UTM, click-id, referrer,
+ * vstupní stránka, čas) a kategorii souhlasu z lišty – a u položek
  * `costPrice` pro marži. Obojí je VOLITELNÉ: starší e-shop nic z toho
  * neposílá a objednávka musí projít stejně jako dřív, jen s výchozími
  * hodnotami ('' a NULL). Kontrakt je v docs/api.md, sloupce v migraci 042.
@@ -49,7 +49,7 @@ const SOUHLASY_PRO_CLICK_ID = ['marketing', 'all'];
 /** Dotyk dál od „teď“ než tohle je rozbitý čas, ne atribuce. */
 const ROK_MS = 366 * 24 * 60 * 60 * 1000;
 
-/** Nákupní cena musí být v [0, 1e6) — nad milion za kus je překlep. */
+/** Nákupní cena musí být v [0, 1e6) – nad milion za kus je překlep. */
 const MAX_NAKUPNI_CENA = 1e6;
 
 /** Pole dotyku z těla → základ názvu sloupce (přípona _first/_last se přidá). */
@@ -59,7 +59,7 @@ const POLE_DOTYKU = [
   ['clickId', 'click_id'], ['referrerHost', 'referrer_host'], ['landingPage', 'landing_page'],
 ];
 
-/** 21 sloupců shop_orders, které atribuceZTela() vrací — přesně v tomhle pořadí. */
+/** 21 sloupců shop_orders, které atribuceZTela() vrací – přesně v tomhle pořadí. */
 export const SLOUPCE_ATRIBUCE = [
   ...['first', 'last'].flatMap((p) => [...POLE_DOTYKU.map(([, sloupec]) => `${sloupec}_${p}`), `touch_${p}_at`]),
   'attribution_consent',
@@ -75,7 +75,7 @@ export const SLOUPCE_ATRIBUCE = [
  */
 const ZAKAZANE_ZNAKY = /[\x00-\x1F\x7F-\x9F<>"'`\\\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
 
-/** Tvar času dotyku: ISO 8601 s pásmem (Z nebo ±HH:MM) — bez pásma by ho new Date vzal v pásmu serveru. */
+/** Tvar času dotyku: ISO 8601 s pásmem (Z nebo ±HH:MM) – bez pásma by ho new Date vzal v pásmu serveru. */
 const TVAR_CASU = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/;
 
 /** Text bez zakázaných znaků, oříznutý (po znacích, ne po bajtech) na `max`. Jiný typ než text → ''. */
@@ -86,7 +86,7 @@ function text(hodnota, max) {
   return Array.from(cisty).slice(0, max).join('').trim();
 }
 
-/** Jen hostitel malými písmeny bez schématu, cesty, portu a www. — jinak ''. */
+/** Jen hostitel malými písmeny bez schématu, cesty, portu a www. – jinak ''. */
 function hostitel(hodnota) {
   let h = text(hodnota, 2048).toLowerCase();
   h = h.replace(/^[a-z][a-z0-9+.-]*:\/\//, '');
@@ -96,7 +96,7 @@ function hostitel(hodnota) {
   return text(h, DELKY.host);
 }
 
-/** Jen cesta vstupní stránky (začíná lomítkem, bez dotazu a kotvy) — jinak ''. */
+/** Jen cesta vstupní stránky (začíná lomítkem, bez dotazu a kotvy) – jinak ''. */
 function cesta(hodnota) {
   let c = text(hodnota, 4096);
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(c)) {
@@ -138,7 +138,7 @@ function dotyk(hodnota, pripona, souhlas, ted) {
     [`landing_page_${pripona}`]:  cesta(d.landingPage),
   };
   // Dotyk, který něco nese, má čas vždy: poslaný, a když je nepoužitelný,
-  // čas přijetí objednávky. NULL zůstává jen dotyku bez jediného údaje —
+  // čas přijetí objednávky. NULL zůstává jen dotyku bez jediného údaje –
   // touch_*_at IS NULL = e-shop dotyk neposlal (migrace 042, KPI).
   const neseUdaj = Object.values(texty).some((v) => v !== '');
   return { ...texty, [`touch_${pripona}_at`]: okamzik(d.at, ted) ?? (neseUdaj ? ted : null) };
@@ -148,7 +148,7 @@ function dotyk(hodnota, pripona, souhlas, ted) {
  * Sloupce atribuce pro INSERT do shop_orders z `marketing` v těle objednávky.
  * Vrací vždy všech 21 sloupců (SLOUPCE_ATRIBUCE): bez `marketing` nebo
  * s nesmyslem v něm samé '' a NULL, tedy totéž, co výchozí hodnoty
- * sloupců — starší e-shop projde beze změny chování.
+ * sloupců – starší e-shop projde beze změny chování.
  *
  * `ted` je čas přijetí objednávky: hranice ±1 rok pro čas dotyku a jeho
  * náhrada, když je nepoužitelný; v testech pevný.

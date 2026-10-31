@@ -3,8 +3,8 @@
  * https://api.heureka.group/v1/reports/conversions).
  *
  * Heureka je jediná placená platforma, kde report nese náklady s DPH
- * i bez DPH — do `cost` jde bez DPH jako všude, `cost_with_vat` navíc.
- * Imprese Heureka neposílá (CTR v přehledu zůstává „—“). Report funguje
+ * i bez DPH – do `cost` jde bez DPH jako všude, `cost_with_vat` navíc.
+ * Imprese Heureka neposílá (CTR v přehledu zůstává „–“). Report funguje
  * jen s novým dvouskriptovým měřením konverzí (`ocm/sdk.js?version=2`),
  * které e-shop má.
  *
@@ -15,11 +15,11 @@
  * odpovědi se čtou hlavičky `RateLimit-*`, pokud přijdou: při vyčerpaném
  * limitu se počká `reset` sekund (nejvýš minutu), 429 s `Retry-After`
  * opakuje `sOpakovanim()`. Den bez dat vrací prázdné `conversions` a nedá
- * žádný řádek — to není chyba. Oficiální dokumentace
+ * žádný řádek – to není chyba. Oficiální dokumentace
  * (https://api.heureka.group/v1/reports/docs, 29. 10. 2026) zná jen
  * hlavičku `x-heureka-api-key`, stavy 403 (klíč), 422 (datum) a 500
  * a limity ani `RateLimit-*` neuvádí; `x-hg-portal: heureka.cz` se posílá
- * navíc podle brány Heureka Group — neznámou hlavičku server ignoruje.
+ * navíc podle brány Heureka Group – neznámou hlavičku server ignoruje.
  *
  * ## Řádky
  *
@@ -48,7 +48,7 @@ export const platform = 'heureka';
 export const popis = 'Heureka';
 export const zapisujePlatformy = ['heureka'];
 export const potrebujeTajemstvi = true;
-export const popisExternalId = 'ID obchodu na Heurece (nepovinné, jen pro přehled — obchod určuje klíč API)';
+export const popisExternalId = 'ID obchodu na Heurece (nepovinné, jen pro přehled – obchod určuje klíč API)';
 export const popisParentId = '';
 export const maxDniNaDotaz = 31;
 export const prepisDni = 30;
@@ -63,13 +63,13 @@ const spi = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 function klicApi(tajemstvi) {
   const klic = String(tajemstvi ?? '').trim();
-  if (!klic) throw new AdapterError('Heureka: chybí klíč API — uložte ho v nastavení e-shopu (administrace Heureky → Statistiky a reporty → API měření konverzí)', { permanent: true, platform });
+  if (!klic) throw new AdapterError('Heureka: chybí klíč API – uložte ho v nastavení e-shopu (administrace Heureky → Statistiky a reporty → API měření konverzí)', { permanent: true, platform });
   return klic;
 }
 
 function napoveda(chyba) {
   if (chyba.status === 401 || chyba.status === 403) {
-    return 'Heureka klíč odmítla — zkontrolujte klíč z administrace (Statistiky a reporty → API měření konverzí) a že je typu Měření konverzí';
+    return 'Heureka klíč odmítla – zkontrolujte klíč z administrace (Statistiky a reporty → API měření konverzí) a že je typu Měření konverzí';
   }
   if (chyba.status === 429) return 'limit API vyčerpán, běh se zopakuje podle Retry-After';
   return '';
@@ -140,7 +140,7 @@ async function stahniDen(den, klic, { fetchImpl, log, sleep }) {
   }), { platform, nazev: `Heureka konverze ${den}`, log, sleep, napoveda });
 }
 
-/** Normalizované řádky Heureky za okno [from, to] — jedno volání na den. */
+/** Normalizované řádky Heureky za okno [from, to] – jedno volání na den. */
 export async function fetchDaily({ from, to, tajemstvi, log, fetchImpl, sleep = spi } = {}) {
   const klic = klicApi(tajemstvi);
   const dny = vyctiDny(from, to);

@@ -1,6 +1,6 @@
 <%
   // ── Sloupec „Sklad" ───────────────────────────────────────────
-  // Tooltip je nativní title= — jiný v aplikaci není a zavádět ho kvůli jedné
+  // Tooltip je nativní title= – jiný v aplikaci není a zavádět ho kvůli jedné
   // ikoně by znamenalo vlastní CSS i JS.
   const fmtCas = (v) => new Date(v).toLocaleString('cs-CZ');
   const atr = (s) => String(s).replace(/"/g, '&quot;');
@@ -21,20 +21,20 @@
       return 'Nešlo do skladu: ' + (duvody[o.warehouse_hold_reason] || o.warehouse_hold_reason);
     }
     if (o.sklad_stav === 'ceka') {
-      return 'Zaplaceno — půjde do skladu v příští ranní expedici'
+      return 'Zaplaceno – půjde do skladu v příští ranní expedici'
            + (o.tracking_number ? '' : ' (zásilka se podá při expedici)');
     }
-    if (o.status === 'Stornována') return 'Stornováno — do skladu nejde';
+    if (o.status === 'Stornována') return 'Stornováno – do skladu nejde';
     if (new Date(o.created_at) < new Date(shop.warehouse_dispatch_since)) {
-      return 'Přijata před spuštěním expedice — sklad ji dostal ručně';
+      return 'Přijata před spuštěním expedice – sklad ji dostal ručně';
     }
-    return 'Nezaplaceno — do skladu nejde';
+    return 'Nezaplaceno – do skladu nejde';
   }
 
   function skladIkona(o) {
     const popis = atr(skladPopis(o));
     if (!SKLAD_SVG[o.sklad_stav]) {
-      return '<span title="' + popis + '" style="color:var(--text-muted);">—</span>';
+      return '<span title="' + popis + '" style="color:var(--text-muted);">–</span>';
     }
     return '<span title="' + popis + '" aria-label="' + popis + '"'
          + ' style="display:inline-flex;color:' + SKLAD_BARVA[o.sklad_stav] + ';">'
@@ -73,7 +73,7 @@
     <button type="submit" class="btn btn-outline" <%= shop.warehouse_email ? '' : 'disabled' %>
             title="<%= shop.warehouse_email
               ? 'Ranní expedice jede ve všední dny v 06:00 na ' + shop.warehouse_email
-              : 'E-shop nemá vyplněnou adresu skladu — doplňte ji v Nastavení → Eshopy' %>">
+              : 'E-shop nemá vyplněnou adresu skladu – doplňte ji v Nastavení → Eshopy' %>">
       Odeslat expedici teď
     </button>
   </form>
@@ -93,7 +93,7 @@
 </nav>
 <% } %>
 
-<!-- Výsledek expedice (čte se z databáze, ne z URL — přežije i pád uprostřed běhu) -->
+<!-- Výsledek expedice (čte se z databáze, ne z URL – přežije i pád uprostřed běhu) -->
 <% if (expedice) { %>
   <% if (expedice.status === 'odeslano') { %>
     <div style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
@@ -104,7 +104,7 @@
     </div>
   <% } else if (expedice.status === 'prazdno') { %>
     <div style="background:var(--gray-100);color:var(--text-secondary);padding:12px 16px;border-radius:8px;margin-bottom:20px;">
-      Nic k odeslání — všechny zaplacené objednávky už sklad má.
+      Nic k odeslání – všechny zaplacené objednávky už sklad má.
       <% if (expedice.held_count > 0) { %>
         <a href="<%= odkaz('sklad=blokovano') %>"><%= expedice.held_count %> objednávek se nepodařilo připravit</a>.
       <% } %>
@@ -112,7 +112,7 @@
   <% } else if (expedice.status === 'chyba') { %>
     <div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
       Expedici se nepodařilo odeslat: <%= expedice.error %><br>
-      Nic nebylo označeno jako odeslané — zkuste to znovu, nebo počkejte na ranní běh.
+      Nic nebylo označeno jako odeslané – zkuste to znovu, nebo počkejte na ranní běh.
     </div>
   <% } else { %>
     <div style="background:#dbeafe;color:#1e40af;padding:12px 16px;border-radius:8px;margin-bottom:20px;">Expedice právě běží…</div>
@@ -121,11 +121,11 @@
 
 <% if (error === 'expedice-bezi') { %>
 <div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
-  Expedice právě běží — spustil ji automat nebo jiný uživatel. Zkuste to za chvíli.
+  Expedice právě běží – spustil ji automat nebo jiný uživatel. Zkuste to za chvíli.
 </div>
 <% } else if (error === 'sklad-email') { %>
 <div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
-  E-shop nemá vyplněnou adresu skladu — doplňte ji v <a href="/nastaveni/eshopy/<%= shop.id %>?tab=expedice" style="color:#b91c1c;font-weight:600;">Nastavení → Eshopy</a>.
+  E-shop nemá vyplněnou adresu skladu – doplňte ji v <a href="/nastaveni/eshopy/<%= shop.id %>?tab=expedice" style="color:#b91c1c;font-weight:600;">Nastavení → Eshopy</a>.
 </div>
 <% } %>
 

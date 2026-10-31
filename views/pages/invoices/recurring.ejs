@@ -19,7 +19,7 @@
         <% templates.forEach(t => { %>
         <tr>
           <td style="font-weight:600;"><%= t.name %></td>
-          <td style="font-size:13px;"><%= t.client_name || '—' %></td>
+          <td style="font-size:13px;"><%= t.client_name || '–' %></td>
           <td>
             <%
               const freqLabel = t.frequency === 'monthly' ? 'Měsíčně' :
@@ -28,7 +28,7 @@
             <span style="font-size:13px;"><%= freqLabel %>, <%= t.day_of_month %>. den</span>
           </td>
           <td style="font-size:13px;color:<%= t.active ? 'var(--text-primary)' : 'var(--text-muted)' %>;">
-            <%= t.next_run_date ? new Date(t.next_run_date).toLocaleDateString('cs-CZ') : '—' %>
+            <%= t.next_run_date ? new Date(t.next_run_date).toLocaleDateString('cs-CZ') : '–' %>
           </td>
           <td style="font-size:13px;color:var(--text-muted);">
             <%= t.last_run_date ? new Date(t.last_run_date).toLocaleDateString('cs-CZ') : 'Nikdy' %>
@@ -60,7 +60,7 @@
         <% }) %>
       <% } else { %>
         <tr><td colspan="7" style="text-align:center;padding:48px;color:var(--text-muted);">
-          Žádné šablony — vytvořte první kliknutím na „+ Nová šablona"
+          Žádné šablony – vytvořte první kliknutím na „+ Nová šablona"
         </td></tr>
       <% } %>
     </tbody>
@@ -108,7 +108,7 @@
         <div class="form-group">
           <label class="form-label">Číselná řada</label>
           <select name="series_id" class="form-select">
-            <option value="">— bez řady —</option>
+            <option value="">– bez řady –</option>
             <% series.forEach(s => { %><option value="<%= s.id %>"><%= s.name %></option><% }) %>
           </select>
         </div>

@@ -93,7 +93,7 @@
             </td>
             <td style="font-size:12px;color:var(--text-muted);"><%= f.folderPath %></td>
             <td style="font-size:12px;color:var(--text-muted);">
-              <%= f.modifiedTime ? new Date(f.modifiedTime).toLocaleDateString('cs-CZ') : '—' %>
+              <%= f.modifiedTime ? new Date(f.modifiedTime).toLocaleDateString('cs-CZ') : '–' %>
             </td>
             <td>
               <% if (f.invoiceId) { %>
@@ -133,7 +133,7 @@ document.getElementById('gdForm').addEventListener('submit', () => {
   if (btn) { btn.disabled = true; btn.textContent = 'Spouštím import…'; }
 });
 
-// Import běží na pozadí — dotahujeme stav, dokud neskončí, pak obnovíme seznam
+// Import běží na pozadí – dotahujeme stav, dokud neskončí, pak obnovíme seznam
 (function gdJobPoll() {
   const box = document.getElementById('gdJob');
   if (!box) return;
@@ -147,7 +147,7 @@ document.getElementById('gdForm').addEventListener('submit', () => {
     bar.style.width = pct + '%';
     text.innerHTML = j.running
       ? '⏳ Zpracovávám <strong>' + j.done + '</strong> z <strong>' + j.total + '</strong> dokladů…'
-      : '✓ Hotovo — naimportováno <strong>' + j.imported + '</strong>'
+      : '✓ Hotovo – naimportováno <strong>' + j.imported + '</strong>'
         + (j.skipped ? ', přeskočeno ' + j.skipped : '')
         + (j.failed  ? ', <strong>' + j.failed + '</strong> selhalo' : '') + '.';
     if (!j.running && j.failed) {

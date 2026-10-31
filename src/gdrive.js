@@ -1,7 +1,7 @@
 // Klient Google Drive API v3 přes service account (JWT).
 //
 // Nastavení:
-//   GOOGLE_SERVICE_ACCOUNT_JSON — obsah JSON klíče service accountu (celý JSON
+//   GOOGLE_SERVICE_ACCOUNT_JSON – obsah JSON klíče service accountu (celý JSON
 //   v jedné env proměnné). Složku na Disku je potřeba nasdílet e-mailu
 //   service accountu (client_email) s právem Čtenář.
 //
@@ -36,7 +36,7 @@ async function api(pathname, params = {}) {
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
-    if (res.status === 404) throw new Error('Složka nebo soubor na Google Disku nenalezen — je nasdílený service accountu?');
+    if (res.status === 404) throw new Error('Složka nebo soubor na Google Disku nenalezen – je nasdílený service accountu?');
     throw new Error(`Google Drive API ${res.status}: ${detail.slice(0, 300)}`);
   }
   return res.json();

@@ -1,7 +1,7 @@
 // Detail účtenky (views/pages/receipts/detail.ejs) vykreslený bez serveru a
 // databáze: režim úprav na jediném formuláři záznamu, každý sloupec, který
 // POST /ucetnictvi/uctenky/:id/upravit zapisuje, má ve formuláři pole, a
-// skript stránky (rdUhrada — zámek odpočtu DPH u reprezentace) visí na polích
+// skript stránky (rdUhrada – zámek odpočtu DPH u reprezentace) visí na polích
 // přes id, ne přes inline onchange. Druhá část jede proti běžícímu serveru
 // a lokální databázi (bez DATABASE_URL se přeskočí).
 //
@@ -67,7 +67,7 @@ test('hodnoty jako text: escapované, částky s měnou, datum, odpočet DPH; od
 test('skript stránky: pole mají id pro rdUhrada, žádný inline onchange, hinty a přepočet po reset', async () => {
   const html = await vykresli();
   for (const id of ['rdCategory', 'rdPayment', 'rdVatDeductible']) assert.ok(html.includes(`id="${id}"`), `${id} je v HTML`);
-  assert.ok(!html.includes('onchange="rdUhrada'), 'selecty nemají inline onchange — posluchače věší skript dole');
+  assert.ok(!html.includes('onchange="rdUhrada'), 'selecty nemají inline onchange – posluchače věší skript dole');
   assert.ok(html.includes('<small id="rdAgendaHint" class="form-hint jen-upravy"></small>'), 'hint agendy jen v úpravách');
   assert.ok(html.includes('<small id="rdVatHint" class="form-hint jen-upravy"></small>'), 'hint odpočtu jen v úpravách');
   assert.ok(html.includes("document.getElementById('formUctenka').addEventListener('reset'"), 'po Zrušit (form.reset) se zámek odpočtu přepočítá');
@@ -89,7 +89,7 @@ describe('proti serveru', { skip: PRESKOCIT }, () => {
   let sql;
   const ctx = {};
 
-  // Detail posílá urlencoded formulář s Accept: text/html — pozadavky().post ho nenastavuje.
+  // Detail posílá urlencoded formulář s Accept: text/html – pozadavky().post ho nenastavuje.
   const postHtml = (cesta, telo, hlavicky = {}) => fetch(BASE + cesta, {
     method: 'POST', redirect: 'manual',
     headers: { cookie: ctx.cookie, accept: 'text/html', 'content-type': 'application/x-www-form-urlencoded', ...hlavicky },

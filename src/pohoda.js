@@ -8,7 +8,7 @@
 //   účtenka placená kartou/převodem → Ostatní závazky   (commitment)
 //
 // Poslední řádek je požadavek účetní: co je hrazené kartou z účtu, nemá
-// v pokladně co dělat — patří mezi ostatní závazky a spáruje se s výpisem.
+// v pokladně co dělat – patří mezi ostatní závazky a spáruje se s výpisem.
 
 import { invoiceVs } from './series-format.js';
 import { jenDatum } from './prazsky-cas.js';
@@ -22,7 +22,7 @@ function esc(str) {
 }
 
 // Řetězec YYYY-MM-DD se bere rovnou a Date z DATE sloupce v UTC, ať se datum
-// neposune přes časovou zónu — týž převod, jaký tiskne PDF.
+// neposune přes časovou zónu – týž převod, jaký tiskne PDF.
 function fmtDate(d) {
   return jenDatum(d) ?? '';
 }
@@ -32,7 +32,7 @@ function fmtNum(n) {
   return v === '-0.00' ? '0.00' : v; // POHODA zápornou nulu neakceptuje
 }
 
-// POHODA validuje délky řetězců podle XSD — delší hodnota shodí celý import
+// POHODA validuje délky řetězců podle XSD – delší hodnota shodí celý import
 function trunc(str, max) {
   const s = String(str || '');
   return s.length > max ? s.slice(0, max) : s;
@@ -64,7 +64,7 @@ export function isCashReceipt(r) {
   return !r?.payment_method || r.payment_method === 'Hotovost';
 }
 
-// Do jaké agendy POHODY účtenka spadne — používá i seznam účtenek,
+// Do jaké agendy POHODY účtenka spadne – používá i seznam účtenek,
 // aby uživatel dopředu věděl, co mu z exportu vypadne.
 export function receiptAgenda(r) {
   return isCashReceipt(r) ? 'Pokladna' : 'Ostatní závazky';
@@ -92,7 +92,7 @@ function countryIds(name) {
 // který POHODA z přijaté faktury vystaví). Podřetězec čísla dokladu zůstává.
 //
 // Z čísel jako „B2“ nebo „A/7“ by vypadl jednociferný symbol, na který by se
-// v bance nabalila cizí platba — pod čtyři číslice radši VS neposíláme vůbec.
+// v bance nabalila cizí platba – pod čtyři číslice radši VS neposíláme vůbec.
 function symVar(number) {
   const vs = invoiceVs(number);
   return vs.length >= 4 ? vs : '';
@@ -105,7 +105,7 @@ function predkontaceOf(doc, deductible, opts, fallbackKey) {
   return doc.account_debit || opts[fallbackKey] || '';
 }
 
-// Členění DPH — výchozí „inland“ posílat nemusíme, zajímá nás jen doklad
+// Členění DPH – výchozí „inland“ posílat nemusíme, zajímá nás jen doklad
 // bez nároku na odpočet, který se do přiznání nemá dostat vůbec.
 function classificationVatXml(ns, deductible, indent) {
   if (deductible) return '';
@@ -116,7 +116,7 @@ function classificationVatXml(ns, deductible, indent) {
 
 // ── Faktura (vydaná i přijatá) → POHODA XML ──────────────────
 //
-// Pozn.: u přijaté faktury evidenční číslo nepředáváme — přiděluje ho POHODA
+// Pozn.: u přijaté faktury evidenční číslo nepředáváme – přiděluje ho POHODA
 // z vlastní číselné řady. Dodavatelovo číslo jde do originalDocument („Doklad")
 // a jeho číslice do variabilního symbolu, ať jde platba spárovat. Kdybychom ho
 // poslali jako numberRequested, import padá na duplicitě s cizí řadou.
@@ -128,7 +128,7 @@ function invoiceToXml(inv, items = [], idx = 1, opts = {}) {
   const issueDate   = fmtDate(inv.issue_date);
   // DUZP vydané faktury k objednávce je den přijetí úplaty, ne den vystavení
   // (`taxable_date`, migrace 039). Do přiznání musí jít tentýž den, který
-  // tiskne PDF — karta zaplacená 30. 9. s fakturou vystavenou 7. 10. patří
+  // tiskne PDF – karta zaplacená 30. 9. s fakturou vystavenou 7. 10. patří
   // do zářijového DPH. Starší a ruční doklady ho nemají a zůstávají u data
   // vystavení.
   const taxDate     = (issued && fmtDate(inv.taxable_date)) || issueDate;
@@ -157,7 +157,7 @@ function invoiceToXml(inv, items = [], idx = 1, opts = {}) {
   const fallbackText = inv.notes
     || (issued ? 'Plnění dle faktury' : `Přijatá faktura ${inv.number || ''}`.trim());
 
-  // Bez nároku na odpočet jde na doklad jediná položka v plné výši včetně DPH —
+  // Bez nároku na odpočet jde na doklad jediná položka v plné výši včetně DPH –
   // rozpad podle sazeb by POHODU navedl na odpočet, který u repre nelze.
   const itemsXml = !deductible
     ? itemXml(fallbackText, 1, total, total, 0, 'none')
@@ -173,7 +173,7 @@ function invoiceToXml(inv, items = [], idx = 1, opts = {}) {
       : itemXml(fallbackText, 1, inv.amount, inv.amount, inv.vat_amount,
           vatRate(inv.amount, inv.vat_amount));
 
-  // Rozpad částek podle sazeb DPH — POHODA jinak dopočte DPH sama a součty nesedí
+  // Rozpad částek podle sazeb DPH – POHODA jinak dopočte DPH sama a součty nesedí
   const s = { none: 0, low: 0, lowVAT: 0, high: 0, highVAT: 0 };
   if (!deductible) {
     s.none = total;
@@ -249,7 +249,7 @@ function invoiceToXml(inv, items = [], idx = 1, opts = {}) {
   </dat:dataPackItem>`;
 }
 
-// Částky účtenky — celková částka může nést zaokrouhlení paragonu
+// Částky účtenky – celková částka může nést zaokrouhlení paragonu
 function receiptAmounts(r) {
   const base  = Number(r.amount || 0);
   const vat   = Number(r.vat_amount || 0);
@@ -262,12 +262,12 @@ function receiptAmounts(r) {
 
 // Text dokladu: dodavatel + poznámka
 function receiptText(r) {
-  return trunc([r.vendor || null, r.notes || null].filter(Boolean).join(' — ') || 'Účtenka', 240);
+  return trunc([r.vendor || null, r.notes || null].filter(Boolean).join(' – ') || 'Účtenka', 240);
 }
 
 // Účtenka placená hotově → agenda Pokladna, výdajový pokladní doklad
 //
-// Pozn.: evidenční číslo dokladu (vou:number) se nepředává — POHODA jej přidělí
+// Pozn.: evidenční číslo dokladu (vou:number) se nepředává – POHODA jej přidělí
 // z číselné řady zvolené pokladny, jinak import padá na neshodě s řadou.
 // Číslo účtenky jde do originalDocument = „číslo paragonu“.
 function receiptToXml(r, idx = 1, opts = {}) {
@@ -390,13 +390,13 @@ function receiptToCommitmentXml(r, idx = 1, opts = {}) {
   </dat:dataPackItem>`;
 }
 
-// opts.ico                 — IČO účetní jednotky, do které se import provede
+// opts.ico                 – IČO účetní jednotky, do které se import provede
 //                            (povinné, jinak POHODA balíček odmítne)
-// opts.cashAccount         — název pokladny v POHODĚ (účtenky placené hotově)
-// opts.predkontace         — předkontace účtenek v pokladně
-// opts.predkontaceReceived — předkontace přijatých faktur a ostatních závazků
-// opts.predkontaceIssued   — předkontace vydaných faktur
-// opts.predkontaceNoVat    — předkontace dokladů bez nároku na odpočet (repre)
+// opts.cashAccount         – název pokladny v POHODĚ (účtenky placené hotově)
+// opts.predkontace         – předkontace účtenek v pokladně
+// opts.predkontaceReceived – předkontace přijatých faktur a ostatních závazků
+// opts.predkontaceIssued   – předkontace vydaných faktur
+// opts.predkontaceNoVat    – předkontace dokladů bez nároku na odpočet (repre)
 export function buildPohodaXml(items, opts = {}) {
   const header = `<?xml version="1.0" encoding="UTF-8"?>
 <dat:dataPack

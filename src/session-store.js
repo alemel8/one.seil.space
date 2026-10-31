@@ -1,6 +1,6 @@
 // PostgreSQL session store pro @fastify/session
 // Používá existující tabulku `session` (vytvořena v migration 001)
-// a stávající postgres.js klienta — žádná extra závislost.
+// a stávající postgres.js klienta – žádná extra závislost.
 
 export class PgSessionStore {
   constructor(sql) {

@@ -7,7 +7,7 @@
 // zrušilo registraci; totéž i úklid jediné objednávky samotného Toneráčku.
 //
 // Objednávka patří kontaktu i bez vazby crm_contact_id (zápis do CRM při
-// objednávce selhal) — podle e-mailu. A kontakt s vazbou na jiný e-shop se
+// objednávce selhal) – podle e-mailu. A kontakt s vazbou na jiný e-shop se
 // nemaže: kaskáda by smazala i tu vazbu.
 //
 // Potřebuje databázi, běžící server ne. Skript se spouští jako samostatný
@@ -31,7 +31,7 @@ function lokalniDatabaze() {
   const url = process.env.DATABASE_URL || '';
   const host = url ? new URL(url).hostname : '';
   if (!['127.0.0.1', 'localhost'].includes(host) && process.env.TEST_DB_ALLOW_REMOTE !== '1') {
-    throw new Error(`Test spouští ostrý úklid — DATABASE_URL musí mířit na 127.0.0.1/localhost, ne na "${host}"`);
+    throw new Error(`Test spouští ostrý úklid – DATABASE_URL musí mířit na 127.0.0.1/localhost, ne na "${host}"`);
   }
   return url;
 }
@@ -106,7 +106,7 @@ before(async () => {
   const tSObj = await kontakt('t-s-obj', { registrovany: true, source: 'Toneráček.cz' });
   await objednavka('t-s-obj', T, tSObj, `81${n}`);
 
-  // Zákazníci jen Dílny — po úklidu Dílny zmizí.
+  // Zákazníci jen Dílny – po úklidu Dílny zmizí.
   const dHost = await kontakt('d-host', { source: d.name });
   await ucetEshopu(dHost, D, false);
   await objednavka('d-host', D, dHost, `71${n}`);

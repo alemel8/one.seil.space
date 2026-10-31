@@ -1,11 +1,11 @@
 // Servírování příloh dokladů. Adresář data/media je od migrace na neveřejnou
 // cestu dosažitelný jen přihlášeným, přesto tu zůstávají dvě různé routy:
 //
-//   /doklady/soubor/:filename  — účtenky a faktury, stačí být přihlášen
-//   /doklady/priloha/:id       — personální přílohy, kontroluje se vlastník
+//   /doklady/soubor/:filename  – účtenky a faktury, stačí být přihlášen
+//   /doklady/priloha/:id       – personální přílohy, kontroluje se vlastník
 //
 // Rozdíl je záměrný. U účtenky je jedno, který z týmu si ji otevře. U výplatní
-// pásky ne — a název souboru o vlastníkovi nic neříká, takže se musí rozhodovat
+// pásky ne – a název souboru o vlastníkovi nic neříká, takže se musí rozhodovat
 // podle záznamu v databázi.
 
 import path from 'node:path';
@@ -13,7 +13,7 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { MEDIA_DIR, mimeForFile } from '../attachments.js';
 import { getDb } from '../db.js';
 
-// Co prohlížeč umí bezpečně ukázat. Zbytek se nabídne ke stažení — XML ani
+// Co prohlížeč umí bezpečně ukázat. Zbytek se nabídne ke stažení – XML ani
 // ZIP nemá smysl otevírat inline a u HTML/SVG by to byl zbytečný risk.
 const NAHLED_MIME = new Set([
   'application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/gif',
@@ -21,7 +21,7 @@ const NAHLED_MIME = new Set([
 
 /**
  * Content-Disposition podle RFC 6266. Do hlavičky nesmí projít nic mimo
- * ASCII — „Výplatní_páska_Trojek_Lukáš.pdf" jinak shodí odpověď na
+ * ASCII – „Výplatní_páska_Trojek_Lukáš.pdf" jinak shodí odpověď na
  * ERR_INVALID_CHAR. Proto ASCII náhrada pro staré klienty a filename*
  * s původním názvem pro ty ostatní.
  */
@@ -58,7 +58,7 @@ export default async function documentsRoutes(fastify) {
     });
   });
 
-  // Personální přílohy — mzdy, osobní dokumenty, fakturační podklady.
+  // Personální přílohy – mzdy, osobní dokumenty, fakturační podklady.
   // Kdo není správce, dostane jen svoje.
   fastify.get('/doklady/priloha/:id', async (request, reply) => {
     if (!request.user) return reply.code(401).send('Unauthorized');
@@ -91,7 +91,7 @@ export default async function documentsRoutes(fastify) {
 
     return posliSoubor(reply, {
       full,
-      // Ke stažení pod původním názvem — „Výplatnice_mezd 06.pdf" řekne víc
+      // Ke stažení pod původním názvem – „Výplatnice_mezd 06.pdf" řekne víc
       // než „paska_1755640000000.pdf".
       name: row.original_name || name,
       mime: row.mime || mimeForFile(name),

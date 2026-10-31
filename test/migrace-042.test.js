@@ -33,7 +33,7 @@ const OBSAH = readFileSync(SOUBOR, 'utf8');
 
 /**
  * Příkazy bez komentářů, každý na jednom řádku. Na rozdíl od testu 040
- * nedělí uvnitř bloku DO $$ … $$ — ten má středníky uvnitř a je to jeden
+ * nedělí uvnitř bloku DO $$ … $$ – ten má středníky uvnitř a je to jeden
  * příkaz.
  */
 function prikazy() {

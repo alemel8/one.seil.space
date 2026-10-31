@@ -59,7 +59,7 @@ export function calcVatSummary(items) {
 // ── Položky z formuláře ──────────────────────────────────────
 //
 // Formulář posílá řádky jako paralelní pole (item_name, item_qty, …).
-// Jeden řádek přijde jako string, víc řádků jako pole — proto toArray.
+// Jeden řádek přijde jako string, víc řádků jako pole – proto toArray.
 
 function toArray(v) {
   if (v == null) return [];
@@ -159,7 +159,7 @@ async function storeInvoicePdf(invoice, pdfBuffer, log) {
     await writeFile(path.join(PDFS_DIR, name), pdfBuffer);
     return name;
   } catch (err) {
-    // Archivace je vedlejší — když selže, e-mail už stejně odešel
+    // Archivace je vedlejší – když selže, e-mail už stejně odešel
     log?.warn({ err }, 'PDF faktury se nepodařilo uložit');
     return null;
   }
@@ -168,7 +168,7 @@ async function storeInvoicePdf(invoice, pdfBuffer, log) {
 // ── Odeslání upomínky ────────────────────────────────────────
 //
 // Sdílené oběma cestami: tlačítkem na detailu faktury i seznamem upomínek.
-// Upomínku vždy spouští člověk — worker ji jen připraví do stavu 'ceka'.
+// Upomínku vždy spouští člověk – worker ji jen připraví do stavu 'ceka'.
 
 export function daysOverdue(dueDate, today = new Date()) {
   if (!dueDate) return 0;
@@ -185,13 +185,13 @@ export async function deliverReminder(sql, { invoice, email, level, reminderId =
   const [ord] = await sql`SELECT order_number, payment_method FROM shop_orders WHERE id = ${invoice.order_id} LIMIT 1`;
 
   // Dobírku zákazník platí dopravci při převzetí a peníze posílá Zásilkovna.
-  // „Po splatnosti“ u ní znamená nespárovanou dobírku, ne dluh zákazníka —
+  // „Po splatnosti“ u ní znamená nespárovanou dobírku, ne dluh zákazníka –
   // upomínka s číslem účtu by chtěla zaplatit podruhé, u nevyzvednuté zásilky
   // za zboží, které nedostal. Fronta je nezakládá (prepareReminders()) a detail
   // faktury tlačítko nenabízí; tohle je pojistka pro obě cesty k odeslání.
   // Do historie odeslání se zapíše, ať je vidět, proč nic neodešlo.
   if (ord?.payment_method === 'Dobírka') {
-    const error = 'Faktura k dobírce se neupomíná — zákazník platí dopravci při převzetí, peníze posílá Zásilkovna.';
+    const error = 'Faktura k dobírce se neupomíná – zákazník platí dopravci při převzetí, peníze posílá Zásilkovna.';
     await logInvoiceEmail(sql, { invoiceId: invoice.id, kind: 'upominka', level, email, subject,
                                  status: 'chyba', error, userId });
     return { ok: false, error };
@@ -199,7 +199,7 @@ export async function deliverReminder(sql, { invoice, email, level, reminderId =
 
   try {
     const items = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${invoice.id} ORDER BY id`;
-    // Přiložená faktura je tentýž doklad, jaký zákazník dostal — s formou
+    // Přiložená faktura je tentýž doklad, jaký zákazník dostal – s formou
     // platby z objednávky, ne s výchozím převodem.
     const pdfBuffer = await renderInvoicePdf({ invoice, items, issuer, vatSummary: calcVatSummary(items),
       brand: await brandForShopId(invoice.shop_id), vs: paymentVs(invoice, ord?.order_number),
@@ -278,7 +278,7 @@ async function insertOrderInvoiceItems(sql, orderItems, invoiceId, vatRate, tota
   }
 
   // Hlavička dokladu se počítá z `order.total_price`, tedy včetně dopravy,
-  // dobírky a slevy pro přihlášené — jenže položky přicházejí ze
+  // dobírky a slevy pro přihlášené – jenže položky přicházejí ze
   // `shop_order_items`, kam pokladna nic z toho nedává. Doklad si pak
   // protiřečil na téže stránce: rekapitulace DPH se počítá z položek, blok
   // "Základ daně celkem" z hlavičky, a zákazník měl formální důvod poslat jen
@@ -293,7 +293,7 @@ async function insertOrderInvoiceItems(sql, orderItems, invoiceId, vatRate, tota
       // Základ a DPH dorovnávacího řádku se počítají jako **zbytek do
       // hlavičky**, ne samostatně z `diff`. Kdyby se počítaly zvlášť, sečetly
       // by se položky na haléř jinak než hlavička a doklad by si pořád
-      // protiřečil — jen o setinu místo o osmdesát pět korun. Takhle vyjde
+      // protiřečil – jen o setinu místo o osmdesát pět korun. Takhle vyjde
       // rekapitulace DPH přesně na blok "Základ daně celkem".
       const headerBase = +(Number(totalAmount) / (1 + vatRate / 100)).toFixed(2);
       const headerVat  = +(Number(totalAmount) - headerBase).toFixed(2);
@@ -319,7 +319,7 @@ async function insertOrderInvoiceItems(sql, orderItems, invoiceId, vatRate, tota
 
 export async function generateProformaForOrder(sql, order, { now = new Date() } = {}) {
   const orderItems = await sql`SELECT * FROM shop_order_items WHERE order_id = ${order.id}`;
-  // Pražský den jako u vydané faktury — objednávka po půlnoci by jinak
+  // Pražský den jako u vydané faktury – objednávka po půlnoci by jinak
   // dostala zálohovku se včerejším datem a o den kratší splatností.
   const issueDate = prazskeDatum(now);
 
@@ -370,12 +370,12 @@ export async function generateProformaForOrder(sql, order, { now = new Date() } 
 // a DUZP určuje uhradaFakturyObjednavky() v src/danovy-doklad.js: karta
 // a převod jsou zaplacené ke dni přijetí úplaty (u převodu je podmínkou
 // zaplacená zálohová faktura `fromProforma`, ze které se faktura vystaví
-// s nulovým doplatkem), dobírka zůstává nezaplacená — platí se až při
+// s nulovým doplatkem), dobírka zůstává nezaplacená – platí se až při
 // převzetí zásilky.
 
 export async function generateInvoiceForOrder(sql, order, { fromProforma, now = new Date() } = {}) {
   const orderItems = await sql`SELECT * FROM shop_order_items WHERE order_id = ${order.id}`;
-  // Pražský den, ne UTC — po půlnoci by jinak faktura nesla včerejší datum
+  // Pražský den, ne UTC – po půlnoci by jinak faktura nesla včerejší datum
   // a DUZP dobírky by se rozešel s datem vystavení. Z téhož okamžiku bere rok
   // i číslo z řady.
   const issueDate = prazskeDatum(now);
@@ -421,7 +421,7 @@ export async function generateInvoiceForOrder(sql, order, { fromProforma, now = 
 
   await insertOrderInvoiceItems(sql, orderItems, invoiceId, vatRate, totalWithVat);
 
-  // Objednávka nese číslo skutečného dokladu — e-shop ho ukazuje zákazníkovi
+  // Objednávka nese číslo skutečného dokladu – e-shop ho ukazuje zákazníkovi
   // a obsluha podle něj hledá. Dřív tu od založení objednávky leželo vymyšlené
   // „FV-<rok>-<objednávka>“, ke kterému žádná faktura neexistovala.
   await sql`UPDATE shop_orders SET invoice_number = ${number}, modified_at = NOW() WHERE id = ${order.id}`;
@@ -486,7 +486,7 @@ export default async function invoicesRoutes(fastify) {
       formError: FORM_ERRORS[request.query.formError] || '',
       // Předvyplněný den úhrady ve změně stavu: už zapsaný, jinak pražský dnešek
       vychoziDenUhrady: denUhradyZFormulare(invoice.paid_date),
-      // Data dokladu stejně jako v PDF — nezávisle na časovém pásmu procesu
+      // Data dokladu stejně jako v PDF – nezávisle na časovém pásmu procesu
       ceskeDatum,
     }, { layout: 'layouts/base.ejs' });
   });
@@ -565,7 +565,7 @@ export default async function invoicesRoutes(fastify) {
     return reply.redirect(`/ucetnictvi/vydane-faktury/${id}`);
   });
 
-  // Vystavit zálohovou fakturu z objednávky — ruční záchranná akce
+  // Vystavit zálohovou fakturu z objednávky – ruční záchranná akce
   // (normálně se vystavuje automaticky při vzniku objednávky, viz toneracek.js)
   fastify.post('/ucetnictvi/objednavky/:id/generovat-zalohovou-fakturu', async (request, reply) => {
     if (!request.user) return reply.redirect('/prihlasit');
@@ -580,7 +580,7 @@ export default async function invoicesRoutes(fastify) {
     return reply.redirect(`/ucetnictvi/objednavky/${order.id}`);
   });
 
-  // Vystavit běžnou fakturu z objednávky — ruční záchranná akce
+  // Vystavit běžnou fakturu z objednávky – ruční záchranná akce
   // (normálně se vystavuje automaticky při přepnutí stavu na Vyřízena, viz toneracek.js)
   fastify.post('/ucetnictvi/objednavky/:id/generovat-fakturu', async (request, reply) => {
     if (!request.user) return reply.redirect('/prihlasit');
@@ -669,7 +669,7 @@ export default async function invoicesRoutes(fastify) {
     const { status, paid_date } = request.body || {};
     if (!STATUSES_ISSUED.includes(status)) return reply.code(400).send('Neplatný stav');
     const updates = [sql`status = ${status}`, sql`modified_at = NOW()`];
-    // Den úhrady je den, kdy peníze přišly, ne den kliknutí — viz
+    // Den úhrady je den, kdy peníze přišly, ne den kliknutí – viz
     // denUhradyZFormulare(). Bez data z formuláře pražský dnešek, ne
     // CURRENT_DATE databáze.
     if (status === 'Zaplacena') {
@@ -687,7 +687,7 @@ export default async function invoicesRoutes(fastify) {
     const items = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${invoice.id} ORDER BY id`;
     const issuer = await getIssuer(sql);
     const vatSummary = calcVatSummary(items);
-    // Způsob platby nese objednávka, ne faktura — bez něj by dobírka v náhledu
+    // Způsob platby nese objednávka, ne faktura – bez něj by dobírka v náhledu
     // vypadala jako doklad k převodu.
     const [ord] = await sql`SELECT payment_method FROM shop_orders WHERE id = ${invoice.order_id} LIMIT 1`;
 
@@ -753,7 +753,7 @@ export default async function invoicesRoutes(fastify) {
     }
   });
 
-  // Odeslat upomínku k faktuře — vždy ruční akce
+  // Odeslat upomínku k faktuře – vždy ruční akce
   fastify.post('/ucetnictvi/vydane-faktury/:id/upominka', async (request, reply) => {
     const [invoice] = await sql`
       SELECT * FROM accounting_invoices WHERE id = ${request.params.id} AND type IN ('issued', 'proforma')
@@ -927,7 +927,7 @@ export default async function invoicesRoutes(fastify) {
   });
 
   fastify.post('/ucetnictvi/prijate-faktury/vytvorit', async (request, reply) => {
-    // Parsuj multipart (přichází z fetch FormData — i bez souboru)
+    // Parsuj multipart (přichází z fetch FormData – i bez souboru)
     const fields = {};
     let attachmentPath = null;
 
@@ -1013,9 +1013,9 @@ export default async function invoicesRoutes(fastify) {
     let error = null;
 
     if (!isConfigured()) {
-      error = 'Není nastavena proměnná GOOGLE_SERVICE_ACCOUNT_JSON — doplňte ji v Coolify env vars.';
+      error = 'Není nastavena proměnná GOOGLE_SERVICE_ACCOUNT_JSON – doplňte ji v Coolify env vars.';
     } else if (!company.gdrive_root_folder_id) {
-      error = 'Není vyplněné ID složky na Google Disku — doplňte jej v Nastavení → Firma.';
+      error = 'Není vyplněné ID složky na Google Disku – doplňte jej v Nastavení → Firma.';
     } else {
       try {
         files = await findReceivedInvoices({
@@ -1053,7 +1053,7 @@ export default async function invoicesRoutes(fastify) {
     }, { layout: 'layouts/base.ejs' });
   });
 
-  // Import běží na pozadí — vytěžení jedné faktury trvá ~10 s, celá dávka by
+  // Import běží na pozadí – vytěžení jedné faktury trvá ~10 s, celá dávka by
   // přesáhla timeout proxy. Stav drží jedna proměnná, souběžný běh nedovolíme.
   let gdriveJob = null;
 
@@ -1066,7 +1066,7 @@ export default async function invoicesRoutes(fastify) {
 
     gdriveJob = { running: true, total: fileIds.length, done: 0, imported: 0, skipped: 0, failed: 0, errors: [] };
 
-    // Záměrně bez await — odpovíme hned a klient si stav dotáhne přes /status
+    // Záměrně bez await – odpovíme hned a klient si stav dotáhne přes /status
     (async () => {
       for (const fileId of fileIds) {
         try {
@@ -1123,7 +1123,7 @@ export default async function invoicesRoutes(fastify) {
   // ── Export CSV ────────────────────────────────────────────────
   fastify.get('/ucetnictvi/vydane-faktury/export.csv', async (request, reply) => {
     const invoices = await sql`SELECT * FROM accounting_invoices WHERE type='issued' ORDER BY issue_date DESC`;
-    // DUZP až na konci — kdo si export načítá podle pořadí sloupců, o nic nepřijde.
+    // DUZP až na konci – kdo si export načítá podle pořadí sloupců, o nic nepřijde.
     // Bez taxable_date je to datum vystavení, stejně jako v PDF a v POHODĚ.
     const header = 'Číslo;Klient;IČO;Vystavení;Splatnost;Zaplaceno;Základ;DPH;Celkem;Měna;Stav;DUZP';
     const rows = invoices.map(i => [
@@ -1171,7 +1171,7 @@ export default async function invoicesRoutes(fastify) {
 
   // ── POHODA XML export ─────────────────────────────────────────
   //
-  // Vydané i přijaté faktury jedou stejnou cestou — liší se jen typem dokladu,
+  // Vydané i přijaté faktury jedou stejnou cestou – liší se jen typem dokladu,
   // předkontací a jménem souboru. Storno doklady do účetnictví nepatří,
   // proto se do balíčku nedostanou ani při exportu „všeho“.
   async function exportPohodaInvoices(request, reply, { type, filename, note }) {
@@ -1183,15 +1183,15 @@ export default async function invoicesRoutes(fastify) {
     const plain = txt => reply.code(400).type('text/plain; charset=utf-8').send(txt);
 
     if (invoices.length === 0) {
-      return plain('Není co exportovat — vybrané faktury jsou ve stavu Storno nebo žádné neexistují.');
+      return plain('Není co exportovat – vybrané faktury jsou ve stavu Storno nebo žádné neexistují.');
     }
 
     const issuer = await getIssuer(sql);
     if (!issuer.ico) {
-      return plain('Chybí IČO firmy — POHODA bez něj nepozná účetní jednotku. Doplňte jej v Nastavení → Firma.');
+      return plain('Chybí IČO firmy – POHODA bez něj nepozná účetní jednotku. Doplňte jej v Nastavení → Firma.');
     }
 
-    // Položky jedním dotazem — přijaté faktury je většinou nemají a i tak
+    // Položky jedním dotazem – přijaté faktury je většinou nemají a i tak
     // se do balíčku vejdou jako jeden souhrnný řádek.
     const invoiceIds = invoices.map(i => i.id);
     const items = await sql`
@@ -1235,7 +1235,7 @@ export default async function invoicesRoutes(fastify) {
       note: 'Přijaté faktury z one.seil.space',
     }));
 
-  // ── Opakující se faktury — šablony ───────────────────────────
+  // ── Opakující se faktury – šablony ───────────────────────────
 
   fastify.get('/ucetnictvi/sablony-faktur', async (request, reply) => {
     const templates = await sql`

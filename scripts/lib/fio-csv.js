@@ -85,7 +85,7 @@ const REQUIRED = ['ID operace', 'Datum', 'Objem', 'Měna', 'VS'];
 
 /**
  * Načte výpis ze souboru. Vyhodí chybu, pokud soubor nemá očekávanou
- * strukturu — u účetních dat je lepší spadnout než naimportovat nesmysl.
+ * strukturu – u účetních dat je lepší spadnout než naimportovat nesmysl.
  */
 export function parseStatement(file) {
   let text = fs.readFileSync(file, 'utf8');

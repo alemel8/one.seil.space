@@ -1,5 +1,5 @@
 // Režim úprav v opravdovém prohlížeči (Puppeteer): chování public/js/upravy.js,
-// které render testy nevidí — hlídání rozepsaných změn, Esc vedle modalu
+// které render testy nevidí – hlídání rozepsaných změn, Esc vedle modalu
 // a hledání, návrat po chybě, pole přes form= a zámek odpočtu DPH po Zrušit.
 // Běží proti serveru a lokální databázi, fixtury si založí a uklidí.
 //

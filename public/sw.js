@@ -1,4 +1,4 @@
-// Service Worker — one.seil.space
+// Service Worker – one.seil.space
 // Základní install prompt, bez offline cache (systém vyžaduje připojení k DB)
 
 // Verzi je nutné zvednout při každé změně CSS/JS ve /static/. Do v2 se
@@ -8,9 +8,10 @@
 // v4: téma před vykreslením, sbalitelné menu, záložky detailů, hledání
 // v5: režim úprav na detailech (components.css, upravy.js)
 //     (layout.css, components.css, variables.css, app.js).
-const CACHE_NAME = 'one-seil-v5';
+// v6: pomlčky v textech skriptů a komentářích stylů (U+2014 → U+2013)
+const CACHE_NAME = 'one-seil-v6';
 
-// Při instalaci — předcache jen statické assets
+// Při instalaci – předcache jen statické assets
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache =>
@@ -20,7 +21,7 @@ self.addEventListener('install', event => {
   self.skipWaiting();
 });
 
-// Aktivace — smaž staré cache
+// Aktivace – smaž staré cache
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
@@ -57,12 +58,12 @@ self.addEventListener('notificationclick', event => {
   );
 });
 
-// Fetch — network first, fallback na cache pro statiku
+// Fetch – network first, fallback na cache pro statiku
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
   // Statické soubory: network first, cache jen jako záloha pro offline.
-  // Cache-first tu byla chyba — po nasazení nových stylů PWA dál servírovala
+  // Cache-first tu byla chyba – po nasazení nových stylů PWA dál servírovala
   // ty staré a rozbité rozložení šlo spravit jen přeinstalováním aplikace.
   if (url.pathname.startsWith('/static/')) {
     event.respondWith(

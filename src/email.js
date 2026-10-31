@@ -14,10 +14,10 @@ function getResend() {
 }
 
 // Odesílatel firemní pošty (faktury mimo e-shop, upomínky B2B). Zákaznické
-// e-maily e-shopů si odesílatele berou ze značky v `shops` — viz src/brand.js.
+// e-maily e-shopů si odesílatele berou ze značky v `shops` – viz src/brand.js.
 //
-//   MAIL_FROM      — plná adresa včetně jména, např. "SEIL s.r.o. <noreply@seil.cz>"
-//   MAIL_REPLY_TO  — kam mají chodit odpovědi; z noreply schránky se neodpovídá
+//   MAIL_FROM      – plná adresa včetně jména, např. "SEIL s.r.o. <noreply@seil.cz>"
+//   MAIL_REPLY_TO  – kam mají chodit odpovědi; z noreply schránky se neodpovídá
 const MAIL_FROM     = process.env.MAIL_FROM || 'SEIL s.r.o. <noreply@seil.cz>';
 const MAIL_REPLY_TO = process.env.MAIL_REPLY_TO || '';
 
@@ -33,7 +33,7 @@ export function companyReplyToFor(issuer) {
 
 /**
  * Adresy v doménách vyhrazených RFC 2606 nemohou existovat. Odeslat na ně jde
- * — Resend zprávu přijme a teprve pak nahlásí hard bounce, který jde na účet
+ * – Resend zprávu přijme a teprve pak nahlásí hard bounce, který jde na účet
  * reputace naší domény. Osm takových bounces z `noreply@seil.cz` nadělal test
  * `test/invoices.test.js`, který posílá na `test@example.invalid` proti
  * běžícímu serveru s ostrým klíčem v prostředí. Levnější je odmítnout je tady
@@ -49,7 +49,7 @@ function isUndeliverable(to) {
 /**
  * Jediné hrdlo, kterým prochází veškeré odesílání.
  *
- * `audience: 'customer'` znamená zákazníka e-shopu — takový e-mail nesmí
+ * `audience: 'customer'` znamená zákazníka e-shopu – takový e-mail nesmí
  * odejít z domény SEILu ani omylem. Dřív se to stávalo tiše: volající
  * nepředal odesílatele, `senderFor()` spadl na firemní adresu a zákazník
  * Toneráčku dostal fakturu od SEIL s.r.o. Druhá pojistka je CHECK constraint
@@ -58,13 +58,13 @@ function isUndeliverable(to) {
 /**
  * Skrytá kopie. Dva nezávislé zdroje, schválně se nemíchají:
  *
- * `explicit` je adresa od volajícího a patří ke konkrétnímu e-mailu —
+ * `explicit` je adresa od volajícího a patří ke konkrétnímu e-mailu –
  * kopie ranní expedice visí na e-shopu (`shops.warehouse_email_bcc`), ne
  * v prostředí, aby šla zapnout jednomu e-shopu a druhému ne.
  *
  * `EMAIL_BCC` je **dočasná** kopie zákaznické pošty pro dobu ladění; prázdná
  * nebo chybějící hodnota znamená vypnuto, takže se to dá zhasnout bez zásahu
- * do kódu. Po odladění tuhle proměnnou smaž — chodí do ní kopie veškeré
+ * do kódu. Po odladění tuhle proměnnou smaž – chodí do ní kopie veškeré
  * zákaznické pošty včetně faktur, tedy osobní údaje. Firemních e-mailů
  * (`audience: 'company'`) se netýká; ty si o kopii musí říct samy.
  */
@@ -102,7 +102,7 @@ async function deliver({ audience, from, replyTo, to, bcc: skrytaKopie, subject,
   });
 
   if (error) throw new Error(`Resend error: ${error.message}`);
-  // Ranní expedice si id zprávy ukládá k běhu — bez něj nejde dohledat,
+  // Ranní expedice si id zprávy ukládá k běhu – bez něj nejde dohledat,
   // co přesně skladu odešlo.
   return data?.id ?? '';
 }
@@ -134,7 +134,7 @@ export function packetaTrackingUrl(trackingNumber) {
  * Generuje ji e-shop na `/api/qr`, ne Seil: QR musí být veřejně dostupný
  * obrázek, protože Gmail zahazuje `data:` v `<img>`, a e-shop takový endpoint
  * už má a drží doménu, ze které e-mail odchází. Pro e-shop bez `/api/qr` se
- * prostě nevykreslí — proto jen doplněk pod platebními údaji, nikdy jediná
+ * prostě nevykreslí – proto jen doplněk pod platebními údaji, nikdy jediná
  * cesta k zaplacení.
  */
 export function qrPaymentImageUrl(brand, { iban, amount, variableSymbol, message }) {
@@ -152,13 +152,13 @@ export function qrPaymentImageUrl(brand, { iban, amount, variableSymbol, message
 // ── Storno objednávky ────────────────────────────────────────
 //
 // Jediný stavový e-mail, který zbyl. „Objednávka se zpracovává" duplikovala
-// děkovný e-mail z e-shopu — a přicházela z druhé identity o pár minut
+// děkovný e-mail z e-shopu – a přicházela z druhé identity o pár minut
 // později, což byla ta nejviditelnější stopa „dva systémy". Větev
 // „Vyřízena" byla nedosažitelná (volající ten stav přeskakuje), protože
 // vyřízení hlásí sendInvoiceEmail spolu s fakturou a sledovacím číslem.
 
 export async function sendOrderCancelledEmail({ brand, issuer, orderNumber, email, customerName }) {
-  // Bez značky raději neposlat než poslat od cizí firmy — viz deliver().
+  // Bez značky raději neposlat než poslat od cizí firmy – viz deliver().
   if (!brand) throw new Error(`Objednávka #${orderNumber} nemá značku e-shopu, storno e-mail se neodesílá`);
 
   const subject = `Objednávka #${orderNumber} byla stornována`;
@@ -192,7 +192,7 @@ export async function sendOrderCancelledEmail({ brand, issuer, orderNumber, emai
 // ── Upomínky ─────────────────────────────────────────────────
 //
 // Tři stupně důrazu. Upomínku vždy odesílá člověk z UI, worker ji jen
-// připraví — proto tu není žádná automatika, jen text podle stupně.
+// připraví – proto tu není žádná automatika, jen text podle stupně.
 //
 // U zákazníka e-shopu se používá mírnější dvoustupňová varianta: předžalobní
 // výzva spotřebiteli kvůli neuhrazené zálohové faktuře za toner je právně
@@ -316,7 +316,7 @@ ${body}
 /**
  * Řádky souhrnu faktury v e-mailu. Řídí se týmž rozhodnutím o úhradě jako
  * přiložené PDF (`uhrada` ze zobrazeniUhrady()), ať si e-mail a doklad
- * neodporují: zaplacená faktura není „k úhradě“ a dobírka nemá splatnost —
+ * neodporují: zaplacená faktura není „k úhradě“ a dobírka nemá splatnost –
  * platí se při převzetí zásilky.
  */
 export function invoiceSummaryRows(invoice, uhrada) {
@@ -337,12 +337,12 @@ export function invoiceSummaryRows(invoice, uhrada) {
 }
 
 /**
- * Faktura zákazníkovi. `brand` je povinný u dokladů e-shopu (invoice.shop_id) —
+ * Faktura zákazníkovi. `brand` je povinný u dokladů e-shopu (invoice.shop_id) –
  * bez něj by e-mail o vyřízené objednávce odešel jako SEIL s.r.o., což byl
  * největší identitní únik v celém toku. Faktury mimo e-shop (ruční, opakované)
  * `brand` nemají a firemní identita je u nich správně.
  *
- * `paid` a `paymentMethod` znamenají totéž co u renderInvoicePdf() — souhrn
+ * `paid` a `paymentMethod` znamenají totéž co u renderInvoicePdf() – souhrn
  * v e-mailu musí o úhradě říkat totéž co PDF v příloze.
  */
 export async function sendInvoiceEmail({
@@ -418,7 +418,7 @@ ${body}
 /**
  * Interní e-mail skladu se seznamem zásilek a štítky v příloze.
  *
- * Firemní identita je tu správně — sklad je náš dodavatel, ne zákazník
+ * Firemní identita je tu správně – sklad je náš dodavatel, ne zákazník
  * e-shopu, takže `emailShell()` se značkou e-shopu se nepoužije a obálka je
  * stejná jako u firemních faktur.
  *
@@ -427,7 +427,7 @@ ${body}
 export async function sendExpediceEmail({ issuer, to, bcc, subject, html, attachments }) {
   const velikost = (attachments ?? []).reduce((soucet, a) => soucet + (a.content?.length ?? 0), 0);
   if (velikost > 35 * 1024 * 1024) {
-    throw new Error('Štítky v příloze přesahují limit Resendu (40 MB) — rozděl expedici na víc běhů');
+    throw new Error('Štítky v příloze přesahují limit Resendu (40 MB) – rozděl expedici na víc běhů');
   }
 
   const document = `<!DOCTYPE html>

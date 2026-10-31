@@ -1,14 +1,14 @@
 -- ============================================================
--- one.seil.space — Dílna Vlněnka: číslo faktury a vzhled e-mailů
+-- one.seil.space – Dílna Vlněnka: číslo faktury a vzhled e-mailů
 -- ============================================================
 -- Obojí si vyžádal majitel 29. 10. 2026. Mění se jen řádky Dílny (slug
--- 'dilnavlnenka'); Toneráčku se nedotkne žádný příkaz — každý UPDATE je
+-- 'dilnavlnenka'); Toneráčku se nedotkne žádný příkaz – každý UPDATE je
 -- vázaný na slug Dílny a zamyká jen její řádky, ne celou tabulku.
 --
 -- Faktury Dílny ve tvaru YYMMNNN (např. 2610001). Řadu jde v administraci
 -- jen založit a (de)aktivovat, ne upravit; nová řada a deaktivace staré by
 -- v seznamu nechala mrtvý řádek, což majitel nechce. Proto UPDATE na místě.
--- Pořadí se nenuluje — YYMM je předpona, NNN běží dál přes měsíce
+-- Pořadí se nenuluje – YYMM je předpona, NNN běží dál přes měsíce
 -- (2610001, 2611002, …), stejně jako YYYYNNNN u Toneráčku přes roky.
 -- Srazit se s Toneráčkem nemůže: jeho čísla začínají rokem (2026…), Dílny
 -- dvojčíslím roku a měsícem (2601–2612…). Hlídá to i UNIQUE (type, number)

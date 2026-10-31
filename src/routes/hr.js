@@ -1,4 +1,4 @@
-// Personální agenda napříč lidmi — přehledy, které nejsou vázané na jeden
+// Personální agenda napříč lidmi – přehledy, které nejsou vázané na jeden
 // profil. Osobní pohled zůstává na detailu člena (src/routes/people.js).
 //
 // Celá sekce je admin-only jako zbytek Lidé & Kultura; mzdy a ekonomika mají

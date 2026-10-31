@@ -1,30 +1,30 @@
 /**
- * Adaptér Google Search Console (Search Analytics API v3) — organické
+ * Adaptér Google Search Console (Search Analytics API v3) – organické
  * vyhledávání Googlu.
  *
  * Jediný zdroj, který říká, na co se web ukazuje a kolik to přináší bez
  * placení: kliky, zobrazení a průměrná pozice po dnech, plus rozpad na
  * dotazy. Property je buď doménová (`sc-domain:toneracek.cz`) nebo URL
- * prefix (`https://toneracek.cz/`) — přesně tak, jak ji Search Console
+ * prefix (`https://toneracek.cz/`) – přesně tak, jak ji Search Console
  * vypisuje, jinak API vrátí 403, i když přístup je. Service account musí
  * být přidaný jako uživatel property (stačí omezený).
  *
  * ## Dva dotazy na okno
  *
- *  1. dimenze `date` (rowLimit 1000 — dní je nejvýš 31) → denní součet:
+ *  1. dimenze `date` (rowLimit 1000 – dní je nejvýš 31) → denní součet:
  *     clicks, impressions a `position_sum = position × impressions`, aby
  *     šla průměrná pozice za období spočítat správně váženě
  *     (position_sum / impressions, viz `organikaSearchConsole()` v ../kpi.js);
  *  2. dimenze `date` × `query` (rowLimit 25 000, stránkování `startRow`)
  *     → na každý den top 50 dotazů podle kliků (shoda: zobrazení), ostatní
- *     se neukládají — dlouhý ocas by byl tisíce řádků denně bez užitku.
+ *     se neukládají – dlouhý ocas by byl tisíce řádků denně bez užitku.
  *     Anonymizované dotazy Google vůbec neposílá, součty jsou proto vyšší
  *     než součet dotazů; to je vlastnost dat, ne chyba.
  *
  * ## Zpoždění dat
  *
  * Search Console má data 2–3 dny pozadu a `dataState` necháváme výchozí
- * (jen definitivní). Chybějící poslední dny nejsou chyba — sync je doplní
+ * (jen definitivní). Chybějící poslední dny nejsou chyba – sync je doplní
  * dalším během, okno 14 dnů se přepisuje celé. Den je v pásmu PT (Google
  * ho pro Search Console nemění), rozdíl proti pražskému dni se netřeba
  * řešit, data se nesrovnávají s objednávkami po dnech.
@@ -145,7 +145,7 @@ export async function overit({ source, log, googleJsonImpl } = {}) {
       return { ok: false, zprava: `Search Console: property ${site} není mezi weby service accountu.${seznam} Přidejte ${email} v Search Console → Nastavení → Uživatelé a oprávnění.` };
     }
     if (web.permissionLevel === 'siteUnverifiedUser') {
-      return { ok: false, zprava: `Search Console: property ${site} je neověřená (siteUnverifiedUser) — ověřte vlastnictví webu v Search Console` };
+      return { ok: false, zprava: `Search Console: property ${site} je neověřená (siteUnverifiedUser) – ověřte vlastnictví webu v Search Console` };
     }
     return { ok: true, zprava: `Property ${site}, oprávnění ${web.permissionLevel || 'neznámé'}` };
   } catch (err) {

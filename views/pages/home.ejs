@@ -1,5 +1,5 @@
 <%
-  // Dlaždice se řídí stejnou maticí jako menu (src/access.js) — jinak by
+  // Dlaždice se řídí stejnou maticí jako menu (src/access.js) – jinak by
   // přehled ukazoval čísla ze sekcí, do kterých uživatel nesmí.
   const can = k => (user && typeof user.can === 'function') ? user.can(k) : true;
   const canS = k => (user && typeof user.canSection === 'function') ? user.canSection(k) : true;
@@ -33,50 +33,50 @@
 
     <a href="/ucetnictvi/vydane-faktury" class="kpi-card kpi-link">
       <div class="kpi-label">Tržby</div>
-      <div class="kpi-value positive kpi-anim" data-value="<%= kpi.issuedMonth %>" data-fmt="czk" style="font-size:20px;">—</div>
-      <div class="kpi-formula kpi-anim" data-value="<%= kpi.issuedCount %>" data-fmt="count" data-suffix=" vydaných faktur">—</div>
+      <div class="kpi-value positive kpi-anim" data-value="<%= kpi.issuedMonth %>" data-fmt="czk" style="font-size:20px;">–</div>
+      <div class="kpi-formula kpi-anim" data-value="<%= kpi.issuedCount %>" data-fmt="count" data-suffix=" vydaných faktur">–</div>
     </a>
 
     <a href="/ucetnictvi/prijate-faktury" class="kpi-card kpi-link">
       <div class="kpi-label">Náklady</div>
-      <div class="kpi-value negative kpi-anim" data-value="<%= kpi.receivedMonth %>" data-fmt="czk" style="font-size:20px;">—</div>
+      <div class="kpi-value negative kpi-anim" data-value="<%= kpi.receivedMonth %>" data-fmt="czk" style="font-size:20px;">–</div>
       <div class="kpi-formula"><%= kpi.nakladyPopis %></div>
     </a>
 
     <a href="/ucetnictvi/uctenky" class="kpi-card kpi-link">
       <div class="kpi-label">Účtenky</div>
-      <div class="kpi-value kpi-anim" data-value="<%= kpi.uctenkyMonth %>" data-fmt="czk" style="font-size:20px;">—</div>
-      <div class="kpi-formula kpi-anim" data-value="<%= kpi.uctenkyCount %>" data-fmt="count" data-suffix=" dokladů">—</div>
+      <div class="kpi-value kpi-anim" data-value="<%= kpi.uctenkyMonth %>" data-fmt="czk" style="font-size:20px;">–</div>
+      <div class="kpi-formula kpi-anim" data-value="<%= kpi.uctenkyCount %>" data-fmt="count" data-suffix=" dokladů">–</div>
     </a>
 
     <a href="/ucetnictvi/prehled" class="kpi-card kpi-link">
       <div class="kpi-label">Hrubý zisk</div>
-      <div class="kpi-value <%= profit >= 0 ? 'positive' : 'negative' %> kpi-anim" data-value="<%= profit %>" data-fmt="czk" style="font-size:20px;">—</div>
+      <div class="kpi-value <%= profit >= 0 ? 'positive' : 'negative' %> kpi-anim" data-value="<%= profit %>" data-fmt="czk" style="font-size:20px;">–</div>
       <div class="kpi-formula">Tržby − faktury − účtenky − mzdy</div>
     </a>
 
     <a href="/ucetnictvi/prehled" class="kpi-card kpi-link">
       <div class="kpi-label">Po splatnosti</div>
-      <div class="kpi-value <%= kpi.overdue > 0 ? 'negative' : '' %> kpi-anim" data-value="<%= kpi.overdue %>" data-fmt="int" style="font-size:28px;">—</div>
+      <div class="kpi-value <%= kpi.overdue > 0 ? 'negative' : '' %> kpi-anim" data-value="<%= kpi.overdue %>" data-fmt="int" style="font-size:28px;">–</div>
       <div class="kpi-formula">Faktur čeká</div>
     </a>
 
     <a href="/ucetnictvi/upominky" class="kpi-card kpi-link">
       <div class="kpi-label">Upomínky</div>
-      <div class="kpi-value <%= kpi.remindersWaiting > 0 ? 'negative' : '' %> kpi-anim" data-value="<%= kpi.remindersWaiting %>" data-fmt="int" style="font-size:28px;">—</div>
+      <div class="kpi-value <%= kpi.remindersWaiting > 0 ? 'negative' : '' %> kpi-anim" data-value="<%= kpi.remindersWaiting %>" data-fmt="int" style="font-size:28px;">–</div>
       <div class="kpi-formula">K odeslání</div>
     </a>
 
     <a href="/ucetnictvi/objednavky" class="kpi-card kpi-link">
       <div class="kpi-label">Objednávky</div>
-      <div class="kpi-value primary-color kpi-anim" data-value="<%= kpi.ordersWaiting %>" data-fmt="int" style="font-size:28px;">—</div>
+      <div class="kpi-value primary-color kpi-anim" data-value="<%= kpi.ordersWaiting %>" data-fmt="int" style="font-size:28px;">–</div>
       <div class="kpi-formula">K vyřízení</div>
     </a>
 
   </div>
 
   <!-- Mapa objednávek podle města -->
-  <div class="dash-section-label" style="margin-bottom:10px;">Objednávky podle města — <%= monthLabel %></div>
+  <div class="dash-section-label" style="margin-bottom:10px;">Objednávky podle města – <%= monthLabel %></div>
   <div style="display:grid;grid-template-columns:minmax(220px,320px) 1fr;gap:20px;align-items:start;">
     <div class="cz-map-card" id="czMapCard">
       <div class="cz-map-toolbar">
@@ -133,7 +133,7 @@
         <div class="kpi-label">RAM</div>
         <% const ramPct = Math.round(vps.ram.used_mb / vps.ram.total_mb * 100); %>
         <div class="kpi-value kpi-anim <%= ramPct > 90 ? 'negative' : ramPct > 75 ? '' : 'positive' %>"
-             data-value="<%= ramPct %>" data-fmt="int" data-suffix=" %" style="font-size:22px;">—</div>
+             data-value="<%= ramPct %>" data-fmt="int" data-suffix=" %" style="font-size:22px;">–</div>
         <div class="kpi-formula"><%= vps.ram.used_mb %> / <%= vps.ram.total_mb %> MB</div>
       </div>
       <% } %>
@@ -142,7 +142,7 @@
         <div class="kpi-label">CPU load</div>
         <% const cpuVal = vps.cpu.load_1m || 0; %>
         <div class="kpi-value kpi-anim <%= cpuVal > 2 ? 'negative' : 'positive' %>"
-             data-value="<%= cpuVal %>" data-fmt="dec" style="font-size:22px;">—</div>
+             data-value="<%= cpuVal %>" data-fmt="dec" style="font-size:22px;">–</div>
         <div class="kpi-formula">1min průměr</div>
       </div>
       <% } %>
@@ -151,7 +151,7 @@
         <div class="kpi-label">Disk</div>
         <% const diskPct = Math.round(vps.disk.used_gb / vps.disk.total_gb * 100); %>
         <div class="kpi-value kpi-anim <%= diskPct > 85 ? 'negative' : diskPct > 70 ? '' : 'positive' %>"
-             data-value="<%= diskPct %>" data-fmt="int" data-suffix=" %" style="font-size:22px;">—</div>
+             data-value="<%= diskPct %>" data-fmt="int" data-suffix=" %" style="font-size:22px;">–</div>
         <div class="kpi-formula"><%= vps.disk.used_gb %> / <%= vps.disk.total_gb %> GB</div>
       </div>
       <% } %>
@@ -205,14 +205,14 @@
       <div style="font-size:24px;">📈</div>
       <div>
         <div style="font-weight:600;color:var(--text-primary);">Trade SEIL</div>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Paper trading — fiktivní kapitál</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Paper trading – fiktivní kapitál</div>
       </div>
     </a>
     <% } %>
     <a href="https://platform.claude.com/cost?api_key=apikey_01SYfe4d7CUHQCoeppQewiQa" target="_blank" class="kpi-card kpi-link" style="display:flex;align-items:center;gap:14px;">
       <div style="font-size:24px;">💳</div>
       <div>
-        <div style="font-weight:600;color:var(--text-primary);">Claude Console — Cost</div>
+        <div style="font-weight:600;color:var(--text-primary);">Claude Console – Cost</div>
         <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Sledování nákladů API</div>
       </div>
     </a>
@@ -454,7 +454,7 @@
       const ok  = c.ok;
       const dot = ok === null ? '⚪' : ok ? '🟢' : '🔴';
       const lat = c.latency_ms ? ` <span style="color:var(--text-muted);font-size:11px;">${c.latency_ms}ms</span>` : '';
-      const err = !ok && c.error ? `<span style="color:var(--danger);font-size:11px;"> — ${c.error}</span>` : '';
+      const err = !ok && c.error ? `<span style="color:var(--danger);font-size:11px;"> – ${c.error}</span>` : '';
       return `<div style="display:flex;align-items:center;gap:8px;">${dot} <span style="font-weight:500;font-size:13px;">${c.name}</span>${lat}${err}</div>`;
     }).join('');
     const lastCheck = checks.find(c=>c.checked_at)?.checked_at;
@@ -463,7 +463,7 @@
     document.getElementById('hcBody').innerHTML = '<span style="color:var(--text-muted);font-size:13px;">Nedostupné</span>';
   });
 
-  // Mapa — zoom a celá obrazovka
+  // Mapa – zoom a celá obrazovka
   const mapCard  = document.getElementById('czMapCard');
   const mapInner = document.getElementById('czMapInner');
   if (mapCard && mapInner) {

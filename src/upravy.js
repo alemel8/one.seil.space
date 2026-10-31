@@ -1,7 +1,7 @@
 /**
  * Režim úprav na detailech („tužka → Uložit“).
  *
- * Detail záznamu se vykresluje v režimu zobrazení — hodnoty jako text — a po
+ * Detail záznamu se vykresluje v režimu zobrazení – hodnoty jako text – a po
  * kliknutí na tužku v hlavičce se tatáž pole otevřou k úpravě přímo na
  * stránce. Stav drží atribut `data-rezim="zobrazeni|upravy"` na obalu
  * stránky (nebo karty): přepíná ho public/js/upravy.js, bez JavaScriptu ho

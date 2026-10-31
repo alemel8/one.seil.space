@@ -1,7 +1,7 @@
 // Vykreslení šablony detailu bez serveru a databáze (vzor
 // test/layout-sidebar.test.js) a kontroly společné všem detailům s režimem
 // úprav: obal nese data-rezim, tužka míří na formulář záznamu, formuláře se
-// nevnořují a každý sloupec, který routa zapisuje, má ve formuláři pole —
+// nevnořují a každý sloupec, který routa zapisuje, má ve formuláři pole –
 // routy přepisují celý řádek, vypadlé pole by ho tiše vynulovalo.
 //
 //   import { vykresliStranku, zkontrolujDetail } from './pomocnici/render.js';
@@ -34,7 +34,7 @@ export function vykresliStranku(cesta, locals) {
  * Společné kontroly detailu v jednom režimu.
  *   formular  id upravitelného formuláře (null = na stránce tužka být nemá)
  *   sloupce   name= polí, která routa čte z těla (viditelná i hidden)
- *   rezim     'zobrazeni' | 'upravy' — co má obal hlásit
+ *   rezim     'zobrazeni' | 'upravy' – co má obal hlásit
  */
 export function zkontrolujDetail(html, { formular, sloupce = [], rezim = 'zobrazeni' }) {
   assert.match(html, new RegExp(`data-rezim="${rezim}"`), `obal hlásí režim ${rezim}`);
@@ -50,7 +50,7 @@ export function zkontrolujDetail(html, { formular, sloupce = [], rezim = 'zobraz
   assert.match(html, /class="btn btn-outline btn-ikona upravit-otevrit"[^>]*aria-label="Upravit"/, 'tužka je jen ikona s přístupným názvem');
   const pole = poleFormulare(html, formular);
   for (const name of sloupce) {
-    assert.ok(pole.has(name), `pole ${name} patří formuláři ${formular} — routa ho zapisuje`);
+    assert.ok(pole.has(name), `pole ${name} patří formuláři ${formular} – routa ho zapisuje`);
   }
 }
 

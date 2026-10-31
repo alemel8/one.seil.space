@@ -1,6 +1,6 @@
 <%
   const fmt  = n  => Number(n||0).toLocaleString('cs-CZ', {minimumFractionDigits:2});
-  const fmtD = d  => d ? new Date(d).toLocaleDateString('cs-CZ') : '—';
+  const fmtD = d  => d ? new Date(d).toLocaleDateString('cs-CZ') : '–';
   const currentTab = tab || 'zakladni';
   // Režim úprav (src/upravy.js): tužka v hlavičce jen u záložky s formulářem
   // záznamu; bez JS otevře úpravy ?upravit=1. Poznámky mají vlastní routu,
@@ -109,7 +109,7 @@
     <div class="card">
       <div class="card-header"><strong>Identifikace</strong></div>
       <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <%# Název, typ a stav jsou v zobrazení v hlavičce stránky — tady jen v úpravách. %>
+        <%# Název, typ a stav jsou v zobrazení v hlavičce stránky – tady jen v úpravách. %>
         <%- include('../../includes/pole', { pole: { label: 'Název', name: 'name', value: company.name, required: true, trida: 'jen-upravy', styl: 'grid-column:1/-1' } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Typ', name: 'company_type', typ: 'select', value: company.company_type || 'Zákazník', moznosti: ['Zákazník', 'Dodavatel', 'Partner', 'Jiný'], trida: 'jen-upravy' } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Stav', name: 'company_status', value: company.company_status, trida: 'jen-upravy' } }) %>
@@ -140,7 +140,7 @@
       </div>
     </div>
 
-    <%# Karta je vždy — jinak by se poznámka nedala poprvé vyplnit. %>
+    <%# Karta je vždy – jinak by se poznámka nedala poprvé vyplnit. %>
     <div class="card">
       <div class="card-header"><strong>Poznámky</strong></div>
       <div class="card-body">
@@ -227,7 +227,7 @@
          const parts = sc.split(':'); %>
     <tr style="cursor:pointer;" onclick="location.href='/ucetnictvi/objednavky/<%= o.id %>'">
       <td style="font-weight:600;">#<%= o.order_number %></td>
-      <td><%= [o.first_name, o.last_name].filter(Boolean).join(' ') || '—' %></td>
+      <td><%= [o.first_name, o.last_name].filter(Boolean).join(' ') || '–' %></td>
       <td style="color:var(--text-muted);font-size:13px;"><%= fmtD(o.created_at) %></td>
       <td style="text-align:right;font-weight:600;"><%= fmt(o.total_price) %> CZK</td>
       <td><span class="badge" style="background:<%= parts[0] %>;color:<%= parts[1] %>;"><%= o.status %></span></td>
@@ -352,7 +352,7 @@
         <div class="form-group col-span-2"><label class="form-label required">Název smlouvy</label><input type="text" name="title" class="form-control" required placeholder="Rámcová smlouva o spolupráci"></div>
         <div class="form-group"><label class="form-label">Typ</label>
           <select name="type" class="form-select">
-            <option value="">— vyberte —</option>
+            <option value="">– vyberte –</option>
             <option>Rámcová smlouva</option><option>Servisní smlouva</option><option>NDA</option><option>Smlouva o dílo</option><option>Nájemní smlouva</option><option>Jiná</option>
           </select>
         </div>

@@ -1,5 +1,5 @@
 // Můj profil (views/pages/profil.ejs) vykreslený bez serveru a databáze:
-// režim úprav nese karta Osobní údaje, ne stránka — fotka a heslo vedle mají
+// režim úprav nese karta Osobní údaje, ne stránka – fotka a heslo vedle mají
 // vlastní formuláře, které režim neznají a musí zůstat vidět. Serverová část
 // (jen s DATABASE_URL) ověří, že GET režim bere jen z ?upravit=1 a POST uloží.
 //
@@ -25,7 +25,7 @@ function vykresli(prepis = {}) {
 // POST /profil (src/routes/auth.js) čte z těla jen tahle dvě pole; heslo posílá vlastní formulář.
 const SLOUPCE = ['first_name', 'last_name'];
 
-/** Vnitřek formuláře záznamu — co leží mimo něj, režim úprav nezná. */
+/** Vnitřek formuláře záznamu – co leží mimo něj, režim úprav nezná. */
 function formularZaznamu(html) {
   const m = html.match(/<form\b[^>]*class="upravitelne"[^>]*>[\s\S]*?<\/form>/);
   assert.ok(m, 'formulář záznamu je na stránce');
@@ -76,9 +76,9 @@ test('banner Uloženo leží mimo kartu a nemá jen-zobrazeni; chyba hesla úpra
   assert.ok(html.includes('✅ Změny uloženy'));
   assert.ok(html.indexOf('Změny uloženy') < html.indexOf('data-rezim='), 'banner je před kartou, ne v ní');
   const banner = html.match(/<div[^>]*>\s*✅ Změny uloženy/)?.[0];
-  assert.ok(banner && !banner.includes('jen-zobrazeni'), 'banner bez třídy jen-zobrazeni — mimo kartu by ji nic nepřepnulo');
+  assert.ok(banner && !banner.includes('jen-zobrazeni'), 'banner bez třídy jen-zobrazeni – mimo kartu by ji nic nepřepnulo');
 
-  // Chybu hlásí formulář hesla — vykresluje se se zobrazením, ne s otevřenými osobními údaji.
+  // Chybu hlásí formulář hesla – vykresluje se se zobrazením, ne s otevřenými osobními údaji.
   const chyba = await vykresli({ error: 'wrongpwd' });
   assert.ok(chyba.includes('Nesprávné stávající heslo'));
   assert.ok(chyba.includes('data-rezim="zobrazeni"'));
@@ -121,7 +121,7 @@ describe('proti serveru', { skip: PRESKOCIT }, () => {
     html = await (await req.get('/profil?upravit=1')).text();
     assert.ok(html.includes('data-rezim="upravy"'), '?upravit=1 otevře úpravy i bez JavaScriptu');
 
-    // Chyba formuláře hesla nesmí otevřít osobní údaje — režim se bere jen z upravit=1.
+    // Chyba formuláře hesla nesmí otevřít osobní údaje – režim se bere jen z upravit=1.
     html = await (await req.get('/profil?error=wrongpwd')).text();
     assert.ok(html.includes('data-rezim="zobrazeni"'), 'chyba cizího formuláře úpravy neotevře');
     assert.ok(html.includes('Nesprávné stávající heslo'));

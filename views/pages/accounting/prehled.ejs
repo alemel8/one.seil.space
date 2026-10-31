@@ -1,6 +1,6 @@
 <%
   const fmt = (n) => Number(n||0).toLocaleString('cs-CZ', {minimumFractionDigits:2});
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('cs-CZ') : '—';
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('cs-CZ') : '–';
   const MONTHS = ['Led','Úno','Bře','Dub','Kvě','Čvn','Čvc','Srp','Zář','Říj','Lis','Pro'];
 
   // Graf: sestavit pole 12 hodnot pro vydané a přijaté
@@ -10,7 +10,7 @@
     if (r.type === 'issued')   chartIssued[r.m - 1]   = Number(r.v);
     if (r.type === 'received') chartReceived[r.m - 1] = Number(r.v);
   });
-  // Mzdy jdou do grafu jako vlastní řada, ne pod vymyšlený type — v
+  // Mzdy jdou do grafu jako vlastní řada, ne pod vymyšlený type – v
   // accounting_invoices.type by to zamíchalo význam sloupce.
   const chartMzdyData = (typeof chartMzdy !== 'undefined' && chartMzdy) || Array(12).fill(0);
 %>
@@ -66,7 +66,7 @@
 
 <%
   // Rozpad nákladů. Bez něj by číslo přestalo sedět se seznamem přijatých
-  // faktur a nikdo by nepoznal proč — dřív totiž „Náklady" znamenaly
+  // faktur a nikdo by nepoznal proč – dřív totiž „Náklady" znamenaly
   // doslova jen ty faktury.
   const zdroje = [
     ['Přijaté faktury', kpi.month.naklady.faktury, kpi.month.naklady.pocty.faktury, '/ucetnictvi/prijate-faktury'],
@@ -126,7 +126,7 @@
 <!-- ── Graf tržeb ── -->
 <div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;margin-bottom:28px;">
   <div class="card">
-    <div class="card-header">Tržby a náklady po měsících — <%= year %></div>
+    <div class="card-header">Tržby a náklady po měsících – <%= year %></div>
     <div class="card-body">
       <canvas id="chartMonthly" height="120"></canvas>
     </div>
@@ -135,7 +135,7 @@
   <!-- Cash flow 12 měsíců -->
   <div class="card" style="grid-column:1/-1;">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
-      <span>Cash flow — posledních 12 měsíců</span>
+      <span>Cash flow – posledních 12 měsíců</span>
       <span style="font-size:11px;color:var(--text-muted);">vydané faktury vs. přijaté faktury + účtenky</span>
     </div>
     <div class="card-body">
@@ -180,7 +180,7 @@
           <% overdue.issued.forEach(inv => { %>
           <tr onclick="location.href='/ucetnictvi/vydane-faktury/<%= inv.id %>'" style="cursor:pointer;">
             <td style="font-weight:600;"><%= inv.number %></td>
-            <td><%= inv.client_name||'—' %></td>
+            <td><%= inv.client_name||'–' %></td>
             <td style="color:var(--danger);font-size:12px;"><%= fmtDate(inv.due_date) %></td>
             <td style="text-align:right;font-weight:500;"><%= fmt(inv.total_amount) %> <%= inv.currency %></td>
           </tr>
@@ -201,7 +201,7 @@
           <% overdue.received.forEach(inv => { %>
           <tr onclick="location.href='/ucetnictvi/prijate-faktury/<%= inv.id %>'" style="cursor:pointer;">
             <td style="font-weight:600;"><%= inv.number %></td>
-            <td><%= inv.supplier||'—' %></td>
+            <td><%= inv.supplier||'–' %></td>
             <td style="color:var(--danger);font-size:12px;"><%= fmtDate(inv.due_date) %></td>
             <td style="text-align:right;font-weight:500;"><%= fmt(inv.total_amount) %> <%= inv.currency %></td>
           </tr>

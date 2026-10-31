@@ -6,7 +6,7 @@
 //    identita barvy a loga, ahoj@ se nahradí a jiné vyplněné hodnoty
 //    zůstanou; řady a identita Toneráčku se nezmění ani o znak.
 //
-// Databázová část jede v transakci, která se na konci vrátí — nic po sobě
+// Databázová část jede v transakci, která se na konci vrátí – nic po sobě
 // nenechá. Bez DATABASE_URL se přeskočí.
 //
 //   DATABASE_URL=postgresql://…@127.0.0.1/… node --test test/migrace-041.test.js

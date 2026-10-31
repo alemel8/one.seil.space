@@ -10,7 +10,7 @@
   const obaly = Array.from(document.querySelectorAll('[data-rezim]'));
   if (!obaly.length) return;
 
-  // Snímek formuláře při otevření — porovnáním poznáme neuložené změny.
+  // Snímek formuláře při otevření – porovnáním poznáme neuložené změny.
   const snimky = new WeakMap();
   let odesilam = false;
   // Hláška z načtení stránky (Uloženo, chyba) se po zrušení úprav nemá vrátit.
@@ -56,7 +56,7 @@
   function zavri(obal) {
     if (jeZmeneny(obal) && !confirm('Zahodit neuložené změny?')) return;
     const form = formular(obal);
-    form?.reset(); // vyvolá event reset — stránka si podle něj přepočítá, co inputy odvozují
+    form?.reset(); // vyvolá event reset – stránka si podle něj přepočítá, co inputy odvozují
     obal.dataset.rezim = 'zobrazeni';
     snimky.delete(obal);
     upravUrl(false);
@@ -87,8 +87,8 @@
   });
 
   // Esc = Zrušit, ale ne tam, kde Esc patří prvku samotnému (rozbalený
-  // select, kalendář, našeptávač datalistu), ne přes otevřený modal — ten
-  // zavírá app.js — a ne mimo upravovaný obal (hledání v liště, heslo vedle
+  // select, kalendář, našeptávač datalistu), ne přes otevřený modal – ten
+  // zavírá app.js – a ne mimo upravovaný obal (hledání v liště, heslo vedle
   // karty na profilu). Bez capture, aby náhled dokladu (doklad-nahled.js)
   // mohl Esc dál zastavit u sebe. Posluchač vzniká dřív než ten v app.js
   // (ten až po DOMContentLoaded), takže otevřený modal je tu ještě otevřený.
@@ -109,7 +109,7 @@
   // ale žádné odesílání už neběží a hlídání změn musí znovu platit.
   window.addEventListener('pageshow', () => { odesilam = false; });
 
-  // Klik na záložku nebo zpět s rozepsaným formulářem — prohlížeč se zeptá.
+  // Klik na záložku nebo zpět s rozepsaným formulářem – prohlížeč se zeptá.
   window.addEventListener('beforeunload', e => {
     if (odesilam) return;
     const obal = vUpravach();
