@@ -1,4 +1,5 @@
 import { getDb, generateId } from '../db.js';
+import { rezimUprav } from '../upravy.js';
 
 export default async function crmRoutes(fastify) {
   const sql = getDb();
@@ -80,6 +81,7 @@ export default async function crmRoutes(fastify) {
       aresUpdated: request.query.ares === '1',
       saved: request.query.saved === '1',
       tab: request.query.tab || 'zakladni',
+      rezimUprav: rezimUprav(request.query),
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -108,6 +110,21 @@ export default async function crmRoutes(fastify) {
       WHERE id = ${request.params.id}
     `;
     return reply.redirect(`/crm/firmy/${request.params.id}?saved=1`);
+  });
+
+  // Záložka Poznámky má formulář jen s textarea. Přes POST /crm/firmy/:id, který
+  // přepisuje celý řádek, by musela posílat zbytek firmy v hidden polích — a když
+  // se některé zapomnělo (web), každé uložení poznámek ho firmě smazalo.
+  fastify.post('/crm/firmy/:id/poznamky', async (request, reply) => {
+    const b = request.body || {};
+    await sql`
+      UPDATE crm_companies SET
+        notes       = ${(b.notes || '').trim()},
+        modified_by = ${request.user?.id || null},
+        modified_at = NOW()
+      WHERE id = ${request.params.id}
+    `;
+    return reply.redirect(`/crm/firmy/${request.params.id}?tab=poznamky&saved=1`);
   });
 
   // ── Kontakty ───────────────────────────────────────────────

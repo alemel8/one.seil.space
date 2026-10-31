@@ -1,4 +1,5 @@
 import { getDb, generateId } from '../db.js';
+import { rezimUprav } from '../upravy.js';
 
 // Typy podprojektů — jediné místo pravdy pro label/ikonu/barvu, sdílené routami i views.
 export const PROJECT_TYPES = {
@@ -90,6 +91,7 @@ export default async function projectsRoutes(fastify) {
       PROJECT_TYPES, PROJECT_STATUSES, ITEM_STATUSES,
       tab: request.query.tab || 'prehled',
       saved: request.query.saved === '1',
+      rezimUprav: rezimUprav(request.query),
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -188,6 +190,7 @@ export default async function projectsRoutes(fastify) {
       item, health, shop, healthchecks, shops,
       PROJECT_TYPES, ITEM_STATUSES,
       saved: request.query.saved === '1',
+      rezimUprav: rezimUprav(request.query),
     }, { layout: 'layouts/base.ejs' });
   });
 

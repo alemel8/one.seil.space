@@ -2,8 +2,16 @@
   const fmt  = n  => Number(n||0).toLocaleString('cs-CZ', {minimumFractionDigits:2});
   const fmtD = d  => d ? new Date(d).toLocaleDateString('cs-CZ') : '—';
   const currentTab = tab || 'zakladni';
+  // Režim úprav (src/upravy.js): tužka v hlavičce jen u záložky s formulářem
+  // záznamu; bez JS otevře úpravy ?upravit=1. Poznámky mají vlastní routu,
+  // aby formulář jen s textarea nepřepisoval zbytek řádku firmy.
+  const FORMULARE = { zakladni: 'formFirma', poznamky: 'formPoznamky' };
+  const formular = FORMULARE[currentTab] || null;
+  const rezim = formular && rezimUprav ? 'upravy' : 'zobrazeni';
+  const urlZalozky = `?tab=${currentTab}`;
 %>
 
+<div class="detail" data-rezim="<%= rezim %>">
 <div class="page-header">
   <div class="page-header-left">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -17,20 +25,24 @@
       <% } %>
     </div>
   </div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+  <% if (company.ico || formular) { %>
+  <div class="page-header-akce">
     <% if (company.ico) { %>
     <form method="post" action="/crm/firmy/<%= company.id %>/ares" id="aresForm" style="display:none;"></form>
-    <button type="button" class="btn btn-outline btn-sm" onclick="syncAres()">
+    <button type="button" class="btn btn-outline" onclick="syncAres()">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
       Sync ARES
     </button>
     <% } %>
-    <button class="btn btn-outline btn-sm" data-modal-open="modalEdit">✏️ Upravit</button>
+    <% if (formular) { %>
+    <%- include('../../includes/upravit', { formular, urlUpravit: `${urlZalozky}&upravit=1`, urlZpet: urlZalozky }) %>
+    <% } %>
   </div>
+  <% } %>
 </div>
 
 <% if (saved) { %>
-<div style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:10px 16px;border-radius:8px;margin-bottom:16px;">✓ Uloženo</div>
+<div class="jen-zobrazeni" style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:10px 16px;border-radius:8px;margin-bottom:16px;">✓ Uloženo</div>
 <% } %>
 <% if (aresUpdated) { %>
 <div style="background:var(--info-bg);color:var(--info);border:1px solid #bae6fd;padding:10px 16px;border-radius:8px;margin-bottom:16px;">✓ Data aktualizována z ARES</div>
@@ -55,6 +67,7 @@
 <!-- ══ TAB: ZÁKLADNÍ INFORMACE ══ -->
 <% if (currentTab === 'zakladni') { %>
 
+<form method="post" action="/crm/firmy/<%= company.id %>" id="formFirma" class="upravitelne">
 <div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;align-items:start;">
   <div style="display:flex;flex-direction:column;gap:20px;">
 
@@ -96,32 +109,15 @@
     <div class="card">
       <div class="card-header"><strong>Identifikace</strong></div>
       <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div>
-          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">IČO</div>
-          <div style="font-weight:600;font-family:var(--font-mono);"><%= company.ico || '—' %></div>
-        </div>
-        <div>
-          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">DIČ</div>
-          <div style="font-family:var(--font-mono);"><%= company.dic || '—' %></div>
-        </div>
-        <% if (company.legal_form) { %>
-        <div style="grid-column:1/-1;">
-          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Právní forma</div>
-          <div><%= company.legal_form %></div>
-        </div>
-        <% } %>
-        <% if (company.registration_info) { %>
-        <div>
-          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Spisová značka</div>
-          <div style="font-family:var(--font-mono);font-weight:500;"><%= company.registration_info %></div>
-        </div>
-        <% } %>
-        <% if (company.founded_date) { %>
-        <div>
-          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Datum vzniku</div>
-          <div><%= fmtD(company.founded_date) %></div>
-        </div>
-        <% } %>
+        <%# Název, typ a stav jsou v zobrazení v hlavičce stránky — tady jen v úpravách. %>
+        <%- include('../../includes/pole', { pole: { label: 'Název', name: 'name', value: company.name, required: true, trida: 'jen-upravy', styl: 'grid-column:1/-1' } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'Typ', name: 'company_type', typ: 'select', value: company.company_type || 'Zákazník', moznosti: ['Zákazník', 'Dodavatel', 'Partner', 'Jiný'], trida: 'jen-upravy' } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'Stav', name: 'company_status', value: company.company_status, trida: 'jen-upravy' } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'IČO', name: 'ico', value: company.ico } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'DIČ', name: 'dic', value: company.dic } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'Právní forma', name: 'legal_form', value: company.legal_form, styl: 'grid-column:1/-1' } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'Spisová značka', name: 'registration_info', value: company.registration_info } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'Datum vzniku', name: 'founded_date', typ: 'date', value: company.founded_date } }) %>
         <% if (company.ares_synced_at) { %>
         <div style="grid-column:1/-1;">
           <div style="color:var(--text-muted);font-size:11px;">ARES naposledy synchronizován: <%= fmtD(company.ares_synced_at) %></div>
@@ -134,41 +130,24 @@
     <div class="card">
       <div class="card-header"><strong>Adresa a kontakt</strong></div>
       <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div style="grid-column:1/-1;">
-          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Adresa</div>
-          <div style="line-height:1.6;">
-            <% if (company.address) { %><%= company.address %><br><% } %>
-            <%= [company.zip, company.city].filter(Boolean).join(' ') || '—' %>
-            <% if (company.country && company.country !== 'Česká republika') { %><br><%= company.country %><% } %>
-          </div>
-        </div>
-        <% if (company.email) { %>
-        <div>
-          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">E-mail</div>
-          <a href="mailto:<%= company.email %>" style="color:var(--primary);"><%= company.email %></a>
-        </div>
-        <% } %>
-        <% if (company.phone) { %>
-        <div>
-          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Telefon</div>
-          <a href="tel:<%= company.phone %>" style="color:var(--primary);"><%= company.phone %></a>
-        </div>
-        <% } %>
-        <% if (company.website) { %>
-        <div style="grid-column:1/-1;">
-          <div style="color:var(--text-muted);font-size:12px;margin-bottom:3px;">Web</div>
-          <a href="<%= company.website %>" target="_blank" style="color:var(--primary);"><%= company.website %></a>
-        </div>
-        <% } %>
+        <%- include('../../includes/pole', { pole: { label: 'Adresa', name: 'address', value: company.address, styl: 'grid-column:1/-1' } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'Město', name: 'city', value: company.city } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'PSČ', name: 'zip', value: company.zip } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'Stát', name: 'country', value: company.country || 'Česká republika', styl: 'grid-column:1/-1' } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'E-mail', name: 'email', typ: 'email', value: company.email } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'Telefon', name: 'phone', typ: 'tel', value: company.phone } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'Web', name: 'website', typ: 'url', value: company.website, styl: 'grid-column:1/-1' } }) %>
       </div>
     </div>
 
-    <% if (company.notes) { %>
+    <%# Karta je vždy — jinak by se poznámka nedala poprvé vyplnit. %>
     <div class="card">
       <div class="card-header"><strong>Poznámky</strong></div>
-      <div class="card-body" style="white-space:pre-wrap;color:var(--text-secondary);line-height:1.6;"><%= company.notes %></div>
+      <div class="card-body">
+        <%- include('../../includes/pole', { pole: { label: 'Interní poznámky', name: 'notes', typ: 'textarea', value: company.notes, rows: 6, placeholder: 'Interní poznámky, informace o spolupráci…' } }) %>
+        <%- include('../../includes/upravit', { paticka: true, formular: 'formFirma', urlZpet: urlZalozky }) %>
+      </div>
     </div>
-    <% } %>
   </div>
 
   <!-- Pravý sloupec: metadata -->
@@ -207,6 +186,7 @@
     <% } %>
   </div>
 </div>
+</form>
 
 <!-- ══ TAB: KONTAKTY ══ -->
 <% } else if (currentTab === 'kontakty') { %>
@@ -325,26 +305,9 @@
 <div style="max-width:720px;">
   <div class="card">
     <div class="card-header"><strong>Poznámky k firmě</strong></div>
-    <form method="post" action="/crm/firmy/<%= company.id %>">
-      <input type="hidden" name="name"              value="<%= company.name %>">
-      <input type="hidden" name="company_type"      value="<%= company.company_type %>">
-      <input type="hidden" name="ico"               value="<%= company.ico %>">
-      <input type="hidden" name="dic"               value="<%= company.dic %>">
-      <input type="hidden" name="address"           value="<%= company.address %>">
-      <input type="hidden" name="city"              value="<%= company.city %>">
-      <input type="hidden" name="zip"               value="<%= company.zip %>">
-      <input type="hidden" name="country"           value="<%= company.country %>">
-      <input type="hidden" name="email"             value="<%= company.email %>">
-      <input type="hidden" name="phone"             value="<%= company.phone %>">
-      <input type="hidden" name="legal_form"        value="<%= company.legal_form %>">
-      <input type="hidden" name="founded_date"      value="<%= company.founded_date?.toISOString?.()?.slice(0,10)||'' %>">
-      <input type="hidden" name="registration_info" value="<%= company.registration_info %>">
-      <input type="hidden" name="company_status"    value="<%= company.company_status %>">
+    <form method="post" action="/crm/firmy/<%= company.id %>/poznamky" id="formPoznamky" class="upravitelne">
       <div class="card-body">
-        <textarea name="notes" class="form-control" rows="10" placeholder="Interní poznámky, informace o spolupráci…"><%= company.notes||'' %></textarea>
-      </div>
-      <div class="modal-footer" style="border-top:1px solid var(--border);">
-        <button type="submit" class="btn btn-primary">Uložit poznámky</button>
+        <%- include('../../includes/pole', { pole: { label: 'Interní poznámky', name: 'notes', typ: 'textarea', value: company.notes, rows: 10, placeholder: 'Interní poznámky, informace o spolupráci…' } }) %>
       </div>
     </form>
   </div>
@@ -352,47 +315,6 @@
 <% } %>
 
 <!-- ═══ Modály ═══ -->
-
-<!-- Edit firmy -->
-<div id="modalEdit" class="modal-backdrop" onclick="if(event.target===this)this.classList.remove('open')">
-  <div class="modal modal-lg">
-    <div class="modal-header">
-      <h2 class="modal-title">Upravit firmu</h2>
-      <button class="modal-close" onclick="document.getElementById('modalEdit').classList.remove('open')">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
-    <form method="post" action="/crm/firmy/<%= company.id %>">
-      <div class="modal-body">
-        <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:14px;">
-          <div class="form-group col-span-2"><label class="form-label required">Název</label><input type="text" name="name" class="form-control" value="<%= company.name %>" required></div>
-          <div class="form-group"><label class="form-label">Typ</label>
-            <select name="company_type" class="form-select">
-              <% ['Zákazník','Dodavatel','Partner','Jiný'].forEach(function(t) { %><option value="<%= t %>" <%= company.company_type===t?'selected':'' %>><%= t %></option><% }) %>
-            </select>
-          </div>
-          <div class="form-group"><label class="form-label">Stav</label><input type="text" name="company_status" class="form-control" value="<%= company.company_status||'' %>"></div>
-          <div class="form-group"><label class="form-label">IČO</label><input type="text" name="ico" class="form-control" value="<%= company.ico||'' %>"></div>
-          <div class="form-group"><label class="form-label">DIČ</label><input type="text" name="dic" class="form-control" value="<%= company.dic||'' %>"></div>
-          <div class="form-group col-span-2"><label class="form-label">Právní forma</label><input type="text" name="legal_form" class="form-control" value="<%= company.legal_form||'' %>"></div>
-          <div class="form-group"><label class="form-label">Datum vzniku</label><input type="date" name="founded_date" class="form-control" value="<%= company.founded_date?.toISOString?.()?.slice(0,10)||'' %>"></div>
-          <div class="form-group"><label class="form-label">Spisová značka</label><input type="text" name="registration_info" class="form-control" value="<%= company.registration_info||'' %>"></div>
-          <div class="form-group col-span-2"><label class="form-label">Adresa</label><input type="text" name="address" class="form-control" value="<%= company.address||'' %>"></div>
-          <div class="form-group"><label class="form-label">Město</label><input type="text" name="city" class="form-control" value="<%= company.city||'' %>"></div>
-          <div class="form-group"><label class="form-label">PSČ</label><input type="text" name="zip" class="form-control" value="<%= company.zip||'' %>"></div>
-          <div class="form-group"><label class="form-label">Stát</label><input type="text" name="country" class="form-control" value="<%= company.country||'Česká republika' %>"></div>
-          <div class="form-group"><label class="form-label">E-mail</label><input type="email" name="email" class="form-control" value="<%= company.email||'' %>"></div>
-          <div class="form-group"><label class="form-label">Telefon</label><input type="text" name="phone" class="form-control" value="<%= company.phone||'' %>"></div>
-          <div class="form-group"><label class="form-label">Web</label><input type="url" name="website" class="form-control" value="<%= company.website||'' %>"></div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-ghost" onclick="document.getElementById('modalEdit').classList.remove('open')">Zrušit</button>
-        <button type="submit" class="btn btn-primary">Uložit</button>
-      </div>
-    </form>
-  </div>
-</div>
 
 <!-- Přidat kontakt -->
 <div id="modalAddContact" class="modal-backdrop" onclick="if(event.target===this)this.classList.remove('open')">
@@ -451,6 +373,7 @@
       </div>
     </form>
   </div>
+</div>
 </div>
 
 <script>
