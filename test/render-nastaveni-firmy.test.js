@@ -312,3 +312,10 @@ describe('prázdná tabulka', { skip: PRESKOCIT }, () => {
     }
   });
 });
+
+test('číselné řady: chyba z formuláře se ukáže, neznámý kód ne', async () => {
+  const vykresliRady = (error) => vykresliStranku('settings/invoice-series', { pageTitle: 'Řady', currentPath: '/nastaveni/ciselne-rady', series: [], shops: [], saved: false, error });
+  assert.ok((await vykresliRady('missing')).includes('Řada se neuložila'));
+  assert.ok(!(await vykresliRady('jine')).includes('Řada se neuložila'));
+  assert.ok(!(await vykresliRady(null)).includes('Řada se neuložila'));
+});

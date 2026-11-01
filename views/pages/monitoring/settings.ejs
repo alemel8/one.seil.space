@@ -12,7 +12,7 @@
 
 <% if (tab === 'aplikace') { %>
 <div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;">
-  <div>
+  <div style="min-width:0;">
 <!-- Sledované URL -->
     <div class="card">
       <div class="card-header">Sledované aplikace</div>
@@ -102,7 +102,7 @@
 <% } else { %>
 <%# Pravidlo vybírá kanál, proto jsou na jedné záložce. %>
 <div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;">
-  <div>
+  <div style="min-width:0;">
 <!-- Notifikační pravidla -->
     <div class="card">
       <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">

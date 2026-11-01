@@ -13,6 +13,10 @@
 <div class="alert alert-success" style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:12px 16px;border-radius:8px;margin-bottom:20px;">✓ Uloženo</div>
 <% } %>
 
+<% if (error === 'missing') { %>
+<div class="hlaska hlaska-chyba">Řada se neuložila: vyplňte název a prefix nebo formát čísla.</div>
+<% } %>
+
 <div class="table-wrapper">
   <table class="data-table">
     <thead>
