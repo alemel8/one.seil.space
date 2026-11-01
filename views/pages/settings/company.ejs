@@ -1,18 +1,21 @@
 <%
-  // Režim úprav (src/upravy.js): jeden formulář přes všech pět karet, tužka
-  // v hlavičce je proto vždy; bez JS otevře úpravy ?upravit=1.
-  const formular = 'formNastaveniFirmy';
+  // Režim úprav (src/upravy.js): každá záložka má vlastní formulář a POST, tužka
+  // nese ?tab=, jinak by kontrola při Uložit formulář v načtené stránce nenašla.
+  const formular = (zalozky.find(([k]) => k === tab) || [])[2];
   const rezim = rezimUprav ? 'upravy' : 'zobrazeni';
-  const urlZpet = '/nastaveni/firma';
+  const urlZpet = `/nastaveni/firma?tab=${tab}`;
+  const textChyby = (text) => String(text).split(/(https:\/\/console\.(?:developers|cloud)\.google\.com\/[^\s"'<>]*[^\s"'<>.,;:)])/).forEach((kus, i) => {
+    if (i % 2) { %><a href="<%= kus %>" target="_blank" rel="noopener noreferrer"><%= kus %></a><% } else { %><%= kus %><% }
+  });
 %>
 <div class="detail" data-rezim="<%= rezim %>">
 <div class="page-header">
   <div class="page-header-left">
     <h1>Nastavení firmy</h1>
-    <p>Fakturační údaje zobrazované na vydaných fakturách</p>
+    <p>Údaje firmy na fakturách, export do POHODY a napojení na Google Disk</p>
   </div>
   <div class="page-header-akce">
-    <%- include('../../includes/upravit', { formular, urlUpravit: `${urlZpet}?upravit=1`, urlZpet }) %>
+    <%- include('../../includes/upravit', { formular, urlUpravit: `${urlZpet}&upravit=1`, urlZpet }) %>
   </div>
 </div>
 
@@ -21,12 +24,16 @@
   ✓ Nastavení uloženo
 </div>
 <% } %>
+<% if (error) { %>
+<div data-hlaska style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:8px;margin-bottom:20px;"><%= error %></div>
+<% } %>
+
+<%- include('../../includes/zalozky', { nazev: 'Sekce nastavení firmy', zalozky, tab, adresa: k => `/nastaveni/firma?tab=${k}` }) %>
 
 <div style="max-width:720px;">
-<form method="post" action="/nastaveni/firma" id="<%= formular %>" class="upravitelne" autocomplete="off">
-
-  <div class="card" style="margin-bottom:20px;">
-    <div class="card-header"><strong>Základní údaje</strong></div>
+<% if (tab === 'zakladni') { %>
+<form method="post" action="/nastaveni/firma/zakladni" id="<%= formular %>" class="upravitelne" autocomplete="off">
+  <div class="card">
     <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
       <%- include('../../includes/pole', { pole: { label: 'Název firmy', name: 'name', value: company.name, required: true, styl: 'grid-column:1/-1' } }) %>
       <%- include('../../includes/pole', { pole: { label: 'IČO', name: 'ico', value: company.ico, maxlength: 20 } }) %>
@@ -39,7 +46,11 @@
       <%- include('../../includes/pole', { pole: { label: 'E-mail', name: 'email', typ: 'email', value: company.email } }) %>
     </div>
   </div>
-
+  <%- include('../../includes/upravit', { paticka: true, formular, urlZpet }) %>
+</form>
+<% } else if (tab === 'fakturace') { %>
+<%# Banku, DPH a poznámku tiskne faktura společně, proto jedna záložka. %>
+<form method="post" action="/nastaveni/firma/fakturace" id="<%= formular %>" class="upravitelne" autocomplete="off">
   <div class="card" style="margin-bottom:20px;">
     <div class="card-header"><strong>Bankovní spojení</strong></div>
     <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
@@ -49,8 +60,7 @@
       <%- include('../../includes/pole', { pole: { label: 'SWIFT/BIC', name: 'swift', value: company.swift, placeholder: 'FIOBCZPPXXX' } }) %>
     </div>
   </div>
-
-  <div class="card" style="margin-bottom:20px;">
+  <div class="card">
     <div class="card-header"><strong>Fakturace</strong></div>
     <div class="card-body" style="display:grid;grid-template-columns:1fr;gap:16px;">
       <%- include('../../includes/pole', { pole: { label: 'DPH', name: 'vat_payer', typ: 'checkbox', value: company.vat_payer, hodnotaVstupu: 'on',
@@ -58,18 +68,14 @@
       <%- include('../../includes/pole', { pole: { label: 'Poznámka na faktuře', name: 'invoice_note', typ: 'textarea', rows: 2, value: company.invoice_note, placeholder: 'Např. Nejsme plátci DPH.' } }) %>
     </div>
   </div>
-
-  <div class="card" style="margin-bottom:20px;">
-    <div class="card-header"><strong>Export do POHODY</strong></div>
+  <%- include('../../includes/upravit', { paticka: true, formular, urlZpet }) %>
+</form>
+<% } else if (tab === 'pohoda') { %>
+<form method="post" action="/nastaveni/firma/pohoda" id="<%= formular %>" class="upravitelne" autocomplete="off">
+  <div class="card">
     <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-
-      <div class="form-group jen-upravy" style="grid-column:1/-1;">
-        <p style="font-size:13px;color:var(--text-muted);margin:0;">
-          Účetní jednotku určuje IČO výše – musí přesně odpovídat IČO účetní jednotky
-          otevřené v POHODĚ, jinak import balíček odmítne.
-        </p>
-      </div>
-
+      <%- include('../../includes/pole', { pole: { label: 'IČO účetní jednotky', value: company.ico, stale: true, tridaHodnoty: 'pole-mono', styl: 'grid-column:1/-1',
+        hint: 'Mění se na záložce Základní údaje. Musí přesně odpovídat IČO účetní jednotky otevřené v POHODĚ, jinak import balíček odmítne.' } }) %>
       <%- include('../../includes/pole', { pole: { label: 'Pokladna v POHODĚ', name: 'pohoda_cash_account', value: company.pohoda_cash_account || 'Pokladna', maxlength: 20, placeholder: 'Pokladna',
         hint: 'Přesný název pokladny z agendy Pokladna, kam se účtenky naimportují.' } }) %>
       <%- include('../../includes/pole', { pole: { label: 'Předkontace účtenek v pokladně', name: 'pohoda_predkontace', value: company.pohoda_predkontace, maxlength: 20, placeholder: 'např. 3Vd',
@@ -88,20 +94,32 @@
           číslo od dodavatele jde do pole Doklad.
         </p>
       </div>
-
     </div>
   </div>
-
+  <%- include('../../includes/upravit', { paticka: true, formular, urlZpet }) %>
+</form>
+<% } else if (tab === 'disk') { %>
+<form method="post" action="/nastaveni/firma/disk" id="<%= formular %>" class="upravitelne" autocomplete="off">
   <div class="card" style="margin-bottom:20px;">
-    <div class="card-header"><strong>Google Disk – přijaté faktury</strong></div>
+    <div class="card-header"><strong>Složka s přijatými fakturami</strong></div>
     <div class="card-body" style="display:grid;grid-template-columns:1fr;gap:16px;">
       <%- include('../../includes/pole', { pole: { label: 'ID složky „SEIL - účetnictví“', name: 'gdrive_root_folder_id', value: company.gdrive_root_folder_id, placeholder: '1AbCdEf…',
-        hint: 'ID je v adrese složky na Google Disku: drive.google.com/drive/folders/ID. Uvnitř se očekává struktura rok → měsíc → Přijaté faktury. Složku nasdílejte service accountu (proměnná GOOGLE_SERVICE_ACCOUNT_JSON) s právem Čtenář.' } }) %>
+        hint: 'ID je v adrese složky na Google Disku: drive.google.com/drive/folders/ID. Uvnitř se očekává struktura rok → měsíc → Přijaté faktury. Složku nasdílejte účtu služby níže s právem Čtenář.' } }) %>
     </div>
   </div>
-
   <%- include('../../includes/upravit', { paticka: true, formular, urlZpet }) %>
-
 </form>
+<div class="card">
+  <div class="card-header"><strong>Stav napojení</strong></div>
+  <div class="card-body" style="display:grid;grid-template-columns:1fr;gap:16px;">
+    <%- include('../../includes/pole', { pole: { label: 'Účet služby', value: serviceAccount || 'Není nastavený (proměnná GOOGLE_SERVICE_ACCOUNT_JSON)', stale: true, tridaHodnoty: serviceAccount ? 'pole-mono' : '' } }) %>
+    <%- include('../../includes/pole', { pole: { label: 'Poslední kontrola', value: company.gdrive_posledni_kontrola ? new Date(company.gdrive_posledni_kontrola).toLocaleString('cs-CZ', { timeZone: 'Europe/Prague' }) : 'Zatím neproběhla', stale: true } }) %>
+    <% if (chybaKontroly) { %>
+    <div class="hlaska hlaska-chyba" role="alert" style="margin:0;overflow-wrap:anywhere;"><strong>Poslední kontrola selhala:</strong> <% textChyby(chybaKontroly); %></div>
+    <% } %>
+    <div><a href="/ucetnictvi/prijate-faktury/gdrive" class="btn btn-outline btn-sm">Otevřít import z Google Disku</a></div>
+  </div>
+</div>
+<% } %>
 </div>
 </div>

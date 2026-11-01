@@ -118,11 +118,12 @@ describe('kolo: Uložit beze změny nechá řádek být', { skip: PRESKOCIT }, (
   test('přijatá faktura', () => kolo(`/ucetnictvi/prijate-faktury/${f.fak}?upravit=1`, radek('accounting_invoices', f.fak)));
   test('přijatá faktura s prázdným státem', () => kolo(`/ucetnictvi/prijate-faktury/${f.fak2}?upravit=1`, radek('accounting_invoices', f.fak2), { ocekavane: { supplier_country: 'Česká republika' } }));
   test('Můj profil', () => kolo('/profil?upravit=1', radek('users', f.admin.id), { tlacitko: '.card-header-akce .upravit-ulozit' }));
-  test('Nastavení firmy, plátce a všechny sloupce vyplněné', () => kolo('/nastaveni/firma?upravit=1', radek('company_settings', f.nastaveniId), {
-    pripravit: () => sql`UPDATE company_settings SET ${sql({ name: `Fi ${r}`, ico: '01', dic: 'CZ02', address: 'A3', city: 'C4', zip: 'Z5', country: 'Polsko', phone: '+6', email: 'e7@example.invalid', bank_account: 'B8', bank_name: 'N9', iban: 'I10', swift: 'S11', vat_payer: true, invoice_note: 'P12\nP13', pohoda_cash_account: 'K14', pohoda_predkontace: 'Q15', pohoda_predkontace_prijate: 'Q16', pohoda_predkontace_repre: 'Q17', gdrive_root_folder_id: 'G18' }, ...FIRMA_SLOUPCE)} WHERE id = ${f.nastaveniId}`,
-  }));
-  test('Nastavení firmy, neplátce: prázdný stát a pokladna dostanou výchozí', () => kolo('/nastaveni/firma?upravit=1', radek('company_settings', f.nastaveniId), {
-    pripravit: () => sql`UPDATE company_settings SET ${sql({ name: `Fi2 ${r}`, ico: '', dic: '', address: '', city: '', zip: '', country: '', phone: '', email: '', bank_account: '', bank_name: '', iban: '', swift: '', vat_payer: false, invoice_note: '', pohoda_cash_account: '', pohoda_predkontace: '', pohoda_predkontace_prijate: '', pohoda_predkontace_repre: '', gdrive_root_folder_id: '' }, ...FIRMA_SLOUPCE)} WHERE id = ${f.nastaveniId}`,
-    ocekavane: { country: 'Česká republika', pohoda_cash_account: 'Pokladna' },
-  }));
+  // Nastavení firmy po záložkách: každá má vlastní POST, výchozí hodnoty se zapíšou jen na své záložce.
+  const firmaPlna = () => sql`UPDATE company_settings SET ${sql({ name: `Fi ${r}`, ico: '01', dic: 'CZ02', address: 'A3', city: 'C4', zip: 'Z5', country: 'Polsko', phone: '+6', email: 'e7@example.invalid', bank_account: 'B8', bank_name: 'N9', iban: 'I10', swift: 'S11', vat_payer: true, invoice_note: 'P12\nP13', pohoda_cash_account: 'K14', pohoda_predkontace: 'Q15', pohoda_predkontace_prijate: 'Q16', pohoda_predkontace_repre: 'Q17', gdrive_root_folder_id: 'G18' }, ...FIRMA_SLOUPCE)} WHERE id = ${f.nastaveniId}`;
+  const firmaPrazdna = () => sql`UPDATE company_settings SET ${sql({ name: `Fi2 ${r}`, ico: '', dic: '', address: '', city: '', zip: '', country: '', phone: '', email: '', bank_account: '', bank_name: '', iban: '', swift: '', vat_payer: false, invoice_note: '', pohoda_cash_account: '', pohoda_predkontace: '', pohoda_predkontace_prijate: '', pohoda_predkontace_repre: '', gdrive_root_folder_id: '' }, ...FIRMA_SLOUPCE)} WHERE id = ${f.nastaveniId}`;
+  for (const tab of ['zakladni', 'fakturace', 'pohoda', 'disk']) {
+    test(`Nastavení firmy, ${tab}: plátce a všechny sloupce vyplněné`, () => kolo(`/nastaveni/firma?tab=${tab}&upravit=1`, radek('company_settings', f.nastaveniId), { pripravit: firmaPlna }));
+    const ocekavane = tab === 'zakladni' ? { country: 'Česká republika' } : tab === 'pohoda' ? { pohoda_cash_account: 'Pokladna' } : {};
+    test(`Nastavení firmy, ${tab}: neplátce, prázdný stát a pokladna dostanou výchozí jen na své záložce`, () => kolo(`/nastaveni/firma?tab=${tab}&upravit=1`, radek('company_settings', f.nastaveniId), { pripravit: firmaPrazdna, ocekavane }));
+  }
 });
