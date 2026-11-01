@@ -13,6 +13,8 @@ import {
 } from '../hr.js';
 import { addAttachment, isArchivableMime } from '../attachments.js';
 import { rezimUprav } from '../upravy.js';
+import { parametr, strankovani } from '../strankovani.js';
+import { bezpecnyNavrat } from '../navrat.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MEDIA_DIR = path.resolve(__dirname, '../../data/media');
@@ -72,7 +74,7 @@ export default async function peopleRoutes(fastify) {
 
   // ── Seznam členů týmu ────────────────────────────────────────
   fastify.get('/lide/tym', async (request, reply) => {
-    const q = (request.query.q || '').trim();
+    const q = parametr(request.query.q);
     const where = q
       ? sql`WHERE first_name ILIKE ${'%'+q+'%'} OR last_name ILIKE ${'%'+q+'%'} OR email ILIKE ${'%'+q+'%'}`
       : sql``;
@@ -176,11 +178,18 @@ export default async function peopleRoutes(fastify) {
       osobniUcet(sql, member.id),
     ]);
 
+    // Tři dlouhé seznamy stránkují. Počet je z `pocty`, součty v hlavičce karty z `ucet`.
+    const pocetZalozky = { podklady: pocty.podklady, mzdy: pocty.mzdy, vydaje: pocty.platby }[currentTab];
+    const strany = pocetZalozky === undefined ? null : strankovani({
+      cesta: `/lide/tym/${member.public_id}`, query: request.query, celkem: pocetZalozky, pevne: { tab: currentTab },
+    });
+    const stranka = strany && { limit: strany.naStranku, offset: strany.offset };
+
     const data = { pohyby: [], podklady: [], mzdy: [], platby: [], dokumenty: [], mesice: [] };
     if (currentTab === 'ekonomika') data.pohyby    = await posledniPohyby(sql, member.id);
-    if (currentTab === 'podklady')  data.podklady  = await podkladyUzivatele(sql, member.id);
-    if (currentTab === 'mzdy')      data.mzdy      = await mzdyUzivatele(sql, member.id);
-    if (currentTab === 'vydaje')    data.platby    = await platbyUzivatele(sql, member.id);
+    if (currentTab === 'podklady')  data.podklady  = await podkladyUzivatele(sql, member.id, stranka);
+    if (currentTab === 'mzdy')      data.mzdy      = await mzdyUzivatele(sql, member.id, stranka);
+    if (currentTab === 'vydaje')    data.platby    = await platbyUzivatele(sql, member.id, stranka);
     if (currentTab === 'dokumenty') data.dokumenty = await dokumentyUzivatele(sql, member.id);
     if (currentTab === 'hodiny')    data.mesice    = await hodinyPoMesicich(sql, member.id);
 
@@ -188,7 +197,7 @@ export default async function peopleRoutes(fastify) {
       pageTitle: (`${member.first_name} ${member.last_name}`.trim() || member.email),
       currentPath: '/lide/tym', user: request.user, member,
       sections: ACCESS_SECTIONS, isAllowed,
-      currentTab, pocty, ucet, ...data,
+      currentTab, pocty, ucet, strany, ...data,
       maData: pocty.podklady + pocty.mzdy + pocty.platby > 0,
       PLATBA_DRUHY, PODKLAD_STAVY,
       saved: request.query.saved === '1',
@@ -280,7 +289,8 @@ export default async function peopleRoutes(fastify) {
     // user_id v podmínce, aby nešlo smazat cizí platbu podvrženým ID
     await sql`DELETE FROM hr_payroll_items
                WHERE id = ${request.params.platbaId} AND user_id = ${member.id}`;
-    return reply.redirect(`/lide/tym/${member.public_id}?tab=vydaje&saved=1`);
+    const navrat = bezpecnyNavrat(request.body?.redirect_to, `/lide/tym/${member.public_id}?tab=vydaje`);
+    return reply.redirect(`${navrat}${navrat.includes('?') ? '&' : '?'}saved=1`);
   });
 
   // ── Osobní a smluvní dokumenty ───────────────────────────────

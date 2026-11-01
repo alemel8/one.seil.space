@@ -6,9 +6,10 @@
 
 import { getDb } from '../db.js';
 import {
-  osobniUctyVsech, mzdyPrehled, mzdoveRoky, podkladyPrehled,
+  osobniUctyVsech, mzdyPrehled, mzdoveRoky, podkladyPrehled, podkladySouhrn,
   mzdaDetail, podkladDetail, PODKLAD_STAVY, KATEGORIE_PRILOH,
 } from '../hr.js';
+import { parametr, strankovani } from '../strankovani.js';
 
 export default async function hrRoutes(fastify) {
   const sql = getDb();
@@ -74,27 +75,31 @@ export default async function hrRoutes(fastify) {
     if (!data) return reply.code(404).send('Podklad nenalezen');
     return reply.view('pages/people/podklad-detail.ejs', {
       pageTitle: 'Fakturační podklad', currentPath: '/lide/podklady',
-      user: request.user, ...data, KATEGORIE_PRILOH,
+      user: request.user, ...data, KATEGORIE_PRILOH, PODKLAD_STAVY,
     }, { layout: 'layouts/base.ejs' });
   });
 
   // ── Fakturační podklady ──────────────────────────────────────
   fastify.get('/lide/podklady', async (request, reply) => {
+    const stav = parametr(request.query.stav);
     const filtry = {
-      q: (request.query.q || '').trim(),
-      stav: PODKLAD_STAVY.some(s => s[0] === request.query.stav) ? request.query.stav : '',
-      osoba: (request.query.osoba || '').trim(),
+      q: parametr(request.query.q),
+      stav: PODKLAD_STAVY.some(s => s[0] === stav) ? stav : '',
+      osoba: parametr(request.query.osoba),
     };
+    const { pocet, celkem } = await podkladySouhrn(sql, filtry);
+    const strany = strankovani({
+      cesta: '/lide/podklady', query: request.query, celkem: pocet, zachovat: ['q', 'stav', 'osoba'],
+    });
     const [podklady, lide] = await Promise.all([
-      podkladyPrehled(sql, filtry),
+      podkladyPrehled(sql, filtry, { limit: strany.naStranku, offset: strany.offset }),
       sql`SELECT DISTINCT u.public_id, u.first_name, u.last_name
             FROM users u JOIN hr_work_reports w ON w.user_id = u.id ORDER BY u.last_name`,
     ]);
-    const celkem = podklady.reduce((a, p) => a + p.total_amount, 0);
 
     return reply.view('pages/people/podklady.ejs', {
       pageTitle: 'Fakturační podklady', currentPath: '/lide/podklady',
-      user: request.user, podklady, lide, filtry, celkem, PODKLAD_STAVY,
+      user: request.user, podklady, total: pocet, strany, lide, filtry, celkem, PODKLAD_STAVY,
     }, { layout: 'layouts/base.ejs' });
   });
 }

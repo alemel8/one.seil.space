@@ -3,8 +3,9 @@
   // nenarostl do nečitelna – obsah je řízený stejným ?tab= jako zbytek.
   const kc  = n => Number(n || 0).toLocaleString('cs-CZ', { maximumFractionDigits: 0 });
   const kc2 = n => Number(n || 0).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const den = d => d ? new Date(d).toLocaleDateString('cs-CZ') : '–';
-  const mesic = d => d ? new Date(d).toLocaleDateString('cs-CZ', { month: 'long', year: 'numeric' }) : '–';
+  const den = d => ceskeDatum(d) || '–';
+  // Sloupce DATE chodí jako půlnoc UTC, měsíc se čte v UTC nezávisle na pásmu procesu.
+  const mesic = d => d ? new Date(d).toLocaleDateString('cs-CZ', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : '–';
 %>
 
 <% if (currentTab === 'ekonomika') { %>
@@ -64,25 +65,25 @@
   <div class="card">
     <div class="card-header"><h2 style="font-size:15px;font-weight:600;margin:0;">Poslední pohyby</h2></div>
     <div class="table-wrapper" style="border:none;border-radius:0;">
-      <table class="data-table">
-        <thead><tr><th>Datum</th><th>Typ</th><th>Popis</th><th style="text-align:right;">Částka</th></tr></thead>
+      <table class="data-table" style="min-width:0;">
+        <thead><tr><th>Datum</th><th class="hide-mobile">Typ</th><th>Popis</th><th class="num">Částka</th></tr></thead>
         <tbody>
           <% if (!pohyby.length) { %>
-            <tr><td colspan="4" style="text-align:center;padding:32px;color:var(--text-muted);">Zatím žádné pohyby</td></tr>
+            <tr><td colspan="4"><div class="prazdno"><strong>Zatím žádné pohyby</strong></div></td></tr>
           <% } %>
           <% pohyby.forEach(function (p) {
                const odkaz = p.typ === 'podklad' ? '?tab=podklady'
                            : p.typ === 'mzda'    ? '?tab=mzdy' : '?tab=vydaje';
           %>
-          <tr style="cursor:pointer;" onclick="window.location='<%= odkaz %>'">
-            <td style="color:var(--text-muted);font-size:13px;white-space:nowrap;"><%= den(p.datum) %></td>
-            <td>
-              <span class="badge" style="background:<%= p.typ === 'podklad' ? 'var(--success-bg)' : 'var(--gray-100)' %>;color:<%= p.typ === 'podklad' ? '#15803D' : 'var(--text-secondary)' %>;">
+          <tr data-href="<%= odkaz %>">
+            <td class="mono"><a href="<%= odkaz %>" class="radek-odkaz"><%= den(p.datum) %></a></td>
+            <td class="hide-mobile">
+              <span class="badge <%= p.typ === 'podklad' ? 'badge-ok' : 'badge-neutral' %>">
                 <%= p.typ === 'podklad' ? 'Podklad' : p.typ === 'mzda' ? 'Mzda' : 'Platba' %>
               </span>
             </td>
-            <td><%= p.popis %></td>
-            <td style="text-align:right;font-family:var(--font-mono);font-size:13px;color:<%= p.castka >= 0 ? 'var(--success)' : 'var(--danger)' %>;">
+            <td><span class="radek-text" title="<%= p.popis %>"><%= p.popis %></span></td>
+            <td class="num" style="color:<%= p.castka >= 0 ? 'var(--ton-ok-text)' : 'var(--ton-chyba-text)' %>;">
               <%= p.castka >= 0 ? '+' : '' %><%= kc2(p.castka) %>
             </td>
           </tr>
@@ -97,42 +98,41 @@
   <div class="card">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
       <h2 style="font-size:15px;font-weight:600;margin:0;">Fakturační podklady</h2>
-      <span style="font-size:13px;color:var(--text-muted);">celkem <%= kc2(ucet.prijmy) %> Kč</span>
+      <span style="font-size:13px;color:var(--text-secondary);font-weight:400;">celkem <%= kc2(ucet.prijmy) %> Kč bez storna</span>
     </div>
     <div class="table-wrapper" style="border:none;border-radius:0;">
-      <table class="data-table">
-        <thead><tr><th>Datum</th><th>Zakázka</th><th>Lokalita</th><th>Přílohy</th><th>Faktura</th><th>Stav</th><th style="text-align:right;">Částka</th></tr></thead>
+      <table class="data-table" style="min-width:0;">
+        <thead><tr><th>Datum</th><th>Zakázka</th><th class="hide-mobile">Lokalita</th><th class="hide-mobile">Přílohy</th><th>Faktura</th><th class="mobil">Stav</th><th class="num mobil">Částka</th></tr></thead>
         <tbody>
           <% if (!podklady.length) { %>
-            <tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted);">Zatím žádné podklady</td></tr>
+            <tr><td colspan="7"><div class="prazdno"><strong>Zatím žádné podklady</strong></div></td></tr>
           <% } %>
-          <% podklady.forEach(function (w) { %>
-          <tr>
-            <td style="color:var(--text-muted);font-size:13px;white-space:nowrap;"><%= den(w.report_date) %></td>
-            <td style="font-family:var(--font-mono);font-size:12.5px;"><%= (w.kody || []).join(', ') || '–' %></td>
-            <td style="font-size:13px;"><%= (w.lokality || []).join(', ') || '–' %></td>
-            <td style="font-size:12.5px;white-space:nowrap;">
-              <a href="/lide/podklady/<%= w.id %>" style="color:var(--primary);text-decoration:none;">
-                <% if (w.priloh_rozpis) { %>📄 <%= w.priloh_rozpis %><% } %>
-                <% if (w.priloh_doklady) { %> &nbsp;🧾 <%= w.priloh_doklady %><% } %>
-                <% if (!w.priloh_rozpis && !w.priloh_doklady) { %>otevřít<% } %>
-              </a>
+          <% podklady.forEach(function (w) { const lokality = (w.lokality || []).join(', '); %>
+          <tr data-href="/lide/podklady/<%= w.id %>">
+            <td class="mono"><a href="/lide/podklady/<%= w.id %>" class="radek-odkaz"><%= den(w.report_date) %></a></td>
+            <td class="mono" style="white-space:normal;"><% (w.kody || []).forEach((k, i) => { %><span style="white-space:nowrap;"><%= k %><%= i < w.kody.length - 1 ? ',' : '' %></span> <% }) %><% if (!(w.kody || []).length) { %>–<% } %></td>
+            <td class="sekundarni hide-mobile"><span class="radek-text" title="<%= lokality %>"><%= lokality || '–' %></span></td>
+            <td class="sekundarni hide-mobile" style="white-space:nowrap;">
+              <% if (w.priloh_rozpis) { %>📄 <%= w.priloh_rozpis %><% } %>
+              <% if (w.priloh_doklady) { %> &nbsp;🧾 <%= w.priloh_doklady %><% } %>
+              <% if (!w.priloh_rozpis && !w.priloh_doklady) { %>–<% } %>
             </td>
-            <td style="font-size:12.5px;white-space:nowrap;">
+            <td class="sekundarni" style="white-space:nowrap;">
               <% if (w.invoice_id) { %>
-                <a href="/ucetnictvi/vydane-faktury/<%= w.invoice_id %>" style="color:var(--primary);text-decoration:none;"><%= w.faktura_cislo %></a>
-                <span style="color:var(--text-muted);"> · <%= w.faktura_stav %></span>
+                <a href="/ucetnictvi/vydane-faktury/<%= w.invoice_id %>" style="color:var(--link);text-decoration:none;"><%= w.faktura_cislo %></a>
+                · <%= w.faktura_stav %>
               <% } else if (w.invoice_number) { %>
-                <span title="Faktura tohoto čísla není v systému" style="color:var(--warning);"><%= w.invoice_number %> ⚠</span>
+                <span class="pole-varovani" title="Faktura tohoto čísla není v systému"><%= w.invoice_number %> ⚠</span>
               <% } else { %>–<% } %>
             </td>
-            <td><span class="badge" style="background:var(--gray-100);color:var(--text-secondary);"><%= (PODKLAD_STAVY.find(s => s[0] === w.status) || [,w.status])[1] %></span></td>
-            <td style="text-align:right;font-family:var(--font-mono);font-size:13px;"><%= kc2(w.total_amount) %></td>
+            <td class="mobil"><span class="badge badge-<%= tonStavu(w.status) %>"><%= (PODKLAD_STAVY.find(s => s[0] === w.status) || [,w.status])[1] %></span></td>
+            <td class="num mobil"><%= kc2(w.total_amount) %></td>
           </tr>
           <% }) %>
         </tbody>
       </table>
     </div>
+    <% if (locals.strany) { %><%- include('../../includes/strankovani', { strany: locals.strany }) %><% } %>
   </div>
 <% } %>
 
@@ -140,44 +140,41 @@
   <div class="card">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
       <h2 style="font-size:15px;font-weight:600;margin:0;">Mzdové listy</h2>
-      <span style="font-size:13px;color:var(--text-muted);">
+      <span style="font-size:13px;color:var(--text-secondary);font-weight:400;">
         uhrazeno <%= kc2(ucet.vydaje) %> Kč · náklad firmy <%= kc2(ucet.nakladFirmy) %> Kč
       </span>
     </div>
     <div class="table-wrapper" style="border:none;border-radius:0;">
-      <table class="data-table">
-        <thead><tr><th>Měsíc</th><th style="text-align:right;">Hodiny</th><th style="text-align:right;">Hrubá</th><th style="text-align:right;">Čistá</th><th style="text-align:right;">Uhrazeno</th><th style="text-align:right;">Náklad firmy</th><th>Přílohy</th><th>Stav</th></tr></thead>
+      <table class="data-table" style="min-width:0;">
+        <thead><tr><th>Měsíc</th><th class="num hide-mobile">Hodiny</th><th class="num hide-mobile">Hrubá</th><th class="num hide-mobile">Čistá</th><th class="num mobil">Uhrazeno</th><th class="num hide-mobile">Náklad firmy</th><th class="hide-mobile">Přílohy</th><th class="mobil">Stav</th></tr></thead>
         <tbody>
           <% if (!mzdy.length) { %>
-            <tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);">Zatím žádné mzdy</td></tr>
+            <tr><td colspan="8"><div class="prazdno"><strong>Zatím žádné mzdy</strong></div></td></tr>
           <% } %>
           <% mzdy.forEach(function (r) { %>
-          <tr>
+          <tr data-href="/lide/mzdy/<%= r.id %>">
             <td style="white-space:nowrap;">
-              <%= mesic(r.period) %>
+              <a href="/lide/mzdy/<%= r.id %>" class="radek-odkaz"><%= mesic(r.period) %></a>
               <% if (r.mesic_ma_vic_listu) { %>
-                <span class="badge" style="background:var(--warning-bg);color:#92400e;margin-left:6px;" title="Za tento měsíc jsou evidované dva listy – přeneseno z Airtable, zkontrolujte">2×</span>
+                <span class="badge badge-varovani" style="margin-left:6px;" title="Za tento měsíc je evidováno víc listů – přeneseno z Airtable, zkontrolujte">2×</span>
               <% } %>
             </td>
-            <td style="text-align:right;font-size:13px;"><%= r.hours ? Number(r.hours).toLocaleString('cs-CZ') + ' h' : '–' %></td>
-            <td style="text-align:right;font-family:var(--font-mono);font-size:13px;"><%= kc(r.gross) %></td>
-            <td style="text-align:right;font-family:var(--font-mono);font-size:13px;"><%= kc(r.net) %></td>
-            <td style="text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:600;"><%= kc(r.paid_total) %></td>
-            <td style="text-align:right;font-family:var(--font-mono);font-size:13px;color:var(--text-muted);"><%= kc(r.company_cost) %></td>
-            <td style="font-size:12.5px;">
-              <a href="/lide/mzdy/<%= r.id %>" style="color:var(--primary);text-decoration:none;">
-                <%= r.priloh ? '📎 ' + r.priloh + ' dokumentů' : 'otevřít' %>
-              </a>
-            </td>
-            <td>
-              <% if (r.paid) { %><span class="badge" style="background:var(--success-bg);color:#15803D;">Vyplaceno</span>
-              <% } else { %><span class="badge" style="background:var(--warning-bg);color:#92400e;">Nevyplaceno</span><% } %>
+            <td class="num hide-mobile"><%= r.hours ? Number(r.hours).toLocaleString('cs-CZ') + ' h' : '–' %></td>
+            <td class="num hide-mobile"><%= kc(r.gross) %></td>
+            <td class="num hide-mobile"><%= kc(r.net) %></td>
+            <td class="num mobil" style="font-weight:600;"><%= kc(r.paid_total) %></td>
+            <td class="num sekundarni hide-mobile"><%= kc(r.company_cost) %></td>
+            <td class="sekundarni hide-mobile"><%= r.priloh ? '📎 ' + r.priloh : '–' %></td>
+            <td class="mobil">
+              <% if (r.paid) { %><span class="badge badge-ok">Vyplaceno</span>
+              <% } else { %><span class="badge badge-varovani">Nevyplaceno</span><% } %>
             </td>
           </tr>
           <% }) %>
         </tbody>
       </table>
     </div>
+    <% if (locals.strany) { %><%- include('../../includes/strankovani', { strany: locals.strany }) %><% } %>
   </div>
 <% } %>
 
@@ -188,26 +185,27 @@
       <button class="btn btn-primary btn-sm" data-modal-open="modalPlatba">+ Přidat platbu</button>
     </div>
     <div class="table-wrapper" style="border:none;border-radius:0;">
-      <table class="data-table">
-        <thead><tr><th>Datum</th><th>Druh</th><th>Popis</th><th>Doklad</th><th style="text-align:right;">Částka</th><th style="width:40px;"></th></tr></thead>
+      <table class="data-table" style="min-width:0;">
+        <thead><tr><th>Datum</th><th class="hide-mobile">Druh</th><th>Popis</th><th class="hide-mobile">Doklad</th><th class="num mobil">Částka</th><th style="width:40px;" aria-label="Akce"></th></tr></thead>
         <tbody>
           <% if (!platby.length) { %>
-            <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted);">Zatím žádné platby mimo mzdu</td></tr>
+            <tr><td colspan="6"><div class="prazdno"><strong>Zatím žádné platby mimo mzdu</strong></div></td></tr>
           <% } %>
           <% platby.forEach(function (pl) { %>
           <tr>
-            <td style="color:var(--text-muted);font-size:13px;white-space:nowrap;"><%= den(pl.paid_on) %></td>
-            <td>
-              <span class="badge" style="background:<%= pl.kind === 'zaloha' ? 'var(--info-bg)' : 'var(--gray-100)' %>;color:<%= pl.kind === 'zaloha' ? 'var(--info)' : 'var(--text-secondary)' %>;">
+            <td class="mono sekundarni"><%= den(pl.paid_on) %></td>
+            <td class="hide-mobile">
+              <span class="badge <%= pl.kind === 'zaloha' ? 'badge-info' : 'badge-neutral' %>">
                 <%= (PLATBA_DRUHY.find(d => d[0] === pl.kind) || [,pl.kind])[1] %>
               </span>
             </td>
-            <td><%= pl.description || '–' %></td>
-            <td style="font-size:12.5px;color:var(--text-muted);"><%= pl.priloh ? '📎 ' + pl.priloh : '–' %></td>
-            <td style="text-align:right;font-family:var(--font-mono);font-size:13px;"><%= kc2(pl.amount) %></td>
+            <td><span class="radek-text" title="<%= pl.description || '' %>"><%= pl.description || '–' %></span></td>
+            <td class="sekundarni hide-mobile"><%= pl.priloh ? '📎 ' + pl.priloh : '–' %></td>
+            <td class="num mobil"><%= kc2(pl.amount) %></td>
             <td>
               <form method="post" action="/lide/tym/<%= member.public_id %>/platby/<%= pl.id %>/smazat" onsubmit="return confirm('Opravdu smazat tuto platbu?');">
-                <button type="submit" class="btn btn-ghost btn-sm" title="Smazat">🗑</button>
+                <input type="hidden" name="redirect_to" value="<%= locals.strany?.aktualni %>">
+                <button type="submit" class="btn btn-ghost btn-sm" title="Smazat" aria-label="Smazat platbu">🗑</button>
               </form>
             </td>
           </tr>
@@ -215,7 +213,8 @@
         </tbody>
       </table>
     </div>
-    <div class="card-body" style="border-top:1px solid var(--border);font-size:12.5px;color:var(--text-muted);">
+    <% if (locals.strany) { %><%- include('../../includes/strankovani', { strany: locals.strany }) %><% } %>
+    <div class="card-body" style="border-top:1px solid var(--border);font-size:12.5px;color:var(--text-secondary);">
       Záloha není náklad firmy – je to pohledávka za zaměstnancem. Do nákladů a hrubého zisku
       vstupují jen proplacené náklady, proto na druhu záleží.
     </div>
@@ -274,7 +273,7 @@
         <thead><tr><th>Datum</th><th>Název</th><th>Kategorie</th><th>Soubory</th><th>Stav</th></tr></thead>
         <tbody>
           <% if (!dokumenty.length) { %>
-            <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-muted);">Zatím žádné dokumenty</td></tr>
+            <tr><td colspan="5"><div class="prazdno"><strong>Zatím žádné dokumenty</strong></div></td></tr>
           <% } %>
           <% dokumenty.forEach(function (d) { %>
           <tr>
@@ -283,8 +282,8 @@
             <td style="font-size:13px;color:var(--text-muted);"><%= d.category || '–' %></td>
             <td style="font-size:12.5px;color:var(--text-muted);"><%= d.priloh ? '📎 ' + d.priloh : '–' %></td>
             <td>
-              <% if (d.signed) { %><span class="badge" style="background:var(--success-bg);color:#15803D;">Vyřízeno</span>
-              <% } else { %><span class="badge" style="background:var(--gray-100);color:var(--text-secondary);">Nevyřízeno</span><% } %>
+              <% if (d.signed) { %><span class="badge badge-ok">Vyřízeno</span>
+              <% } else { %><span class="badge badge-neutral">Nevyřízeno</span><% } %>
             </td>
           </tr>
           <% }) %>
@@ -372,7 +371,7 @@
         </tr></thead>
         <tbody>
           <% if (!mesice.length) { %>
-            <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-muted);">Zatím žádná měření</td></tr>
+            <tr><td colspan="5"><div class="prazdno"><strong>Zatím žádná měření</strong></div></td></tr>
           <% } %>
           <% mesice.forEach(function (m) {
                const má = m.ve_mzde != null;

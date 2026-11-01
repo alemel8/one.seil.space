@@ -56,7 +56,7 @@
             <th style="min-width:260px;">Sekce systému</th>
             <% members.forEach(m => { %>
             <th style="text-align:center;min-width:120px;">
-              <a href="/lide/tym/<%= m.public_id %>#pristupy" class="access-user">
+              <a href="/lide/tym/<%= m.public_id %>?tab=pristupy" class="access-user">
                 <span class="access-avatar">
                   <% if (m.photo) { %>
                     <img src="/media/<%= m.photo %>" alt=""
