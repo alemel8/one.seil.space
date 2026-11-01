@@ -8,7 +8,8 @@ import { hashKlice, otiskKlice, vygenerujKlic } from '../eshop-klice.js';
 import { behySyncu, nactiZdroje, nastavMarketingEshopu, tajemstviZdroje, ulozZdroj, ZdrojError } from '../marketing/zdroje.js';
 import { maKlic } from '../marketing/tajemstvi.js';
 import { isConfigured as maGoogleServiceAccount, serviceAccountEmail } from '../google-auth.js';
-import { idSlozky } from '../gdrive.js';
+import { citelnaChyba, idSlozky } from '../gdrive.js';
+import { zalozka } from '../zalozky.js';
 
 /**
  * Toneráček jede přes /api/toneracek s klíčem z TONERACEK_API_KEY a jeho
@@ -32,7 +33,16 @@ const ZALOZKY_ESHOPU = [
   ['marketing',    'Marketing',          'formMarketing'],
   ['healthchecky', 'Healthchecky',       null],
 ];
-const zalozka = (hodnota) => ZALOZKY_ESHOPU.some(([k]) => k === hodnota) ? hodnota : 'zakladni';
+
+/** Záložky Nastavení firmy: klíč, popisek, id formuláře. Každá má vlastní POST, který píše jen své sloupce. */
+const ZALOZKY_FIRMY = [
+  ['zakladni',  'Základní údaje',    'formFirmaZakladni'],
+  ['fakturace', 'Banka a fakturace', 'formFirmaFakturace'],
+  ['pohoda',    'Export do POHODY',  'formFirmaPohoda'],
+  ['disk',      'Google Disk',       'formFirmaDisk'],
+];
+const CHYBY_FIRMY = { __proto__: null, nazev: 'Název firmy je povinný.' };
+const textFirmy = (hodnota) => String(hodnota ?? '').trim();
 
 export default async function settingsRoutes(fastify) {
   const sql = getDb();
@@ -46,65 +56,70 @@ export default async function settingsRoutes(fastify) {
 
   fastify.get('/nastaveni/firma', async (request, reply) => {
     const [company] = await sql`SELECT * FROM company_settings LIMIT 1`;
+    const firma = company || {};
     return reply.view('pages/settings/company.ejs', {
       pageTitle: 'Nastavení firmy', currentPath: '/nastaveni/firma',
-      user: request.user, company: company || {}, saved: request.query.saved === '1',
+      user: request.user, company: firma,
+      tab: zalozka(ZALOZKY_FIRMY, request.query.tab), zalozky: ZALOZKY_FIRMY,
+      saved: request.query.saved === '1',
+      error: CHYBY_FIRMY[request.query.error] || null,
       rezimUprav: rezimUprav(request.query),
+      // Jen z databáze: kontrola při Uložit načítá tuhle adresu s limitem 5 s, živé volání Disku sem nepatří.
+      serviceAccount: serviceAccountEmail(),
+      chybaKontroly: citelnaChyba(firma.gdrive_posledni_chyba),
     }, { layout: 'layouts/base.ejs' });
   });
 
-  fastify.post('/nastaveni/firma', async (request, reply) => {
+  /**
+   * Zapíše sloupce jedné záložky, ostatních se nedotkne. Prázdná tabulka dostane
+   * řádek s prázdnou poznámkou na faktuře: výchozí hodnota sloupce je věta
+   * „Nejsme plátci DPH.“, která by se bez vědomí správce tiskla na faktury.
+   */
+  async function ulozFirmu(hodnoty) {
+    const [radek] = await sql`SELECT id FROM company_settings LIMIT 1`;
+    const id = radek?.id ?? (await sql`INSERT INTO company_settings (invoice_note) VALUES ('') RETURNING id`)[0].id;
+    await sql`UPDATE company_settings SET ${sql(hodnoty)}, updated_at = NOW() WHERE id = ${id}`;
+  }
+
+  /** Text z formuláře; chybějící pole nesmí sloupec tiše vyprázdnit (zkrácené tělo, cizí formulář). */
+  const neuplne = (b, pole) => pole.some(k => b[k] === undefined);
+
+  fastify.post('/nastaveni/firma/zakladni', async (request, reply) => {
     const b = request.body || {};
-    const [existing] = await sql`SELECT id FROM company_settings LIMIT 1`;
-    if (existing) {
-      await sql`
-        UPDATE company_settings SET
-          name         = ${(b.name         ||'').trim()},
-          ico          = ${(b.ico          ||'').trim()},
-          dic          = ${(b.dic          ||'').trim()},
-          address      = ${(b.address      ||'').trim()},
-          city         = ${(b.city         ||'').trim()},
-          zip          = ${(b.zip          ||'').trim()},
-          country      = ${(b.country      ||'').trim()},
-          phone        = ${(b.phone        ||'').trim()},
-          email        = ${(b.email        ||'').trim()},
-          bank_account = ${(b.bank_account ||'').trim()},
-          bank_name    = ${(b.bank_name    ||'').trim()},
-          iban         = ${(b.iban         ||'').trim()},
-          swift        = ${(b.swift        ||'').trim()},
-          vat_payer    = ${b.vat_payer === 'on' || b.vat_payer === '1'},
-          invoice_note = ${(b.invoice_note ||'').trim()},
-          pohoda_cash_account = ${(b.pohoda_cash_account ||'').trim() || 'Pokladna'},
-          pohoda_predkontace  = ${(b.pohoda_predkontace  ||'').trim()},
-          pohoda_predkontace_prijate = ${(b.pohoda_predkontace_prijate ||'').trim()},
-          pohoda_predkontace_repre   = ${(b.pohoda_predkontace_repre   ||'').trim()},
-          gdrive_root_folder_id = ${idSlozky(b.gdrive_root_folder_id)},
-          updated_at   = NOW()
-        WHERE id = ${existing.id}
-      `;
-    } else {
-      await sql`
-        INSERT INTO company_settings
-          (name, ico, dic, address, city, zip, country, phone, email,
-           bank_account, bank_name, iban, swift, vat_payer, invoice_note,
-           pohoda_cash_account, pohoda_predkontace,
-           pohoda_predkontace_prijate, pohoda_predkontace_repre,
-           gdrive_root_folder_id)
-        VALUES (${(b.name||'').trim()}, ${(b.ico||'').trim()}, ${(b.dic||'').trim()},
-                ${(b.address||'').trim()}, ${(b.city||'').trim()}, ${(b.zip||'').trim()},
-                ${(b.country||'Česká republika').trim()}, ${(b.phone||'').trim()},
-                ${(b.email||'').trim()}, ${(b.bank_account||'').trim()},
-                ${(b.bank_name||'').trim()}, ${(b.iban||'').trim()}, ${(b.swift||'').trim()},
-                ${b.vat_payer === 'on' || b.vat_payer === '1'},
-                ${(b.invoice_note||'').trim()},
-                ${(b.pohoda_cash_account||'').trim() || 'Pokladna'},
-                ${(b.pohoda_predkontace||'').trim()},
-                ${(b.pohoda_predkontace_prijate||'').trim()},
-                ${(b.pohoda_predkontace_repre||'').trim()},
-                ${idSlozky(b.gdrive_root_folder_id)})
-      `;
-    }
-    return reply.redirect('/nastaveni/firma?saved=1');
+    const pole = ['name', 'ico', 'dic', 'address', 'city', 'zip', 'country', 'phone', 'email'];
+    if (neuplne(b, pole)) return reply.code(400).send('Neúplný formulář');
+    if (!textFirmy(b.name)) return reply.redirect('/nastaveni/firma?tab=zakladni&error=nazev&upravit=1');
+    await ulozFirmu(Object.fromEntries(pole.map(k => [k, textFirmy(b[k])])));
+    return reply.redirect('/nastaveni/firma?tab=zakladni&saved=1');
+  });
+
+  fastify.post('/nastaveni/firma/fakturace', async (request, reply) => {
+    const b = request.body || {};
+    const pole = ['bank_account', 'bank_name', 'iban', 'swift', 'invoice_note'];
+    if (neuplne(b, pole)) return reply.code(400).send('Neúplný formulář');
+    await ulozFirmu({
+      ...Object.fromEntries(pole.map(k => [k, textFirmy(b[k])])),
+      vat_payer: b.vat_payer === 'on' || b.vat_payer === '1',
+    });
+    return reply.redirect('/nastaveni/firma?tab=fakturace&saved=1');
+  });
+
+  fastify.post('/nastaveni/firma/pohoda', async (request, reply) => {
+    const b = request.body || {};
+    const pole = ['pohoda_cash_account', 'pohoda_predkontace', 'pohoda_predkontace_prijate', 'pohoda_predkontace_repre'];
+    if (neuplne(b, pole)) return reply.code(400).send('Neúplný formulář');
+    await ulozFirmu({
+      ...Object.fromEntries(pole.map(k => [k, textFirmy(b[k])])),
+      pohoda_cash_account: textFirmy(b.pohoda_cash_account) || 'Pokladna',
+    });
+    return reply.redirect('/nastaveni/firma?tab=pohoda&saved=1');
+  });
+
+  fastify.post('/nastaveni/firma/disk', async (request, reply) => {
+    const b = request.body || {};
+    if (neuplne(b, ['gdrive_root_folder_id'])) return reply.code(400).send('Neúplný formulář');
+    await ulozFirmu({ gdrive_root_folder_id: idSlozky(b.gdrive_root_folder_id) });
+    return reply.redirect('/nastaveni/firma?tab=disk&saved=1');
   });
 
   // ── Číselné řady ─────────────────────────────────────────────
@@ -222,7 +237,7 @@ const BARVA_ESHOPU = /^#[0-9a-fA-F]{3,8}$/;
     // ostatní klíče dostane šablona prázdné, aby EJS nepadalo na
     // nedefinované proměnné. `extra.tab` dávají přímo renderující POSTy
     // (nový klíč, tajemství, ověření), které nemají query string.
-    const tab = zalozka(extra.tab ?? request.query.tab);
+    const tab = zalozka(ZALOZKY_ESHOPU, extra.tab ?? request.query.tab);
     const data = { checks: [], channels: [], rules: [], eshopKlice: [], expedice: [], marketingZdroje: [], marketingBehy: [] };
 
     if (tab === 'healthchecky') {

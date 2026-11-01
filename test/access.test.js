@@ -131,7 +131,7 @@ describe('mapování URL na položku katalogu', () => {
   });
 
   test('při překryvu vyhrává nejdelší cesta', () => {
-    assert.equal(key('/nastaveni'), null, 'osobní nastavení matice neřeší');
+    assert.equal(key('/nastaveni'), null, 'stará adresa osobního nastavení mimo matici, přesměruje na profil');
     assert.equal(key('/nastaveni/firma'), 'nastaveni.firma');
     assert.equal(key('/nastaveni/healthchecky/3/toggle'), 'monitoring.healthchecky');
     assert.equal(key('/nastaveni/notifikace/kanal/vytvorit'), 'monitoring.healthchecky');

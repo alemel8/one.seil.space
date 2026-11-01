@@ -52,7 +52,7 @@ export default async function pushRoutes(fastify) {
     const vysledek = await sendPushToUser(request.user.id, {
       title: 'Zkušební notifikace',
       body: 'Push notifikace fungují. Takhle přijde i nová objednávka.',
-      url: '/nastaveni',
+      url: '/profil?tab=notifikace',
     });
     return reply.send(vysledek);
   });

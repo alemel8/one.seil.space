@@ -3,15 +3,17 @@
     <h1>Healthchecky &amp; notifikace</h1>
     <p>Sledované URL, notifikační kanály a pravidla alertů</p>
   </div>
+  <% if (tab === 'aplikace') { %>
   <button class="btn btn-primary" data-modal-open="modalAddCheck">+ Přidat URL</button>
+  <% } %>
 </div>
 
+<%- include('../../includes/zalozky', { nazev: 'Sekce monitoringu', zalozky, tab, adresa: k => `/nastaveni/healthchecky?tab=${k}` }) %>
+
+<% if (tab === 'aplikace') { %>
 <div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;">
-
-  <!-- Levý sloupec: healthchecky + pravidla -->
-  <div style="display:flex;flex-direction:column;gap:20px;">
-
-    <!-- Sledované URL -->
+  <div style="min-width:0;">
+<!-- Sledované URL -->
     <div class="card">
       <div class="card-header">Sledované aplikace</div>
       <div class="table-wrapper" style="border:none;border-radius:0;">
@@ -48,70 +50,9 @@
         </table>
       </div>
     </div>
-
-    <!-- Notifikační pravidla -->
-    <div class="card">
-      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
-        <span>Notifikační pravidla</span>
-        <button class="btn btn-outline btn-sm" data-modal-open="modalAddRule">+ Přidat</button>
-      </div>
-      <div class="table-wrapper" style="border:none;border-radius:0;">
-        <table class="data-table">
-          <thead>
-            <tr><th>Událost</th><th>Práh</th><th>Kanál</th><th></th></tr>
-          </thead>
-          <tbody>
-            <% if (rules.length > 0) { %>
-              <% const eventLabels = { app_down:'App down', disk_high:'Disk > %', ram_high:'RAM > %', cpu_high:'CPU load >', invoice_overdue:'Faktury po splatnosti', marketing_pno_high:'PNO nad prahem (marketing)', marketing_sync_failed:'Stahování marketingu selhalo' }; %>
-              <% rules.forEach(r => { %>
-              <tr>
-                <td><%= eventLabels[r.event_type] || r.event_type %></td>
-                <td><%= r.threshold != null ? r.threshold + (r.event_type==='cpu_high' ? '' : ' %') : '–' %></td>
-                <td style="font-size:13px;"><%= r.channel_name || '–' %></td>
-                <td>
-                  <form method="post" action="/nastaveni/notifikace/pravidlo/<%= r.id %>/smazat" style="display:inline;" onsubmit="return confirm('Smazat?')">
-                    <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger);">🗑</button>
-                  </form>
-                </td>
-              </tr>
-              <% }) %>
-            <% } else { %>
-              <tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text-muted);">Žádná pravidla</td></tr>
-            <% } %>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
   </div>
-
-  <!-- Pravý sloupec: notifikační kanály -->
   <div>
-    <div class="card">
-      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
-        <span>Notifikační kanály</span>
-        <button class="btn btn-outline btn-sm" data-modal-open="modalAddChannel">+ Přidat</button>
-      </div>
-      <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
-        <% if (channels.length > 0) { %>
-          <% channels.forEach(ch => { %>
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--bg-page);border-radius:var(--radius-sm);border:1px solid var(--border);">
-            <div>
-              <div style="font-weight:600;font-size:13px;"><%= ch.name %></div>
-              <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;"><%= ch.type %></div>
-            </div>
-            <form method="post" action="/nastaveni/notifikace/kanal/<%= ch.id %>/smazat" onsubmit="return confirm('Smazat kanál?')">
-              <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger);">🗑</button>
-            </form>
-          </div>
-          <% }) %>
-        <% } else { %>
-          <p style="color:var(--text-muted);font-size:13px;text-align:center;padding:16px 0;">Žádné kanály</p>
-        <% } %>
-      </div>
-    </div>
-
-    <div class="card" style="margin-top:16px;">
+<div class="card">
       <div class="card-header">Jak to funguje</div>
       <div class="card-body" style="font-size:12px;color:var(--text-secondary);line-height:1.7;">
         <p>Worker pinguje URL každých <strong>5 minut</strong> a ukládá výsledky.</p>
@@ -120,7 +61,6 @@
       </div>
     </div>
   </div>
-
 </div>
 
 <!-- Modal: Přidat healthcheck -->
@@ -157,6 +97,70 @@
         <button type="submit" class="btn btn-primary">Přidat</button>
       </div>
     </form>
+  </div>
+</div>
+<% } else { %>
+<%# Pravidlo vybírá kanál, proto jsou na jedné záložce. %>
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;">
+  <div style="min-width:0;">
+<!-- Notifikační pravidla -->
+    <div class="card">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Notifikační pravidla</span>
+        <button class="btn btn-outline btn-sm" data-modal-open="modalAddRule">+ Přidat</button>
+      </div>
+      <div class="table-wrapper" style="border:none;border-radius:0;">
+        <table class="data-table">
+          <thead>
+            <tr><th>Událost</th><th>Práh</th><th>Kanál</th><th></th></tr>
+          </thead>
+          <tbody>
+            <% if (rules.length > 0) { %>
+              <% const eventLabels = { app_down:'App down', disk_high:'Disk > %', ram_high:'RAM > %', cpu_high:'CPU load >', invoice_overdue:'Faktury po splatnosti', marketing_pno_high:'PNO nad prahem (marketing)', marketing_sync_failed:'Stahování marketingu selhalo' }; %>
+              <% rules.forEach(r => { %>
+              <tr>
+                <td><%= eventLabels[r.event_type] || r.event_type %></td>
+                <td><%= r.threshold != null ? r.threshold + (r.event_type==='cpu_high' ? '' : ' %') : '–' %></td>
+                <td style="font-size:13px;"><%= r.channel_name || '–' %></td>
+                <td>
+                  <form method="post" action="/nastaveni/notifikace/pravidlo/<%= r.id %>/smazat" style="display:inline;" onsubmit="return confirm('Smazat?')">
+                    <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger);">🗑</button>
+                  </form>
+                </td>
+              </tr>
+              <% }) %>
+            <% } else { %>
+              <tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text-muted);">Žádná pravidla</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div>
+<div class="card">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Notifikační kanály</span>
+        <button class="btn btn-outline btn-sm" data-modal-open="modalAddChannel">+ Přidat</button>
+      </div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
+        <% if (channels.length > 0) { %>
+          <% channels.forEach(ch => { %>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--bg-page);border-radius:var(--radius-sm);border:1px solid var(--border);">
+            <div>
+              <div style="font-weight:600;font-size:13px;"><%= ch.name %></div>
+              <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;"><%= ch.type %></div>
+            </div>
+            <form method="post" action="/nastaveni/notifikace/kanal/<%= ch.id %>/smazat" onsubmit="return confirm('Smazat kanál?')">
+              <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger);">🗑</button>
+            </form>
+          </div>
+          <% }) %>
+        <% } else { %>
+          <p style="color:var(--text-muted);font-size:13px;text-align:center;padding:16px 0;">Žádné kanály</p>
+        <% } %>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -244,6 +248,7 @@
     </form>
   </div>
 </div>
+<% } %>
 
 <script>
 document.querySelectorAll('[data-modal-open]').forEach(b =>
