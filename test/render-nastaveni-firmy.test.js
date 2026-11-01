@@ -319,3 +319,10 @@ test('číselné řady: chyba z formuláře se ukáže, neznámý kód ne', asyn
   assert.ok(!(await vykresliRady('jine')).includes('Řada se neuložila'));
   assert.ok(!(await vykresliRady(null)).includes('Řada se neuložila'));
 });
+
+test('Google Disk: odkazem se stane jen konzole Googlu, cizí adresa v uložené chybě ne', async () => {
+  const html = await vykresli({ tab: 'disk', chybaKontroly: 'Jděte na https://evil.example/x nebo https://console.evil.example/y' });
+  assert.ok(!html.includes('href="https://evil.example'));
+  assert.ok(!html.includes('href="https://console.evil.example'));
+  assert.ok(html.includes('https://evil.example/x'), 'text zůstane vidět');
+});

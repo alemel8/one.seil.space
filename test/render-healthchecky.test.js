@@ -8,6 +8,8 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import postgres from 'postgres';
 import { vykresliStranku } from './pomocnici/render.js';
 import { PRESKOCIT, lokalniDatabaze, serverBezi, prihlas, pozadavky } from './pomocnici/server.js';
@@ -99,4 +101,10 @@ describe('proti serveru', { skip: PRESKOCIT }, () => {
       assert.equal(res.headers.get('location'), '/nastaveni/healthchecky?tab=aplikace', cil);
     }
   });
+});
+
+test('každá routa monitoringu bere návrat přes bezpecnyNavrat, žádné přímé přesměrování na returnTo', () => {
+  const kod = readFileSync(fileURLToPath(new URL('../src/routes/monitoring.js', import.meta.url)), 'utf8');
+  assert.ok(!/redirect\(\s*b\.returnTo/.test(kod) && !/b\.returnTo\s*\|\|/.test(kod));
+  assert.ok((kod.match(/bezpecnyNavrat\(b\.returnTo/g) ?? []).length >= 7);
 });

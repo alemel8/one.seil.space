@@ -118,7 +118,10 @@ export default async function settingsRoutes(fastify) {
   fastify.post('/nastaveni/firma/disk', async (request, reply) => {
     const b = request.body || {};
     if (neuplne(b, ['gdrive_root_folder_id'])) return reply.code(400).send('Neúplný formulář');
-    await ulozFirmu({ gdrive_root_folder_id: idSlozky(b.gdrive_root_folder_id) });
+    const id = idSlozky(b.gdrive_root_folder_id);
+    const [firma] = await sql`SELECT gdrive_root_folder_id FROM company_settings LIMIT 1`;
+    // Chyba poslední kontroly patří k předchozí složce, k nové by jen mátla.
+    await ulozFirmu({ gdrive_root_folder_id: id, ...(firma?.gdrive_root_folder_id === id ? {} : { gdrive_posledni_chyba: '' }) });
     return reply.redirect('/nastaveni/firma?tab=disk&saved=1');
   });
 
@@ -147,7 +150,7 @@ export default async function settingsRoutes(fastify) {
   fastify.post('/nastaveni/ciselne-rady/vytvorit', async (request, reply) => {
     const b = request.body || {};
     const format = (b.format || '').trim();
-    if (!b.name || (!b.prefix && !format)) return reply.redirect('/nastaveni/ciselne-rady?error=missing');
+    if (!(b.name || '').trim() || (!(b.prefix || '').trim() && !format)) return reply.redirect('/nastaveni/ciselne-rady?error=missing');
     const startNum = Math.max(0, parseInt(b.start_number || '1', 10));
     await sql`
       INSERT INTO invoice_number_series

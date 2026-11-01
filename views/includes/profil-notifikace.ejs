@@ -34,7 +34,7 @@
           </div>
           <div class="toggle-wrap" style="flex-shrink:0;">
             <input type="checkbox" id="prefNewOrder" class="toggle-input" <%= prefs.notify_new_order ? 'checked' : '' %> onchange="savePref('new_order', this.checked)">
-            <span class="toggle-switch" onclick="document.getElementById('prefNewOrder').click()"></span>
+            <span class="toggle-switch"></span>
           </div>
         </label>
 
@@ -63,7 +63,7 @@
   const { publicKey } = await res.json();
 
   window._pushVapidKey = publicKey;
-  window._pushReg = await navigator.serviceWorker.ready;
+  window._pushReg = await pushRegistrace();
 
   const sub = await window._pushReg.pushManager.getSubscription();
   if (sub) {
@@ -128,7 +128,7 @@ async function togglePush() {
   btn.disabled = true;
   errEl.style.display = 'none';
 
-  const reg = window._pushReg || (await navigator.serviceWorker.ready);
+  const reg = window._pushReg || (await pushRegistrace());
   const existing = await reg.pushManager.getSubscription();
 
   if (existing) {
@@ -167,15 +167,30 @@ async function togglePush() {
   btn.disabled = false;
 }
 
+// /static/sw.js má scope /static/, takže serviceWorker.ready na stránkách aplikace
+// nikdy nedoběhne a stránka by zůstala na „Zjišťuji stav…“. Odběr push funguje i mimo
+// scope, stačí registrace s aktivním workerem.
+async function pushRegistrace() {
+  const reg = await navigator.serviceWorker.register('/static/sw.js');
+  const cekajici = reg.active ? null : (reg.installing || reg.waiting);
+  if (cekajici) {
+    await new Promise(hotovo => cekajici.addEventListener('statechange', () => {
+      if (cekajici.state === 'activated' || cekajici.state === 'redundant') hotovo();
+    }));
+  }
+  return reg;
+}
+
 // ── Notifikační preference ────────────────────────────────────
 async function savePref(type, value) {
   const msg = document.getElementById('prefMsg');
   msg.style.display = 'none';
   try {
-    await fetch('/api/push/prefs', {
+    const res = await fetch('/api/push/prefs', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ notify_new_order: type === 'new_order' ? value : undefined }),
     });
+    if (!res.ok) throw new Error(String(res.status));
     msg.textContent = 'Uloženo.';
     msg.style.color = 'var(--text-muted)';
     msg.style.display = '';
