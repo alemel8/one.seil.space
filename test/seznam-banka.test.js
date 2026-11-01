@@ -243,7 +243,7 @@ describe('seznam banky a přehled po splatnosti', { skip: PRESKOCIT }, () => {
       await page.setViewport({ width: 390, height: 844 });
       await jdi(`${SEZNAM}?q=${r}`);
       const viditelne = await page.$$eval('.data-table thead th', ths => ths.filter(th => getComputedStyle(th).display !== 'none').map(th => th.innerText.trim().toLowerCase()));
-      assert.deepEqual(viditelne, ['popis', 'částka', 'datum']);
+      assert.deepEqual(viditelne, ['popis', 'částka', 'datum', ''], 'párování je jen v řádku, na telefonu musí zůstat');
       await page.setViewport({ width: 1366, height: 900 });
     });
 

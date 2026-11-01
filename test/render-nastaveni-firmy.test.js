@@ -207,6 +207,8 @@ describe('proti serveru', { skip: PRESKOCIT }, () => {
           telo[k] = `${telo[k]}-nove`;
           ocekavane.push(k);
         }
+        // Změna složky maže chybu poslední kontroly, patřila k předchozí složce.
+        if (tab === 'disk' && pred.gdrive_posledni_chyba) ocekavane.push('gdrive_posledni_chyba');
         const res = await req.post(`/nastaveni/firma/${tab}`, telo);
         assert.equal(res.status, 302);
         assert.equal(res.headers.get('location'), `/nastaveni/firma?tab=${tab}&saved=1`);
@@ -276,6 +278,16 @@ describe('proti serveru', { skip: PRESKOCIT }, () => {
     assert.equal((await radek()).pohoda_cash_account, 'Pokladna');
     await req.post('/nastaveni/firma/disk', { gdrive_root_folder_id: 'https://drive.google.com/drive/folders/0B8Cw_a-b?resourcekey=1' });
     assert.equal((await radek()).gdrive_root_folder_id, '0B8Cw_a-b');
+  });
+
+  test('disk: chyba kontroly zůstane při stejné složce, změna složky ji smaže', async () => {
+    await sql`UPDATE company_settings SET gdrive_root_folder_id = 'puvodni', gdrive_posledni_chyba = 'stara chyba' WHERE id = ${id}`;
+    await req.post('/nastaveni/firma/disk', { gdrive_root_folder_id: 'puvodni' });
+    assert.equal((await radek()).gdrive_posledni_chyba, 'stara chyba');
+    await req.post('/nastaveni/firma/disk', { gdrive_root_folder_id: 'nova' });
+    const po = await radek();
+    assert.equal(po.gdrive_root_folder_id, 'nova');
+    assert.equal(po.gdrive_posledni_chyba, '');
   });
 
   test('po uložení je zobrazení s hláškou a novou hodnotou', async () => {
