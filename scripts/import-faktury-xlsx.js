@@ -6,6 +6,7 @@
  *   node scripts/import-faktury-xlsx.js
  *   node scripts/import-faktury-xlsx.js --no-merge
  *   node scripts/import-faktury-xlsx.js --sync-status
+ *   node scripts/import-faktury-xlsx.js --jen-uhrazene
  *
  * Přepínače:
  *   --dry-run      nic neukládá, jen vypíše, co by se stalo
@@ -14,6 +15,9 @@
  *                  a datum zaplacení podle POHODY (jinak se nesahá).
  *                  Fakturu s navázaným bankovním pohybem ale nikdy
  *                  neshodí na nezaplacenou – viz syncStatus().
+ *   --jen-uhrazene  jako --sync-status, ale zapíše jen faktury, které jsou v POHODĚ
+ *                  uhrazené a tady ne. Nikdy nic nevrátí na nezaplacenou: faktury
+ *                  z e-shopu bývají zaplacené jen tady, likvidace v POHODĚ chybí.
  *
  * Zdroje (adresář import/):
  *   FA vyd*.xlsx   → accounting_invoices (type='issued')
@@ -49,7 +53,8 @@ const ROOT      = path.resolve(__dirname, '..');
 
 const DRY_RUN     = process.argv.includes('--dry-run');
 const NO_MERGE    = process.argv.includes('--no-merge');
-const SYNC_STATUS = process.argv.includes('--sync-status');
+const JEN_UHRAZENE = process.argv.includes('--jen-uhrazene');
+const SYNC_STATUS = process.argv.includes('--sync-status') || JEN_UHRAZENE;
 
 const sql = postgres(process.env.DATABASE_URL, {
   ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false,
@@ -129,6 +134,7 @@ function mapRow(row, today) {
   const status = invoiceStatus(row, today);
   return {
     number:    str(row['Číslo']),
+    doklad:    str(row['Doklad']),
     varsym:    str(row['Varsym']),
     status,
     name:      str(row['Firma']) || str(row['Jméno']),
@@ -176,7 +182,8 @@ function findImportFiles(kind, label) {
   const yearRe = new RegExp(`^fa(\\d{2})${suffix}$`);
 
   const files = fs.readdirSync(dir).filter(f => /\.xlsx$/i.test(f) && !f.startsWith('~$'));
-  const legacy = files.filter(f => fileKey(f).startsWith(legacyPrefix));
+  // POHODA pojmenovává export vydaných i prostě FA.xlsx.
+  const legacy = files.filter(f => fileKey(f).startsWith(legacyPrefix) || (kind === 'issued' && fileKey(f) === 'fa'));
   const yearly = files
     .filter(f => yearRe.test(fileKey(f)))
     .sort((a, b) => fileKey(b).localeCompare(fileKey(a)));   // od nejnovějšího
@@ -234,7 +241,7 @@ function readImport(kind, label) {
 const stats = {
   issued: 0, issuedSkip: 0,
   received: 0, receivedSkip: 0, receivedMerged: 0,
-  statusSynced: 0, statusDrift: 0, statusProtected: 0,
+  statusSynced: 0, statusDrift: 0, statusProtected: 0, dokladDoplnen: 0,
 };
 const warnings = [];
 
@@ -263,7 +270,7 @@ async function syncStatus(existing, f) {
   const desc = `${f.number}: stav "${existing.status}" → "${f.status}"` +
                (f.paidDate !== paidDbe ? `, uhrazeno ${paidDbe ?? '–'} → ${f.paidDate ?? '–'}` : '');
 
-  if (!SYNC_STATUS) {
+  if (!SYNC_STATUS || (JEN_UHRAZENE && (f.status !== 'Zaplacena' || existing.status === 'Zaplacena'))) {
     warnings.push(`${desc} – v POHODĚ jinak, spusť s --sync-status pro srovnání`);
     return;
   }
@@ -273,6 +280,10 @@ async function syncStatus(existing, f) {
       SET status = ${f.status}, paid_date = ${f.paidDate}, modified_at = NOW()
       WHERE id = ${existing.id}
     `;
+    // Uhrazená faktura nesmí zůstat ve frontě upomínek, odeslání stav faktury nehlídá.
+    if (f.status === 'Zaplacena') {
+      await sql`UPDATE invoice_reminders SET status = 'zrusena' WHERE invoice_id = ${existing.id} AND status = 'ceka'`;
+    }
   }
   stats.statusSynced++;
   console.log(`  ~ ${desc}`);
@@ -336,7 +347,7 @@ async function importReceived(icoToCompany, today) {
   console.log(`  Řádků v souboru: ${rows.length}`);
 
   const dbRows = await sql`
-    SELECT id, number, supplier, supplier_ico, status, issue_date::text AS issue_date,
+    SELECT id, number, supplier, supplier_ico, supplier_number, status, issue_date::text AS issue_date,
            paid_date::text AS paid_date, total_amount, bank_transaction_id
     FROM accounting_invoices WHERE type = 'received'
   `;
@@ -370,6 +381,13 @@ async function importReceived(icoToCompany, today) {
     }
     if (podleCisla.akce === 'existuje') {
       stats.receivedSkip++;
+      // Číslo dodavatele pro párování s Google Diskem; jen prázdné, ruční opravu nepřepíše.
+      if (podleCisla.radek.id && !podleCisla.radek.supplier_number && f.doklad) {
+        stats.dokladDoplnen++;
+        if (!DRY_RUN) {
+          await sql`UPDATE accounting_invoices SET supplier_number = ${f.doklad} WHERE id = ${podleCisla.radek.id} AND supplier_number = ''`;
+        }
+      }
       await syncStatus(podleCisla.radek, f);
       continue;
     }
@@ -405,7 +423,7 @@ async function importReceived(icoToCompany, today) {
       if (!DRY_RUN) {
         await sql`
           UPDATE accounting_invoices SET
-            number = ${f.number}, status = ${zaplaceno ? underVs.status : f.status}, currency = 'CZK',
+            number = ${f.number}, supplier_number = ${f.doklad}, status = ${zaplaceno ? underVs.status : f.status}, currency = 'CZK',
             supplier = ${f.name}, supplier_ico = ${f.ico}, supplier_dic = ${f.dic},
             supplier_address = ${f.street}, supplier_city = ${f.city}, supplier_zip = ${f.zip},
             crm_company_id = COALESCE(crm_company_id, ${f.ico ? icoToCompany.get(f.ico) ?? null : null}),
@@ -446,12 +464,12 @@ async function importReceived(icoToCompany, today) {
     } else {
       await sql`
         INSERT INTO accounting_invoices
-          (id, type, number, status, supplier, supplier_ico, supplier_dic,
+          (id, type, number, supplier_number, status, supplier, supplier_ico, supplier_dic,
            supplier_address, supplier_city, supplier_zip, supplier_country,
            crm_company_id, issue_date, due_date, paid_date,
            amount, vat_amount, total_amount, currency, notes, created_at, modified_at)
         VALUES (
-          ${genId()}, 'received', ${f.number}, ${f.status},
+          ${genId()}, 'received', ${f.number}, ${f.doklad}, ${f.status},
           ${f.name}, ${f.ico}, ${f.dic},
           ${f.street}, ${f.city}, ${f.zip}, 'Česká republika',
           ${companyId}, ${f.issueDate}, ${f.dueDate}, ${f.paidDate},
@@ -495,6 +513,7 @@ try {
   console.log('\n=== Hotovo ===');
   console.log(`Vydané:   +${stats.issued} nových, ${stats.issuedSkip} duplicit přeskočeno`);
   console.log(`Přijaté:  +${stats.received} nových, ${stats.receivedMerged} sloučeno, ${stats.receivedSkip} duplicit přeskočeno`);
+  console.log(`Číslo dodavatele doplněno u ${stats.dokladDoplnen} přijatých faktur`);
   console.log(`Stav úhrady: ${stats.statusDrift} rozdílů oproti POHODĚ, ${stats.statusSynced} srovnáno` +
               (stats.statusProtected ? `, ${stats.statusProtected} ponecháno podle banky` : ''));
 } catch (err) {

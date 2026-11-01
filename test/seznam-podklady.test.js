@@ -46,6 +46,7 @@ describe('fakturační podklady a osobní účet', { skip: PRESKOCIT }, () => {
     admin = await clen('admin', true);
     [jana, petr, karel, dana, eva] = await Promise.all(['jana', 'petr', 'karel', 'dana', 'eva'].map(j => clen(j)));
     await sql`INSERT INTO user_access (user_id, access_key, allowed) VALUES (${admin.id}, 'lide.mzdy', TRUE)`;
+    await sql`INSERT INTO user_access (user_id, access_key, allowed) VALUES (${admin.id}, 'lide.ekonomika', TRUE)`;
     const prihlaseni = await prihlas(sql, admin.id);
     sid = prihlaseni.sid;
     req = pozadavky(prihlaseni.cookie);

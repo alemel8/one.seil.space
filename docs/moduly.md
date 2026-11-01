@@ -662,6 +662,8 @@ Přehled toho, co konkrétní člověk vidí, je na `/lide/tym/:id?tab=pristupy`
 
 ### Detail člena – serverové záložky
 
+Záložky podléhají přístupové matici, strážce vidí jen cestu, ne `?tab=`: Mzdy a Hodiny chtějí `lide.mzdy`, Ekonomika a Platby `lide.ekonomika`, Podklady `lide.podklady`. Bez práva není záložka v pruhu a `?tab=` otevře Detail. Totéž platí pro cizí osobní přílohy na `/doklady/priloha/:id`.
+
 Detail běží na `?tab=` se serverovým renderem (vzor z `views/pages/projects/detail.ejs`),
 ne na klientském přepínání. Každá záložka si nese vlastní dotaz, takže se
 načítá jen ta otevřená, a počty do popisků jdou spočítat jen na serveru.
@@ -1153,6 +1155,8 @@ node --env-file=.env scripts/import-faktury-xlsx.js --sync-status # + srovnání
 `Kč základní`, `Kč 2 snížená`), `vat_amount` součet všech DPH sazeb.
 Doklady v cizí měně mají v POHODĚ korunový ekvivalent – ukládá se ten
 (`currency='CZK'`) a původní částka jde do `notes`.
+
+`--jen-uhrazene` je `--sync-status`, který zapíše jen faktury uhrazené v POHODĚ a tady ne a zruší jejich čekající upomínky; faktury z e-shopu zaplacené jen tady nechá. Přijatým fakturám import doplňuje `supplier_number` ze sloupce Doklad, jen prázdné.
 
 **Stav:** `K likvidaci = 0` → Zaplacena (`paid_date` = datum likvidace),
 jinak po splatnosti / nezaplacena podle `Splatno`. `--sync-status` srovná

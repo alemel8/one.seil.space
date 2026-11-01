@@ -12,6 +12,7 @@ import path from 'node:path';
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { MEDIA_DIR, mimeForFile } from '../attachments.js';
 import { getDb } from '../db.js';
+import { isAllowed } from '../access.js';
 
 // Co prohlížeč umí bezpečně ukázat. Zbytek se nabídne ke stažení – XML ani
 // ZIP nemá smysl otevírat inline a u HTML/SVG by to byl zbytečný risk.
@@ -66,7 +67,7 @@ export default async function documentsRoutes(fastify) {
     if (!Number.isInteger(id) || id <= 0) return reply.code(400).send('Neplatné ID přílohy.');
 
     const [row] = await sql`
-      SELECT a.path, a.mime, a.original_name, a.task_id,
+      SELECT a.path, a.mime, a.original_name, a.task_id, a.payroll_run_id, a.payroll_item_id, a.work_report_id,
              COALESCE(wr.user_id, pr.user_id, pi.user_id, d.user_id) AS owner_id
         FROM attachments a
         LEFT JOIN hr_work_reports  wr ON wr.id = a.work_report_id
@@ -80,7 +81,10 @@ export default async function documentsRoutes(fastify) {
     // Přílohy úkolů jsou pracovní materiál, ty vidí každý přihlášený.
     // Cokoliv navázaného na člověka je osobní údaj.
     const osobni = row.owner_id !== null;
-    if (osobni && !request.user.is_admin && request.user.id !== row.owner_id) {
+    // Správci navíc platí přístupová matice: výplatní páska se nesmí stáhnout bez práva na Mzdy.
+    const pravo = row.payroll_run_id ? 'lide.mzdy' : row.payroll_item_id ? 'lide.ekonomika' : row.work_report_id ? 'lide.podklady' : null;
+    const smiCizi = request.user.is_admin && (!pravo || isAllowed(request.user, pravo));
+    if (osobni && request.user.id !== row.owner_id && !smiCizi) {
       request.log.info({ prilohaId: id, userId: request.user.id }, 'pokus o cizí osobní přílohu');
       return reply.code(403).send('K této příloze nemáte přístup.');
     }

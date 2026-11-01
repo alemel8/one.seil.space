@@ -61,6 +61,8 @@ before(async () => {
 
   const r = crypto.randomBytes(4).toString('hex');
   ctx.spravce  = await zalozUzivatele(`test-admin-${r}@example.invalid`, true);
+  // Výplatní pásky chtějí i od správce právo na Mzdy (test/mzdy-pristup.test.js).
+  await sql`INSERT INTO user_access (user_id, access_key, allowed) VALUES (${ctx.spravce.id}, 'lide.mzdy', TRUE)`;
   ctx.vlastnik = await zalozUzivatele(`test-owner-${r}@example.invalid`, false);
   ctx.cizi     = await zalozUzivatele(`test-other-${r}@example.invalid`, false);
 

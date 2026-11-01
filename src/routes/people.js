@@ -152,6 +152,10 @@ export default async function peopleRoutes(fastify) {
   });
 
   const ZALOZKY = ['detail','banka','ekonomika','podklady','mzdy','hodiny','vydaje','dokumenty','pristupy'];
+  // Strážce v server.js vidí jen cestu, ne ?tab=. Bez téhle mapy by správce bez práva
+  // na Mzdy četl mzdy přes záložku člena. Hodiny staví měření vedle hodin ve mzdě.
+  const PRAVO_ZALOZKY = { ekonomika: 'lide.ekonomika', vydaje: 'lide.ekonomika', mzdy: 'lide.mzdy', hodiny: 'lide.mzdy', podklady: 'lide.podklady' };
+  const smiZalozku = (user, tab) => !PRAVO_ZALOZKY[tab] || isAllowed(user, PRAVO_ZALOZKY[tab]);
 
   // ── Detail člena ─────────────────────────────────────────────
   fastify.get('/lide/tym/:id', async (request, reply) => {
@@ -160,7 +164,8 @@ export default async function peopleRoutes(fastify) {
     // Staré číselné odkazy pošleme na kanonickou adresu s public_id
     if (legacy) return reply.redirect(`/lide/tym/${member.public_id}`);
 
-    const currentTab = ZALOZKY.includes(request.query.tab) ? request.query.tab : 'detail';
+    const currentTab = ZALOZKY.includes(request.query.tab) && smiZalozku(request.user, request.query.tab) ? request.query.tab : 'detail';
+    const zalozkyPovolene = ZALOZKY.filter(z => smiZalozku(request.user, z));
 
     const matrix = await loadAccessMatrix(sql, [member.id]);
     member.access = matrix[member.id] ?? {};
@@ -199,6 +204,7 @@ export default async function peopleRoutes(fastify) {
       sections: ACCESS_SECTIONS, isAllowed,
       currentTab, pocty, ucet, strany, ...data,
       maData: pocty.podklady + pocty.mzdy + pocty.platby > 0,
+      zalozkyPovolene,
       PLATBA_DRUHY, PODKLAD_STAVY,
       saved: request.query.saved === '1',
       error: CHYBY_CLENA[request.query.error] || null,
@@ -256,6 +262,7 @@ export default async function peopleRoutes(fastify) {
   // Vlastní routa, ne sdílený POST /lide/tym/:id – ten přepisuje všechny
   // sloupce záložky naráz a formulář odjinud by je vynuloval.
   fastify.post('/lide/tym/:id/platby/vytvorit', async (request, reply) => {
+    if (!smiZalozku(request.user, 'vydaje')) return reply.code(403).send('K platbám nemáte přístup.');
     const { member } = await findMember(request.params.id);
     if (!member) return reply.code(404).send('Člen nenalezen');
 
@@ -284,6 +291,7 @@ export default async function peopleRoutes(fastify) {
   });
 
   fastify.post('/lide/tym/:id/platby/:platbaId/smazat', async (request, reply) => {
+    if (!smiZalozku(request.user, 'vydaje')) return reply.code(403).send('K platbám nemáte přístup.');
     const { member } = await findMember(request.params.id);
     if (!member) return reply.code(404).send('Člen nenalezen');
     // user_id v podmínce, aby nešlo smazat cizí platbu podvrženým ID

@@ -54,3 +54,28 @@ export async function shodaBezCisla(sql, { supplier, ico, datum, celkem }) {
   `;
   return shoda ?? null;
 }
+
+/**
+ * Faktura bez vazby na Disk se stejným číslem od dodavatele (u faktur z POHODY sloupec
+ * Doklad). Jediná cesta k dokladu bez IČO a v cizí měně, kde datum ani částka nesedí.
+ * Dvě různá IČO jsou různí dodavatelé. Když jedna strana IČO nemá, krátké číslo samo
+ * nestačí (číslo 2143 může mít kdokoli), chce aspoň datum nebo částku. Víc shod = žádná.
+ */
+export async function shodaCislaDodavatele(sql, { cislo, ico, datum, celkem }) {
+  const klic = String(cislo || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
+  if (!klic) return null;
+  const shody = await sql`
+    SELECT id, attachment_path FROM accounting_invoices
+    WHERE type = 'received' AND gdrive_file_id IS NULL
+      AND regexp_replace(upper(supplier_number), '[^0-9A-Z]', '', 'g') = ${klic}
+      AND (
+        ico_klic(supplier_ico) = ico_klic(${ico})
+        OR (
+          (ico_klic(supplier_ico) IS NULL OR ico_klic(${ico}) IS NULL)
+          AND (${klic.length >= 6} OR issue_date = ${datum}::date OR total_amount = ${celkem}::numeric)
+        )
+      )
+    LIMIT 2
+  `;
+  return shody.length === 1 ? shody[0] : null;
+}

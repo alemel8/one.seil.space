@@ -7,7 +7,7 @@
   });
   // Doklady z doby před automatikou jsou v systému z POHODY, proto nejsou předvybrané.
   const predAutomatikou = files.filter(f => !f.invoiceId && f.stav === 'vychozi');
-  const pending = files.filter(f => !f.invoiceId && f.stav !== 'vychozi');
+  const pending = files.filter(f => !f.invoiceId && f.stav !== 'vychozi' && f.stav !== 'nesparovano');
 %>
 <div class="page-header">
   <div class="page-header-left">
@@ -76,16 +76,19 @@
 
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
     <button type="submit" class="btn btn-primary" id="gdSubmit" <%= pending.length === 0 ? 'disabled' : '' %>>
-      <span>↓ Naimportovat vybrané (<span id="gdCount"><%= pending.length %></span>)</span>
+      <span>↓ Načíst vybrané (<span id="gdCount"><%= pending.length %></span>)</span>
     </button>
+    <% if (predAutomatikou.length > 0) { %>
+    <button type="button" class="btn btn-outline" onclick="gdVybratStare()">Vybrat doklady Před automatikou (<%= predAutomatikou.length %>)</button>
+    <% } %>
     <span class="form-hint">
-      Každý doklad se stáhne a vytěží Claudem. Stejnou fakturu v systému doplní, jinak založí novou. Může to chvíli trvat.
+      Každý doklad se stáhne a vytěží Claudem, u jednoho to trvá asi 10 sekund.
     </span>
   </div>
 
   <% if (predAutomatikou.length > 0) { %>
   <div class="hlaska hlaska-info">
-    Doklady Před automatikou se hromadně nevybírají: stejná faktura z POHODY s jiným datem nebo bez IČO by se založila podruhé.
+    Doklad Před automatikou se jen připojí ke stejné faktuře v systému, podle čísla dodavatele nebo IČO, data a částky. Když ji nenajde, nic nezaloží a ukáže se Nespárováno.
   </div>
   <% } %>
 
@@ -102,7 +105,7 @@
           <tr>
             <td>
               <% if (!f.invoiceId) { %>
-                <input type="checkbox" class="gd-cb" name="file_ids" value="<%= f.id %>" aria-label="Vybrat <%= f.name %>" <%- f.stav === 'vychozi' ? 'data-pred-automatikou' : 'checked' %> onchange="gdUpdate()">
+                <input type="checkbox" class="gd-cb" name="file_ids" value="<%= f.id %>" aria-label="Vybrat <%= f.name %>" <%- f.stav === 'vychozi' ? 'data-pred-automatikou' : f.stav === 'nesparovano' ? 'data-pred-automatikou data-nesparovano' : 'checked' %> onchange="gdUpdate()">
               <% } %>
             </td>
             <td>
@@ -121,6 +124,9 @@
                 <a href="/ucetnictvi/prijate-faktury/<%= f.invoiceId %>" class="badge badge-ok" style="text-decoration:none;">Naimportováno</a>
               <% } else if (f.stav === 'vychozi') { %>
                 <span class="badge badge-neutral" title="Ve složce byl už před spuštěním automatiky, sám se nenačte.">Před automatikou</span>
+              <% } else if (f.stav === 'nesparovano') { %>
+                <span class="badge badge-varovani" title="<%= f.chyba %>">Nespárováno</span>
+                <button type="submit" name="zalozit_novou" value="<%= f.id %>" class="btn btn-ghost btn-sm" title="Faktura v systému není, založit ji z tohoto dokladu">Založit jako novou</button>
               <% } else if (f.stav === 'chyba') { %>
                 <span class="badge badge-chyba" title="<%= f.chyba %>">Chyba</span>
               <% } else { %>
@@ -143,6 +149,10 @@ function gdToggle(checked) {
   gdRadky().forEach(cb => {
     if (!checked || !cb.hasAttribute('data-pred-automatikou')) cb.checked = checked;
   });
+  gdUpdate();
+}
+function gdVybratStare() {
+  gdRadky().forEach(cb => { if (cb.hasAttribute('data-pred-automatikou') && !cb.hasAttribute('data-nesparovano')) cb.checked = true; });
   gdUpdate();
 }
 function gdUpdate() {
@@ -178,7 +188,8 @@ document.getElementById('gdForm')?.addEventListener('submit', () => {
     bar.style.width = pct + '%';
     text.innerHTML = j.running
       ? '⏳ Zpracovávám <strong>' + j.done + '</strong> z <strong>' + j.total + '</strong> dokladů…'
-      : '✓ Hotovo – naimportováno <strong>' + j.imported + '</strong>'
+      : '✓ Hotovo – založeno <strong>' + j.imported + '</strong>, spárováno <strong>' + (j.merged || 0) + '</strong>'
+        + (j.nesparovano ? ', nespárováno <strong>' + j.nesparovano + '</strong>' : '')
         + (j.skipped ? ', přeskočeno ' + j.skipped : '')
         + (j.failed  ? ', <strong>' + j.failed + '</strong> selhalo' : '') + '.';
     box.className = 'hlaska ' + (j.running ? 'hlaska-info' : j.failed ? 'hlaska-varovani' : 'hlaska-ok');

@@ -370,4 +370,97 @@ describe('automatický import', { skip: PRESKOCIT }, () => {
     assert.equal(firma.gdrive_vychozi_slozka, '');
     assert.match(firma.gdrive_posledni_chyba, /403/);
   });
+
+  describe('párování starých dokladů podle čísla dodavatele', () => {
+    const pohoda = (id, prepis = {}) => sql`INSERT INTO accounting_invoices ${sql({
+      id, type: 'received', number: `POHODA-${id}`, supplier: 'Anthropic, PBC @anthropic548 Market Street', supplier_ico: '',
+      amount: 309.55, vat_amount: 0, total_amount: 309.55, status: 'Zaplacena', issue_date: '2026-10-07', supplier_number: 'IM69EW9T-0014', ...prepis,
+    })}`;
+    const stary = (id, stav = 'vychozi') => sql`INSERT INTO gdrive_soubory (file_id, nazev, slozka, stav) VALUES (${id}, 'stary.pdf', '2026', ${stav})`;
+    const usd = async () => ({ number: 'IM69EW9T-0014', supplier: 'Anthropic, PBC', supplier_ico: null, amount: 14.3, vat_amount: 0, total_amount: 14.3, currency: 'USD', issue_date: '2026-10-01' });
+    const pocet = async () => (await sql`SELECT count(*)::int n FROM accounting_invoices WHERE type = 'received' AND (number LIKE 'POHODA-%' OR number LIKE 'IM69%' OR number LIKE 'FA-%')`)[0].n;
+
+    test('zahraniční doklad bez IČO, v USD a s jiným datem se připojí k faktuře z POHODY', async () => {
+      await pohoda('inv_usd');
+      await stary('usd-1');
+      const { vysledek, invoiceId } = await importujSoubor(sql, null, 'usd-1', { extract: usd });
+      assert.equal(vysledek, 'merged');
+      assert.equal(invoiceId, 'inv_usd');
+      const [r] = await sql`SELECT number, total_amount, gdrive_file_id, attachment_path FROM accounting_invoices WHERE id = 'inv_usd'`;
+      assert.equal(r.number, 'POHODA-inv_usd', 'interní číslo zůstává');
+      assert.equal(Number(r.total_amount), 309.55, 'korunová částka zůstává');
+      assert.equal(r.gdrive_file_id, 'usd-1');
+      assert.ok(r.attachment_path, 'PDF je připojené');
+      assert.equal(await pocet(), 1);
+      assert.equal((await stav('usd-1')).stav, 'naimportovano');
+    });
+
+    test('číslo se porovnává bez pomlček a velikosti písmen', async () => {
+      await pohoda('inv_tvar', { supplier_number: 'im69ew9t 0014' });
+      await stary('tvar-1');
+      assert.equal((await importujSoubor(sql, null, 'tvar-1', { extract: usd })).vysledek, 'merged');
+    });
+
+    test('starý doklad bez faktury nic nezaloží: Nespárováno a automatika ho nezkouší', async () => {
+      await stary('nic-1');
+      let vytezeni = 0;
+      const pocitej = async () => { vytezeni++; return usd(); };
+      assert.equal((await importujSoubor(sql, null, 'nic-1', { extract: pocitej })).vysledek, 'nesparovano');
+      assert.equal(await pocet(), 0);
+      const zaznam = await stav('nic-1');
+      assert.equal(zaznam.stav, 'nesparovano');
+      assert.match(zaznam.chyba, /IM69EW9T-0014/);
+      await sql`UPDATE company_settings SET gdrive_vychozi_slozka = ${ROOT}`;
+      doklady = ['nic-1'];
+      const vysledek = await tikGdrive(null, { sql, now: NOW, extract: pocitej, notify });
+      assert.equal(vysledek.naimportovano, 0);
+      assert.equal(vytezeni, 1, 'žádné další vytěžování');
+      assert.equal((await stav('nic-1')).stav, 'nesparovano');
+    });
+
+    test('Založit jako novou založí fakturu i z nespárovaného dokladu', async () => {
+      await stary('novy-1', 'nesparovano');
+      assert.equal((await importujSoubor(sql, null, 'novy-1', { extract: usd, zalozitNovou: true })).vysledek, 'imported');
+      assert.equal(await pocet(), 1);
+    });
+
+    test('selhání vytěžení nechá starý doklad starý, ze stavu chyba by ho automatika založila', async () => {
+      await stary('pad-1');
+      await assert.rejects(importujSoubor(sql, null, 'pad-1', { extract: async () => { throw new Error('API spadlo'); } }));
+      const zaznam = await stav('pad-1');
+      assert.equal(zaznam.stav, 'vychozi');
+      assert.match(zaznam.chyba, /API spadlo/);
+    });
+
+    test('dvě různá IČO se stejným číslem jsou různí dodavatelé', async () => {
+      await pohoda('inv_ico', { supplier_ico: '11111111' });
+      await stary('ico-1');
+      const jine = async () => ({ ...(await usd()), supplier_ico: '22222222' });
+      assert.equal((await importujSoubor(sql, null, 'ico-1', { extract: jine })).vysledek, 'nesparovano');
+    });
+
+    test('stejné číslo na dvou řádcích (Twilio má v Dokladu číslo zákazníka): žádná shoda', async () => {
+      await pohoda('inv_tw1', { supplier_number: '37348266' });
+      await pohoda('inv_tw2', { supplier_number: '37348266' });
+      await stary('tw-1');
+      const twilio = async () => ({ ...(await usd()), number: '37348266' });
+      assert.equal((await importujSoubor(sql, null, 'tw-1', { extract: twilio })).vysledek, 'nesparovano');
+    });
+
+    test('krátké číslo bez IČO samo nestačí, s datem nebo částkou ano', async () => {
+      await pohoda('inv_kratke', { supplier_number: '2143' });
+      await stary('kr-1');
+      const kratke = async () => ({ ...(await usd()), number: '2143' });
+      assert.equal((await importujSoubor(sql, null, 'kr-1', { extract: kratke })).vysledek, 'nesparovano');
+      await stary('kr-2');
+      const sDatem = async () => ({ ...(await usd()), number: '2143', issue_date: '2026-10-07' });
+      assert.equal((await importujSoubor(sql, null, 'kr-2', { extract: sDatem })).vysledek, 'merged');
+    });
+
+    test('nový doklad (ne starý) se k faktuře z POHODY taky připojí a nezdvojí', async () => {
+      await pohoda('inv_nova');
+      assert.equal((await importujSoubor(sql, null, 'nova-1', { extract: usd })).vysledek, 'merged');
+      assert.equal(await pocet(), 1);
+    });
+  });
 });

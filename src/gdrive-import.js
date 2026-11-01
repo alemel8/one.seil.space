@@ -14,6 +14,10 @@
 // nevzniká. Když se nepřipojí a v systému je faktura se stejným číslem i dodavatelem,
 // se stejným číslem, datem a částkou, nebo u dokladu bez čísla se stejným dodavatelem,
 // datem a částkou, soubor skončí chybou: rozhodne člověk.
+//
+// Starý doklad ze složky (stav vychozi) je v systému z POHODY, proto se jen připojuje.
+// Když se k němu faktura nenajde, nic se nezaloží a soubor dostane stav nesparovano;
+// novou fakturu založí jen výslovná volba člověka (zalozitNovou).
 
 import Anthropic from '@anthropic-ai/sdk';
 import { getDb, generateId } from './db.js';
@@ -21,7 +25,7 @@ import { saveAttachment, deleteAttachment } from './attachments.js';
 import { sendPushToAll } from './push.js';
 import { jenDatum, prazskeDatum } from './prazsky-cas.js';
 import { downloadFile, findReceivedInvoices, getFile, isConfigured, ROK_CHYBI } from './gdrive.js';
-import { shodaBezCisla, shodaBezIco, shodaCislaDataCastky } from './prijata-faktura.js';
+import { shodaBezCisla, shodaBezIco, shodaCislaDataCastky, shodaCislaDodavatele } from './prijata-faktura.js';
 
 /** Po tolika neúspěšných pokusech se soubor nechá být, dál jen ručně ze stránky. */
 export const MAX_POKUSU = 5;
@@ -68,6 +72,8 @@ const cislo = (hodnota) => {
 
 /** Faktura bez vazby na Disk, která je tímtéž dokladem; víc shod = radši žádná. */
 async function najdiStejnou(sql, { ico, dodavatel, cisloDokladu, datum, celkem }) {
+  const podleCisla = await shodaCislaDodavatele(sql, { cislo: cisloDokladu, ico, datum, celkem });
+  if (podleCisla) return podleCisla;
   const shody = await sql`
     SELECT id, attachment_path FROM accounting_invoices
     WHERE type = 'received' AND gdrive_file_id IS NULL AND (
@@ -103,10 +109,13 @@ async function zapisHotovo(sql, fileId, meta, invoiceId) {
 
 /**
  * Naimportuje jeden soubor. Vrací { vysledek, invoiceId }, kde vysledek je
- * 'imported' (nová faktura), 'merged' (připojeno k existující) nebo 'skipped'
- * (soubor už v systému je). Selhání zapíše k souboru a vyhodí dál.
+ * 'imported' (nová faktura), 'merged' (připojeno k existující), 'skipped' (soubor
+ * už v systému je) nebo 'nesparovano' (starý doklad bez faktury, nic nevzniklo).
+ * Selhání zapíše k souboru a vyhodí dál.
  */
-export async function importujSoubor(sql, log, fileId, { extract = extractInvoiceData } = {}) {
+export async function importujSoubor(sql, log, fileId, { extract = extractInvoiceData, zalozitNovou = false } = {}) {
+  const [zaznam] = await sql`SELECT stav FROM gdrive_soubory WHERE file_id = ${fileId}`;
+  const jenParovat = !zalozitNovou && ['vychozi', 'nesparovano'].includes(zaznam?.stav);
   try {
     const [existing] = await sql`SELECT id FROM accounting_invoices WHERE gdrive_file_id = ${fileId}`;
     if (existing) {
@@ -141,6 +150,15 @@ export async function importujSoubor(sql, log, fileId, { extract = extractInvoic
     const stejna = await najdiStejnou(sql, {
       ico, dodavatel: supplier, cisloDokladu, datum, celkem: totalAmount,
     });
+
+    if (!stejna && jenParovat) {
+      const duvod = `Ke stejné faktuře se nepřipojil: ${cisloFaktury}, ${supplier}, ${datum || 'bez data'}, ${totalAmount} ${d.currency || 'CZK'}.`;
+      await sql`
+        UPDATE gdrive_soubory SET stav = 'nesparovano', chyba = ${duvod}, posledni_pokus = NOW(), updated_at = NOW()
+        WHERE file_id = ${fileId}
+      `;
+      return { vysledek: 'nesparovano', invoiceId: null };
+    }
 
     const duplicita = () => new Error(`Faktura ${cisloFaktury} už v systému je: shoduje se dodavatel a číslo, nebo datum a částka. Zkontrolujte ji ručně.`);
     // Index tyhle dvojice nepozná: založil by se druhý řádek téhož dokladu.
@@ -204,6 +222,14 @@ export async function importujSoubor(sql, log, fileId, { extract = extractInvoic
       throw err;
     }
   } catch (err) {
+    // Starý doklad zůstane starý: ze stavu chyba by ho automatika zkusila znovu a založila.
+    if (jenParovat) {
+      await sql`
+        UPDATE gdrive_soubory SET chyba = ${err.message || 'Neznámá chyba'}, posledni_pokus = NOW(), updated_at = NOW()
+        WHERE file_id = ${fileId}
+      `;
+      throw err;
+    }
     await sql`
       INSERT INTO gdrive_soubory (file_id, stav, pokusy, chyba, posledni_pokus)
       VALUES (${fileId}, 'chyba', 1, ${err.message || 'Neznámá chyba'}, NOW())

@@ -1155,20 +1155,22 @@ export default async function invoicesRoutes(fastify) {
   let gdriveJob = null;
 
   fastify.post('/ucetnictvi/prijate-faktury/gdrive/import', async (request, reply) => {
-    const fileIds = [].concat(request.body?.file_ids || []).filter(Boolean);
+    // Tlačítko Založit jako novou u nespárovaného dokladu platí jen pro ten jeden soubor.
+    const zalozit = parametr(request.body?.zalozit_novou);
+    const fileIds = zalozit ? [zalozit] : [].concat(request.body?.file_ids || []).filter(Boolean);
     const { year, month } = await gdriveContext(request.body || {});
     const back = `/ucetnictvi/prijate-faktury/gdrive?year=${year}&month=${month ?? ''}`;
 
     if (fileIds.length === 0 || gdriveJob?.running) return reply.redirect(back);
 
-    gdriveJob = { running: true, total: fileIds.length, done: 0, imported: 0, skipped: 0, failed: 0, errors: [] };
+    gdriveJob = { running: true, total: fileIds.length, done: 0, imported: 0, merged: 0, nesparovano: 0, skipped: 0, failed: 0, errors: [] };
 
     // Záměrně bez await – odpovíme hned a klient si stav dotáhne přes /status
     (async () => {
       for (const fileId of fileIds) {
         try {
-          const { vysledek } = await importujSoubor(sql, fastify.log, fileId);
-          gdriveJob[vysledek === 'skipped' ? 'skipped' : 'imported']++;
+          const { vysledek } = await importujSoubor(sql, fastify.log, fileId, { zalozitNovou: Boolean(zalozit) });
+          gdriveJob[{ imported: 'imported', merged: 'merged', nesparovano: 'nesparovano' }[vysledek] ?? 'skipped']++;
         } catch (err) {
           fastify.log.error({ err, fileId }, 'Import faktury z Google Disku selhal');
           gdriveJob.failed++;
@@ -1183,7 +1185,7 @@ export default async function invoicesRoutes(fastify) {
   });
 
   fastify.get('/ucetnictvi/prijate-faktury/gdrive/status', async (request, reply) => {
-    return reply.send(gdriveJob || { running: false, total: 0, done: 0, imported: 0, skipped: 0, failed: 0, errors: [] });
+    return reply.send(gdriveJob || { running: false, total: 0, done: 0, imported: 0, merged: 0, nesparovano: 0, skipped: 0, failed: 0, errors: [] });
   });
 
   // ── Upload přílohy k existující přijaté faktuře ───────────────

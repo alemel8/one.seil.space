@@ -13,7 +13,8 @@
 // v8: kontrola při Uložit, cizí změna se nepřepíše (upravy.js)
 // v9: statika beze změny, podle verze je zvenku vidět nasazení migrace 045
 // v10: stránkování seznamů, sdílené záložky, tokeny kontrastu (variables.css, components.css, app.js)
-const CACHE_NAME = 'one-seil-v10';
+// v11: statika beze změny, podle verze je zvenku vidět nasazení migrace 046
+const CACHE_NAME = 'one-seil-v11';
 
 // Při instalaci – předcache jen statické assets
 self.addEventListener('install', event => {

@@ -73,7 +73,7 @@ stejným dodavatelem, datem a částkou, soubor skončí stavem `chyba`, nic se 
 a rozhodne člověk. Datum v jiném tvaru než RRRR-MM-DD je taky chyba, jinak by se uložilo
 posunuté. Doklad bez vytěženého čísla dostane jako číslo název souboru.
 
-Starý doklad ze složky se po ručním výběru připojí k faktuře z POHODY jen při shodě IČO, data a částky. Doklad bez IČO (zahraniční dodavatelé) nebo s jiným datem založí druhý řádek, proto Vybrat vše řádky Před automatikou nezaškrtne. Spolehlivé párování by šlo přes sloupec `Doklad` z exportu POHODY, import ho zatím neukládá.
+**Párování starých dokladů.** Na stránce importu tlačítko Vybrat doklady Před automatikou a Načíst vybrané. Doklad se připojí k faktuře podle čísla dodavatele (`supplier_number`, sloupec Doklad z exportu POHODY, doplňuje ho `scripts/import-faktury-xlsx.js`), jinak podle IČO, data a částky. Starý doklad bez shody nikdy nezaloží fakturu: dostane stav `nesparovano`, automatika ho nezkouší a řádek nabídne Založit jako novou. Faktury starší než export z POHODY číslo dodavatele nemají, párují se jen podle IČO, data a částky, případně po nahrání staršího exportu.
 
 Známé meze, které se neřeší, protože v řádku není uložený jeho původ:
 

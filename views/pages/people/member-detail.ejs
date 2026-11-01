@@ -108,7 +108,7 @@
     { klic: 'vydaje',    popisek: 'Platby', pocet: pocty.platby },
     { klic: 'dokumenty', popisek: 'Dokumenty', pocet: pocty.dokumenty },
     { klic: 'pristupy',  popisek: 'Přístupy' },
-  ].filter(z => z.jen !== false);
+  ].filter(z => z.jen !== false && zalozkyPovolene.includes(z.klic));
 %>
 <%- include('../../includes/zalozky', { nazev: 'Sekce člena týmu', zalozky, tab: currentTab, adresa: k => `?tab=${k}` }) %>
 

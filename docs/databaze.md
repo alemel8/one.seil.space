@@ -470,6 +470,7 @@ IČO index nezná, hlídá ji aplikace, viz `docs/moduly.md`.
 | `attachment_mime` | TEXT | `image/jpeg`, `application/pdf`, … |
 | `attachment_size` | INT | Velikost v bajtech po zmenšení |
 | `gdrive_file_id` | TEXT UNIQUE | Soubor na Google Disku, ze kterého faktura je |
+| `supplier_number` | TEXT | Číslo dokladu od dodavatele ze sloupce Doklad v exportu POHODY, podle něj se páruje doklad z Disku (migrace 046) |
 | `notes` | TEXT | |
 | `created_at` | TIMESTAMPTZ | |
 
@@ -480,7 +481,7 @@ Doklady, které automatický import viděl na Google Disku (`src/gdrive-import.j
 |---|---|---|
 | `file_id` | TEXT PK | ID souboru na Disku |
 | `nazev`, `slozka` | TEXT | Název a cesta při poslední kontrole |
-| `stav` | TEXT | `vychozi` (ve složce před první kontrolou, sám se nenačte) / `cekajici` / `naimportovano` / `chyba` (CHECK) |
+| `stav` | TEXT | `vychozi` (ve složce před první kontrolou, sám se nenačte) / `nesparovano` (starý doklad bez faktury, nic se nezaložilo) / `cekajici` / `naimportovano` / `chyba` (CHECK) |
 | `invoice_id` | TEXT → accounting_invoices (SET NULL) | Založená nebo doplněná faktura |
 | `pokusy` | INT | Neúspěšné pokusy, strop 5 |
 | `chyba` | TEXT | Poslední chyba |

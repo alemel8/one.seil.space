@@ -333,8 +333,8 @@ describe('tabulka dokladů na stránce importu', () => {
 
   test('Před automatikou: nezaškrtnuté, označené, věta nad tabulkou', async () => {
     const html = await vykresli({ files: soubory });
-    assert.ok(html.includes('Doklady Před automatikou se hromadně nevybírají'));
-    assert.ok(html.indexOf('Doklady Před automatikou') < html.indexOf('<table'));
+    assert.ok(html.includes('Doklad Před automatikou se jen připojí'));
+    assert.ok(html.indexOf('Doklad Před automatikou') < html.indexOf('<table'));
     for (const m of html.matchAll(/<input type="checkbox" class="gd-cb"[^>]*>/g)) {
       assert.notEqual(m[0].includes('data-pred-automatikou'), m[0].includes(' checked'), m[0]);
     }
@@ -344,7 +344,7 @@ describe('tabulka dokladů na stránce importu', () => {
 
   test('bez takových řádků věta není', async () => {
     const html = await vykresli({ files: [soubor('novy', null)] });
-    assert.ok(!html.includes('Doklady Před automatikou se'));
+    assert.ok(!html.includes('Doklad Před automatikou se'));
   });
 
   test('stránkování tu není, výběr potřebuje všechny řádky', async () => {

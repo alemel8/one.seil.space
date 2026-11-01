@@ -39,7 +39,7 @@ function vykresli(currentTab, prepis = {}) {
     pocty: { podklady: 0, mzdy: 0, platby: 0, dokumenty: 0, mereni: 0 },
     ucet: { prijmy: 0, prijmyPocet: 0, vydaje: 0, vydajePocet: 0, nakladFirmy: 0, hodiny: 0, odmena: 0, ostatni: 0, ostatniPocet: 0, zustatek: 0 },
     pohyby: [], podklady: [], mzdy: [], platby: [], dokumenty: [], mesice: [],
-    maData: false, PLATBA_DRUHY, PODKLAD_STAVY, saved: false, rezimUprav: false, ...prepis,
+    maData: false, zalozkyPovolene: ['detail', 'banka', 'ekonomika', 'podklady', 'mzdy', 'hodiny', 'vydaje', 'dokumenty', 'pristupy'], PLATBA_DRUHY, PODKLAD_STAVY, saved: false, rezimUprav: false, ...prepis,
   });
 }
 
