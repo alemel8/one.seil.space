@@ -153,6 +153,7 @@
 
 <!-- Filtr -->
 <form method="get" class="filtr-lista">
+  <% if (strany.vlastniVelikost) { %><input type="hidden" name="velikost" value="<%= strany.naStranku %>"><% } %>
   <% if (eshopQs) { %><input type="hidden" name="eshop" value="<%= shop.slug %>"><% } %>
   <input type="text" name="q" value="<%= q || '' %>" placeholder="Číslo, jméno, e-mail…" class="form-control" aria-label="Hledat číslo, jméno, e-mail, telefon nebo firmu">
   <select name="status" class="form-select" aria-label="Stav">

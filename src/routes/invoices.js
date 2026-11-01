@@ -1110,7 +1110,7 @@ export default async function invoicesRoutes(fastify) {
     if (!isConfigured()) {
       error = 'Není nastavena proměnná GOOGLE_SERVICE_ACCOUNT_JSON – doplňte ji v Coolify env vars.';
     } else if (!company.gdrive_root_folder_id) {
-      error = 'Není vyplněné ID složky na Google Disku – doplňte jej v Nastavení → Firma.';
+      error = 'Není vyplněné ID složky na Google Disku – doplňte jej v Nastavení firmy na záložce Google Disk.';
     } else {
       try {
         files = await findReceivedInvoices({
@@ -1285,7 +1285,7 @@ export default async function invoicesRoutes(fastify) {
 
     const issuer = await getIssuer(sql);
     if (!issuer.ico) {
-      return plain('Chybí IČO firmy – POHODA bez něj nepozná účetní jednotku. Doplňte jej v Nastavení → Firma.');
+      return plain('Chybí IČO firmy – POHODA bez něj nepozná účetní jednotku. Doplňte jej v Nastavení firmy na záložce Základní údaje.');
     }
 
     // Položky jedním dotazem – přijaté faktury je většinou nemají a i tak

@@ -19,6 +19,7 @@
 
 <!-- Hledání + filtr -->
 <form method="get" class="filtr-lista">
+  <% if (strany.vlastniVelikost) { %><input type="hidden" name="velikost" value="<%= strany.naStranku %>"><% } %>
   <input type="text" name="q" value="<%= q || '' %>" placeholder="Hledat projekt, klienta…" class="form-control" aria-label="Hledat projekt nebo klienta">
   <select name="status" class="form-select" aria-label="Stav">
     <option value="">Všechny stavy</option>

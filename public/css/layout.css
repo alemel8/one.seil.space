@@ -246,7 +246,7 @@ body.app-body {
   height: 34px;
   border-radius: 50%;
   background: var(--primary);
-  color: var(--white);
+  color: var(--deep-space);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -455,7 +455,7 @@ body.app-body {
   height: 36px;
   border-radius: 50%;
   background: var(--primary);
-  color: var(--white);
+  color: var(--deep-space);
   font-size: 12px;
   font-weight: 700;
   display: flex;

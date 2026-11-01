@@ -23,6 +23,7 @@
 </div>
 
 <form method="get" class="filtr-lista">
+  <% if (strany.vlastniVelikost) { %><input type="hidden" name="velikost" value="<%= strany.naStranku %>"><% } %>
   <input type="text" name="q" value="<%= q||'' %>" placeholder="Hledat číslo, dodavatel…" class="form-control" aria-label="Hledat číslo nebo dodavatele">
   <select name="status" class="form-select" aria-label="Stav">
     <option value="">Všechny stavy</option>

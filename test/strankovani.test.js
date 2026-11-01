@@ -224,7 +224,7 @@ describe('patička seznamu', () => {
   test('tisíce se oddělují, rozsah má krátkou pomlčku', async () => {
     const html = await vykresli(seznam({ page: '41' }, 1234));
     assert.ok(/<strong>1[\s ]001–1[\s ]025<\/strong> z <strong>1[\s ]234<\/strong>/.test(html), html);
-    assert.ok(!html.includes('—'));
+    assert.ok(!html.includes('\u2014'));
   });
 
   test('útočná hodnota filtru se v odkazu escapuje a zůstane stejná', async () => {
@@ -252,9 +252,12 @@ describe('patička seznamu', () => {
 
 describe('návratová adresa', () => {
   test('cesta v aplikaci projde i s diakritikou a znaky filtru', () => {
-    for (const v of ['/ucetnictvi/prijate-faktury', '/ucetnictvi/prijate-faktury?q=%C4%8D+a&page=7', '/prace/ukoly?q=č ř&vse=1']) {
+    for (const v of ['/ucetnictvi/prijate-faktury', '/ucetnictvi/prijate-faktury?q=%C4%8D+a&page=7']) {
       assert.equal(bezpecnyNavrat(v, '/vychozi'), v);
     }
+    assert.equal(bezpecnyNavrat('/prace/ukoly?q=č ř&vse=1', '/vychozi'), '/prace/ukoly?q=%C4%8D%20%C5%99&vse=1', 'hlavička Location smí jen ASCII');
+    assert.equal(bezpecnyNavrat('/a?q=😀', '/vychozi'), '/a?q=%F0%9F%98%80');
+    assert.equal(bezpecnyNavrat('/a?q=\ud800', '/vychozi'), '/vychozi', 'neplatné UTF-16 nespadne');
   });
 
   test('cizí web a nesmysl dají výchozí', () => {

@@ -100,9 +100,8 @@ export const SKUPINY = [
   },
   {
     klic: 'vydane-faktury', nazev: 'Vydané faktury', pravo: 'ucetnictvi.vydane-faktury',
-    odkazSeznam: (q) => `/ucetnictvi/vydane-faktury?q=${encodeURIComponent(q)}`,
-    // Detail bere i zálohové faktury (proforma), seznam jen vydané – proto
-    // štítek „Zálohová“, ať je jasné, proč ji seznam neukáže.
+    // Seznam má vydané a zálohové na zvláštních záložkách; samé zálohové vedou na tu svou.
+    odkazSeznam: (q, radky = []) => `/ucetnictvi/vydane-faktury?${radky.length && radky.every(r => r.type === 'proforma') ? 'typ=zalohove&' : ''}q=${encodeURIComponent(q)}`,
     dotaz: (sql, vzor, limit) => sql`
       SELECT id, number, type, status, client_name, issue_date, total_amount
         FROM accounting_invoices

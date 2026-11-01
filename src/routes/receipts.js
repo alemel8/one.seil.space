@@ -339,7 +339,7 @@ Kategorie PHM použij u nákupu pohonných hmot, Reprezentace u pohoštění, ob
     // IČO určuje účetní jednotku, do které POHODA balíček naimportuje
     const [company] = await sql`SELECT * FROM company_settings LIMIT 1`;
     if (!company?.ico) {
-      return plain('Chybí IČO firmy – POHODA bez něj nepozná účetní jednotku. Doplňte jej v Nastavení → Firma.');
+      return plain('Chybí IČO firmy – POHODA bez něj nepozná účetní jednotku. Doplňte jej v Nastavení firmy na záložce Základní údaje.');
     }
 
     const xml = buildPohodaXml(receipts.map(r => ({ ...r, _type: 'receipt' })), {

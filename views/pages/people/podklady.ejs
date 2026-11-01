@@ -14,6 +14,7 @@
 </div>
 
 <form method="get" class="filtr-lista">
+  <% if (strany.vlastniVelikost) { %><input type="hidden" name="velikost" value="<%= strany.naStranku %>"><% } %>
   <input type="text" name="q" value="<%= filtry.q %>" placeholder="Hledat zakázku nebo číslo faktury…" class="form-control" aria-label="Hledat zakázku nebo číslo faktury">
   <select name="osoba" class="form-select" style="max-width:200px;" aria-label="Člověk">
     <option value="">Všichni lidé</option>

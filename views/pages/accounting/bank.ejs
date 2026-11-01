@@ -16,6 +16,7 @@
 </div>
 
 <form method="get" class="filtr-lista">
+  <% if (strany.vlastniVelikost) { %><input type="hidden" name="velikost" value="<%= strany.naStranku %>"><% } %>
   <input type="text" name="q" value="<%= q||'' %>" placeholder="Hledat protistranu, zprávu, VS…" class="form-control" aria-label="Hledat protistranu, zprávu nebo variabilní symbol">
   <select name="type" class="form-select" aria-label="Typ">
     <option value="">Příjmy i výdaje</option>
@@ -31,7 +32,7 @@
   <table class="data-table" style="min-width:0;">
     <thead>
       <tr>
-        <th>Popis</th><th class="hide-mobile">Protistrana</th><th class="hide-mobile">Typ</th><th class="num mobil">Částka</th><th class="mobil">Datum</th><th class="hide-mobile">Spárováno</th><th class="hide-mobile" aria-label="Párování"></th>
+        <th>Popis</th><th class="hide-mobile">Protistrana</th><th class="hide-mobile">Typ</th><th class="num mobil">Částka</th><th class="mobil">Datum</th><th class="hide-mobile">Spárováno</th><th class="mobil" aria-label="Párování"></th>
       </tr>
     </thead>
     <tbody>
@@ -42,7 +43,7 @@
           const isInvoice = !!t.matched_invoice_id;
           const prijem = t.type === 'credit';
           const pairHref = isInvoice
-            ? (t.matched_invoice_type === 'issued' ? `/ucetnictvi/vydane-faktury/${t.matched_invoice_id}` : `/ucetnictvi/prijate-faktury/${t.matched_invoice_id}`)
+            ? (t.matched_invoice_type === 'received' ? `/ucetnictvi/prijate-faktury/${t.matched_invoice_id}` : `/ucetnictvi/vydane-faktury/${t.matched_invoice_id}`)
             : null;
           const pairLabel = isInvoice ? t.matched_invoice_number : (t.matched_receipt_id ? ('Účtenka #' + t.matched_receipt_id) : null);
           const pairTon = isInvoice && t.matched_invoice_type === 'issued' ? 'badge-ok' : isInvoice ? 'badge-varovani' : 'badge-info';
@@ -64,7 +65,7 @@
               <span class="sekundarni">–</span>
             <% } %>
           </td>
-          <td class="hide-mobile">
+          <td class="mobil">
             <% if (!isPaired) { %>
               <button class="btn btn-ghost btn-sm" onclick="bankPairOpen(<%= t.id %>)" style="font-size:12px;color:var(--link);">🔗 Spárovat</button>
             <% } else { %>

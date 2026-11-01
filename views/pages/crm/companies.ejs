@@ -17,6 +17,7 @@
 </div>
 
 <form method="get" class="filtr-lista">
+  <% if (strany.vlastniVelikost) { %><input type="hidden" name="velikost" value="<%= strany.naStranku %>"><% } %>
   <input type="text" name="q" value="<%= q %>" placeholder="Hledat název, město, IČO…" class="form-control" aria-label="Hledat název, město, zemi nebo IČO">
   <select name="type" class="form-select" style="<%= SIRKA_VYBERU %>" aria-label="Typ firmy">
     <option value="">Všechny typy</option>

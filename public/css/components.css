@@ -194,8 +194,8 @@
   letter-spacing: -0.5px;
 }
 
-.kpi-value.positive { color: var(--success); }
-.kpi-value.negative { color: var(--danger); }
+.kpi-value.positive { color: var(--ton-ok-text); }
+.kpi-value.negative { color: var(--ton-chyba-text); }
 .kpi-value.primary-color { color: var(--primary); }
 
 /* ── Modal ────────────────────────────────────────────────── */
@@ -248,6 +248,11 @@
   padding: 24px;
 }
 .modal-overlay .modal { transform: none; }
+
+/* Formulář obalující tělo i patičku: bez toho tělo neroluje, .modal ořezává
+   a tlačítko Uložit u delšího formuláře nejde dosáhnout. */
+.modal > form { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.modal-footer { flex-shrink: 0; }
 
 .modal-lg { max-width: 960px; }
 .modal-sm { max-width: 480px; }
@@ -449,6 +454,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  overflow: clip; /* ořeže rohy, ale není to posuvný kontejner: patička seznamu se v kartě lepí */
 }
 
 .card-header {
@@ -571,7 +577,7 @@ table.data-table {
 
 /* Řádek jako odkaz (public/js/app.js): klik kamkoli do řádku otevře záznam,
    skutečný odkaz v buňce drží klávesnici a otevření v novém panelu. */
-tr[data-href] { cursor: pointer; }
+[data-href] { cursor: pointer; }
 .radek-odkaz { color: inherit; font-weight: 700; text-decoration: none; }
 .radek-odkaz:hover { color: var(--link); text-decoration: underline; }
 .radek-odkaz:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: var(--radius-xs); }
@@ -623,10 +629,14 @@ tr[data-href] { cursor: pointer; }
 .hlaska-chyba { background: var(--ton-chyba-bg); color: var(--ton-chyba-text); }
 .hlaska-info { background: var(--ton-info-bg); color: var(--ton-info-text); }
 
-/* Výběr řádků v seznamu: pod lištou aplikace, Deep Space na světlé cyan (bílá na cyan má 1,6:1). */
+/* Výběr řádků v seznamu: nad obsahem pod lištou aplikace. V toku stránky by po prvním
+   zaškrtnutí posunula tabulku pod kurzorem a další klik by vybral jiný řádek.
+   Deep Space na světlé cyan: bílá na cyan má 1,6:1. */
 .hromadna-lista {
-  position: sticky;
+  position: fixed;
   top: calc(var(--topbar-height) + 8px);
+  left: calc(var(--sidebar-width) + 28px);
+  right: 28px;
   z-index: 50;
   display: flex;
   flex-wrap: wrap;
@@ -980,7 +990,9 @@ a.strankovani-cislo:hover { background: var(--gray-100); border-color: var(--gra
 
   /* ── Bulk bar: wrap on small screens ──────────────────────── */
   #bulkBar { flex-wrap: wrap; }
-  .hromadna-lista { top: calc(var(--topbar-height) + 4px); }
+  .hromadna-lista { top: calc(var(--topbar-height) + 4px); left: 12px; right: 12px; }
+  /* Tabulka je širší než obrazovka: prázdný stav drží v jejím viditelném kusu. */
+  .prazdno { position: sticky; left: 0; box-sizing: border-box; max-width: calc(100vw - 58px); padding: 32px 12px; }
 
   /* ── PDF 2-column modal: single column on phone ───────────── */
   .rf-modal.rf-expanded,

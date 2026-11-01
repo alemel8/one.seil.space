@@ -36,6 +36,7 @@
 <% } %>
 
 <form method="get" class="filtr-lista">
+  <% if (strany.vlastniVelikost) { %><input type="hidden" name="velikost" value="<%= strany.naStranku %>"><% } %>
   <% if (zalohove) { %><input type="hidden" name="typ" value="zalohove"><% } %>
   <input type="text" name="q" value="<%= q %>" placeholder="Hledat číslo, klient…" class="form-control" aria-label="Hledat číslo nebo klienta">
   <select name="status" class="form-select" aria-label="Stav">

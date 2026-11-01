@@ -93,6 +93,8 @@ export function strankovani({ cesta, query = {}, celkem, naStranku = VELIKOSTI[0
     do: Math.min(offset + velikost, celkem),
     okno: oknoStran(strana, pocetStran),
     velikosti: VELIKOSTI,
+    // Formulář filtru ji nese skrytým polem, jinak by se po odeslání vrátila na výchozí.
+    vlastniVelikost: velikost !== naStranku,
     odkaz: (cislo) => adresa(cislo, velikost),
     odkazVelikost: (vel) => adresa(1, vel),
     // Adresa téhle stránky bez jednorázových parametrů: návrat po akci v řádku a „← Zpět“ z detailu.

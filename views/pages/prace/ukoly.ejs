@@ -19,6 +19,7 @@
 </div>
 
 <form method="get" class="filtr-lista">
+  <% if (strany.vlastniVelikost) { %><input type="hidden" name="velikost" value="<%= strany.naStranku %>"><% } %>
   <input type="text" name="q" value="<%= filtry.q %>" placeholder="Hledat úkol nebo GUK-…" class="form-control" aria-label="Hledat úkol nebo jeho kód">
   <select name="klient" class="form-select" style="max-width:200px;" aria-label="Klient">
     <option value="">Všichni klienti</option>
@@ -57,7 +58,7 @@
               <strong>Filtru neodpovídá žádný úkol</strong>
               <a href="/prace/ukoly" class="btn btn-outline btn-sm">Zrušit filtr</a>
             <% } else if (filtry.jenNehotove) { %>
-              <strong>Všechno je hotové</strong>
+              <strong>Žádné nehotové úkoly</strong>
               <a href="/prace/ukoly?vse=1" class="btn btn-outline btn-sm">Zobrazit i hotové</a>
             <% } else { %>
               <strong>Zatím žádné úkoly</strong>

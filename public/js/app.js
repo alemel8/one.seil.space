@@ -68,19 +68,51 @@ document.addEventListener('DOMContentLoaded', () => {
   // zůstala za okrajem a uživatel by nevěděl, kde je.
   document.querySelector('.tabs .tab.active')?.scrollIntoView({ inline: 'center', block: 'nearest' });
 
-  // ── Návrat ze záznamu na seznam ───────────────────────────
-  // Patička seznamu nese adresu téhle stránky i s filtrem (data-seznam,
-  // views/includes/strankovani.ejs); odkaz „← Zpět“ s data-zpet na ni vede.
-  // Přežije to uložení detailu, po kterém už referrer míří na detail. Bez
-  // sessionStorage vede odkaz na začátek seznamu.
+  // ── Návrat ze záznamu ─────────────────────────────────────
+  // „← Zpět“ (data-zpet) vede tam, odkud člověk na záznam přišel, i se stránkou
+  // a filtrem: ze seznamu, hledání nebo jiného záznamu. Adresa se drží v
+  // sessionStorage, aby přežila uložení detailu, po kterém referrer míří na detail.
+  // Bez původu (odkaz z notifikace) vede na poslední stránku seznamu z patičky
+  // (data-seznam), bez sessionStorage na začátek seznamu.
   try {
     const seznam = document.querySelector('[data-seznam]');
     if (seznam) sessionStorage.setItem(`seil-seznam:${location.pathname}`, seznam.dataset.seznam);
-    document.querySelectorAll('a[data-zpet]').forEach(a => {
+
+    const odkud = document.referrer ? new URL(document.referrer) : null;
+    // Návrat přes Zpět není nový původ: ze seznamu → A → B → Zpět na A by A jinak vedlo zpět na B.
+    const zNavratu = odkud && sessionStorage.getItem('seil-zpet-z') === odkud.pathname;
+    sessionStorage.removeItem('seil-zpet-z');
+
+    const klic = `seil-zpet:${location.pathname}`;
+    const odkazy = document.querySelectorAll('a[data-zpet]');
+    if (odkazy.length && odkud && !zNavratu && odkud.origin === location.origin
+        && odkud.pathname !== location.pathname && odkud.pathname !== '/prihlasit') {
+      for (const k of ['saved', 'error', 'sent', 'formError', 'upravit', 'emailSent', 'emailError', 'expedice', 'behu']) odkud.searchParams.delete(k);
+      sessionStorage.setItem(klic, odkud.pathname + odkud.search);
+    }
+    odkazy.forEach(a => {
       const cesta = new URL(a.href).pathname;
-      const ulozeno = sessionStorage.getItem(`seil-seznam:${cesta}`);
-      if (ulozeno && (ulozeno === cesta || ulozeno.startsWith(`${cesta}?`))) a.href = ulozeno;
+      const zSeznamu = sessionStorage.getItem(`seil-seznam:${cesta}`);
+      const cil = sessionStorage.getItem(klic) ?? (zSeznamu?.startsWith(cesta) ? zSeznamu : null);
+      if (cil) a.href = cil;
+      a.addEventListener('click', () => { try { sessionStorage.setItem('seil-zpet-z', location.pathname); } catch {} });
     });
+  } catch {}
+
+  // ── Pozice po akci v řádku ────────────────────────────────
+  // Změna stavu nebo smazání v řádku vrací na tutéž stránku; ať člověk zůstane
+  // u řádku a nemusí ho hledat od začátku seznamu.
+  const zapamatujPozici = e => {
+    if (!e.target.closest?.('tr')) return;
+    try { sessionStorage.setItem('seil-pozice', JSON.stringify({ cesta: location.pathname, y: window.scrollY, cas: Date.now() })); } catch {}
+  };
+  // Ve fázi zachycení: inline onchange formulář odešle a událost submit nevznikne.
+  document.addEventListener('change', e => { if (e.target.matches?.('.stav-vyber')) zapamatujPozici(e); }, true);
+  document.addEventListener('submit', zapamatujPozici, true);
+  try {
+    const pozice = JSON.parse(sessionStorage.getItem('seil-pozice') || 'null');
+    sessionStorage.removeItem('seil-pozice');
+    if (pozice?.cesta === location.pathname && Date.now() - pozice.cas < 15000) window.scrollTo(0, pozice.y);
   } catch {}
 
   // ── Řádek tabulky jako odkaz ──────────────────────────────
@@ -88,7 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // plochu kliku. Ovládací prvky v řádku a označování textu klik nepřebírá.
   document.addEventListener('click', e => {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    const radek = e.target.closest?.('tr[data-href]');
+    const radek = e.target.closest?.('[data-href]');
     if (!radek || e.target.closest('a, button, input, select, textarea, label, summary, [data-bez-prokliku]')) return;
     if (window.getSelection?.().toString()) return;
     window.location.href = radek.dataset.href;
