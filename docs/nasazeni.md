@@ -193,7 +193,7 @@ Aplikace je nainstalována jako PWA. Service Worker (`public/sw.js`) zajišťuje
 - Příjem a zobrazení push notifikací
 - Přesměrování po kliknutí na notifikaci
 
-Aktivace notifikací: `/nastaveni` → karta "Push notifikace" → Povolit notifikace.
+Aktivace notifikací: Můj profil → záložka Notifikace → Povolit notifikace.
 
 Funguje na:
 - Android Chrome (PWA i browser)

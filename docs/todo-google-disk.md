@@ -30,7 +30,7 @@ chybí, a ukazuje čas i chybu poslední automatické kontroly.
 
 ## 4. Nastavení v aplikaci
 
-- [ ] **Nastavení → Firma → tužka vpravo nahoře → Google Disk** → vyplnit **ID složky**
+- [ ] **Nastavení firmy → záložka Google Disk → tužka vpravo nahoře** → vyplnit **ID složky**
       (z URL složky: `drive.google.com/drive/folders/`**`ID`**)
 - [ ] Uložit
 
@@ -73,6 +73,8 @@ stejným dodavatelem, datem a částkou, soubor skončí stavem `chyba`, nic se 
 a rozhodne člověk. Datum v jiném tvaru než RRRR-MM-DD je taky chyba, jinak by se uložilo
 posunuté. Doklad bez vytěženého čísla dostane jako číslo název souboru.
 
+Starý doklad ze složky se po ručním výběru připojí k faktuře z POHODY jen při shodě IČO, data a částky. Doklad bez IČO (zahraniční dodavatelé) nebo s jiným datem založí druhý řádek, proto Vybrat vše řádky Před automatikou nezaškrtne. Spolehlivé párování by šlo přes sloupec `Doklad` z exportu POHODY, import ho zatím neukládá.
+
 Známé meze, které se neřeší, protože v řádku není uložený jeho původ:
 
 - Dva doklady téhož dodavatele se stejným dnem a částkou a jiným číslem (dvě obnovy
@@ -91,6 +93,8 @@ přijde push a zbývá ruční import ze stránky. Za jednu kontrolu se zpracuje
 
 Ruční výběr na stránce běží na pozadí s ukazatelem průběhu; vytěžení jedné
 faktury přes Claude trvá zhruba 10 sekund.
+
+Když Google hlásí vypnuté Drive API, stránka i záložka Google Disk v Nastavení firmy ukážou odkaz na jeho zapnutí v Google Cloud.
 
 Přístup je **jen pro čtení** (scope `drive.readonly`) – aplikace na Disku nic
 nemění ani nemaže.

@@ -107,7 +107,7 @@ Fio CSV import
 
 ### Push notifikace
 ```
-Uživatel zapne notifikace v /nastaveni
+Uživatel zapne notifikace v Můj profil, záložka Notifikace
   → Browser vyžádá permission
   → Subscription uložena do push_subscriptions
   → Při nové objednávce: sendPushToAll() → broadcast

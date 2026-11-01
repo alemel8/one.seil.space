@@ -317,7 +317,7 @@ přesměrování zpět na detail, ostatní klienti JSON. Modal na tuhle routu ne
 ## Export do POHODY (`src/pohoda.js`)
 
 Jeden generátor obsluhuje všechny doklady; balíček `dat:dataPack` nese IČO
-účetní jednotky z Nastavení → Firma, bez něj POHODA import odmítne.
+účetní jednotky z Nastavení firmy (záložka Základní údaje), bez něj POHODA import odmítne.
 
 | Doklad | Agenda v POHODĚ | Element |
 |---|---|---|
@@ -353,7 +353,7 @@ Doklady ve stavu Storno se do balíčku nedostanou. Po exportu se zapíše
 varuje, že opakovaný import doklad v POHODĚ založí znovu.
 
 Předkontace se berou v pořadí: předkontace z dokladu → předkontace
-z Nastavení → Firma → nic (POHODA nastaví „Nevím“).
+z Nastavení firmy (záložka Export do POHODY) → nic (POHODA nastaví „Nevím“).
 
 ---
 
@@ -606,7 +606,7 @@ z `api_keys` otevíral všechny kontakty v CRM.
 | `POST /api/push/unsubscribe` | Odregistrace |
 | `POST /api/push/status` | Stav subscription pro aktuální zařízení |
 
-Uživatel zapíná notifikace v `/nastaveni`. Každý uživatel/zařízení má vlastní subscription. Při nové objednávce `sendPushToAll()` odešle notifikaci všem registrovaným.
+Uživatel zapíná notifikace v Můj profil, záložka Notifikace (`/profil?tab=notifikace`). Každý uživatel/zařízení má vlastní subscription. Při nové objednávce `sendPushToAll()` odešle notifikaci všem registrovaným.
 
 ---
 
@@ -824,7 +824,8 @@ Vše admin-only.
 
 | Route | Popis |
 |---|---|
-| `GET/POST /nastaveni/firma` | Údaje firmy (ICO, DIČ, adresa, banka, fakturační poznámka) |
+| `GET /nastaveni/firma` | Nastavení firmy po záložkách (`?tab=zakladni\|fakturace\|pohoda\|disk`) |
+| `POST /nastaveni/firma/zakladni`, `…/fakturace`, `…/pohoda`, `…/disk` | Každá záložka zapisuje jen své sloupce; neúplné tělo vrátí 400 a řádek nezmění. Společný POST už není |
 | `GET /nastaveni/ciselne-rady`, `POST …/ciselne-rady/vytvorit`, `POST …/ciselne-rady/:id/deaktivovat\|aktivovat` | Číselné řady pro faktury (prefix, rok, padding) |
 | `GET /nastaveni/eshopy`, `POST /nastaveni/eshopy/vytvorit` | Seznam e-shopů, založení nového (slug jen malá písmena, číslice a pomlčky) |
 | `GET /nastaveni/eshopy/:id` | Detail e-shopu po záložkách (`?tab=zakladni\|identita\|napojeni\|expedice\|marketing\|healthchecky`) |
@@ -869,6 +870,36 @@ záznamu v režimu úprav (třetí prvek `ZALOZKY_ESHOPU` je id formuláře,
 `napojeni` a `healthchecky` ho nemají, a tak tužku neukazují). Marketing má
 marži a práh PNO ve vlastní kartě; napojení platforem pod ní má dál své
 formuláře s vlastním Uložit a Ověřit připojení – tužka se jich netýká.
+
+### Stránkování seznamů
+
+Čísla a odkazy počítá `src/strankovani.js`, patičku vykresluje `views/includes/strankovani.ejs`.
+
+```js
+const [{ count }] = await sql`SELECT COUNT(*)::int AS count FROM t ${where}`;
+const strany = strankovani({ cesta: '/seznam', query: request.query, celkem: count, zachovat: ['q', 'status'] });
+const radky = await sql`… ORDER BY datum DESC, id DESC LIMIT ${strany.naStranku} OFFSET ${strany.offset}`;
+```
+
+- Nejdřív počet, pak stránka: stránka za koncem ukáže poslední řádky, ne prázdnou tabulku.
+- ORDER BY končí jednoznačným klíčem, jinak se řádek se stejnou hodnotou mezi stránkami opakuje nebo ztratí.
+- Výchozí velikost je 25, banka a běhy marketingu 50. Člověk ji mění přes `?velikost=25|50|100`, formulář filtru ji nese skrytým polem.
+- `zachovat` je výčet filtrů, ne celý dotaz: jednorázové `saved`, `error`, `sent` se nepřenášejí. Záložka detailu používá `pevne: { tab }`.
+- Součty a počty nad filtrem se počítají v SQL, nikdy z načtených řádků.
+- Akce v řádku vrací na `strany.aktualni`, návratovou adresu z formuláře kontroluje `bezpecnyNavrat` (`src/navrat.js`).
+- Výběr řádků pro export platí pro jednu stránku. Na víc dokladů se zvětší počet řádků.
+
+Kde stránkování je: přijaté, vydané a zálohové faktury, upomínky, účtenky, banka, objednávky, firmy a kontakty včetně jejich objednávek a faktur, úkoly a měření na úkolu, projekty, podklady, záložky člena (podklady, mzdy, platby), ruční náklady a běhy marketingu.
+Vědomě bez něj: přehledy se součty, mřížka mezd, přístupová matice, krátké číselníky a konfigurace (řady, účetní osnova, šablony faktur, e-shopy, healthchecky) a import z Google Disku, kde výběr potřebuje všechny řádky.
+
+`← Zpět` s atributem `data-zpet` vede tam, odkud člověk na záznam přišel, i se stránkou a filtrem, a přežije uložení (`public/js/app.js`). Řádek tabulky je `<tr data-href>` se skutečným odkazem `.radek-odkaz` v buňce; ovládací prvky a buňky s `data-bez-prokliku` klik nepřebírají.
+
+### Záložky na stránkách
+
+Pruh je jediný `views/includes/zalozky.ejs`, klíč ověřuje `zalozka()` ze `src/zalozky.js`: neznámý klíč i pole z `?tab=a&tab=b` otevřou první záložku. Formulář na záložce má vlastní id a vlastní POST, který zapisuje jen své sloupce a vrací se na `?tab=X&saved=1`. Tužka musí nést `tab`, jinak se tiše vypne kontrola při Uložit.
+
+Kde záložky jsou: detail e-shopu, Nastavení firmy, Můj profil (Osobní údaje, Heslo, Notifikace; `/nastaveni` přesměruje na Notifikace), Healthchecky (Sledované aplikace, Notifikace), detail firmy, kontaktu, projektu a člena, přehled marketingu (`?tab=prehled|kanaly|vyhledavani`, jen ke čtení), upomínky podle stavu (`?status=ceka|odeslana|zrusena|vse`), vydané a zálohové faktury (`?typ=zalohove`).
+Vědomě bez záložek: faktura, účtenka, objednávka, úkol, mzda a podklad, kde je potřeba vidět údaje současně, a přístupová matice.
 
 ### Režim úprav na detailech („tužka → Uložit“)
 
@@ -969,7 +1000,7 @@ Jak to drží pohromadě:
 Kde režim je: detail e-shopu (čtyři záložky), firma (základní informace
 a poznámky – ty mají vlastní `POST /crm/firmy/:id/poznamky`, aby formulář
 jen s textarea nepřepisoval zbytek řádku), projekt, podprojekt, člen týmu
-(detail, bankovní účet), Můj profil (osobní údaje), Nastavení firmy,
+(detail, bankovní účet), Můj profil (osobní údaje), Nastavení firmy (všechny čtyři záložky),
 účtenka a přijatá faktura. **Vydaná faktura** zůstává u modalu – její úprava
 obsahuje editor položek, který do karet detailu nepatří.
 

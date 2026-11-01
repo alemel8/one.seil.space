@@ -17,6 +17,8 @@ Derived/computed shades (not in the official 5, built for UI states):
 - `--primary-hover: #10CCCC` – darker cyan between Cyan and Petrol, for hover states on primary-colored elements.
 - `--primary-light: #E3FBFB` – very light cyan tint for subtle backgrounds/badges.
 - `--sidebar-hover: #131F33` / `--sidebar-active: #13253D` – lightened steps off Deep Space for sidebar item states.
+- `--link`, `--focus-ring` – Petrol on light, Cyan on dark. Cyan on white has only 1.6:1, so never use it as text or a focus outline on light surfaces.
+- `--ton-ok|varovani|chyba|info|neutral-bg/-text` – status tones for `.badge-*` and `.hlaska-*`; the status → tone map is `src/stavy.js`.
 - Dark-mode `--bg-card: #141F30` / `--bg-card-hover: #182437` – lightened steps off Deep Space for card surfaces in dark theme.
 
 `--accent-blue` is not one of the 5 official brand colors; it now aliases `--petrol`
