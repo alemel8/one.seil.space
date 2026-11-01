@@ -1,5 +1,5 @@
 <%
-  const cas = d => new Date(d).toLocaleString('cs-CZ', { day:'numeric', month:'numeric', hour:'2-digit', minute:'2-digit' });
+  const cas = d => new Date(d).toLocaleString('cs-CZ', { day:'numeric', month:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit', timeZone:'Europe/Prague' });
   const stavLabel = s => (TASK_STAVY.find(x => x[0] === s) || [, s])[1];
   const jeMoje = bezi && bezi.task_id === ukol.id;
 %>
@@ -8,36 +8,36 @@
   <div class="page-header-left">
     <h1><%= ukol.summary %></h1>
     <p>
-      <span style="font-family:var(--font-mono);"><%= ukol.code || '' %></span>
-      <%= ukol.klient ? ' · ' + ukol.klient : '' %>
-      · celkem <strong><%= hodinyMinuty(celkem) %></strong>
+      <% if (ukol.code) { %><span style="font-family:var(--font-mono);"><%= ukol.code %></span> · <% } %>
+      <% if (ukol.klient) { %><%= ukol.klient %> · <% } %>
+      celkem <strong><%= hodinyMinuty(celkem) %></strong>
     </p>
   </div>
-  <div style="display:flex;gap:8px;">
+  <div class="page-header-akce">
     <% if (jeMoje) { %>
       <form method="post" action="/prace/stopky/stop">
-        <input type="hidden" name="back" value="/prace/ukoly/<%= ukol.id %>">
+        <input type="hidden" name="back" value="<%= strany.aktualni %>">
         <button type="submit" class="btn btn-danger">■ Zastavit</button>
       </form>
     <% } else { %>
       <form method="post" action="/prace/stopky/start">
         <input type="hidden" name="ukol_id" value="<%= ukol.id %>">
-        <input type="hidden" name="back" value="/prace/ukoly/<%= ukol.id %>">
+        <input type="hidden" name="back" value="<%= strany.aktualni %>">
         <button type="submit" class="btn btn-primary">▶ <%= bezi ? 'Přepnout sem' : 'Spustit stopky' %></button>
       </form>
     <% } %>
-    <a href="/prace/ukoly" class="btn btn-outline">← Na úkoly</a>
+    <a href="/prace/ukoly" class="btn btn-outline" data-zpet>← Na úkoly</a>
   </div>
 </div>
 
 <% if (bezi && !jeMoje) { %>
-<div style="background:var(--warning-bg);color:#92400e;border-radius:8px;padding:10px 16px;margin-bottom:20px;font-size:13px;">
+<div class="hlaska hlaska-varovani">
   Právě běží měření na <strong><%= bezi.ukol_kod || 'jiném úkolu' %></strong>. Spuštění stopek tady ho zastaví.
 </div>
 <% } %>
 
 <div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;align-items:start;">
-  <div>
+  <div style="min-width:0;">
     <% if (ukol.description) { %>
     <div class="card" style="margin-bottom:20px;">
       <div class="card-header"><h2 style="font-size:15px;font-weight:600;margin:0;">Popis</h2></div>
@@ -51,9 +51,9 @@
       <div class="card-body" style="display:flex;flex-direction:column;gap:6px;">
         <% podukoly.forEach(function (p) { %>
         <a href="/prace/ukoly/<%= p.id %>" style="display:flex;gap:10px;align-items:center;text-decoration:none;color:inherit;font-size:13.5px;">
-          <span style="font-family:var(--font-mono);font-size:12.5px;color:var(--primary);"><%= p.code %></span>
+          <span style="font-family:var(--font-mono);font-size:12.5px;color:var(--link);"><%= p.code %></span>
           <span style="flex:1;"><%= p.summary %></span>
-          <span class="badge" style="background:var(--gray-100);color:var(--text-secondary);"><%= stavLabel(p.status) %></span>
+          <span class="badge badge-<%= tonStavu(p.status) %>"><%= stavLabel(p.status) %></span>
         </a>
         <% }) %>
       </div>
@@ -68,27 +68,29 @@
     <% } %>
 
     <div class="card">
-      <div class="card-header"><h2 style="font-size:15px;font-weight:600;margin:0;">Naměřený čas</h2></div>
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+        <h2 style="font-size:15px;font-weight:600;margin:0;">Naměřený čas</h2>
+        <span style="font-size:13px;color:var(--text-secondary);font-weight:400;"><%= strany.celkem.toLocaleString('cs-CZ') %> měření · celkem <%= hodinyMinuty(celkem) %></span>
+      </div>
       <div class="table-wrapper" style="border:none;border-radius:0;">
         <table class="data-table">
-          <thead><tr><th>Kdy</th><th>Kdo</th><th>Poznámka</th><th style="text-align:right;">Délka</th></tr></thead>
+          <thead><tr><th>Kdy</th><th>Kdo</th><th class="hide-mobile">Poznámka</th><th class="num">Délka</th></tr></thead>
           <tbody>
             <% if (!mereni.length) { %>
-              <tr><td colspan="4" style="text-align:center;padding:28px;color:var(--text-muted);">Zatím nic naměřeno</td></tr>
+              <tr><td colspan="4"><div class="prazdno"><strong>Zatím nic naměřeno</strong>Stopky spustíte tlačítkem nahoře.</div></td></tr>
             <% } %>
             <% mereni.forEach(function (m) { %>
             <tr>
-              <td style="font-size:12.5px;color:var(--text-muted);white-space:nowrap;"><%= cas(m.started_at) %></td>
-              <td style="font-size:13px;"><%= [m.first_name, m.last_name].filter(Boolean).join(' ') %></td>
-              <td style="font-size:13px;color:var(--text-muted);"><%= m.note || '' %></td>
-              <td style="text-align:right;font-family:var(--font-mono);font-size:13px;">
-                <%= m.ended_at ? hodinyMinuty(m.sekund) : 'běží' %>
-              </td>
+              <td class="mono sekundarni"><%= cas(m.started_at) %></td>
+              <td><%= [m.first_name, m.last_name].filter(Boolean).join(' ') %></td>
+              <td class="sekundarni hide-mobile"><%= m.note || '' %></td>
+              <td class="num"><%= m.ended_at ? hodinyMinuty(m.sekund) : 'běží' %></td>
             </tr>
             <% }) %>
           </tbody>
         </table>
       </div>
+      <%- include('../../includes/strankovani', { strany }) %>
     </div>
   </div>
 
@@ -96,7 +98,7 @@
     <div class="card-header"><h2 style="font-size:15px;font-weight:600;margin:0;">Stav</h2></div>
     <div class="card-body">
       <form method="post" action="/prace/ukoly/<%= ukol.id %>/stav" style="margin-bottom:16px;">
-        <input type="hidden" name="back" value="/prace/ukoly/<%= ukol.id %>">
+        <input type="hidden" name="back" value="<%= strany.aktualni %>">
         <select name="status" class="form-select" onchange="this.form.submit()">
           <% TASK_STAVY.forEach(function (s) { %>
             <option value="<%= s[0] %>" <%= ukol.status === s[0] ? 'selected' : '' %>><%= s[1] %></option>

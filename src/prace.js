@@ -97,16 +97,25 @@ export async function zapomenuteStopky(sql, userId = null) {
   `;
 }
 
-/** Úkoly s filtry a se součtem naměřeného času. */
-export async function ukoly(sql, { q = '', stav = '', resitel = null, klient = '', jenNehotove = false } = {}) {
+/** Podmínka seznamu úkolů, společná výpisu i počtu. */
+function podminkaUkolu(sql, { q = '', stav = '', resitel = null, klient = '', jenNehotove = false } = {}) {
   const kde = [];
   if (q)      kde.push(sql`(t.summary ILIKE ${'%' + q + '%'} OR t.code ILIKE ${'%' + q + '%'})`);
   if (stav)   kde.push(sql`t.status = ${stav}`);
   if (resitel) kde.push(sql`t.assignee_id = ${resitel}`);
   if (klient) kde.push(sql`t.company_id = ${klient}`);
   if (jenNehotove) kde.push(sql`t.status <> 'done'`);
-  const where = kde.length ? kde.reduce((a, b) => sql`${a} AND ${b}`, sql`WHERE TRUE`) : sql``;
+  return kde.length ? kde.reduce((a, b) => sql`${a} AND ${b}`, sql`WHERE TRUE`) : sql``;
+}
 
+/** Počet úkolů odpovídajících filtrům. */
+export async function pocetUkolu(sql, filtry) {
+  const [{ count }] = await sql`SELECT COUNT(*)::int AS count FROM tasks t ${podminkaUkolu(sql, filtry)}`;
+  return count;
+}
+
+/** Jedna stránka úkolů s filtry a se součtem naměřeného času. */
+export async function ukoly(sql, filtry, { limit, offset }) {
   return sql`
     SELECT t.*, c.name AS klient,
            u.first_name AS resitel_jmeno, u.last_name AS resitel_prijmeni,
@@ -115,9 +124,9 @@ export async function ukoly(sql, { q = '', stav = '', resitel = null, klient = '
       FROM tasks t
       LEFT JOIN crm_companies c ON c.id = t.company_id
       LEFT JOIN users u ON u.id = t.assignee_id
-      ${where}
-     ORDER BY t.status = 'done', COALESCE(t.due_date, '9999-12-31'), t.seq DESC NULLS LAST, t.created_at DESC
-     LIMIT 300
+      ${podminkaUkolu(sql, filtry)}
+     ORDER BY t.status = 'done', COALESCE(t.due_date, '9999-12-31'), t.seq DESC NULLS LAST, t.created_at DESC, t.id DESC
+     LIMIT ${limit} OFFSET ${offset}
   `;
 }
 

@@ -9,17 +9,12 @@
 import { getDb, generateId } from '../db.js';
 import {
   beziciMereni, spustStopky, zastavStopky, zaznamyDne, zapomenuteStopky,
-  ukoly, vykaz, hodinyMinuty, TASK_STAVY, PODEZRELE_HODIN,
+  ukoly, pocetUkolu, vykaz, hodinyMinuty, TASK_STAVY, PODEZRELE_HODIN,
 } from '../prace.js';
+import { parametr, strankovani } from '../strankovani.js';
+import { bezpecnyNavrat } from '../navrat.js';
 
 const dnesek = () => new Date().toISOString().slice(0, 10);
-
-function zpet(request, vychozi) {
-  const b = request.body?.back || request.query?.back || '';
-  // Jen relativní cesta v rámci aplikace – ať se z toho nedá udělat
-  // odrazový můstek na cizí web.
-  return /^\/[A-Za-z0-9/_?=&.-]*$/.test(b) ? b : vychozi;
-}
 
 export default async function workRoutes(fastify) {
   const sql = getDb();
@@ -53,12 +48,12 @@ export default async function workRoutes(fastify) {
       taskId: b.ukol_id || null,
       note: (b.poznamka || '').trim(),
     });
-    return reply.redirect(zpet(request, '/prace'));
+    return reply.redirect(bezpecnyNavrat(request.body?.back, '/prace'));
   });
 
   fastify.post('/prace/stopky/stop', async (request, reply) => {
     await zastavStopky(sql, request.user.id);
-    return reply.redirect(zpet(request, '/prace'));
+    return reply.redirect(bezpecnyNavrat(request.body?.back, '/prace'));
   });
 
   // Zapomenuté stopky nikdy neukončujeme sami – vymyšlený čas ve výkazu
@@ -72,7 +67,7 @@ export default async function workRoutes(fastify) {
       UPDATE time_entries SET ended_at = GREATEST(${kdy}, started_at), source = 'rucne', modified_at = NOW()
        WHERE id = ${request.params.id} AND user_id = ${request.user.id} AND ended_at IS NULL
     `;
-    return reply.redirect(zpet(request, '/prace'));
+    return reply.redirect(bezpecnyNavrat(request.body?.back, '/prace'));
   });
 
   fastify.post('/prace/zaznamy/vytvorit', async (request, reply) => {
@@ -85,32 +80,40 @@ export default async function workRoutes(fastify) {
               ${`${den} ${b.od}`}::timestamptz, ${`${den} ${b.do}`}::timestamptz,
               ${(b.poznamka || '').trim()}, 'rucne')
     `;
-    return reply.redirect(zpet(request, '/prace'));
+    return reply.redirect(bezpecnyNavrat(request.body?.back, '/prace'));
   });
 
   fastify.post('/prace/zaznamy/:id/smazat', async (request, reply) => {
     // user_id v podmínce, aby nešlo smazat cizí měření podvrženým ID
     await sql`DELETE FROM time_entries WHERE id = ${request.params.id} AND user_id = ${request.user.id}`;
-    return reply.redirect(zpet(request, '/prace'));
+    return reply.redirect(bezpecnyNavrat(request.body?.back, '/prace'));
   });
 
   // ── Úkoly ────────────────────────────────────────────────────
   fastify.get('/prace/ukoly', async (request, reply) => {
+    const stav = parametr(request.query.stav);
+    const vse = parametr(request.query.vse) === '1';
     const filtry = {
-      q: (request.query.q || '').trim(),
-      stav: TASK_STAVY.some(s => s[0] === request.query.stav) ? request.query.stav : '',
-      klient: (request.query.klient || '').trim(),
-      jenNehotove: request.query.vse !== '1',
+      q: parametr(request.query.q),
+      stav: TASK_STAVY.some(s => s[0] === stav) ? stav : '',
+      klient: parametr(request.query.klient),
+      vse,
+      // Hotové skrývá jen výchozí pohled. Kdo si vybral stav Hotovo, chce je vidět.
+      jenNehotove: !vse && stav !== 'done',
     };
+    const celkem = await pocetUkolu(sql, filtry);
+    const strany = strankovani({
+      cesta: '/prace/ukoly', query: request.query, celkem, zachovat: ['q', 'stav', 'klient', 'vse'],
+    });
     const [seznam, klienti, bezi] = await Promise.all([
-      ukoly(sql, filtry),
+      ukoly(sql, filtry, { limit: strany.naStranku, offset: strany.offset }),
       sql`SELECT DISTINCT c.id, c.name FROM crm_companies c
             JOIN tasks t ON t.company_id = c.id ORDER BY c.name`,
       beziciMereni(sql, request.user.id),
     ]);
     return reply.view('pages/prace/ukoly.ejs', {
       pageTitle: 'Úkoly', currentPath: '/prace/ukoly', user: request.user,
-      ukoly: seznam, klienti, filtry, bezi, hodinyMinuty, TASK_STAVY,
+      ukoly: seznam, total: celkem, strany, klienti, filtry, bezi, hodinyMinuty, TASK_STAVY,
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -123,19 +126,26 @@ export default async function workRoutes(fastify) {
        WHERE t.id = ${request.params.id}
     `;
     if (!ukol) return reply.code(404).send('Úkol nenalezen');
-    const [mereni, podukoly, prilohy, bezi] = await Promise.all([
-      sql`SELECT e.*, e.duration_seconds AS sekund, us.first_name, us.last_name
-            FROM time_entries e JOIN users us ON us.id = e.user_id
-           WHERE e.task_id = ${ukol.id} ORDER BY e.started_at DESC LIMIT 100`,
+    // Součet přes všechna měření, ne přes načtenou stránku: hlavička musí sedět se seznamem úkolů.
+    const [[souhrn], podukoly, prilohy, bezi] = await Promise.all([
+      sql`SELECT COUNT(*)::int AS pocet, COALESCE(SUM(duration_seconds), 0)::float8 AS sekund
+            FROM time_entries WHERE task_id = ${ukol.id}`,
       sql`SELECT id, code, summary, status FROM tasks WHERE parent_id = ${ukol.id} ORDER BY seq`,
       sql`SELECT id, original_name, mime, size, category FROM attachments
            WHERE task_id = ${ukol.id} ORDER BY sort_order, id`,
       beziciMereni(sql, request.user.id),
     ]);
-    const celkem = mereni.reduce((a, m) => a + (m.sekund ?? 0), 0);
+    const strany = strankovani({ cesta: `/prace/ukoly/${ukol.id}`, query: request.query, celkem: souhrn.pocet });
+    const mereni = await sql`
+      SELECT e.*, e.duration_seconds AS sekund, us.first_name, us.last_name
+        FROM time_entries e JOIN users us ON us.id = e.user_id
+       WHERE e.task_id = ${ukol.id}
+       ORDER BY e.started_at DESC, e.id DESC
+       LIMIT ${strany.naStranku} OFFSET ${strany.offset}
+    `;
     return reply.view('pages/prace/ukol-detail.ejs', {
       pageTitle: ukol.code || 'Úkol', currentPath: '/prace/ukoly', user: request.user,
-      ukol, mereni, podukoly, prilohy, celkem, bezi, hodinyMinuty, TASK_STAVY,
+      ukol, mereni, strany, podukoly, prilohy, celkem: souhrn.sekund, bezi, hodinyMinuty, TASK_STAVY,
       KATEGORIE_PRILOH: (await import('../hr.js')).KATEGORIE_PRILOH,
     }, { layout: 'layouts/base.ejs' });
   });
@@ -165,7 +175,7 @@ export default async function workRoutes(fastify) {
          WHERE id = ${request.params.id}
       `;
     }
-    return reply.redirect(zpet(request, '/prace/ukoly'));
+    return reply.redirect(bezpecnyNavrat(request.body?.back, '/prace/ukoly'));
   });
 
   // ── Výkazy ───────────────────────────────────────────────────
