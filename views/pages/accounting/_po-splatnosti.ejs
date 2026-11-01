@@ -1,0 +1,28 @@
+<%#
+  Karta faktur po splatnosti na finančním přehledu: nejstarší řádky a odkaz na celý
+  seznam s filtrem. pocet je z COUNT, faktury jsou jen začátek seznamu.
+%>
+<div class="card">
+  <div class="card-header"><span class="pole-varovani">⚠ <%= nadpis %> (<%= pocet.toLocaleString('cs-CZ') %>)</span></div>
+  <div class="table-wrapper" style="border:none;border-radius:0;box-shadow:none;">
+    <table class="data-table">
+      <thead><tr><th>Číslo</th><th><%= sloupecProtistrana %></th><th>Splatnost</th><th class="num">Celkem</th></tr></thead>
+      <tbody>
+        <% faktury.forEach(inv => { %>
+        <tr data-href="<%= seznam %>/<%= inv.id %>">
+          <td class="mono"><a href="<%= seznam %>/<%= inv.id %>" class="radek-odkaz"><%= inv.number %></a></td>
+          <td><span class="radek-text" style="min-width:0;" title="<%= protistrana(inv) || '' %>"><%= protistrana(inv) || '–' %></span></td>
+          <td class="mono"><span class="pole-varovani"><%= ceskeDatum(inv.due_date) || '–' %></span></td>
+          <td class="num"><%= fmt(inv.total_amount) %> <%= inv.currency %></td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <% if (pocet > faktury.length) { %>
+  <div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 16px;padding:10px 16px;border-top:1px solid var(--border);font-size:13px;">
+    <span style="color:var(--text-secondary);"><%= faktury.length %> nejstarších</span>
+    <a href="<%= seznam %>?status=Po%20splatnosti" style="color:var(--link);font-weight:600;">Zobrazit všechny (<%= pocet.toLocaleString('cs-CZ') %>)</a>
+  </div>
+  <% } %>
+</div>

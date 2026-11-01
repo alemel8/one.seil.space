@@ -3,6 +3,8 @@ import { buildPohodaXml, PAYMENT_METHODS, isCashReceipt } from '../pohoda.js';
 import { saveAttachment, deleteAttachment, isSupportedMime, markMissingAttachments } from '../attachments.js';
 import { rezimUprav } from '../upravy.js';
 import { jenDatum } from '../prazsky-cas.js';
+import { parametr, strankovani } from '../strankovani.js';
+import { bezpecnyNavrat } from '../navrat.js';
 import Anthropic from '@anthropic-ai/sdk';
 
 export const STATUSES = ['Nezaúčtována', 'Zaúčtována', 'Storno'];
@@ -58,12 +60,9 @@ export default async function receiptsRoutes(fastify) {
 
   // ── Seznam účtenek ────────────────────────────────────────────
   fastify.get('/ucetnictvi/uctenky', async (request, reply) => {
-    const q             = (request.query.q      || '').trim();
-    const statusFilter  = (request.query.status || '').trim();
-    const paymentFilter = (request.query.platba || '').trim();
-    const page    = Math.max(1, parseInt(request.query.page || '1', 10));
-    const perPage = 25;
-    const offset  = (page - 1) * perPage;
+    const q             = parametr(request.query.q);
+    const statusFilter  = parametr(request.query.status);
+    const paymentFilter = parametr(request.query.platba);
 
     const conditions = [sql`TRUE`];
     if (q) conditions.push(sql`(vendor ILIKE ${'%'+q+'%'} OR number ILIKE ${'%'+q+'%'} OR notes ILIKE ${'%'+q+'%'})`);
@@ -72,13 +71,17 @@ export default async function receiptsRoutes(fastify) {
     const where = sql`WHERE ${conditions.reduce((a, b) => sql`${a} AND ${b}`)}`;
 
     const [{ count }] = await sql`SELECT COUNT(*)::int AS count FROM receipts ${where}`;
-    const receipts    = await sql`SELECT * FROM receipts ${where} ORDER BY receipt_date DESC, id DESC LIMIT ${perPage} OFFSET ${offset}`;
+    const strany = strankovani({ cesta: '/ucetnictvi/uctenky', query: request.query, celkem: count, zachovat: ['q', 'status', 'platba'] });
+    const receipts = await sql`
+      SELECT * FROM receipts ${where}
+      ORDER BY receipt_date DESC, id DESC
+      LIMIT ${strany.naStranku} OFFSET ${strany.offset}
+    `;
     markMissingAttachments(receipts);
 
-    const totalPages = Math.ceil(count / perPage);
     return reply.view('pages/receipts/list.ejs', {
       pageTitle: 'Účtenky', currentPath: '/ucetnictvi/uctenky',
-      user: request.user, receipts, total: count, page, totalPages,
+      user: request.user, receipts, total: count, strany,
       q, statusFilter, paymentFilter, STATUSES, CATEGORIES, PAYMENT_METHODS,
       NO_VAT_CATEGORIES,
     }, { layout: 'layouts/base.ejs' });
@@ -306,14 +309,14 @@ Kategorie PHM použij u nákupu pohonných hmot, Reprezentace u pohoštění, ob
     const [prev] = await sql`SELECT attachment_path FROM receipts WHERE id = ${request.params.id}`;
     await sql`DELETE FROM receipts WHERE id = ${request.params.id}`;
     if (prev?.attachment_path) await deleteAttachment(prev.attachment_path);
-    return reply.redirect('/ucetnictvi/uctenky');
+    return reply.redirect(bezpecnyNavrat(request.body?.redirect_to, '/ucetnictvi/uctenky'));
   });
 
   // ── Stav účtenky (inline) ────────────────────────────────────
   fastify.post('/ucetnictvi/uctenky/:id/stav', async (request, reply) => {
     const { status } = request.body || {};
     if (status) await sql`UPDATE receipts SET status = ${status}, updated_at = NOW() WHERE id = ${request.params.id}`;
-    return reply.redirect('/ucetnictvi/uctenky');
+    return reply.redirect(bezpecnyNavrat(request.body?.redirect_to, '/ucetnictvi/uctenky'));
   });
 
   // ── POHODA XML export (Pokladna + Ostatní závazky) ────────────

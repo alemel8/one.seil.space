@@ -1,9 +1,13 @@
+<%
+  const filtrAktivni = q || typeFilter;
+  const nekolik = total >= 2 && total <= 4;
+%>
 <div class="page-header">
   <div class="page-header-left">
     <h1>Banka</h1>
-    <p><%= total || 0 %> transakcí v systému</p>
+    <p><%= total.toLocaleString('cs-CZ') %> <%= total === 1 || nekolik ? 'transakce' : 'transakcí' %> <%= filtrAktivni ? (nekolik ? 'odpovídají' : 'odpovídá') + ' filtru' : 'celkem' %></p>
   </div>
-  <div style="display:flex;gap:8px;">
+  <div class="page-header-akce">
     <button class="btn btn-primary" data-modal-open="modalCreateTransaction">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Nová transakce
@@ -11,69 +15,61 @@
   </div>
 </div>
 
-<form method="get" style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
-  <input type="text" name="q" value="<%= q||'' %>" placeholder="Hledat…" class="form-control" style="max-width:260px;">
-  <select name="type" class="form-select" style="width:auto;">
-    <option value="">Vše</option>
+<form method="get" class="filtr-lista">
+  <input type="text" name="q" value="<%= q||'' %>" placeholder="Hledat protistranu, zprávu, VS…" class="form-control" aria-label="Hledat protistranu, zprávu nebo variabilní symbol">
+  <select name="type" class="form-select" aria-label="Typ">
+    <option value="">Příjmy i výdaje</option>
     <option value="credit" <%= typeFilter==='credit'?'selected':'' %>>Příjem</option>
     <option value="debit"  <%= typeFilter==='debit' ?'selected':'' %>>Výdaj</option>
   </select>
   <button type="submit" class="btn btn-outline">Filtrovat</button>
-  <% if (q||typeFilter) { %><a href="/ucetnictvi/banka" class="btn btn-ghost">Zrušit</a><% } %>
+  <% if (filtrAktivni) { %><a href="/ucetnictvi/banka" class="btn btn-ghost">Zrušit filtr</a><% } %>
 </form>
 
 <div class="table-wrapper">
-  <table class="data-table">
+  <%# Na telefonu zbývají tři sloupce, částka má být vidět bez posouvání. %>
+  <table class="data-table" style="min-width:0;">
     <thead>
       <tr>
-        <th>Popis</th><th>Protistrana</th><th>Typ</th><th>Částka</th><th>Datum</th><th>Spárováno</th><th></th>
+        <th>Popis</th><th class="hide-mobile">Protistrana</th><th class="hide-mobile">Typ</th><th class="num mobil">Částka</th><th class="mobil">Datum</th><th class="hide-mobile">Spárováno</th><th class="hide-mobile" aria-label="Párování"></th>
       </tr>
     </thead>
     <tbody>
-      <% if (transactions && transactions.length > 0) { %>
+      <% if (transactions.length > 0) { %>
         <% transactions.forEach(t => { %>
         <%
           const isPaired = t.matched_invoice_id || t.matched_receipt_id;
           const isInvoice = !!t.matched_invoice_id;
+          const prijem = t.type === 'credit';
           const pairHref = isInvoice
             ? (t.matched_invoice_type === 'issued' ? `/ucetnictvi/vydane-faktury/${t.matched_invoice_id}` : `/ucetnictvi/prijate-faktury/${t.matched_invoice_id}`)
             : null;
           const pairLabel = isInvoice ? t.matched_invoice_number : (t.matched_receipt_id ? ('Účtenka #' + t.matched_receipt_id) : null);
-          const pairColor = isInvoice && t.matched_invoice_type === 'issued' ? '#166534' : isInvoice ? '#92400e' : '#1e40af';
-          const pairBg    = isInvoice && t.matched_invoice_type === 'issued' ? '#dcfce7'   : isInvoice ? '#fef9c3' : '#dbeafe';
+          const pairTon = isInvoice && t.matched_invoice_type === 'issued' ? 'badge-ok' : isInvoice ? 'badge-varovani' : 'badge-info';
         %>
         <tr>
-          <td style="font-weight:500;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-            <%= t.message || t.description || '–' %>
-          </td>
-          <td style="font-size:12px;color:var(--text-muted);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-            <%= t.counterparty_name || '–' %>
-          </td>
-          <td>
-            <span class="badge" style="background:<%= t.type==='credit' ? 'var(--success-bg)' : 'var(--danger-bg)' %>;color:<%= t.type==='credit' ? '#15803D' : '#991B1B' %>;">
-              <%= t.type==='credit' ? 'Příjem' : 'Výdaj' %>
-            </span>
-          </td>
-          <td style="font-variant-numeric:tabular-nums;font-weight:600;color:<%= t.type==='credit' ? 'var(--success)' : 'var(--danger)' %>;">
-            <%= t.type==='credit' ? '+' : '-' %><%= Number(t.amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= t.currency %>
-          </td>
-          <td style="color:var(--text-muted);font-size:12px;"><%= new Date(t.transaction_date || t.date).toLocaleDateString('cs-CZ') %></td>
-          <td>
+          <td><span class="radek-text" title="<%= t.message %>" style="font-weight:500;"><%= t.message || '–' %></span></td>
+          <td class="sekundarni hide-mobile"><span class="radek-text" title="<%= t.counterparty_name %>"><%= t.counterparty_name || '–' %></span></td>
+          <td class="hide-mobile"><span class="badge <%= prijem ? 'badge-ok' : 'badge-chyba' %>"><%= prijem ? 'Příjem' : 'Výdaj' %></span></td>
+          <td class="num mobil"><span class="<%= prijem ? 'pole-uspech' : 'pole-varovani' %>"><%= prijem ? '+' : '-' %><%= Number(t.amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= t.currency %></span></td>
+          <td class="mono sekundarni mobil"><%= ceskeDatum(t.transaction_date) %></td>
+          <td class="hide-mobile">
             <% if (isPaired && pairLabel) { %>
               <% if (pairHref) { %>
-                <a href="<%= pairHref %>" class="badge" style="font-size:12px;background:<%= pairBg %>;color:<%= pairColor %>;text-decoration:none;font-weight:500;"><%= pairLabel %></a>
+                <a href="<%= pairHref %>" class="badge <%= pairTon %>" style="text-decoration:none;"><%= pairLabel %></a>
               <% } else { %>
-                <span class="badge" style="font-size:12px;background:<%= pairBg %>;color:<%= pairColor %>;font-weight:500;"><%= pairLabel %></span>
+                <span class="badge <%= pairTon %>"><%= pairLabel %></span>
               <% } %>
             <% } else { %>
-              <span style="font-size:12px;color:var(--text-muted);">–</span>
+              <span class="sekundarni">–</span>
             <% } %>
           </td>
-          <td>
+          <td class="hide-mobile">
             <% if (!isPaired) { %>
-              <button class="btn btn-ghost btn-sm" onclick="bankPairOpen(<%= t.id %>)" style="font-size:12px;color:var(--primary);">🔗 Spárovat</button>
+              <button class="btn btn-ghost btn-sm" onclick="bankPairOpen(<%= t.id %>)" style="font-size:12px;color:var(--link);">🔗 Spárovat</button>
             <% } else { %>
               <form method="post" action="/ucetnictvi/banka/<%= t.id %>/zrusit-parovani" onsubmit="return confirm('Zrušit párování?')" style="display:inline;">
+                <input type="hidden" name="redirect_to" value="<%= strany.aktualni %>">
                 <button type="submit" class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--text-muted);">✕ Zrušit</button>
               </form>
             <% } %>
@@ -81,11 +77,22 @@
         </tr>
         <% }) %>
       <% } else { %>
-      <tr><td colspan="7" style="text-align:center;padding:48px;color:var(--text-muted);">Žádné transakce</td></tr>
+      <tr><td colspan="7">
+        <div class="prazdno">
+          <% if (filtrAktivni) { %>
+            <strong>Filtru neodpovídá žádná transakce</strong>
+            <a href="/ucetnictvi/banka" class="btn btn-outline btn-sm">Zrušit filtr</a>
+          <% } else { %>
+            <strong>Zatím žádné transakce</strong>
+            Transakci zapíšete tlačítkem Nová transakce.
+          <% } %>
+        </div>
+      </td></tr>
       <% } %>
     </tbody>
   </table>
 </div>
+<%- include('../../includes/strankovani', { strany }) %>
 
 <!-- Modal: Nová transakce -->
 <div class="modal-backdrop" id="modalCreateTransaction">
@@ -97,6 +104,8 @@
       </button>
     </div>
     <form method="post" action="/ucetnictvi/banka/vytvorit">
+      <%# Nová transakce je podle data nahoře, návrat na první stránku téhož filtru. %>
+      <input type="hidden" name="redirect_to" value="<%= strany.odkaz(1) %>">
       <div class="modal-body">
         <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:14px;">
           <div class="form-group col-span-2">
@@ -139,7 +148,7 @@
 </div>
 
 <!-- ── Modal: Spárovat transakci ── -->
-<div id="modalPair" class="modal-backdrop">
+<div id="modalPair" class="modal-backdrop" data-navrat="<%= strany.aktualni %>">
   <div class="modal modal-lg">
     <div class="modal-header">
       <h2 class="modal-title">Spárovat transakci</h2>
@@ -180,7 +189,7 @@
   cursor: pointer;
 }
 .bank-tab:hover { color: var(--text-primary); }
-.bank-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+.bank-tab.active { color: var(--text-primary); border-bottom-color: var(--primary); }
 </style>
 
 <script>
@@ -242,7 +251,8 @@
     const form = document.createElement('form');
     form.method = 'post';
     form.action = `/ucetnictvi/banka/${_pairTxId}/parovat`;
-    form.innerHTML = `<input type="hidden" name="document_type" value="${_pairType}"><input type="hidden" name="document_id" value="${docId}">`;
+    form.innerHTML = `<input type="hidden" name="document_type" value="${_pairType}"><input type="hidden" name="document_id" value="${docId}"><input type="hidden" name="redirect_to">`;
+    form.elements.redirect_to.value = document.getElementById('modalPair').dataset.navrat;
     document.body.appendChild(form);
     form.submit();
   };
