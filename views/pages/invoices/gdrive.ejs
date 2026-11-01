@@ -1,48 +1,54 @@
+<%
+  // Živá chyba a uložená chyba kontroly bývají tatáž věta, ta se ukáže jednou.
+  const jinaChybaKontroly = chybaKontroly && chybaKontroly !== error ? chybaKontroly : '';
+  // Adresa konzole Googlu je odkaz, všechno ostatní jde escapované jako text.
+  const textChyby = (text) => String(text).split(/(https:\/\/console\.(?:developers|cloud)\.google\.com\/[^\s"'<>]*[^\s"'<>.,;:)])/).forEach((kus, i) => {
+    if (i % 2) { %><a href="<%= kus %>" target="_blank" rel="noopener noreferrer"><%= kus %></a><% } else { %><%= kus %><% }
+  });
+  // Doklady z doby před automatikou jsou v systému z POHODY, proto nejsou předvybrané.
+  const predAutomatikou = files.filter(f => !f.invoiceId && f.stav === 'vychozi');
+  const pending = files.filter(f => !f.invoiceId && f.stav !== 'vychozi');
+%>
 <div class="page-header">
   <div class="page-header-left">
     <h1>Import z Google Disku</h1>
     <p>Přijaté faktury ze složky <strong>SEIL - účetnictví</strong> → rok → měsíc → Přijaté faktury</p>
   </div>
-  <div style="display:flex;gap:8px;">
-    <a href="/ucetnictvi/prijate-faktury" class="btn btn-outline btn-sm">← Zpět na faktury</a>
+  <div class="page-header-akce">
+    <a href="/ucetnictvi/prijate-faktury" class="btn btn-outline btn-sm" data-zpet>← Zpět na faktury</a>
   </div>
 </div>
 
 <% if (job) { %>
-<div id="gdJob" class="alert" style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;padding:12px 16px;border-radius:8px;margin-bottom:20px;"
-     data-running="<%= job.running ? '1' : '0' %>">
+<div id="gdJob" class="hlaska hlaska-info" data-running="<%= job.running ? '1' : '0' %>">
   <div id="gdJobText"></div>
-  <div style="height:6px;background:rgba(30,64,175,0.15);border-radius:3px;margin-top:10px;overflow:hidden;">
+  <div style="height:6px;background:var(--border);border-radius:3px;margin-top:10px;overflow:hidden;">
     <div id="gdJobBar" style="height:100%;width:0;background:currentColor;transition:width 0.3s;"></div>
   </div>
   <ul id="gdJobErrors" style="margin:10px 0 0;padding-left:18px;font-size:13px;"></ul>
 </div>
 <% } %>
 
-<% if (error) { %>
-<div class="alert" style="background:#fee2e2;color:#991b1b;border:1px solid #fecaca;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
-  <strong>Nelze načíst soubory:</strong> <%= error %>
-  <% if (serviceAccount) { %>
-  <div style="margin-top:8px;font-size:13px;">
-    Složku na Disku nasdílejte účtu <code><%= serviceAccount %></code> s právem <em>Čtenář</em>.
-  </div>
-  <% } %>
+<% if (error || jinaChybaKontroly) { %>
+<div class="hlaska hlaska-chyba" role="alert" style="overflow-wrap:anywhere;">
+  <% if (error) { %><div><strong>Nelze načíst soubory:</strong> <% textChyby(error); %></div><% } %>
+  <% if (jinaChybaKontroly) { %><div<%- error ? ' style="margin-top:6px;"' : '' %>><strong>Poslední kontrola selhala:</strong> <% textChyby(jinaChybaKontroly); %></div><% } %>
+  <% if (radaNasdilet && serviceAccount) { %><div style="margin-top:6px;">Účet služby: <code class="kod"><%= serviceAccount %></code></div><% } %>
 </div>
 <% } %>
 
-<div style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
+<p class="form-hint" style="margin-bottom:16px;">
   Nové doklady ve složce se načítají samy, kontrola běží každých 5 minut.
   <% if (kontrola) { %>Poslední kontrola: <%= new Date(kontrola).toLocaleString('cs-CZ', { timeZone: 'Europe/Prague' }) %>.<% } else { %>Zatím neproběhla.<% } %>
-  <% if (chybaKontroly) { %><div style="color:var(--danger);margin-top:4px;">Poslední kontrola selhala: <%= chybaKontroly %></div><% } %>
-</div>
+</p>
 
-<form method="get" style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center;">
-  <select name="year" class="form-select" style="width:auto;">
+<form method="get" class="filtr-lista">
+  <select name="year" class="form-select" aria-label="Rok">
     <% for (let y = new Date().getFullYear() + 1; y >= 2020; y--) { %>
       <option value="<%= y %>" <%= year === y ? 'selected' : '' %>><%= y %></option>
     <% } %>
   </select>
-  <select name="month" class="form-select" style="width:auto;">
+  <select name="month" class="form-select" aria-label="Měsíc">
     <option value="" <%= month === null ? 'selected' : '' %>>Celý rok</option>
     <% ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec'].forEach((m, i) => { %>
       <option value="<%= i+1 %>" <%= month === i+1 ? 'selected' : '' %>><%= (i+1) + '. ' + m %></option>
@@ -51,21 +57,35 @@
   <button type="submit" class="btn btn-outline">Načíst složku</button>
 </form>
 
-<%# Doklady z doby před automatikou jsou v systému z POHODY, proto nejsou předvybrané. %>
-<% const pending = files.filter(f => !f.invoiceId && f.stav !== 'vychozi'); %>
-
+<% if (files.length === 0) { %>
+<div class="card">
+  <div class="prazdno">
+    <% if (error) { %>
+      <strong>Složku se nepodařilo načíst</strong>
+      Důvod je v hlášce nahoře.
+    <% } else { %>
+      <strong>V této složce nejsou žádné doklady</strong>
+      Zkuste jiný měsíc nebo celý rok.
+    <% } %>
+  </div>
+</div>
+<% } else { %>
 <form method="post" action="/ucetnictvi/prijate-faktury/gdrive/import" id="gdForm">
   <input type="hidden" name="year"  value="<%= year %>">
   <input type="hidden" name="month" value="<%= month === null ? '' : month %>">
 
-  <% if (files.length > 0) { %>
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
     <button type="submit" class="btn btn-primary" id="gdSubmit" <%= pending.length === 0 ? 'disabled' : '' %>>
-      ↓ Naimportovat vybrané (<span id="gdCount"><%= pending.length %></span>)
+      <span>↓ Naimportovat vybrané (<span id="gdCount"><%= pending.length %></span>)</span>
     </button>
-    <span style="font-size:13px;color:var(--text-muted);">
+    <span class="form-hint">
       Každý doklad se stáhne a vytěží Claudem. Stejnou fakturu v systému doplní, jinak založí novou. Může to chvíli trvat.
     </span>
+  </div>
+
+  <% if (predAutomatikou.length > 0) { %>
+  <div class="hlaska hlaska-info">
+    Doklady Před automatikou se hromadně nevybírají: stejná faktura z POHODY s jiným datem nebo bez IČO by se založila podruhé.
   </div>
   <% } %>
 
@@ -73,64 +93,75 @@
     <table class="data-table">
       <thead>
         <tr>
-          <th style="width:36px;"><input type="checkbox" id="gdAll" onchange="gdToggle(this.checked)" title="Vybrat vše"></th>
-          <th>Soubor</th><th>Složka</th><th>Změněno</th><th>Stav</th>
+          <th style="width:36px;"><input type="checkbox" id="gdAll" onchange="gdToggle(this.checked)" title="Vybrat vše kromě dokladů Před automatikou" aria-label="Vybrat vše kromě dokladů Před automatikou"<%= pending.length === 0 ? ' disabled' : '' %>></th>
+          <th>Soubor</th><th class="hide-mobile">Složka</th><th>Změněno</th><th class="mobil">Stav</th>
         </tr>
       </thead>
       <tbody>
-        <% if (files.length > 0) { %>
-          <% files.forEach(f => { %>
+        <% files.forEach(f => { %>
           <tr>
             <td>
               <% if (!f.invoiceId) { %>
-                <input type="checkbox" class="gd-cb" name="file_ids" value="<%= f.id %>" <%= f.stav === 'vychozi' ? '' : 'checked' %> onchange="gdUpdate()">
+                <input type="checkbox" class="gd-cb" name="file_ids" value="<%= f.id %>" aria-label="Vybrat <%= f.name %>" <%- f.stav === 'vychozi' ? 'data-pred-automatikou' : 'checked' %> onchange="gdUpdate()">
               <% } %>
             </td>
-            <td style="font-weight:600;">
-              <% if (f.webViewLink) { %>
-                <a href="<%= f.webViewLink %>" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:none;"><%= f.name %></a>
-              <% } else { %><%= f.name %><% } %>
-            </td>
-            <td style="font-size:12px;color:var(--text-muted);"><%= f.folderPath %></td>
-            <td style="font-size:12px;color:var(--text-muted);">
-              <%= f.modifiedTime ? new Date(f.modifiedTime).toLocaleDateString('cs-CZ') : '–' %>
-            </td>
             <td>
+              <span class="radek-text" title="<%= f.name %>">
+                <% if (f.webViewLink) { %>
+                  <a href="<%= f.webViewLink %>" target="_blank" rel="noopener" class="radek-odkaz"><%= f.name %></a>
+                <% } else { %><%= f.name %><% } %>
+              </span>
+            </td>
+            <td class="sekundarni hide-mobile"><%= f.folderPath %></td>
+            <td class="mono sekundarni">
+              <%= f.modifiedTime ? ceskeDatum(prazskeDatum(f.modifiedTime)) : '–' %>
+            </td>
+            <td class="mobil">
               <% if (f.invoiceId) { %>
-                <a href="/ucetnictvi/prijate-faktury/<%= f.invoiceId %>" class="badge" style="background:#dcfce7;color:#166534;text-decoration:none;">Naimportováno</a>
+                <a href="/ucetnictvi/prijate-faktury/<%= f.invoiceId %>" class="badge badge-ok" style="text-decoration:none;">Naimportováno</a>
               <% } else if (f.stav === 'vychozi') { %>
-                <span class="badge" style="background:var(--bg-page);color:var(--text-muted);" title="Ve složce byl už před spuštěním automatiky, sám se nenačte.">Před automatikou</span>
+                <span class="badge badge-neutral" title="Ve složce byl už před spuštěním automatiky, sám se nenačte.">Před automatikou</span>
               <% } else if (f.stav === 'chyba') { %>
-                <span class="badge" style="background:#fee2e2;color:#991b1b;" title="<%= f.chyba %>">Chyba</span>
+                <span class="badge badge-chyba" title="<%= f.chyba %>">Chyba</span>
               <% } else { %>
-                <span class="badge" style="background:#fef9c3;color:#92400e;">Nové</span>
+                <span class="badge badge-info">Nové</span>
               <% } %>
             </td>
           </tr>
-          <% }) %>
-        <% } else { %>
-          <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:32px;">
-            <%= error ? 'Složku se nepodařilo načíst.' : 'V této složce nejsou žádné doklady.' %>
-          </td></tr>
-        <% } %>
+        <% }) %>
       </tbody>
     </table>
   </div>
 </form>
+<% } %>
 
 <script>
+const gdRadky = () => [...document.querySelectorAll('.gd-cb')];
+// Řádky Před automatikou nezaškrtne ani Vybrat vše: u starých dokladů by import
+// mohl založit duplicitu. Vybraný ručně zůstane, odškrtnutí všeho ho zruší.
 function gdToggle(checked) {
-  document.querySelectorAll('.gd-cb').forEach(cb => { cb.checked = checked; });
+  gdRadky().forEach(cb => {
+    if (!checked || !cb.hasAttribute('data-pred-automatikou')) cb.checked = checked;
+  });
   gdUpdate();
 }
 function gdUpdate() {
-  const n = document.querySelectorAll('.gd-cb:checked').length;
+  const vse = gdRadky();
+  const bezne = vse.filter(cb => !cb.hasAttribute('data-pred-automatikou'));
+  const n = vse.filter(cb => cb.checked).length;
+  const hlavicka = document.getElementById('gdAll');
+  if (!hlavicka) return; // prázdná složka, tabulka se nevykreslí
   document.getElementById('gdCount').textContent = n;
   document.getElementById('gdSubmit').disabled = n === 0;
+  hlavicka.checked = bezne.length > 0 && bezne.every(cb => cb.checked);
+  hlavicka.indeterminate = n > 0 && !hlavicka.checked;
 }
-document.getElementById('gdForm').addEventListener('submit', () => {
+// Prohlížeč po návratu tlačítkem Zpět vrátí zaškrtnutí, počet musí sedět s nimi.
+window.addEventListener('pageshow', gdUpdate);
+document.getElementById('gdForm')?.addEventListener('submit', () => {
   const btn = document.getElementById('gdSubmit');
-  if (btn) { btn.disabled = true; btn.textContent = 'Spouštím import…'; }
+  btn.disabled = true;
+  btn.textContent = 'Spouštím import…';
 });
 
 // Import běží na pozadí – dotahujeme stav, dokud neskončí, pak obnovíme seznam
@@ -150,12 +181,12 @@ document.getElementById('gdForm').addEventListener('submit', () => {
       : '✓ Hotovo – naimportováno <strong>' + j.imported + '</strong>'
         + (j.skipped ? ', přeskočeno ' + j.skipped : '')
         + (j.failed  ? ', <strong>' + j.failed + '</strong> selhalo' : '') + '.';
-    if (!j.running && j.failed) {
-      box.style.background = '#fef9c3'; box.style.color = '#92400e'; box.style.borderColor = '#fde68a';
-    } else if (!j.running) {
-      box.style.background = '#dcfce7'; box.style.color = '#166534'; box.style.borderColor = '#bbf7d0';
-    }
-    errs.innerHTML = (j.errors || []).map(e => '<li>' + e.replace(/[<>]/g, '') + '</li>').join('');
+    box.className = 'hlaska ' + (j.running ? 'hlaska-info' : j.failed ? 'hlaska-varovani' : 'hlaska-ok');
+    errs.replaceChildren(...(j.errors || []).map(e => {
+      const li = document.createElement('li');
+      li.textContent = e;
+      return li;
+    }));
   };
 
   const tick = async () => {

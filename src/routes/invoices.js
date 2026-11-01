@@ -16,6 +16,7 @@ import { extractInvoiceData, importujSoubor } from '../gdrive-import.js';
 import { shodaBezIco } from '../prijata-faktura.js';
 import { parametr, strankovani } from '../strankovani.js';
 import { bezpecnyNavrat } from '../navrat.js';
+import { zalozka } from '../zalozky.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '../..');
@@ -23,6 +24,11 @@ const PDFS_DIR   = path.join(projectRoot, 'data/pdfs');
 
 const STATUSES_ISSUED   = ['Nezaplacena', 'Zaplacena', 'Po splatnosti', 'Storno'];
 const STATUSES_RECEIVED = ['Nezaplacena', 'Zaplacena', 'Po splatnosti', 'Storno'];
+
+// Záložky seznamu vydaných faktur (?typ=): zálohové jsou řádky s type = 'proforma'.
+const DRUHY_VYDANYCH = [['vydane', 'Vydané'], ['zalohove', 'Zálohové']];
+// Záložky upomínek (?status=): klíč je hodnota sloupce status, Vše je bez podmínky.
+const ZALOZKY_UPOMINEK = [['ceka', 'Čeká na odeslání'], ['odeslana', 'Odeslané'], ['zrusena', 'Zrušené'], ['vse', 'Vše']];
 
 // Nárok na odpočet DPH: checkbox chodí z prohlížeče jen zaškrtnutý.
 // U reprezentace ho zákon nepřipouští (§ 72 odst. 4 ZDPH), proto ho
@@ -39,6 +45,7 @@ const CHYBY_PRIJATE = {
 };
 
 const FORM_ERRORS = {
+  __proto__: null,
   klient:    'Vyplňte klienta.',
   polozky:   'Faktura musí mít alespoň jednu položku s popisem.',
   castka:    'Celková částka musí být větší než nula.',
@@ -448,27 +455,50 @@ export default async function invoicesRoutes(fastify) {
   // ══════════════════════════════════════════════════════════
 
   fastify.get('/ucetnictvi/vydane-faktury', async (request, reply) => {
-    const q            = (request.query.q      || '').trim();
-    const statusFilter = (request.query.status || '').trim();
-    const page    = Math.max(1, parseInt(request.query.page || '1', 10));
-    const perPage = 25;
-    const offset  = (page - 1) * perPage;
+    const q            = parametr(request.query.q);
+    const statusFilter = parametr(request.query.status);
+    const typ = zalozka(DRUHY_VYDANYCH, request.query.typ);
+    const zalohove = typ === 'zalohove';
 
-    const conditions = [sql`type = 'issued'`];
+    // Filtr platí pro obě záložky: odznak řekne, kolik shod je na té druhé,
+    // a přechod na ni ho drží (hledání v liště sem vede i pro zálohové faktury).
+    const conditions = [sql`type IN ('issued', 'proforma')`];
     if (q) conditions.push(sql`(number ILIKE ${'%'+q+'%'} OR client_name ILIKE ${'%'+q+'%'})`);
     if (statusFilter) conditions.push(sql`status = ${statusFilter}`);
     const where = sql`WHERE ${conditions.reduce((a, b) => sql`${a} AND ${b}`)}`;
 
-    const [{ count }] = await sql`SELECT COUNT(*)::int AS count FROM accounting_invoices ${where}`;
-    const invoices    = await sql`SELECT * FROM accounting_invoices ${where} ORDER BY issue_date DESC LIMIT ${perPage} OFFSET ${offset}`;
-    const series      = await sql`SELECT * FROM invoice_number_series WHERE active = TRUE ORDER BY name`;
+    const [pocty] = await sql`
+      SELECT COUNT(*) FILTER (WHERE type = 'issued')::int AS vydane,
+             COUNT(*) FILTER (WHERE type = 'proforma')::int AS zalohove
+      FROM accounting_invoices ${where}
+    `;
+    const strany = strankovani({
+      cesta: '/ucetnictvi/vydane-faktury', query: request.query, celkem: pocty[typ],
+      zachovat: ['q', 'status'], pevne: zalohove ? { typ } : {},
+    });
+    const invoices = await sql`
+      SELECT * FROM accounting_invoices ${where} AND type = ${zalohove ? 'proforma' : 'issued'}
+      ORDER BY issue_date DESC, created_at DESC, id DESC
+      LIMIT ${strany.naStranku} OFFSET ${strany.offset}
+    `;
+    // Modal Nová faktura zakládá jen vydanou fakturu, na záložce Zálohové není.
+    const series = zalohove ? [] : await sql`SELECT * FROM invoice_number_series WHERE active = TRUE ORDER BY name`;
+
+    const adresaZalozky = (klic) => {
+      const p = new URLSearchParams();
+      if (klic !== DRUHY_VYDANYCH[0][0]) p.set('typ', klic);
+      if (q) p.set('q', q);
+      if (statusFilter) p.set('status', statusFilter);
+      const s = p.toString();
+      return `/ucetnictvi/vydane-faktury${s ? `?${s}` : ''}`;
+    };
 
     return reply.view('pages/invoices/issued.ejs', {
-      pageTitle: 'Vydané faktury', currentPath: '/ucetnictvi/vydane-faktury',
-      user: request.user, invoices, total: count,
-      currentPage: page, totalPages: Math.ceil(count / perPage),
+      pageTitle: zalohove ? 'Zálohové faktury' : 'Vydané faktury', currentPath: '/ucetnictvi/vydane-faktury',
+      user: request.user, invoices, total: pocty[typ], strany, typ, adresaZalozky,
+      zalozky: DRUHY_VYDANYCH.map(([klic, popisek]) => ({ klic, popisek, pocet: pocty[klic].toLocaleString('cs-CZ') })),
       q, statusFilter, STATUSES_ISSUED, series,
-      formError: FORM_ERRORS[request.query.formError] || '',
+      formError: zalohove ? '' : FORM_ERRORS[request.query.formError] || '',
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -483,15 +513,16 @@ export default async function invoicesRoutes(fastify) {
     const emailSent  = request.query.emailSent  === '1';
     const emailError = request.query.emailError === '1';
     const emailLog   = await sql`
-      SELECT * FROM invoice_emails WHERE invoice_id = ${invoice.id} ORDER BY sent_at DESC LIMIT 10
+      SELECT * FROM invoice_emails WHERE invoice_id = ${invoice.id} ORDER BY sent_at DESC, id DESC LIMIT 10
     `;
+    const [{ n: emailCelkem }] = await sql`SELECT COUNT(*)::int AS n FROM invoice_emails WHERE invoice_id = ${invoice.id}`;
     const reminders  = await sql`
       SELECT * FROM invoice_reminders WHERE invoice_id = ${invoice.id} ORDER BY level
     `;
     return reply.view('pages/invoices/issued-detail.ejs', {
-      pageTitle: `Faktura ${invoice.number}`, currentPath: '/ucetnictvi/vydane-faktury',
+      pageTitle: `${invoice.type === 'proforma' ? 'Zálohová faktura' : 'Faktura'} ${invoice.number}`, currentPath: '/ucetnictvi/vydane-faktury',
       user: request.user, invoice, items, vatSummary, STATUSES_ISSUED, order,
-      emailSent, emailError, emailLog, reminders,
+      emailSent, emailError, emailLog, emailCelkem, reminders,
       suggestedEmail: await resolveClientEmail(sql, invoice),
       formError: FORM_ERRORS[request.query.formError] || '',
       // Předvyplněný den úhrady ve změně stavu: už zapsaný, jinak pražský dnešek
@@ -787,35 +818,55 @@ export default async function invoicesRoutes(fastify) {
   // ══════════════════════════════════════════════════════════
 
   fastify.get('/ucetnictvi/upominky', async (request, reply) => {
-    const statusFilter = (request.query.status || 'ceka').trim();
+    // Bez parametru je to fronta k odeslání; prázdné ?status= je starý odkaz na Vše.
+    const zDotazu = parametr(request.query.status);
+    const tab = request.query.status !== undefined && !zDotazu ? 'vse' : zalozka(ZALOZKY_UPOMINEK, zDotazu);
 
+    const skupiny = await sql`
+      SELECT r.status, COUNT(*)::int AS n
+      FROM invoice_reminders r
+      JOIN accounting_invoices i ON i.id = r.invoice_id
+      GROUP BY r.status
+    `;
+    const pocty = Object.fromEntries(skupiny.map(c => [c.status, c.n]));
+    pocty.vse = skupiny.reduce((soucet, c) => soucet + c.n, 0);
+
+    const strany = strankovani({
+      cesta: '/ucetnictvi/upominky', query: request.query, celkem: pocty[tab] ?? 0,
+      pevne: tab === ZALOZKY_UPOMINEK[0][0] ? {} : { status: tab },
+    });
     const reminders = await sql`
       SELECT r.*, i.number, i.client_name, i.client_email, i.client_ico,
              i.total_amount, i.currency, i.due_date, i.status AS invoice_status,
              i.crm_company_id, i.crm_contact_id
       FROM invoice_reminders r
       JOIN accounting_invoices i ON i.id = r.invoice_id
-      ${statusFilter ? sql`WHERE r.status = ${statusFilter}` : sql``}
-      ORDER BY r.level DESC, r.days_overdue DESC
+      ${tab === 'vse' ? sql`` : sql`WHERE r.status = ${tab}`}
+      ORDER BY r.level DESC, r.days_overdue DESC, r.id DESC
+      LIMIT ${strany.naStranku} OFFSET ${strany.offset}
     `;
 
-    // E-mail se dohledává až tady, ať se v seznamu dá rovnou odeslat
+    // E-mail se dohledává až tady, ať se v seznamu dá rovnou odeslat. Až tři
+    // dotazy na řádek, proto až po LIMIT.
     const rows = [];
     for (const r of reminders) {
       rows.push({ ...r, email: await resolveClientEmail(sql, r) });
     }
 
-    const counts = await sql`
-      SELECT status, COUNT(*)::int AS n FROM invoice_reminders GROUP BY status
-    `;
-
     return reply.view('pages/invoices/reminders.ejs', {
       pageTitle: 'Upomínky', currentPath: '/ucetnictvi/upominky',
-      user: request.user, reminders: rows, statusFilter,
-      counts: Object.fromEntries(counts.map(c => [c.status, c.n])),
+      user: request.user, reminders: rows, tab, strany,
+      zalozky: ZALOZKY_UPOMINEK.map(([klic, popisek]) => ({ klic, popisek, pocet: (pocty[klic] ?? 0).toLocaleString('cs-CZ') })),
+      adresaZalozky: (klic) => (klic === ZALOZKY_UPOMINEK[0][0] ? '/ucetnictvi/upominky' : `/ucetnictvi/upominky?status=${klic}`),
       sent: request.query.sent === '1', error: request.query.error === '1',
     }, { layout: 'layouts/base.ejs' });
   });
+
+  // Po akci v řádku zpět na tutéž záložku a stránku, výsledek jde navíc v adrese.
+  const navratNaUpominky = (request, vysledek) => {
+    const zpet = bezpecnyNavrat(request.body?.redirect_to, '/ucetnictvi/upominky');
+    return vysledek ? `${zpet}${zpet.includes('?') ? '&' : '?'}${vysledek}` : zpet;
+  };
 
   // Odeslat připravenou upomínku ze seznamu
   fastify.post('/ucetnictvi/upominky/:id/odeslat', async (request, reply) => {
@@ -826,20 +877,20 @@ export default async function invoicesRoutes(fastify) {
     if (!invoice) return reply.code(404).send('Faktura nenalezena');
 
     const email = (request.body?.email || '').trim() || await resolveClientEmail(sql, invoice);
-    if (!email) return reply.redirect('/ucetnictvi/upominky?error=1');
+    if (!email) return reply.redirect(navratNaUpominky(request, 'error=1'));
 
     const result = await deliverReminder(sql, {
       invoice, email, level: reminder.level, reminderId: reminder.id,
       daysOverdue: reminder.days_overdue, userId: request.user?.id, log: fastify.log,
     });
 
-    return reply.redirect(`/ucetnictvi/upominky?${result.ok ? 'sent=1' : 'error=1'}`);
+    return reply.redirect(navratNaUpominky(request, result.ok ? 'sent=1' : 'error=1'));
   });
 
   // Zrušit upomínku (např. klient zaplatil mimo systém)
   fastify.post('/ucetnictvi/upominky/:id/zrusit', async (request, reply) => {
     await sql`UPDATE invoice_reminders SET status = 'zrusena' WHERE id = ${parseInt(request.params.id, 10)}`;
-    return reply.redirect('/ucetnictvi/upominky');
+    return reply.redirect(navratNaUpominky(request));
   });
 
   // ══════════════════════════════════════════════════════════
@@ -1050,7 +1101,7 @@ export default async function invoicesRoutes(fastify) {
   };
 
   fastify.get('/ucetnictvi/prijate-faktury/gdrive', async (request, reply) => {
-    const { isConfigured, serviceAccountEmail, findReceivedInvoices } = await import('../gdrive.js');
+    const { isConfigured, serviceAccountEmail, findReceivedInvoices, citelnaChyba, jeChybaPristupu } = await import('../gdrive.js');
     const { company, year, month } = await gdriveContext(request.query);
 
     let files = [];
@@ -1086,14 +1137,16 @@ export default async function invoicesRoutes(fastify) {
       }
     }
 
+    const chybaKontroly = citelnaChyba(company.gdrive_posledni_chyba);
     return reply.view('pages/invoices/gdrive.ejs', {
       pageTitle: 'Import z Google Disku', currentPath: '/ucetnictvi/prijate-faktury',
       user: request.user, files, error, year, month,
       serviceAccount: serviceAccountEmail(),
+      radaNasdilet: jeChybaPristupu(error) || jeChybaPristupu(chybaKontroly),
       rootFolderId: company.gdrive_root_folder_id || '',
       job: gdriveJob,
       kontrola: company.gdrive_posledni_kontrola || null,
-      chybaKontroly: company.gdrive_posledni_chyba || '',
+      chybaKontroly,
     }, { layout: 'layouts/base.ejs' });
   });
 

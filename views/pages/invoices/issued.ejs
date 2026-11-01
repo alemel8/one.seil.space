@@ -1,62 +1,83 @@
+<%
+  const zalohove = typ === 'zalohove';
+  const sFiltrem = Boolean(q || statusFilter);
+  const bezFiltru = zalohove ? '/ucetnictvi/vydane-faktury?typ=zalohove' : '/ucetnictvi/vydane-faktury';
+  const tvar = (jedna, dve, pet) => total === 1 ? jedna : total >= 2 && total <= 4 ? dve : pet;
+  const castka = n => Number(n).toLocaleString('cs-CZ', { minimumFractionDigits: 2 });
+%>
 <div class="page-header">
   <div class="page-header-left">
-    <h1>Vydané faktury</h1>
-    <p><%= total %> faktur celkem</p>
+    <h1><%= zalohove ? 'Zálohové faktury' : 'Vydané faktury' %></h1>
+    <p><%= total.toLocaleString('cs-CZ') %> <%= zalohove ? tvar('zálohová faktura', 'zálohové faktury', 'zálohových faktur') : tvar('faktura', 'faktury', 'faktur') %><%= sFiltrem ? ` ${tvar('odpovídá', 'odpovídají', 'odpovídá')} filtru` : ' celkem' %></p>
   </div>
-  <div style="display:flex;gap:8px;">
+  <%# Export i modal pracují jen s vydanými fakturami, zálohová není daňový doklad. %>
+  <% if (!zalohove) { %>
+  <div class="page-header-akce">
     <a href="/ucetnictvi/vydane-faktury/export.csv" class="btn btn-outline btn-sm">↓ CSV</a>
     <button class="btn btn-primary" data-modal-open="modalCreate">+ Nová faktura</button>
   </div>
+  <% } %>
 </div>
 
+<%- include('../../includes/zalozky', { nazev: 'Druh faktur', zalozky, tab: typ, adresa: adresaZalozky }) %>
+
+<% if (!zalohove) { %>
 <!-- Bulk action bar -->
-<div id="bulkBar" style="display:none;position:sticky;top:0;z-index:50;background:var(--primary);color:#fff;padding:10px 16px;border-radius:var(--radius-md);margin-bottom:12px;display:none;align-items:center;gap:12px;">
-  <span id="bulkCount" style="font-weight:600;font-size:14px;"></span>
-  <span id="bulkSplit" style="font-size:13px;opacity:0.9;"></span>
+<div id="bulkBar" class="hromadna-lista" style="display:none;">
+  <strong id="bulkCount"></strong>
+  <span id="bulkSplit"></span>
+  <span class="sekundarni" style="margin-right:auto;">Výběr platí jen pro tuto stránku<%= strany.pocetStran > 1 ? ` (${strany.strana} z ${strany.pocetStran})` : '' %>. Na víc dokladů najednou zvětšete počet řádků na stránku.</span>
   <form id="bulkPohodaForm" method="post" action="/ucetnictvi/vydane-faktury/pohoda-xml" style="display:inline;" target="_blank">
     <div id="bulkInputs"></div>
-    <button type="submit" class="btn btn-sm" style="background:#fff;color:var(--primary);font-weight:600;">↓ Export POHODA XML</button>
+    <button type="submit" class="btn btn-primary btn-sm">↓ Export POHODA XML</button>
   </form>
-  <button type="button" class="btn btn-sm" style="background:rgba(255,255,255,0.2);color:#fff;" onclick="bulkClearAll()">Zrušit výběr</button>
+  <button type="button" class="btn btn-ghost btn-sm" onclick="bulkClearAll()">Zrušit výběr</button>
 </div>
+<% } %>
 
-<!-- Filtry -->
-<form method="get" style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
-  <input type="text" name="q" value="<%= q||'' %>" placeholder="Hledat číslo, klient…" class="form-control" style="max-width:280px;">
-  <select name="status" class="form-select" style="width:auto;">
+<form method="get" class="filtr-lista">
+  <% if (zalohove) { %><input type="hidden" name="typ" value="zalohove"><% } %>
+  <input type="text" name="q" value="<%= q %>" placeholder="Hledat číslo, klient…" class="form-control" aria-label="Hledat číslo nebo klienta">
+  <select name="status" class="form-select" aria-label="Stav">
     <option value="">Všechny stavy</option>
     <% STATUSES_ISSUED.forEach(s => { %><option value="<%= s %>" <%= statusFilter===s?'selected':'' %>><%= s %></option><% }) %>
   </select>
   <button type="submit" class="btn btn-outline">Filtrovat</button>
-  <% if (q||statusFilter) { %><a href="/ucetnictvi/vydane-faktury" class="btn btn-ghost">Zrušit</a><% } %>
+  <% if (sFiltrem) { %><a href="<%= bezFiltru %>" class="btn btn-ghost">Zrušit filtr</a><% } %>
 </form>
 
 <div class="table-wrapper">
   <table class="data-table">
     <thead>
       <tr>
-        <th style="width:36px;"><input type="checkbox" id="bulkSelectAll" onchange="bulkToggleAll(this.checked)" title="Vybrat vše"></th>
-        <th>Číslo</th><th>Klient</th><th>Vystavení</th><th>Splatnost</th>
-        <th style="text-align:right;">Základ</th><th style="text-align:right;">Celkem</th>
-        <th>Doklad</th><th>Stav</th><th></th>
+        <% if (!zalohove) { %><th style="width:36px;"><input type="checkbox" id="bulkSelectAll" onchange="bulkToggleAll(this.checked)" title="Vybrat všechny na této stránce" aria-label="Vybrat všechny na této stránce"></th><% } %>
+        <th>Číslo</th><th>Klient</th><th class="hide-mobile">Vystavení</th><th class="hide-mobile">Splatnost</th>
+        <th class="num hide-mobile">Základ</th><th class="num mobil">Celkem</th>
+        <th>Doklad</th><th class="mobil">Stav</th>
       </tr>
     </thead>
     <tbody>
       <% if (invoices.length > 0) { %>
         <% invoices.forEach(inv => { %>
-        <tr class="clickable-row" onclick="window.location='/ucetnictvi/vydane-faktury/<%= inv.id %>'">
-          <td onclick="event.stopPropagation();">
-            <input type="checkbox" class="bulk-cb" value="<%= inv.id %>" onchange="bulkUpdate()"
+        <tr data-href="/ucetnictvi/vydane-faktury/<%= inv.id %>">
+          <% if (!zalohove) { %>
+          <td data-bez-prokliku>
+            <input type="checkbox" class="bulk-cb" value="<%= inv.id %>" onchange="bulkUpdate()" aria-label="Vybrat fakturu <%= inv.number %>"
                    data-exported="<%= inv.pohoda_exported_at ? new Date(inv.pohoda_exported_at).toLocaleDateString('cs-CZ') : '' %>">
           </td>
-          <td style="font-weight:600;color:var(--primary);"><%= inv.number %></td>
-          <td><%= inv.client_name || '–' %></td>
-          <td style="color:var(--text-muted);font-size:13px;"><%= new Date(inv.issue_date).toLocaleDateString('cs-CZ') %></td>
-          <td style="color:var(--text-muted);font-size:13px;"><%= inv.due_date ? new Date(inv.due_date).toLocaleDateString('cs-CZ') : '–' %></td>
-          <td style="text-align:right;"><%= Number(inv.amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %></td>
-          <td style="text-align:right;font-weight:600;"><%= Number(inv.total_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= inv.currency %></td>
-          <td onclick="event.stopPropagation();">
-            <a href="/ucetnictvi/vydane-faktury/<%= inv.id %>/pdf" class="doklad-thumb"
+          <% } %>
+          <td class="mono">
+            <a href="/ucetnictvi/vydane-faktury/<%= inv.id %>" class="radek-odkaz"><%= inv.number %></a>
+            <% if (inv.pohoda_exported_at) { %><br><span style="font-size:10px;color:var(--text-muted);font-weight:400;"
+                 title="Naposledy exportováno do POHODY">↑ <%= new Date(inv.pohoda_exported_at).toLocaleDateString('cs-CZ') %></span><% } %>
+          </td>
+          <td><span class="radek-text" title="<%= inv.client_name || '' %>"><%= inv.client_name || '–' %></span></td>
+          <td class="mono sekundarni hide-mobile"><%= ceskeDatum(inv.issue_date) %></td>
+          <td class="mono sekundarni hide-mobile"><% if (inv.due_date && inv.status === 'Po splatnosti') { %><span class="pole-varovani"><%= ceskeDatum(inv.due_date) %></span><% } else { %><%= inv.due_date ? ceskeDatum(inv.due_date) : '–' %><% } %></td>
+          <td class="num hide-mobile"><%= castka(inv.amount) %></td>
+          <td class="num mobil"><%= castka(inv.total_amount) %> <%= inv.currency %></td>
+          <td data-bez-prokliku>
+            <a href="/ucetnictvi/vydane-faktury/<%= inv.id %>/pdf" class="doklad-thumb" style="width:28px;height:28px;"
                data-nahled
                data-nahled-nazev="faktura-<%= inv.number %>.pdf"
                data-nahled-typ="application/pdf"
@@ -64,27 +85,31 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             </a>
           </td>
-          <td>
-            <%
-              const sc = inv.status==='Zaplacena' ? '#dcfce7:#166534' :
-                         inv.status==='Po splatnosti' ? '#fee2e2:#991b1b' :
-                         inv.status==='Storno' ? '#f3f4f6:#6b7280' : '#fef9c3:#92400e';
-              const [bg,cl] = sc.split(':');
-            %>
-            <span class="badge" style="background:<%= bg %>;color:<%= cl %>;"><%= inv.status %></span>
-          </td>
-          <td onclick="event.stopPropagation();">
-            <a href="/ucetnictvi/vydane-faktury/<%= inv.id %>/pdf" target="_blank" class="btn btn-ghost btn-sm" title="PDF">PDF</a>
-          </td>
+          <td class="mobil"><span class="badge badge-<%= tonStavu(inv.status) %>"><%= inv.status %></span></td>
         </tr>
         <% }) %>
       <% } else { %>
-        <tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text-muted);">Žádné faktury</td></tr>
+        <tr><td colspan="<%= zalohove ? 8 : 9 %>">
+          <div class="prazdno">
+            <% if (sFiltrem) { %>
+              <strong>Filtru neodpovídá žádná faktura</strong>
+              <a href="<%= bezFiltru %>" class="btn btn-outline btn-sm">Zrušit filtr</a>
+            <% } else if (zalohove) { %>
+              <strong>Zatím žádné zálohové faktury</strong>
+              Vznikají samy u objednávek s platbou převodem.
+            <% } else { %>
+              <strong>Zatím žádné vydané faktury</strong>
+              Vznikají z objednávek, další založíte tlačítkem Nová faktura.
+            <% } %>
+          </div>
+        </td></tr>
       <% } %>
     </tbody>
   </table>
 </div>
+<%- include('../../includes/strankovani', { strany }) %>
 
+<% if (!zalohove) { %>
 <script>
 function bulkUpdate() {
   const cbs = document.querySelectorAll('.bulk-cb:checked');
@@ -96,7 +121,7 @@ function bulkUpdate() {
   // Opakovaný import založí doklad v POHODĚ znovu – ať to není překvapení
   const exported = [...cbs].filter(c => c.dataset.exported).length;
   document.getElementById('bulkSplit').textContent = exported
-    ? `· ⚠ ${exported} už jednou exportováno` : '';
+    ? `⚠ ${exported} už jednou exportováno` : '';
   bar.style.display = cbs.length > 0 ? 'flex' : 'none';
   const allCbs = document.querySelectorAll('.bulk-cb');
   document.getElementById('bulkSelectAll').checked = cbs.length === allCbs.length && allCbs.length > 0;
@@ -111,31 +136,24 @@ function bulkClearAll() {
   document.getElementById('bulkSelectAll').checked = false;
   bulkUpdate();
 }
+// Prohlížeč po návratu tlačítkem Zpět vrátí zaškrtnutí, lišta musí sedět s nimi.
+window.addEventListener('pageshow', bulkUpdate);
 </script>
 
-<!-- Paginace -->
-<% if (totalPages > 1) { %>
-<div style="display:flex;gap:8px;justify-content:center;margin-top:20px;">
-  <% for(let p=1;p<=totalPages;p++) { %>
-    <a href="?page=<%= p %><%= q?'&q='+encodeURIComponent(q):'' %><%= statusFilter?'&status='+encodeURIComponent(statusFilter):'' %>"
-       class="btn <%= p===currentPage?'btn-primary':'btn-ghost' %> btn-sm"><%= p %></a>
-  <% } %>
-</div>
-<% } %>
-
 <!-- Modal: Nová faktura -->
-<div id="modalCreate" class="modal-overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
-  <div class="modal" style="max-width:780px;width:94%;">
+<div id="modalCreate" class="modal-backdrop">
+  <div class="modal">
     <div class="modal-header">
-      <h3>Nová vydaná faktura</h3>
-      <button class="modal-close" onclick="document.getElementById('modalCreate').style.display='none'">&times;</button>
+      <h2 class="modal-title">Nová vydaná faktura</h2>
+      <button type="button" class="modal-close" data-modal-close="modalCreate" aria-label="Zavřít">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
     </div>
-    <% if (typeof formError !== 'undefined' && formError) { %>
-    <div style="margin:0 24px;padding:10px 14px;background:var(--danger-bg,#fee2e2);color:#991b1b;border-radius:8px;font-size:13px;">
-      <%= formError %>
-    </div>
+    <% if (formError) { %>
+    <div class="hlaska hlaska-chyba" style="margin:16px 24px 0;"><%= formError %></div>
     <% } %>
-    <form method="post" action="/ucetnictvi/vydane-faktury/vytvorit">
+    <%# Bez flexu by .modal-body neroloval a patička s tlačítkem by zůstala oříznutá pod okrajem okna. %>
+    <form method="post" action="/ucetnictvi/vydane-faktury/vytvorit" style="display:flex;flex-direction:column;min-height:0;">
       <div class="modal-body" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
         <div class="form-group" style="grid-column:1/-1;">
           <label class="form-label">Číselná řada</label>
@@ -196,7 +214,7 @@ function bulkClearAll() {
       </div>
       <datalist id="acList"></datalist>
       <div class="modal-footer">
-        <button type="button" class="btn btn-ghost" onclick="document.getElementById('modalCreate').style.display='none'">Zrušit</button>
+        <button type="button" class="btn btn-ghost" data-modal-close="modalCreate">Zrušit</button>
         <button type="submit" class="btn btn-primary">Vytvořit fakturu</button>
       </div>
     </form>
@@ -204,12 +222,11 @@ function bulkClearAll() {
 </div>
 
 <script>
-document.querySelectorAll('[data-modal-open]').forEach(btn => {
-  btn.addEventListener('click', () => document.getElementById(btn.dataset.modalOpen).style.display = 'flex');
-});
+// Otevírání a zavírání modalu (data-modal-open, data-modal-close) obsluhuje app.js.
 // Po odmítnutí serverem otevři formulář rovnou i s chybovou hláškou
-<% if (typeof formError !== 'undefined' && formError) { %>
-document.getElementById('modalCreate').style.display = 'flex';
+<% if (formError) { %>
+document.getElementById('modalCreate').classList.add('open');
+document.body.style.overflow = 'hidden';
 <% } %>
 // Předkontace autocomplete
 fetch('/api/accounting-chart').then(r => r.json()).then(list => {
@@ -217,3 +234,4 @@ fetch('/api/accounting-chart').then(r => r.json()).then(list => {
   if (dl) dl.innerHTML = list.map(a => `<option value="${a.code}">${a.code} – ${a.name}</option>`).join('');
 }).catch(() => {});
 </script>
+<% } %>

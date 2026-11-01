@@ -1,7 +1,7 @@
 <div class="page-header">
   <div class="page-header-left">
     <h1>Přijaté faktury</h1>
-    <p><%= total.toLocaleString('cs-CZ') %> <%= total === 1 ? 'faktura' : total >= 2 && total <= 4 ? 'faktury' : 'faktur' %><%= q || statusFilter ? ' odpovídá filtru' : ' celkem' %></p>
+    <p><%= total.toLocaleString('cs-CZ') %> <%= total === 1 ? 'faktura' : total >= 2 && total <= 4 ? 'faktury' : 'faktur' %><%= q || statusFilter ? (total >= 2 && total <= 4 ? ' odpovídají filtru' : ' odpovídá filtru') : ' celkem' %></p>
   </div>
   <div class="page-header-akce">
     <a href="/ucetnictvi/prijate-faktury/export.csv" class="btn btn-outline btn-sm">↓ CSV</a>
@@ -14,7 +14,7 @@
 <div id="bulkBar" class="hromadna-lista" style="display:none;">
   <strong id="bulkCount"></strong>
   <span id="bulkSplit"></span>
-  <span class="sekundarni" style="margin-right:auto;">Výběr platí jen pro tuto stránku. Na víc dokladů najednou zvětšete počet řádků na stránku.</span>
+  <span class="sekundarni" style="margin-right:auto;">Výběr platí jen pro tuto stránku<%= strany.pocetStran > 1 ? ` (${strany.strana} z ${strany.pocetStran})` : '' %>. Na víc dokladů najednou zvětšete počet řádků na stránku.</span>
   <form id="bulkPohodaForm" method="post" action="/ucetnictvi/prijate-faktury/pohoda-xml" style="display:inline;" target="_blank">
     <div id="bulkInputs"></div>
     <button type="submit" class="btn btn-primary btn-sm">↓ Export POHODA XML</button>
@@ -61,8 +61,8 @@
           </td>
           <td><span class="radek-text" title="<%= inv.supplier || '' %>"><%= inv.supplier || '–' %></span></td>
           <td class="mono sekundarni hide-mobile"><%= ceskeDatum(inv.issue_date) %></td>
-          <td class="mono <%= isOverdue ? 'pole-varovani' : 'sekundarni' %>">
-            <%= inv.due_date ? ceskeDatum(inv.due_date) : '–' %><% if (isOverdue) { %> <span title="Po splatnosti">⚠</span><% } %>
+          <td class="mono sekundarni">
+            <% if (isOverdue) { %><span class="pole-varovani"><%= ceskeDatum(inv.due_date) %> <span title="Po splatnosti">⚠</span></span><% } else { %><%= inv.due_date ? ceskeDatum(inv.due_date) : '–' %><% } %>
           </td>
           <td class="num mobil"><%= Number(inv.total_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= inv.currency %></td>
           <td data-bez-prokliku>
@@ -141,6 +141,8 @@ function bulkClearAll() {
   document.getElementById('bulkSelectAll').checked = false;
   bulkUpdate();
 }
+// Prohlížeč po návratu tlačítkem Zpět vrátí zaškrtnutí, lišta musí sedět s nimi.
+window.addEventListener('pageshow', bulkUpdate);
 </script>
 
 <!-- Modal: Nová přijatá faktura -->

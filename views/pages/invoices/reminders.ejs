@@ -1,91 +1,89 @@
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
-  <div>
-    <h2 style="margin:0;">Upomínky</h2>
-    <p style="margin:4px 0 0;color:var(--text-muted);font-size:13px;">
-      Upomínky připravuje systém automaticky, odesílají se ale vždy ručně.
-    </p>
-  </div>
-  <div style="display:flex;gap:8px;">
-    <% const tabs = [['ceka','Čeká na odeslání'],['odeslana','Odeslané'],['zrusena','Zrušené'],['','Vše']]; %>
-    <% tabs.forEach(([val,label]) => { %>
-    <a href="/ucetnictvi/upominky<%= val ? '?status='+val : '?status=' %>"
-       class="btn btn-sm <%= statusFilter === val ? 'btn-primary' : 'btn-ghost' %>">
-      <%= label %><% if (counts[val]) { %> (<%= counts[val] %>)<% } %>
-    </a>
-    <% }) %>
+<%
+  const castka = n => Number(n).toLocaleString('cs-CZ', { minimumFractionDigits: 2 });
+  const dny = n => n === 1 ? 'den' : n >= 2 && n <= 4 ? 'dny' : 'dní';
+%>
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>Upomínky</h1>
+    <p>Upomínky připravuje systém automaticky, odesílají se ale vždy ručně.</p>
   </div>
 </div>
+
+<%- include('../../includes/zalozky', { nazev: 'Stav upomínek', zalozky, tab, adresa: adresaZalozky }) %>
 
 <% if (sent) { %>
-<div style="padding:10px 14px;background:var(--success-bg,#dcfce7);color:#15803d;border-radius:8px;margin-bottom:16px;font-size:13px;">
-  Upomínka byla odeslána.
-</div>
+<div class="hlaska hlaska-ok">Upomínka byla odeslána.</div>
 <% } %>
 <% if (error) { %>
-<div style="padding:10px 14px;background:var(--danger-bg,#fee2e2);color:#991b1b;border-radius:8px;margin-bottom:16px;font-size:13px;">
-  Upomínku se nepodařilo odeslat – zkontrolujte e-mail klienta a historii odeslání na faktuře.
-</div>
+<div class="hlaska hlaska-chyba">Upomínku se nepodařilo odeslat – zkontrolujte e-mail klienta a historii odeslání na faktuře.</div>
 <% } %>
 
-<% if (!reminders.length) { %>
-<div class="card"><div class="card-body" style="text-align:center;padding:40px 20px;color:var(--text-muted);">
-  Žádné upomínky<% if (statusFilter === 'ceka') { %> k odeslání. Všechny faktury jsou v pořádku.<% } %>
-</div></div>
-<% } else { %>
-<div class="card">
-  <table class="table" style="width:100%;">
+<div class="table-wrapper">
+  <table class="data-table">
     <thead>
       <tr>
-        <th>Stupeň</th>
         <th>Faktura</th>
+        <th class="hide-mobile">Stupeň</th>
         <th>Klient</th>
-        <th style="text-align:right;">Částka</th>
-        <th>Splatnost</th>
-        <th style="text-align:right;">Po splatnosti</th>
+        <th class="num">Částka</th>
+        <th class="num">Po splatnosti</th>
         <th>E-mail</th>
-        <th style="text-align:right;">Akce</th>
+        <th class="mobil" style="text-align:right;">Akce</th>
       </tr>
     </thead>
     <tbody>
-      <% reminders.forEach(r => {
-           const badge = r.level >= 3 ? '#fee2e2:#991b1b' : r.level === 2 ? '#ffedd5:#9a3412' : '#fef9c3:#92400e';
-           const [bg, fg] = badge.split(':'); %>
-      <tr>
-        <td>
-          <span class="badge" style="background:<%= bg %>;color:<%= fg %>;">
-            <%= r.level %>. <%= r.level >= 3 ? 'předžalobní' : r.level === 2 ? 'upomínka' : 'upozornění' %>
-          </span>
-        </td>
-        <td><a href="/ucetnictvi/vydane-faktury/<%= r.invoice_id %>"><%= r.number %></a></td>
-        <td><%= r.client_name %></td>
-        <td style="text-align:right;white-space:nowrap;">
-          <%= Number(r.total_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= r.currency %>
-        </td>
-        <td><%= r.due_date ? new Date(r.due_date).toLocaleDateString('cs-CZ') : '–' %></td>
-        <td style="text-align:right;color:#991b1b;font-weight:600;"><%= r.days_overdue %> dní</td>
-        <td style="font-size:13px;<%= r.email ? '' : 'color:var(--text-muted);' %>">
-          <%= r.email || 'chybí e-mail' %>
-        </td>
-        <td style="text-align:right;white-space:nowrap;">
-          <% if (r.status === 'ceka') { %>
-          <form method="post" action="/ucetnictvi/upominky/<%= r.id %>/odeslat" style="display:inline;">
-            <input type="hidden" name="email" value="<%= r.email %>">
-            <button type="submit" class="btn btn-primary btn-sm" <%= r.email ? '' : 'disabled' %>>Odeslat</button>
-          </form>
-          <form method="post" action="/ucetnictvi/upominky/<%= r.id %>/zrusit" style="display:inline;">
-            <button type="submit" class="btn btn-ghost btn-sm">Zrušit</button>
-          </form>
-          <% } else if (r.status === 'odeslana') { %>
-          <span style="color:var(--text-muted);font-size:13px;">
-            odesláno <%= r.sent_at ? new Date(r.sent_at).toLocaleDateString('cs-CZ') : '' %>
-          </span>
-          <% } else { %>
-          <span style="color:var(--text-muted);font-size:13px;">zrušena</span>
-          <% } %>
-        </td>
-      </tr>
-      <% }) %>
+      <% if (reminders.length > 0) { %>
+        <% reminders.forEach(r => {
+             const email = r.status === 'odeslana' && r.sent_to ? r.sent_to : r.email;
+        %>
+        <tr data-href="/ucetnictvi/vydane-faktury/<%= r.invoice_id %>">
+          <td class="mono"><a href="/ucetnictvi/vydane-faktury/<%= r.invoice_id %>" class="radek-odkaz"><%= r.number %></a></td>
+          <td class="hide-mobile">
+            <span class="badge badge-<%= r.level >= 3 ? 'chyba' : r.level === 2 ? 'varovani' : 'info' %>">
+              <%= r.level %>. <%= r.level >= 3 ? 'předžalobní' : r.level === 2 ? 'upomínka' : 'upozornění' %>
+            </span>
+          </td>
+          <td><span class="radek-text" title="<%= r.client_name || '' %>"><%= r.client_name || '–' %></span></td>
+          <td class="num"><%= castka(r.total_amount) %> <%= r.currency %></td>
+          <td class="num"><span class="pole-varovani"><%= r.days_overdue %> <%= dny(r.days_overdue) %></span><% if (r.due_date) { %><br><span class="sekundarni"><%= ceskeDatum(r.due_date) %></span><% } %></td>
+          <td class="sekundarni"><% if (email) { %><span class="radek-text" style="min-width:0;" title="<%= email %>"><%= email %></span><% } else { %><span style="white-space:nowrap;">chybí e-mail</span><% } %></td>
+          <td class="mobil" style="text-align:right;white-space:nowrap;" data-bez-prokliku>
+            <% if (r.status === 'ceka') { %>
+            <form method="post" action="/ucetnictvi/upominky/<%= r.id %>/odeslat" style="display:inline;">
+              <input type="hidden" name="email" value="<%= r.email %>">
+              <input type="hidden" name="redirect_to" value="<%= strany.aktualni %>">
+              <button type="submit" class="btn btn-primary btn-sm" <%= r.email ? '' : 'disabled' %> title="<%= r.email ? `Odeslat na ${r.email}` : 'Klient nemá e-mail, doplňte ho na faktuře' %>">Odeslat</button>
+            </form>
+            <form method="post" action="/ucetnictvi/upominky/<%= r.id %>/zrusit" style="display:inline;">
+              <input type="hidden" name="redirect_to" value="<%= strany.aktualni %>">
+              <button type="submit" class="btn btn-ghost btn-sm">Zrušit</button>
+            </form>
+            <% } else if (r.status === 'odeslana') { %>
+            <span class="badge badge-<%= tonStavu(r.status) %>">odesláno<%= r.sent_at ? ` ${ceskeDatum(prazskeDatum(r.sent_at))}` : '' %></span>
+            <% } else { %>
+            <span class="badge badge-<%= tonStavu(r.status) %>">zrušena</span>
+            <% } %>
+          </td>
+        </tr>
+        <% }) %>
+      <% } else { %>
+        <tr><td colspan="7">
+          <div class="prazdno">
+            <% if (tab === 'ceka') { %>
+              <strong>Žádné upomínky k odeslání</strong>
+              Všechny faktury jsou v pořádku.
+            <% } else if (tab === 'odeslana') { %>
+              <strong>Zatím žádné odeslané upomínky</strong>
+            <% } else if (tab === 'zrusena') { %>
+              <strong>Žádné zrušené upomínky</strong>
+            <% } else { %>
+              <strong>Zatím žádné upomínky</strong>
+              Připraví se samy, když faktura přejde do stavu Po splatnosti.
+            <% } %>
+          </div>
+        </td></tr>
+      <% } %>
     </tbody>
   </table>
 </div>
-<% } %>
+<%- include('../../includes/strankovani', { strany }) %>

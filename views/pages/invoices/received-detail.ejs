@@ -1,10 +1,4 @@
 <%
-  const statusBg = invoice.status==='Zaplacena'    ? '#dcfce7' :
-                   invoice.status==='Po splatnosti' ? '#fee2e2' :
-                   invoice.status==='Storno'        ? '#f3f4f6' : '#fef9c3';
-  const statusCl = invoice.status==='Zaplacena'    ? '#166534' :
-                   invoice.status==='Po splatnosti' ? '#991b1b' :
-                   invoice.status==='Storno'        ? '#6b7280' : '#92400e';
   const fmt = n  => Number(n||0).toLocaleString('cs-CZ', {minimumFractionDigits:2});
   const fmtD = d => d ? new Date(d).toLocaleDateString('cs-CZ') : '–';
   const isOverdue = invoice.due_date && invoice.status !== 'Zaplacena' && invoice.status !== 'Storno' && new Date(invoice.due_date) < new Date();
@@ -23,7 +17,7 @@
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
       <a href="/ucetnictvi/prijate-faktury" class="btn btn-ghost btn-sm" data-zpet>← Zpět</a>
       <h1>Přijatá faktura <%= invoice.number %></h1>
-      <span class="badge" style="background:<%= statusBg %>;color:<%= statusCl %>;font-size:13px;"><%= invoice.status %></span>
+      <span class="badge badge-<%= tonStavu(invoice.status) %>" style="font-size:13px;"><%= invoice.status %></span>
     </div>
   </div>
   <div class="page-header-akce">
@@ -60,7 +54,7 @@
       <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
         <strong>Dodavatel</strong>
         <% if (invoice.supplier_ico) { %>
-        <a href="https://ares.gov.cz/ekonomicke-subjekty?ico=<%= invoice.supplier_ico %>" target="_blank" style="font-size:12px;color:var(--primary);">Ověřit v ARES ↗</a>
+        <a href="https://ares.gov.cz/ekonomicke-subjekty?ico=<%= invoice.supplier_ico %>" target="_blank" style="font-size:12px;color:var(--link);">Ověřit v ARES ↗</a>
         <% } %>
       </div>
       <div class="card-body">
@@ -162,7 +156,7 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             <% } %>
             <span>
-              <span style="display:block;color:var(--primary);font-weight:500;"><%= invoice.attachment_path %></span>
+              <span style="display:block;color:var(--link);font-weight:500;"><%= invoice.attachment_path %></span>
               <% if (invoice.attachment_size) { %>
               <span style="display:block;font-size:12px;color:var(--text-muted);"><%= Math.round(invoice.attachment_size/1024) %> kB</span>
               <% } %>
