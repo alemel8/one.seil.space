@@ -1,5 +1,7 @@
 import { getDb, generateId } from '../db.js';
 import { rezimUprav } from '../upravy.js';
+import { parametr, strankovani } from '../strankovani.js';
+import { zalozka } from '../zalozky.js';
 
 // Typy podprojektů – jediné místo pravdy pro label/ikonu/barvu, sdílené routami i views.
 export const PROJECT_TYPES = {
@@ -17,6 +19,8 @@ export const PROJECT_TYPES = {
 
 const PROJECT_STATUSES = ['Aktivní', 'Pozastaveno', 'Dokončeno', 'Archivováno'];
 const ITEM_STATUSES    = ['V přípravě', 'Aktivní', 'Pozastaveno', 'Dokončeno'];
+// Klíče záložek detailu projektu; pruh s počtem podprojektů skládá šablona.
+const ZALOZKY_PROJEKTU = [['prehled'], ['podprojekty']];
 
 export default async function projectsRoutes(fastify) {
   const sql = getDb();
@@ -24,8 +28,8 @@ export default async function projectsRoutes(fastify) {
   // ── Seznam projektů ────────────────────────────────────────────
 
   fastify.get('/projekty', async (request, reply) => {
-    const q            = (request.query.q      || '').trim();
-    const statusFilter  = (request.query.status || '').trim();
+    const q            = parametr(request.query.q);
+    const statusFilter = parametr(request.query.status);
 
     const conditions = [];
     if (q)            conditions.push(sql`(p.name ILIKE ${'%' + q + '%'} OR c.name ILIKE ${'%' + q + '%'})`);
@@ -34,6 +38,13 @@ export default async function projectsRoutes(fastify) {
       ? sql`WHERE ${conditions.reduce((a, b) => sql`${a} AND ${b}`)}`
       : sql``;
 
+    const [{ count }] = await sql`
+      SELECT COUNT(*)::int AS count
+      FROM projects p
+      JOIN crm_companies c ON c.id = p.company_id
+      ${where}
+    `;
+    const strany = strankovani({ cesta: '/projekty', query: request.query, celkem: count, zachovat: ['q', 'status'] });
     const projects = await sql`
       SELECT p.*, c.name AS company_name,
              (SELECT COUNT(*)::int FROM project_items pi WHERE pi.project_id = p.id) AS item_count,
@@ -41,13 +52,14 @@ export default async function projectsRoutes(fastify) {
       FROM projects p
       JOIN crm_companies c ON c.id = p.company_id
       ${where}
-      ORDER BY p.modified_at DESC
+      ORDER BY p.modified_at DESC, p.id DESC
+      LIMIT ${strany.naStranku} OFFSET ${strany.offset}
     `;
     const companies = await sql`SELECT id, name FROM crm_companies ORDER BY name`;
 
     return reply.view('pages/projects/list.ejs', {
       pageTitle: 'Projekty', currentPath: '/projekty', user: request.user,
-      projects, companies, q, statusFilter,
+      projects, total: count, strany, companies, q, statusFilter,
       PROJECT_TYPES, PROJECT_STATUSES,
     }, { layout: 'layouts/base.ejs' });
   });
@@ -96,7 +108,7 @@ export default async function projectsRoutes(fastify) {
       pageTitle: project.name, currentPath: '/projekty', user: request.user,
       project, contacts, items, healthchecks, shops,
       PROJECT_TYPES, PROJECT_STATUSES, ITEM_STATUSES,
-      tab: request.query.tab || 'prehled',
+      tab: zalozka(ZALOZKY_PROJEKTU, request.query.tab),
       saved: request.query.saved === '1',
       rezimUprav: rezimUprav(request.query),
     }, { layout: 'layouts/base.ejs' });
@@ -124,7 +136,7 @@ export default async function projectsRoutes(fastify) {
         modified_at                 = NOW()
       WHERE id = ${request.params.id}
     `;
-    return reply.redirect(`/projekty/${request.params.id}?tab=${b.tab || 'prehled'}&saved=1`);
+    return reply.redirect(`/projekty/${request.params.id}?tab=${zalozka(ZALOZKY_PROJEKTU, b.tab)}&saved=1`);
   });
 
   fastify.post('/projekty/:id/smazat', async (request, reply) => {

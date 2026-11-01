@@ -1,70 +1,75 @@
 <%
-  const statusColor = s => ({
-    'Aktivní':      ['var(--success-bg)', '#166534'],
-    'Pozastaveno':  ['var(--warning-bg)', '#92400e'],
-    'Dokončeno':    ['var(--info-bg)',    '#1e40af'],
-    'Archivováno':  ['var(--gray-100)',   'var(--gray-600)'],
-  }[s] || ['var(--gray-100)', 'var(--gray-600)']);
+  const malo = total >= 2 && total <= 4;
+  const nazev = total === 1 ? 'projekt' : malo ? 'projekty' : 'projektů';
+  const maFiltr = q || statusFilter;
 %>
 
 <div class="page-header">
   <div class="page-header-left">
     <h1>Projekty</h1>
-    <p><%= projects.length %> projektů</p>
+    <p><%= total.toLocaleString('cs-CZ') %> <%= nazev %><%= maFiltr ? (malo ? ' odpovídají filtru' : ' odpovídá filtru') : ' celkem' %></p>
   </div>
-  <button class="btn btn-primary" data-modal-open="modalCreateProject">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-    Nový projekt
-  </button>
+  <div class="page-header-akce">
+    <button class="btn btn-primary" data-modal-open="modalCreateProject">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nový projekt
+    </button>
+  </div>
 </div>
 
 <!-- Hledání + filtr -->
-<form method="get" style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
-  <div style="position:relative;flex:1;min-width:240px;max-width:380px;">
-    <svg style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-    </svg>
-    <input type="text" name="q" value="<%= q || '' %>" placeholder="Hledat projekt, klienta…" class="form-control" style="padding-left:38px;">
-  </div>
-  <select name="status" class="form-select" style="width:auto;">
+<form method="get" class="filtr-lista">
+  <input type="text" name="q" value="<%= q || '' %>" placeholder="Hledat projekt, klienta…" class="form-control" aria-label="Hledat projekt nebo klienta">
+  <select name="status" class="form-select" aria-label="Stav">
     <option value="">Všechny stavy</option>
     <% PROJECT_STATUSES.forEach(s => { %>
     <option value="<%= s %>" <%= statusFilter === s ? 'selected' : '' %>><%= s %></option>
     <% }) %>
   </select>
   <button type="submit" class="btn btn-outline">Filtrovat</button>
-  <% if (q || statusFilter) { %>
+  <% if (maFiltr) { %>
     <a href="/projekty" class="btn btn-ghost">Zrušit filtr</a>
   <% } %>
 </form>
 
 <% if (projects.length > 0) { %>
-<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;">
-  <% projects.forEach(p => { const sc = statusColor(p.status); const types = (p.item_types || []).filter(Boolean); %>
-  <div class="card kpi-link" style="cursor:pointer;" onclick="location.href='/projekty/<%= p.id %>'">
-    <div class="card-body" style="display:flex;flex-direction:column;gap:12px;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-        <div style="min-width:0;">
-          <div style="font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= p.name %></div>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= p.company_name %></div>
+<div style="display:flex;flex-direction:column;gap:16px;">
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;">
+    <% projects.forEach(p => { const types = (p.item_types || []).filter(Boolean); %>
+    <a href="/projekty/<%= p.id %>" class="card" style="display:block;color:inherit;text-decoration:none;">
+      <div class="card-body" style="display:flex;flex-direction:column;gap:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+          <div style="min-width:0;">
+            <div style="font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= p.name %></div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= p.company_name %></div>
+          </div>
+          <span class="badge badge-<%= tonStavu(p.status) %>" style="flex-shrink:0;"><%= p.status %></span>
         </div>
-        <span class="badge" style="background:<%= sc[0] %>;color:<%= sc[1] %>;flex-shrink:0;"><%= p.status %></span>
-      </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;">
-        <div style="display:flex;gap:6px;">
-          <% types.slice(0, 6).forEach(t => { const meta = PROJECT_TYPES[t]; if (!meta) return; %>
-          <span class="project-type-icon" style="--icon-url:url(/static/img/project-types/<%= meta.icon %>);--icon-color:<%= meta.color %>;" title="<%= meta.label %>"></span>
-          <% }) %>
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div style="display:flex;gap:6px;">
+            <% types.slice(0, 6).forEach(t => { const meta = PROJECT_TYPES[t]; if (!meta) return; %>
+            <span class="project-type-icon" style="--icon-url:url(/static/img/project-types/<%= meta.icon %>);--icon-color:<%= meta.color %>;" title="<%= meta.label %>"></span>
+            <% }) %>
+          </div>
+          <span style="font-size:12px;color:var(--text-secondary);"><%= p.item_count %> podprojekt<%= p.item_count === 1 ? '' : (p.item_count >= 2 && p.item_count <= 4 ? 'y' : 'ů') %></span>
         </div>
-        <span style="font-size:12px;color:var(--text-muted);"><%= p.item_count %> podprojekt<%= p.item_count === 1 ? '' : (p.item_count >= 2 && p.item_count <= 4 ? 'y' : 'ů') %></span>
       </div>
-    </div>
+    </a>
+    <% }) %>
   </div>
-  <% }) %>
+  <%- include('../../includes/strankovani', { strany }) %>
 </div>
 <% } else { %>
-<div style="text-align:center;padding:64px;color:var(--text-muted);">
-  <%= (q || statusFilter) ? 'Žádné projekty nenalezeny' : 'Zatím žádné projekty. Založte první tlačítkem výše.' %>
+<div class="card">
+  <div class="prazdno">
+    <% if (maFiltr) { %>
+      <strong>Filtru neodpovídá žádný projekt</strong>
+      <a href="/projekty" class="btn btn-outline btn-sm">Zrušit filtr</a>
+    <% } else { %>
+      <strong>Zatím žádné projekty</strong>
+      První založte tlačítkem Nový projekt.
+    <% } %>
+  </div>
 </div>
 <% } %>
 
@@ -88,7 +93,7 @@
             <% }) %>
           </select>
           <% if (companies.length === 0) { %>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Žádné firmy v CRM – <a href="/crm/firmy" style="color:var(--primary);">nejprve založte firmu</a>.</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Žádné firmy v CRM – <a href="/crm/firmy" style="color:var(--link);">nejprve založte firmu</a>.</div>
           <% } %>
         </div>
         <div class="form-group">
