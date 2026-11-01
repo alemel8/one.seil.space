@@ -6,24 +6,19 @@
 </div>
 
 <% if (saved) { %>
-<div data-hlaska style="background:var(--success-bg);color:#166534;border:1px solid #bbf7d0;border-radius:var(--radius-md);padding:12px 16px;margin-bottom:20px;font-weight:500;">
-  ✅ Změny uloženy
-</div>
+<div data-hlaska class="hlaska hlaska-ok">✅ <%= tab === 'heslo' ? 'Heslo změněno' : 'Změny uloženy' %></div>
 <% } %>
-<% if (error === 'mismatch') { %>
-<div data-hlaska style="background:var(--danger-bg);color:var(--danger);border:1px solid #fca5a5;border-radius:var(--radius-md);padding:12px 16px;margin-bottom:20px;font-weight:500;">
-  ⚠️ Nová hesla se neshodují
-</div>
-<% } else if (error === 'wrongpwd') { %>
-<div data-hlaska style="background:var(--danger-bg);color:var(--danger);border:1px solid #fca5a5;border-radius:var(--radius-md);padding:12px 16px;margin-bottom:20px;font-weight:500;">
-  ⚠️ Nesprávné stávající heslo
-</div>
+<% if (error) { %>
+<div data-hlaska class="hlaska hlaska-chyba">⚠️ <%= error %></div>
 <% } %>
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;max-width:900px;">
+<%- include('../includes/zalozky', { nazev: 'Sekce profilu', zalozky, tab, adresa: k => `/profil?tab=${k}` }) %>
+
+<% if (tab === 'udaje') { %>
+<div style="display:flex;flex-direction:column;gap:20px;max-width:720px;">
 
   <!-- Profilová fotka -->
-  <div class="card" style="grid-column:1/-1;">
+  <div class="card">
     <div class="card-header">Profilová fotka</div>
     <div class="card-body" style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
       <!-- Avatar preview -->
@@ -64,7 +59,7 @@
     <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
       <span>Osobní údaje</span>
       <div class="card-header-akce">
-        <%- include('../includes/upravit', { formular: 'formProfil', urlUpravit: '/profil?upravit=1', urlZpet: '/profil' }) %>
+        <%- include('../includes/upravit', { formular: 'formProfil', urlUpravit: '/profil?tab=udaje&upravit=1', urlZpet: '/profil?tab=udaje' }) %>
       </div>
     </div>
     <form method="post" action="/profil" id="formProfil" class="upravitelne" autocomplete="off">
@@ -73,30 +68,6 @@
         <%- include('../includes/pole', { pole: { label: 'Příjmení', name: 'last_name', value: user.last_name } }) %>
         <%- include('../includes/pole', { pole: { label: 'E-mail', value: user.email, stale: true, hint: 'E-mail nelze změnit' } }) %>
         <%- include('../includes/pole', { pole: { label: 'Role', value: user.is_admin ? 'Správce' : 'Uživatel', stale: true } }) %>
-      </div>
-    </form>
-  </div>
-
-  <!-- Změna hesla -->
-  <div class="card">
-    <div class="card-header">Změna hesla</div>
-    <form method="post" action="/profil">
-      <div class="card-body" style="display:flex;flex-direction:column;gap:14px;">
-        <div class="form-group">
-          <label class="form-label">Stávající heslo</label>
-          <input type="password" name="current_password" class="form-control" autocomplete="current-password">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Nové heslo</label>
-          <input type="password" name="new_password" class="form-control" autocomplete="new-password">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Nové heslo znovu</label>
-          <input type="password" name="new_password_confirm" class="form-control" autocomplete="new-password">
-        </div>
-      </div>
-      <div class="modal-footer" style="border-top:1px solid var(--border);padding:14px 20px;">
-        <button type="submit" class="btn btn-outline">Změnit heslo</button>
       </div>
     </form>
   </div>
@@ -125,3 +96,32 @@ function previewFoto(input) {
 }
 
 </script>
+<% } else if (tab === 'heslo') { %>
+<div style="max-width:480px;">
+  <!-- Změna hesla -->
+  <div class="card">
+    <div class="card-header">Změna hesla</div>
+    <form method="post" action="/profil">
+      <div class="card-body" style="display:flex;flex-direction:column;gap:14px;">
+        <div class="form-group">
+          <label class="form-label">Stávající heslo</label>
+          <input type="password" name="current_password" class="form-control" autocomplete="current-password">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nové heslo</label>
+          <input type="password" name="new_password" class="form-control" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nové heslo znovu</label>
+          <input type="password" name="new_password_confirm" class="form-control" autocomplete="new-password">
+        </div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid var(--border);padding:14px 20px;">
+        <button type="submit" class="btn btn-outline">Změnit heslo</button>
+      </div>
+    </form>
+  </div>
+</div>
+<% } else { %>
+<%- include('../includes/profil-notifikace', { prefs }) %>
+<% } %>
