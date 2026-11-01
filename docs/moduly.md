@@ -896,6 +896,16 @@ Vědomě bez něj: přehledy se součty, mřížka mezd, přístupová matice, k
 
 `← Zpět` s atributem `data-zpet` vede tam, odkud člověk na záznam přišel, i se stránkou a filtrem, a přežije uložení (`public/js/app.js`). Řádek tabulky je `<tr data-href>` se skutečným odkazem `.radek-odkaz` v buňce; ovládací prvky a buňky s `data-bez-prokliku` klik nepřebírají.
 
+
+### Filtr seznamů dokladů
+
+Přijaté a vydané faktury a účtenky mají společný filtr: `src/filtr-dokladu.js` čte adresu a skládá podmínky, `views/includes/filtr-dokladu.ejs` je formulář.
+
+- Parametry: `q` (číslo, protistrana, IČO, poznámka; číslo se hledá i v částce, to jediné hledání v liště nedělá), `dodavatel`, `obdobi`, `od`, `do`, `pohoda`. Do `strankovani()` jde `filtr.zachovat`.
+- `obdobi`: `tento-mesic`, `minuly-mesic`, `30-dni`, `90-dni`, `tento-rok`, `minuly-rok`, `RRRR-MM`, `vlastni`. Vybrané období má přednost před `od` a `do`, ty platí jen pro `vlastni` nebo samostatně. Dny se počítají v pražském čase, datum dokladu je `issue_date`, u účtenek `receipt_date`.
+- Sloupec POHODA: V POHODĚ (`pohoda_v_evidenci`), Odesláno s datem (`pohoda_exported_at`, vygenerované XML), jinak Neodesláno. Účtenky evidenci nemají, z POHODY se nenačítají.
+- Sloupec Zdroj je `source` přes `zdrojDokladu()` ze `src/stavy.js`, doklad z Disku připojený k existující faktuře ukazuje oba zdroje.
+
 ### Záložky na stránkách
 
 Pruh je jediný `views/includes/zalozky.ejs`, klíč ověřuje `zalozka()` ze `src/zalozky.js`: neznámý klíč i pole z `?tab=a&tab=b` otevřou první záložku. Formulář na záložce má vlastní id a vlastní POST, který zapisuje jen své sloupce a vrací se na `?tab=X&saved=1`. Tužka musí nést `tab`, jinak se tiše vypne kontrola při Uložit.

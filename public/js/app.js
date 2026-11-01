@@ -277,4 +277,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // Filtr dokladů: rychlé období se použije hned, Vlastní rozsah ukáže pole s daty.
+  document.querySelectorAll('[data-filtr-obdobi]').forEach(vyber => {
+    const rozsah = vyber.form.querySelector('[data-filtr-rozsah]');
+    vyber.addEventListener('change', () => {
+      const vlastni = vyber.value === 'vlastni';
+      rozsah.hidden = !vlastni;
+      if (vlastni) { rozsah.querySelector('input').focus(); return; }
+      rozsah.querySelectorAll('input').forEach(pole => { pole.value = ''; });
+      vyber.form.requestSubmit();
+    });
+  });
+
 });

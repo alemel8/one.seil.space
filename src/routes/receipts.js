@@ -5,6 +5,7 @@ import { rezimUprav } from '../upravy.js';
 import { jenDatum } from '../prazsky-cas.js';
 import { parametr, strankovani } from '../strankovani.js';
 import { bezpecnyNavrat } from '../navrat.js';
+import { filtrDokladu, podminkyFiltru } from '../filtr-dokladu.js';
 import Anthropic from '@anthropic-ai/sdk';
 
 export const STATUSES = ['Nezaúčtována', 'Zaúčtována', 'Storno'];
@@ -60,18 +61,20 @@ export default async function receiptsRoutes(fastify) {
 
   // ── Seznam účtenek ────────────────────────────────────────────
   fastify.get('/ucetnictvi/uctenky', async (request, reply) => {
-    const q             = parametr(request.query.q);
+    const filtr         = filtrDokladu(request.query);
     const statusFilter  = parametr(request.query.status);
     const paymentFilter = parametr(request.query.platba);
 
-    const conditions = [sql`TRUE`];
-    if (q) conditions.push(sql`(vendor ILIKE ${'%'+q+'%'} OR number ILIKE ${'%'+q+'%'} OR notes ILIKE ${'%'+q+'%'})`);
+    const conditions = [sql`TRUE`, ...podminkyFiltru(sql, filtr, {
+      datum: 'receipt_date', dodavatel: 'vendor', vEvidenci: false,
+      hledat: ['internal_number', 'vendor', 'vendor_ico', 'number', 'notes'],
+    })];
     if (statusFilter)  conditions.push(sql`status = ${statusFilter}`);
     if (paymentFilter) conditions.push(sql`payment_method = ${paymentFilter}`);
     const where = sql`WHERE ${conditions.reduce((a, b) => sql`${a} AND ${b}`)}`;
 
     const [{ count }] = await sql`SELECT COUNT(*)::int AS count FROM receipts ${where}`;
-    const strany = strankovani({ cesta: '/ucetnictvi/uctenky', query: request.query, celkem: count, zachovat: ['q', 'status', 'platba'] });
+    const strany = strankovani({ cesta: '/ucetnictvi/uctenky', query: request.query, celkem: count, zachovat: [...filtr.zachovat, 'status', 'platba'] });
     const receipts = await sql`
       SELECT * FROM receipts ${where}
       ORDER BY receipt_date DESC, id DESC
@@ -82,8 +85,11 @@ export default async function receiptsRoutes(fastify) {
     return reply.view('pages/receipts/list.ejs', {
       pageTitle: 'Účtenky', currentPath: '/ucetnictvi/uctenky',
       user: request.user, receipts, total: count, strany,
-      q, statusFilter, paymentFilter, STATUSES, CATEGORIES, PAYMENT_METHODS,
+      filtr, statusFilter, paymentFilter, STATUSES, CATEGORIES, PAYMENT_METHODS,
       NO_VAT_CATEGORIES,
+      dodavatele: (await sql`
+        SELECT vendor FROM receipts WHERE vendor <> '' GROUP BY vendor ORDER BY vendor LIMIT 500
+      `).map(r => r.vendor),
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -99,7 +105,7 @@ export default async function receiptsRoutes(fastify) {
     markMissingAttachments([receipt]);
 
     return reply.view('pages/receipts/detail.ejs', {
-      pageTitle: `Účtenka ${receipt.number || '#' + receipt.id}`,
+      pageTitle: `Účtenka ${receipt.internal_number || receipt.number || '#' + receipt.id}`,
       currentPath: '/ucetnictvi/uctenky',
       user: request.user, receipt, STATUSES, CATEGORIES, PAYMENT_METHODS,
       NO_VAT_CATEGORIES,
@@ -362,7 +368,7 @@ Kategorie PHM použij u nákupu pohonných hmot, Reprezentace u pohoštění, ob
   // ── Export CSV ───────────────────────────────────────────────
   fastify.get('/ucetnictvi/uctenky/export.csv', async (request, reply) => {
     const rows = await sql`SELECT * FROM receipts ORDER BY receipt_date DESC, id DESC`;
-    const header = 'ID,Číslo,Dodavatel,IČO,Základ,DPH,Celkem,Měna,Datum,Kategorie,Úhrada,Odpočet DPH,Agenda POHODA,Stav,Poznámka\n';
+    const header = 'ID,Číslo,Dodavatel,IČO,Základ,DPH,Celkem,Měna,Datum,Kategorie,Úhrada,Odpočet DPH,Agenda POHODA,Stav,Poznámka,Interní číslo\n';
     const lines = rows.map(r => [
       r.id, r.number || '', r.vendor, r.vendor_ico || '',
       r.amount, r.vat_amount, r.total_amount, r.currency,
@@ -370,7 +376,7 @@ Kategorie PHM použij u nákupu pohonných hmot, Reprezentace u pohoštění, ob
       r.payment_method || 'Hotovost',
       r.vat_deductible === false ? 'ne' : 'ano',
       isCashReceipt(r) ? 'Pokladna' : 'Ostatní závazky',
-      r.status, (r.notes || '').replace(/,/g, ' '),
+      r.status, (r.notes || '').replace(/,/g, ' '), r.internal_number || '',
     ].join(',')).join('\n');
     reply.header('Content-Type', 'text/csv; charset=utf-8');
     reply.header('Content-Disposition', 'attachment; filename="uctenky.csv"');

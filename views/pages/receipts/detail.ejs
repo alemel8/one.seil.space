@@ -31,7 +31,7 @@
             title="Celá částka včetně DPH jde do nákladů – § 72 odst. 4 ZDPH">bez odpočtu DPH</span>
       <% } %>
     </div>
-    <p><%= receipt.number ? 'Doklad ' + receipt.number + ' · ' : '' %><%= new Date(receipt.receipt_date).toLocaleDateString('cs-CZ') %> · <%= fmt(receipt.total_amount) %> <%= receipt.currency %></p>
+    <p><%= receipt.internal_number ? receipt.internal_number + ' · ' : '' %><%= receipt.number ? 'Doklad ' + receipt.number + ' · ' : '' %><%= new Date(receipt.receipt_date).toLocaleDateString('cs-CZ') %> · <%= fmt(receipt.total_amount) %> <%= receipt.currency %></p>
   </div>
   <div class="page-header-akce">
     <% if (fileUrl) { %>

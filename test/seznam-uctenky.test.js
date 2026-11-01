@@ -136,8 +136,8 @@ describe('seznam účtenek', { skip: PRESKOCIT }, () => {
     const html = await nacti(`${SEZNAM}?q=${r}-nic&page=3`);
     assert.ok(html.includes('Filtru neodpovídá žádná účtenka'));
     assert.ok(!html.includes('class="strankovani"'));
-    assert.match(html, /<td colspan="10">/, 'colspan na všech deset sloupců');
-    assert.equal((html.match(/<th[ >]/g) || []).length, 10);
+    assert.match(html, /<td colspan="11">/, 'colspan na všech jedenáct sloupců');
+    assert.equal((html.match(/<th[ >]/g) || []).length, 11);
   });
 
   test('dvojitý parametr ?q=a&q=b ani NUL nespadnou', async () => {

@@ -1,5 +1,5 @@
 <%
-  const filtrAktivni = q || statusFilter || paymentFilter;
+  const filtrAktivni = filtr.aktivni || statusFilter || paymentFilter;
   const nekolik = total >= 2 && total <= 4;
 %>
 <div class="page-header">
@@ -27,7 +27,7 @@
 
 <form method="get" class="filtr-lista">
   <% if (strany.vlastniVelikost) { %><input type="hidden" name="velikost" value="<%= strany.naStranku %>"><% } %>
-  <input type="text" name="q" value="<%= q||'' %>" placeholder="Hledat dodavatel, číslo…" class="form-control" aria-label="Hledat dodavatele, číslo nebo poznámku">
+  <%- include('../../includes/filtr-dokladu', { filtr, hledatPopisek: 'Hledat číslo, dodavatele, poznámku…', dodavatelPopisek: 'Dodavatel', dodavatele }) %>
   <select name="status" class="form-select" aria-label="Stav">
     <option value="">Všechny stavy</option>
     <% STATUSES.forEach(s => { %><option value="<%= s %>" <%= statusFilter===s?'selected':'' %>><%= s %></option><% }) %>
@@ -41,11 +41,11 @@
 </form>
 
 <div class="table-wrapper">
-  <table class="data-table">
+  <table class="data-table tesna">
     <thead>
       <tr>
         <th style="width:36px;"><input type="checkbox" id="bulkSelectAll" onchange="bulkToggleAll(this.checked)" title="Vybrat všechny na této stránce" aria-label="Vybrat všechny na této stránce"></th>
-        <th>Číslo</th><th>Dodavatel</th><th class="hide-mobile">Datum</th><th>Kategorie</th><th>Úhrada</th>
+        <th>Číslo</th><th>Dodavatel</th><th class="hide-mobile">Datum</th><th>Kategorie</th><th>Úhrada</th><th class="hide-mobile">POHODA</th>
         <th class="num mobil">Celkem</th><th class="mobil">Doklad</th><th class="mobil">Stav</th><th class="hide-mobile" aria-label="Smazat"></th>
       </tr>
     </thead>
@@ -56,16 +56,17 @@
           const hotove = !r.payment_method || r.payment_method === 'Hotovost';
           const agenda = hotove ? 'Pokladna' : 'Ostatní závazky';
           const bezDph = r.vat_deductible === false;
-          const exportovano = r.pohoda_exported_at
-            ? new Date(r.pohoda_exported_at).toLocaleDateString('cs-CZ') : '';
-          const nazev = r.number || '#' + r.id;
+          const nazev = r.internal_number || r.number || '#' + r.id;
         %>
         <tr data-href="/ucetnictvi/uctenky/<%= r.id %>">
           <td data-bez-prokliku>
             <input type="checkbox" class="bulk-cb" value="<%= r.id %>" onchange="bulkUpdate()" aria-label="Vybrat účtenku <%= nazev %>"
-                   data-cash="<%= hotove ? '1' : '0' %>" data-exported="<%= exportovano %>">
+                   data-cash="<%= hotove ? '1' : '0' %>" data-exported="<%= r.pohoda_exported_at ? '1' : '' %>">
           </td>
-          <td class="mono"><a href="/ucetnictvi/uctenky/<%= r.id %>" class="radek-odkaz"><%= nazev %></a></td>
+          <td class="mono">
+            <a href="/ucetnictvi/uctenky/<%= r.id %>" class="radek-odkaz"><%= nazev %></a>
+            <% if (r.internal_number && r.number) { %><span class="cislo-dokladu" title="Číslo dokladu od prodejce: <%= r.number %>"><%= r.number %></span><% } %>
+          </td>
           <td><span class="radek-text" title="<%= r.vendor || '' %>"><%= r.vendor || '–' %></span></td>
           <td class="mono sekundarni hide-mobile"><%= ceskeDatum(r.receipt_date) %></td>
           <td class="sekundarni">
@@ -75,8 +76,8 @@
           </td>
           <td>
             <span class="badge <%= hotove ? 'badge-info' : 'badge-neutral' %>" title="V POHODĚ jde do agendy <%= agenda %>"><%= r.payment_method || 'Hotovost' %></span>
-            <% if (exportovano) { %><br><span style="font-size:10px;color:var(--text-muted);" title="Naposledy exportováno do POHODY">↑ <%= exportovano %></span><% } %>
           </td>
+          <td class="hide-mobile"><%- include('../../includes/pohoda-stav', { doklad: r }) %></td>
           <td class="num mobil"><%= Number(r.total_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= r.currency %></td>
           <td class="mobil" data-bez-prokliku>
             <% if (r.attachment_path && r.attachment_missing) { %>
@@ -124,7 +125,7 @@
         </tr>
         <% }) %>
       <% } else { %>
-        <tr><td colspan="10">
+        <tr><td colspan="11">
           <div class="prazdno">
             <% if (filtrAktivni) { %>
               <strong>Filtru neodpovídá žádná účtenka</strong>
@@ -662,7 +663,7 @@
     const parts = [];
     if (cash) parts.push(`${cash} do pokladny`);
     if (cbs.length - cash) parts.push(`${cbs.length - cash} do ostatních závazků`);
-    if (exported) parts.push(`⚠ ${exported} už jednou exportováno`);
+    if (exported) parts.push(`⚠ ${exported} už se exportovalo, import ho založí znovu`);
     document.getElementById('bulkSplit').textContent = parts.join(' · ');
     bar.style.display = cbs.length > 0 ? 'flex' : 'none';
     const allCbs = document.querySelectorAll('.bulk-cb');

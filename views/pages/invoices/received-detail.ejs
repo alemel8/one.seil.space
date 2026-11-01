@@ -16,7 +16,7 @@
   <div class="page-header-left">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
       <a href="/ucetnictvi/prijate-faktury" class="btn btn-ghost btn-sm" data-zpet>← Zpět</a>
-      <h1>Přijatá faktura <%= invoice.number %></h1>
+      <h1>Přijatá faktura <%= invoice.internal_number || invoice.number %></h1>
       <span class="badge badge-<%= tonStavu(invoice.status) %>" style="font-size:13px;"><%= invoice.status %></span>
     </div>
   </div>
@@ -59,8 +59,11 @@
       </div>
       <div class="card-body">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-          <%# Číslo faktury je v zobrazení v nadpisu stránky – tady jen v úpravách. %>
-          <%- include('../../includes/pole', { pole: { label: 'Číslo faktury', name: 'number', value: invoice.number, required: true, form: formular, trida: 'jen-upravy', styl: 'grid-column:1/-1' } }) %>
+          <%# Starý doklad bez interního čísla má číslo faktury v nadpisu stránky, ostatní tady. %>
+          <%- include('../../includes/pole', { pole: { label: 'Číslo faktury', name: 'number', value: invoice.number, required: true, form: formular, trida: invoice.internal_number ? '' : 'jen-upravy', styl: 'grid-column:1/-1' } }) %>
+          <% if (invoice.supplier_number) { %>
+          <div class="form-group jen-zobrazeni" style="grid-column:1/-1;"><span class="form-label">Číslo od dodavatele</span><div class="mono"><%= invoice.supplier_number %></div></div>
+          <% } %>
           <%- include('../../includes/pole', { pole: { label: 'Název dodavatele', name: 'supplier', value: invoice.supplier, required: true, form: formular, styl: 'grid-column:1/-1' } }) %>
           <%- include('../../includes/pole', { pole: { label: 'IČO', name: 'supplier_ico', value: invoice.supplier_ico, form: formular } }) %>
           <%- include('../../includes/pole', { pole: { label: 'DIČ', name: 'supplier_dic', value: invoice.supplier_dic, placeholder: 'CZ12345678', form: formular } }) %>
@@ -272,7 +275,7 @@
         <a href="/ucetnictvi/banka?parovat=<%= invoice.id %>" class="btn btn-ghost" style="width:100%;text-align:center;">🔗 Spárovat s bankou</a>
         <% } %>
         <form method="post" action="/ucetnictvi/prijate-faktury/pohoda-xml" target="_blank"
-              <% if (invoice.pohoda_exported_at) { %>onsubmit="return confirm('Fakturu už jste jednou exportovali (<%= fmtD(invoice.pohoda_exported_at) %>). Opakovaný import ji v POHODĚ založí znovu. Pokračovat?')"<% } %>>
+              <% if (invoice.pohoda_v_evidenci || invoice.pohoda_exported_at) { %>onsubmit="return confirm('<%= invoice.pohoda_v_evidenci ? 'Faktura už v POHODĚ je.' : 'Fakturu už jste jednou exportovali (' + fmtD(invoice.pohoda_exported_at) + ').' %> Opakovaný import ji v POHODĚ založí znovu. Pokračovat?')"<% } %>>
           <input type="hidden" name="ids" value="<%= invoice.id %>">
           <button type="submit" class="btn btn-ghost" style="width:100%;">↓ POHODA XML</button>
         </form>
@@ -281,6 +284,13 @@
 
     <!-- Metadata -->
     <div style="font-size:12px;color:var(--text-muted);padding:4px 8px;line-height:1.8;">
+      <% if (invoice.internal_number) { %>
+      <div><span style="opacity:.7;">Interní číslo:</span> <%= invoice.internal_number %></div>
+      <% } %>
+      <div><span style="opacity:.7;">Zdroj:</span> <%= zdrojDokladu(invoice) %></div>
+      <% if (invoice.pohoda_v_evidenci) { %>
+      <div><span style="opacity:.7;">POHODA:</span> doklad v ní je</div>
+      <% } %>
       <div><span style="opacity:.7;">ID:</span> <code style="font-size:11px;"><%= invoice.id %></code></div>
       <div><span style="opacity:.7;">Vytvořeno:</span> <%= fmtD(invoice.created_at) %></div>
       <div><span style="opacity:.7;">Upraveno:</span> <%= fmtD(invoice.modified_at) %></div>

@@ -560,6 +560,9 @@ table.data-table {
 .data-table .num { text-align: right; white-space: nowrap; }
 .data-table td.num { font-family: var(--font-mono); font-size: 12.5px; }
 .data-table .sekundarni { color: var(--text-secondary); font-size: 12.5px; }
+/* Seznamy dokladů mají víc sloupců: Stav vpravo musí zůstat vidět bez posouvání. */
+.data-table.tesna th, .data-table.tesna td { padding-left: 10px; padding-right: 10px; }
+.cislo-dokladu { display: block; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 400; color: var(--text-secondary); }
 
 .data-table tbody tr:last-child td { border-bottom: none; }
 
@@ -617,6 +620,10 @@ table.data-table {
 .filtr-lista { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; }
 .filtr-lista .form-control { width: 280px; max-width: 100%; }
 .filtr-lista .form-select { width: auto; }
+.filtr-lista .form-control.filtr-uzsi { width: 220px; }
+.filtr-rozsah { display: inline-flex; align-items: center; gap: 6px; }
+.filtr-rozsah[hidden] { display: none; }
+.filtr-lista .filtr-rozsah .form-control { width: 150px; }
 
 .prazdno { padding: 44px 20px; text-align: center; font-size: 13.5px; color: var(--text-secondary); }
 .prazdno strong { display: block; margin-bottom: 4px; font-size: 14.5px; color: var(--text-primary); }
@@ -978,7 +985,9 @@ a.strankovani-cislo:hover { background: var(--gray-100); border-color: var(--gra
   .strankovani-pozice { display: inline; }
   .strankovani-krok { min-width: 44px; height: 44px; padding: 0 14px; font-size: 13.5px; }
 
-  .filtr-lista .form-control { width: 100%; }
+  .filtr-lista .form-control, .filtr-lista .form-control.filtr-uzsi { width: 100%; }
+  .filtr-rozsah { width: 100%; }
+  .filtr-lista .filtr-rozsah .form-control { flex: 1; width: auto; min-width: 0; }
   .stav-vyber { font-size: 16px; padding: 6px 28px 6px 12px; } /* menší písmo by iOS při výběru přiblížil */
   .radek-text { min-width: 130px; }
 

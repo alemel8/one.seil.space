@@ -12,11 +12,12 @@ import { saveAttachment, deleteAttachment, isSupportedMime, markMissingAttachmen
 import { denUhradyZFormulare, uhradaFakturyObjednavky, zobrazeniUhrady } from '../danovy-doklad.js';
 import { ceskeDatum, jenDatum, prazskeDatum, pridejDny } from '../prazsky-cas.js';
 import { rezimUprav } from '../upravy.js';
-import { extractInvoiceData, importujSoubor } from '../gdrive-import.js';
+import { extractInvoiceData, importujSoubor, MAX_POKUSU } from '../gdrive-import.js';
 import { shodaBezIco } from '../prijata-faktura.js';
 import { parametr, strankovani } from '../strankovani.js';
 import { bezpecnyNavrat } from '../navrat.js';
 import { zalozka } from '../zalozky.js';
+import { filtrDokladu, podminkyFiltru } from '../filtr-dokladu.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '../..');
@@ -28,6 +29,8 @@ const STATUSES_RECEIVED = ['Nezaplacena', 'Zaplacena', 'Po splatnosti', 'Storno'
 // Záložky seznamu vydaných faktur (?typ=): zálohové jsou řádky s type = 'proforma'.
 const DRUHY_VYDANYCH = [['vydane', 'Vydané'], ['zalohove', 'Zálohové']];
 // Záložky upomínek (?status=): klíč je hodnota sloupce status, Vše je bez podmínky.
+// Záložky importu z Disku: co ještě ve faktuřách není a co už je.
+const ZALOZKY_GDRIVE = [['nenahrane', 'Nenahrané'], ['nahrane', 'Nahrané']];
 const ZALOZKY_UPOMINEK = [['ceka', 'Čeká na odeslání'], ['odeslana', 'Odeslané'], ['zrusena', 'Zrušené'], ['vse', 'Vše']];
 
 // Nárok na odpočet DPH: checkbox chodí z prohlížeče jen zaškrtnutý.
@@ -357,7 +360,7 @@ export async function generateProformaForOrder(sql, order, { now = new Date() } 
        shop_id, order_id, crm_contact_id, crm_company_id,
        client_name, client_ico, client_dic, client_address,
        amount, vat_amount, total_amount, currency,
-       issue_date, due_date)
+       issue_date, due_date, source)
     VALUES (
       ${invoiceId}, 'proforma',
       ${seriesId},
@@ -370,7 +373,8 @@ export async function generateProformaForOrder(sql, order, { now = new Date() } 
       ${base}, ${vatAmt}, ${totalWithVat},
       ${order.currency || 'CZK'},
       ${issueDate},
-      ${pridejDny(issueDate, 7)}
+      ${pridejDny(issueDate, 7)},
+      'eshop'
     )
   `;
 
@@ -419,7 +423,7 @@ export async function generateInvoiceForOrder(sql, order, { fromProforma, now = 
        shop_id, order_id, crm_contact_id, crm_company_id, proforma_invoice_id,
        client_name, client_ico, client_dic, client_address,
        amount, vat_amount, total_amount, currency,
-       issue_date, due_date)
+       issue_date, due_date, source)
     VALUES (
       ${invoiceId}, 'issued',
       ${seriesId},
@@ -432,7 +436,8 @@ export async function generateInvoiceForOrder(sql, order, { fromProforma, now = 
       ${base}, ${vatAmt}, ${totalWithVat},
       ${order.currency || 'CZK'},
       ${issueDate},
-      ${pridejDny(issueDate, 14)}
+      ${pridejDny(issueDate, 14)},
+      'eshop'
     )
   `;
 
@@ -455,15 +460,16 @@ export default async function invoicesRoutes(fastify) {
   // ══════════════════════════════════════════════════════════
 
   fastify.get('/ucetnictvi/vydane-faktury', async (request, reply) => {
-    const q            = parametr(request.query.q);
+    const filtr        = filtrDokladu(request.query);
     const statusFilter = parametr(request.query.status);
     const typ = zalozka(DRUHY_VYDANYCH, request.query.typ);
     const zalohove = typ === 'zalohove';
 
     // Filtr platí pro obě záložky: odznak řekne, kolik shod je na té druhé,
     // a přechod na ni ho drží (hledání v liště sem vede i pro zálohové faktury).
-    const conditions = [sql`type IN ('issued', 'proforma')`];
-    if (q) conditions.push(sql`(number ILIKE ${'%'+q+'%'} OR client_name ILIKE ${'%'+q+'%'})`);
+    const conditions = [sql`type IN ('issued', 'proforma')`, ...podminkyFiltru(sql, filtr, {
+      datum: 'issue_date', dodavatel: 'client_name', hledat: ['number', 'client_name', 'client_ico', 'notes'],
+    })];
     if (statusFilter) conditions.push(sql`status = ${statusFilter}`);
     const where = sql`WHERE ${conditions.reduce((a, b) => sql`${a} AND ${b}`)}`;
 
@@ -474,7 +480,7 @@ export default async function invoicesRoutes(fastify) {
     `;
     const strany = strankovani({
       cesta: '/ucetnictvi/vydane-faktury', query: request.query, celkem: pocty[typ],
-      zachovat: ['q', 'status'], pevne: zalohove ? { typ } : {},
+      zachovat: [...filtr.zachovat, 'status'], pevne: zalohove ? { typ } : {},
     });
     const invoices = await sql`
       SELECT * FROM accounting_invoices ${where} AND type = ${zalohove ? 'proforma' : 'issued'}
@@ -487,7 +493,7 @@ export default async function invoicesRoutes(fastify) {
     const adresaZalozky = (klic) => {
       const p = new URLSearchParams();
       if (klic !== DRUHY_VYDANYCH[0][0]) p.set('typ', klic);
-      if (q) p.set('q', q);
+      for (const k of filtr.zachovat) if (parametr(request.query[k])) p.set(k, parametr(request.query[k]));
       if (statusFilter) p.set('status', statusFilter);
       const s = p.toString();
       return `/ucetnictvi/vydane-faktury${s ? `?${s}` : ''}`;
@@ -497,7 +503,11 @@ export default async function invoicesRoutes(fastify) {
       pageTitle: zalohove ? 'Zálohové faktury' : 'Vydané faktury', currentPath: '/ucetnictvi/vydane-faktury',
       user: request.user, invoices, total: pocty[typ], strany, typ, adresaZalozky,
       zalozky: DRUHY_VYDANYCH.map(([klic, popisek]) => ({ klic, popisek, pocet: pocty[klic].toLocaleString('cs-CZ') })),
-      q, statusFilter, STATUSES_ISSUED, series,
+      filtr, statusFilter, STATUSES_ISSUED, series,
+      klienti: (await sql`
+        SELECT client_name FROM accounting_invoices WHERE type IN ('issued', 'proforma') AND client_name <> ''
+        GROUP BY client_name ORDER BY MAX(issue_date) DESC LIMIT 500
+      `).map(r => r.client_name),
       formError: zalohove ? '' : FORM_ERRORS[request.query.formError] || '',
     }, { layout: 'layouts/base.ejs' });
   });
@@ -925,7 +935,7 @@ export default async function invoicesRoutes(fastify) {
       ? await sql`SELECT * FROM accounting_bank_transactions WHERE id = ${invoice.bank_transaction_id}`
       : [null];
     return reply.view('pages/invoices/received-detail.ejs', {
-      pageTitle: `Přijatá ${invoice.number}`, currentPath: '/ucetnictvi/prijate-faktury',
+      pageTitle: `Přijatá ${invoice.internal_number || invoice.number}`, currentPath: '/ucetnictvi/prijate-faktury',
       user: request.user, invoice, bankTx, STATUSES_RECEIVED,
       saved: request.query.saved === '1',
       error: CHYBY_PRIJATE[request.query.error] || null,
@@ -982,16 +992,18 @@ export default async function invoicesRoutes(fastify) {
   });
 
   fastify.get('/ucetnictvi/prijate-faktury', async (request, reply) => {
-    const q            = parametr(request.query.q);
+    const filtr        = filtrDokladu(request.query);
     const statusFilter = parametr(request.query.status);
 
-    const conditions = [sql`type = 'received'`];
-    if (q) conditions.push(sql`(number ILIKE ${'%'+q+'%'} OR supplier ILIKE ${'%'+q+'%'})`);
+    const conditions = [sql`type = 'received'`, ...podminkyFiltru(sql, filtr, {
+      datum: 'issue_date', dodavatel: 'supplier',
+      hledat: ['internal_number', 'number', 'supplier_number', 'supplier', 'supplier_ico', 'notes'],
+    })];
     if (statusFilter) conditions.push(sql`status = ${statusFilter}`);
     const where = sql`WHERE ${conditions.reduce((a, b) => sql`${a} AND ${b}`)}`;
 
     const [{ count }] = await sql`SELECT COUNT(*)::int AS count FROM accounting_invoices ${where}`;
-    const strany = strankovani({ cesta: '/ucetnictvi/prijate-faktury', query: request.query, celkem: count, zachovat: ['q', 'status'] });
+    const strany = strankovani({ cesta: '/ucetnictvi/prijate-faktury', query: request.query, celkem: count, zachovat: [...filtr.zachovat, 'status'] });
     const invoices = await sql`
       SELECT * FROM accounting_invoices ${where}
       ORDER BY issue_date DESC, created_at DESC, id DESC
@@ -1002,7 +1014,11 @@ export default async function invoicesRoutes(fastify) {
     return reply.view('pages/invoices/received.ejs', {
       pageTitle: 'Přijaté faktury', currentPath: '/ucetnictvi/prijate-faktury',
       user: request.user, invoices, total: count, strany,
-      q, statusFilter, STATUSES_RECEIVED,
+      filtr, statusFilter, STATUSES_RECEIVED,
+      dodavatele: (await sql`
+        SELECT supplier FROM accounting_invoices WHERE type = 'received' AND supplier <> ''
+        GROUP BY supplier ORDER BY supplier LIMIT 500
+      `).map(r => r.supplier),
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -1118,18 +1134,23 @@ export default async function invoicesRoutes(fastify) {
         });
         const ids = files.map(f => f.id);
         const imported = ids.length > 0
-          ? await sql`SELECT id, gdrive_file_id FROM accounting_invoices WHERE gdrive_file_id = ANY(${ids})`
+          ? await sql`
+              SELECT id, gdrive_file_id, internal_number, number, supplier, total_amount, currency, source
+              FROM accounting_invoices WHERE gdrive_file_id = ANY(${ids})
+            `
           : [];
         const known = ids.length > 0
-          ? await sql`SELECT file_id, stav, chyba FROM gdrive_soubory WHERE file_id = ANY(${ids})`
+          ? await sql`SELECT file_id, stav, chyba, pokusy FROM gdrive_soubory WHERE file_id = ANY(${ids})`
           : [];
-        const byFile = new Map(imported.map(r => [r.gdrive_file_id, r.id]));
+        const byFile = new Map(imported.map(r => [r.gdrive_file_id, r]));
         const stavy  = new Map(known.map(r => [r.file_id, r]));
         files = files.map(f => ({
           ...f,
-          invoiceId: byFile.get(f.id) || null,
+          invoiceId: byFile.get(f.id)?.id || null,
+          faktura: byFile.get(f.id) || null,
           stav: stavy.get(f.id)?.stav || null,
           chyba: stavy.get(f.id)?.chyba || '',
+          pokusy: stavy.get(f.id)?.pokusy || 0,
         }));
       } catch (err) {
         fastify.log.error({ err }, 'Google Drive listing selhal');
@@ -1138,9 +1159,27 @@ export default async function invoicesRoutes(fastify) {
     }
 
     const chybaKontroly = citelnaChyba(company.gdrive_posledni_chyba);
+    const tab = zalozka(ZALOZKY_GDRIVE, parametr(request.query.tab));
+    const nenahrane = files.filter(f => !f.invoiceId);
+    const nahrane = files.filter(f => f.invoiceId);
+    const dotazSlozky = (klic) => `/ucetnictvi/prijate-faktury/gdrive?year=${year}&month=${month ?? ''}${klic === 'nahrane' ? '&tab=nahrane' : ''}`;
+    // U nenahraných stránkování není: Vybrat vše musí vybrat celou složku.
+    const strany = strankovani({
+      cesta: '/ucetnictvi/prijate-faktury/gdrive', query: request.query, celkem: nahrane.length,
+      pevne: { year, month: month ?? '', tab: 'nahrane' },
+    });
+    const rok = Number(prazskeDatum(new Date()).slice(0, 4));
     return reply.view('pages/invoices/gdrive.ejs', {
       pageTitle: 'Import z Google Disku', currentPath: '/ucetnictvi/prijate-faktury',
-      user: request.user, files, error, year, month,
+      user: request.user, error, year, month, tab, strany, MAX_POKUSU,
+      files: tab === 'nahrane' ? nahrane.slice(strany.offset, strany.offset + strany.naStranku) : nenahrane,
+      slozkaPrazdna: files.length === 0,
+      automatikaHlida: year === rok || year === rok - 1,
+      zalozky: [
+        { klic: 'nenahrane', popisek: 'Nenahrané', pocet: nenahrane.length.toLocaleString('cs-CZ') },
+        { klic: 'nahrane', popisek: 'Nahrané', pocet: nahrane.length.toLocaleString('cs-CZ') },
+      ],
+      adresaZalozky: dotazSlozky,
       serviceAccount: serviceAccountEmail(),
       radaNasdilet: jeChybaPristupu(error) || jeChybaPristupu(chybaKontroly),
       rootFolderId: company.gdrive_root_folder_id || '',
@@ -1156,8 +1195,14 @@ export default async function invoicesRoutes(fastify) {
 
   fastify.post('/ucetnictvi/prijate-faktury/gdrive/import', async (request, reply) => {
     // Tlačítko Založit jako novou u nespárovaného dokladu platí jen pro ten jeden soubor.
+    // Založit vybrané vezme z výběru jen nespárované: starý doklad, který se ještě
+    // nepároval, by jinak mohl založit fakturu, kterou systém z POHODY už má.
     const zalozit = parametr(request.body?.zalozit_novou);
-    const fileIds = zalozit ? [zalozit] : [].concat(request.body?.file_ids || []).filter(Boolean);
+    const vybrane = [].concat(request.body?.file_ids || []).filter(Boolean);
+    const zalozitVybrane = request.body?.zalozit_vybrane === '1';
+    const fileIds = zalozit ? [zalozit] : zalozitVybrane
+      ? (await sql`SELECT file_id FROM gdrive_soubory WHERE file_id = ANY(${vybrane}) AND stav = 'nesparovano'`).map(r => r.file_id)
+      : vybrane;
     const { year, month } = await gdriveContext(request.body || {});
     const back = `/ucetnictvi/prijate-faktury/gdrive?year=${year}&month=${month ?? ''}`;
 
@@ -1169,7 +1214,7 @@ export default async function invoicesRoutes(fastify) {
     (async () => {
       for (const fileId of fileIds) {
         try {
-          const { vysledek } = await importujSoubor(sql, fastify.log, fileId, { zalozitNovou: Boolean(zalozit) });
+          const { vysledek } = await importujSoubor(sql, fastify.log, fileId, { zalozitNovou: Boolean(zalozit) || zalozitVybrane });
           gdriveJob[{ imported: 'imported', merged: 'merged', nesparovano: 'nesparovano' }[vysledek] ?? 'skipped']++;
         } catch (err) {
           fastify.log.error({ err, fileId }, 'Import faktury z Google Disku selhal');
@@ -1243,7 +1288,7 @@ export default async function invoicesRoutes(fastify) {
 
   fastify.get('/ucetnictvi/prijate-faktury/export.csv', async (request, reply) => {
     const invoices = await sql`SELECT * FROM accounting_invoices WHERE type='received' ORDER BY issue_date DESC`;
-    const header = 'Číslo;Dodavatel;IČO;Přijato;Splatnost;Zaplaceno;Základ;DPH;Celkem;Měna;Stav';
+    const header = 'Číslo;Dodavatel;IČO;Přijato;Splatnost;Zaplaceno;Základ;DPH;Celkem;Měna;Stav;Interní číslo';
     const rows = invoices.map(i => [
       i.number, i.supplier||'', i.supplier_ico||'',
       i.issue_date?.toISOString?.()?.slice(0,10) || '',
@@ -1252,7 +1297,7 @@ export default async function invoicesRoutes(fastify) {
       String(i.amount||0).replace('.',','),
       String(i.vat_amount||0).replace('.',','),
       String(i.total_amount||0).replace('.',','),
-      i.currency, i.status,
+      i.currency, i.status, i.internal_number || '',
     ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n');
     reply.header('Content-Type', 'text/csv; charset=utf-8');
     reply.header('Content-Disposition', 'attachment; filename="prijate-faktury.csv"');

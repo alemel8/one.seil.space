@@ -193,7 +193,7 @@ export async function importujSoubor(sql, log, fileId, { extract = extractInvoic
         INSERT INTO accounting_invoices
           (id, type, number, supplier, supplier_ico, amount, vat_amount, total_amount,
            currency, status, issue_date, due_date, notes,
-           attachment_path, attachment_mime, attachment_size, gdrive_file_id)
+           attachment_path, attachment_mime, attachment_size, gdrive_file_id, source)
         VALUES (
           ${id}, 'received',
           ${cisloFaktury},
@@ -204,7 +204,7 @@ export async function importujSoubor(sql, log, fileId, { extract = extractInvoic
           ${datum || new Date().toISOString().split('T')[0]},
           ${jenDatum(d.due_date)},
           ${(d.notes || '').trim() || meta.name},
-          ${saved.filename}, ${saved.mime}, ${saved.size}, ${fileId}
+          ${saved.filename}, ${saved.mime}, ${saved.size}, ${fileId}, 'gdrive'
         )
       `;
       await zapisHotovo(sql, fileId, meta, id);

@@ -19,3 +19,13 @@ const TONY = new Map(Object.entries({
 export function tonStavu(stav) {
   return TONY.get(stav) ?? 'neutral';
 }
+
+const ZDROJE = new Map(Object.entries({
+  rucne: 'Ručně', gdrive: 'Google Disk', pohoda: 'POHODA', eshop: 'E-shop', sablona: 'Šablona',
+}));
+
+/** Odkud doklad přišel. Doklad z Disku připojený k existující faktuře nese oba zdroje. */
+export function zdrojDokladu(doklad) {
+  const zdroj = ZDROJE.get(doklad.source) ?? doklad.source ?? '–';
+  return doklad.gdrive_file_id && doklad.source !== 'gdrive' ? `${zdroj} + Disk` : zdroj;
+}

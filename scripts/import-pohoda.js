@@ -281,12 +281,12 @@ async function importIssued() {
         INSERT INTO accounting_invoices
           (id, type, number, status, client_name, client_ico, client_dic, client_address,
            crm_company_id, issue_date, due_date, paid_date,
-           amount, vat_amount, total_amount, currency, notes, created_at, modified_at)
+           amount, vat_amount, total_amount, currency, notes, source, pohoda_v_evidenci, created_at, modified_at)
         VALUES (
           ${genId()}, 'issued', ${number}, ${status},
           ${clientName}, ${ico||''}, ${clientDic||''}, ${clientAddr||''},
           ${companyId}, ${issueDate}, ${dueDate}, ${paidDate},
-          ${amount}, ${vatAmount}, ${total}, 'CZK', ${notes||''}, NOW(), NOW()
+          ${amount}, ${vatAmount}, ${total}, 'CZK', ${notes||''}, 'pohoda', TRUE, NOW(), NOW()
         )
         ON CONFLICT DO NOTHING
       `;
@@ -346,13 +346,13 @@ async function importReceived() {
           (id, type, number, status, supplier, supplier_ico, supplier_dic,
            supplier_address, supplier_city, supplier_zip, supplier_country,
            crm_company_id, issue_date, due_date, paid_date,
-           amount, vat_amount, total_amount, currency, notes, created_at, modified_at)
+           amount, vat_amount, total_amount, currency, notes, source, pohoda_v_evidenci, created_at, modified_at)
         VALUES (
           ${genId()}, 'received', ${number}, ${status},
           ${supplier||''}, ${ico||''}, ${supDic||''},
           ${ulice||''}, ${obec||''}, ${psc||''}, 'Česká republika',
           ${companyId}, ${issueDate}, ${dueDate}, ${paidDate},
-          ${amount}, ${vatAmount}, ${total}, 'CZK', ${notes||''}, NOW(), NOW()
+          ${amount}, ${vatAmount}, ${total}, 'CZK', ${notes||''}, 'pohoda', TRUE, NOW(), NOW()
         )
         ON CONFLICT DO NOTHING
       `;

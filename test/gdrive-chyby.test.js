@@ -1,5 +1,5 @@
 // Chyby Google Disku pro člověka: česká hláška z odpovědi Googlu (src/gdrive.js),
-// jedna hláška a odkaz do konzole na stránce importu, výběr bez dokladů Před automatikou.
+// jedna hláška a odkaz do konzole na stránce importu, záložky a výběr všech dokladů.
 //
 //   node --test test/gdrive-chyby.test.js        (funkce a šablona bez serveru)
 //   DATABASE_URL=… TEST_BASE_URL=… SESSION_SECRET=… node --test test/gdrive-chyby.test.js
@@ -13,6 +13,7 @@ import { popisChybyDisku, jeChybaPristupu, citelnaChyba, listChildren, downloadF
 import { vymazTokeny } from '../src/google-auth.js';
 import { PRESKOCIT, lokalniDatabaze, prihlas, pozadavky, serverBezi } from './pomocnici/server.js';
 import { vykresliStranku } from './pomocnici/render.js';
+import { strankovani } from '../src/strankovani.js';
 
 const PROJEKT = '268599556039';
 const ADRESA = `https://console.developers.google.com/apis/api/drive.googleapis.com/overview?project=${PROJEKT}`;
@@ -223,7 +224,11 @@ const soubor = (id, stav, prepis = {}) => ({
 
 const vykresli = (prepis = {}) => vykresliStranku('invoices/gdrive', {
   files: [], error: null, year: 2026, month: 11, serviceAccount: 'seil@projekt.iam.gserviceaccount.com',
-  radaNasdilet: false, job: null, kontrola: null, chybaKontroly: '', ...prepis,
+  radaNasdilet: false, job: null, kontrola: null, chybaKontroly: '', tab: 'nenahrane', slozkaPrazdna: !prepis.files?.length,
+  automatikaHlida: true, MAX_POKUSU: 5, adresaZalozky: k => `/gdrive?tab=${k}`,
+  zalozky: [{ klic: 'nenahrane', popisek: 'Nenahrané', pocet: '1' }, { klic: 'nahrane', popisek: 'Nahrané', pocet: '2' }],
+  strany: strankovani({ cesta: '/gdrive', celkem: prepis.files?.length ?? 0, pevne: { tab: 'nahrane' } }),
+  ...prepis,
 });
 const pocet = (html, hledane) => html.split(hledane).length - 1;
 
@@ -316,19 +321,66 @@ describe('hláška na stránce importu', () => {
 describe('tabulka dokladů na stránce importu', () => {
   const soubory = [
     soubor('novy', null),
-    soubor('chybny', 'chyba', { chyba: 'Nepodařilo se vytěžit' }),
+    soubor('chybny', 'chyba', { chyba: 'Nepodařilo se vytěžit', pokusy: 1 }),
     soubor('stary1', 'vychozi'),
     soubor('stary2', 'vychozi'),
-    soubor('hotovy', 'cekajici', { invoiceId: 'inv1' }),
+    soubor('nesparovany', 'nesparovano', { chyba: 'Ke stejné faktuře se nepřipojil' }),
   ];
+  const hotovy = (id, source) => soubor(id, 'naimportovano', {
+    invoiceId: `inv-${id}`,
+    faktura: { id: `inv-${id}`, internal_number: 'PF26-0123', number: 'X1', supplier: 'Dodavatel s.r.o.', total_amount: 1210, currency: 'CZK', source },
+  });
 
   test('odznaky přes tóny, žádné barvy natvrdo', async () => {
     const html = await vykresli({ files: soubory });
-    assert.ok(html.includes('class="badge badge-info">Nové'));
+    assert.match(html, /class="badge badge-info"[^>]*>Ve frontě/);
     assert.ok(html.includes('class="badge badge-chyba" title="Nepodařilo se vytěžit">Chyba'));
+    assert.ok(html.includes('zkusí se znovu'));
     assert.match(html, /class="badge badge-neutral"[^>]*>Před automatikou/);
-    assert.match(html, /class="badge badge-ok"[^>]*>Naimportováno/);
     assert.ok(!/#[0-9a-f]{6}/i.test(html.slice(0, html.indexOf('<script>'))), 'barva natvrdo');
+  });
+
+  test('záložky: obě s počtem a odkazem, otevřená je označená', async () => {
+    const html = await vykresli({ files: soubory });
+    assert.ok(html.includes('href="/gdrive?tab=nahrane"'));
+    assert.match(html, /class="tab active"[^>]*>Nenahrané <span class="tab-pocet">1</);
+    assert.match(html, />Nahrané <span class="tab-pocet">2</);
+  });
+
+  test('doklad mimo hlídané roky ve frontě není', async () => {
+    const html = await vykresli({ files: [soubor('stary', null)], automatikaHlida: false });
+    assert.ok(!html.includes('Ve frontě'));
+    assert.match(html, />Nenačteno</);
+  });
+
+  test('chyba po stropu pokusů se znovu nezkusí a neříká to', async () => {
+    const html = await vykresli({ files: [soubor('vzdany', 'chyba', { pokusy: 5 })] });
+    assert.ok(!html.includes('zkusí se znovu'));
+  });
+
+  test('záložka Nahrané: faktura s interním číslem, výsledek podle zdroje, bez výběru', async () => {
+    const html = await vykresli({ tab: 'nahrane', files: [hotovy('zalozeny', 'gdrive'), hotovy('sparovany', 'pohoda')] });
+    assert.ok(html.includes('href="/ucetnictvi/prijate-faktury/inv-zalozeny"'));
+    assert.ok(html.includes('PF26-0123'));
+    assert.match(html, />Založeno</);
+    assert.match(html, />Spárováno</);
+    assert.ok(!html.includes('id="gdForm"'));
+    assert.ok(!html.includes('gd-cb"'));
+  });
+
+  test('záložka Nahrané má stránkování a filtr složky ji drží', async () => {
+    const html = await vykresli({
+      tab: 'nahrane', files: [hotovy('a', 'gdrive')],
+      strany: strankovani({ cesta: '/gdrive', celkem: 60, pevne: { year: 2026, month: '', tab: 'nahrane' } }),
+    });
+    assert.ok(html.includes('strankovani'));
+    assert.ok(html.includes('month=&amp;tab=nahrane&amp;page=2'), 'Celý rok přežije přechod na další stránku');
+    assert.ok(html.includes('<input type="hidden" name="tab" value="nahrane">'));
+  });
+
+  test('všechno nahrané: prázdná záložka to řekne', async () => {
+    const html = await vykresli({ slozkaPrazdna: false });
+    assert.ok(html.includes('Všechny doklady z této složky jsou nahrané'));
   });
 
   test('Před automatikou: nezaškrtnuté, označené, věta nad tabulkou', async () => {
@@ -338,13 +390,13 @@ describe('tabulka dokladů na stránce importu', () => {
     for (const m of html.matchAll(/<input type="checkbox" class="gd-cb"[^>]*>/g)) {
       assert.notEqual(m[0].includes('data-pred-automatikou'), m[0].includes(' checked'), m[0]);
     }
-    assert.equal(pocet(html, 'data-pred-automatikou '), 2);
     assert.ok(html.includes('<span id="gdCount">2</span>'), 'výběr na začátku jsou jen nové a chybné');
   });
 
   test('bez takových řádků věta není', async () => {
     const html = await vykresli({ files: [soubor('novy', null)] });
     assert.ok(!html.includes('Doklad Před automatikou se'));
+    assert.ok(!html.includes('id="gdZalozit"'));
   });
 
   test('stránkování tu není, výběr potřebuje všechny řádky', async () => {
@@ -381,34 +433,38 @@ describe('tabulka dokladů na stránce importu', () => {
       pocet: document.getElementById('gdCount').textContent.trim(),
       odeslat: !document.getElementById('gdSubmit').disabled,
     }));
+    const zalozitVypnuto = () => page.$eval('#gdZalozit', el => el.disabled);
+    const VSECHNY = ['novy', 'chybny', 'stary1', 'stary2', 'nesparovany'];
 
-    test('Vybrat vše nezaškrtne řádky Před automatikou', async () => {
+    test('Vybrat vše označí všechny řádky, i Před automatikou', async () => {
       await nacti({ files: soubory });
-      assert.deepEqual(await stav(), { vybrane: ['novy', 'chybny'], vse: true, castecne: false, pocet: '2', odeslat: true });
+      assert.deepEqual(await stav(), { vybrane: ['novy', 'chybny'], vse: false, castecne: true, pocet: '2', odeslat: true });
+      await page.click('#gdAll');
+      assert.deepEqual(await stav(), { vybrane: VSECHNY, vse: true, castecne: false, pocet: '5', odeslat: true });
       await page.click('#gdAll');
       assert.deepEqual(await stav(), { vybrane: [], vse: false, castecne: false, pocet: '0', odeslat: false });
-      await page.click('#gdAll');
-      assert.deepEqual(await stav(), { vybrane: ['novy', 'chybny'], vse: true, castecne: false, pocet: '2', odeslat: true });
     });
 
-    test('řádek Před automatikou jde vybrat ručně, odškrtnutí všeho ho zruší', async () => {
-      await nacti({ files: soubory });
-      await page.click('.gd-cb[value="stary1"]');
-      assert.deepEqual(await stav(), { vybrane: ['novy', 'chybny', 'stary1'], vse: true, castecne: false, pocet: '3', odeslat: true });
-      await page.click('#gdAll');
-      assert.deepEqual((await stav()).vybrane, []);
-      await page.click('.gd-cb[value="stary2"]');
-      assert.deepEqual(await stav(), { vybrane: ['stary2'], vse: false, castecne: true, pocet: '1', odeslat: true });
-      await page.click('#gdAll');
-      assert.deepEqual((await stav()).vybrane, ['novy', 'chybny', 'stary2'], 'ruční výběr Vybrat vše nezruší');
-    });
-
-    test('jen řádky Před automatikou: Vybrat vše je vypnuté, import čeká na ruční výběr', async () => {
-      await nacti({ files: [soubor('stary1', 'vychozi')] });
-      assert.equal(await page.$eval('#gdAll', el => el.disabled), true);
+    test('jen řádky Před automatikou: Vybrat vše jde kliknout a označí je', async () => {
+      await nacti({ files: [soubor('stary1', 'vychozi'), soubor('stary2', 'vychozi')] });
+      assert.equal(await page.$eval('#gdAll', el => el.disabled), false);
       assert.deepEqual(await stav(), { vybrane: [], vse: false, castecne: false, pocet: '0', odeslat: false });
-      await page.click('.gd-cb');
-      assert.equal((await stav()).odeslat, true);
+      await page.click('#gdAll');
+      assert.deepEqual(await stav(), { vybrane: ['stary1', 'stary2'], vse: true, castecne: false, pocet: '2', odeslat: true });
+    });
+
+    test('odškrtnutí jednoho řádku přepne hlavičku na částečný výběr', async () => {
+      await nacti({ files: [soubor('a', 'vychozi'), soubor('b', 'vychozi')] });
+      await page.click('#gdAll');
+      await page.click('.gd-cb[value="a"]');
+      assert.deepEqual(await stav(), { vybrane: ['b'], vse: false, castecne: true, pocet: '1', odeslat: true });
+    });
+
+    test('Založit vybrané jde jen s vybraným nespárovaným dokladem', async () => {
+      await nacti({ files: soubory });
+      assert.equal(await zalozitVypnuto(), true);
+      await page.click('.gd-cb[value="nesparovany"]');
+      assert.equal(await zalozitVypnuto(), false);
     });
 
     test('prázdná složka: skript nespadne', async () => {

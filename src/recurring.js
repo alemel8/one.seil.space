@@ -53,11 +53,11 @@ async function runRecurring(log) {
       await sql`
         INSERT INTO accounting_invoices
           (id, type, number, client_name, client_ico, client_dic, client_address,
-           amount, vat_amount, total_amount, currency, status, issue_date, due_date)
+           amount, vat_amount, total_amount, currency, status, issue_date, due_date, source)
         VALUES (
           ${invoiceId}, 'issued', ${number},
           ${tmpl.client_name}, ${tmpl.client_ico}, ${tmpl.client_dic}, ${tmpl.client_address},
-          ${amount}, ${vatAmount}, ${total}, 'CZK', 'Nezaplacena', ${issueDate}, ${dueDate}
+          ${amount}, ${vatAmount}, ${total}, 'CZK', 'Nezaplacena', ${issueDate}, ${dueDate}, 'sablona'
         )
       `;
 

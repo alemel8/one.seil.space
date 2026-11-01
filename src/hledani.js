@@ -105,7 +105,7 @@ export const SKUPINY = [
     dotaz: (sql, vzor, limit) => sql`
       SELECT id, number, type, status, client_name, issue_date, total_amount
         FROM accounting_invoices
-       WHERE type IN ('issued', 'proforma') AND (number ILIKE ${vzor} OR client_name ILIKE ${vzor})
+       WHERE type IN ('issued', 'proforma') AND (number ILIKE ${vzor} OR client_name ILIKE ${vzor} OR client_ico ILIKE ${vzor} OR notes ILIKE ${vzor})
        ORDER BY issue_date DESC, number DESC LIMIT ${limit}`,
     polozka: (r) => ({
       titulek: r.number, popis: spoj(r.client_name, datum(r.issue_date), castka(r.total_amount)),
@@ -116,12 +116,12 @@ export const SKUPINY = [
     klic: 'prijate-faktury', nazev: 'Přijaté faktury', pravo: 'ucetnictvi.prijate-faktury',
     odkazSeznam: (q) => `/ucetnictvi/prijate-faktury?q=${encodeURIComponent(q)}`,
     dotaz: (sql, vzor, limit) => sql`
-      SELECT id, number, status, supplier, issue_date, total_amount
+      SELECT id, internal_number, number, status, supplier, issue_date, total_amount
         FROM accounting_invoices
-       WHERE type = 'received' AND (number ILIKE ${vzor} OR supplier ILIKE ${vzor})
+       WHERE type = 'received' AND (internal_number ILIKE ${vzor} OR number ILIKE ${vzor} OR supplier_number ILIKE ${vzor} OR supplier ILIKE ${vzor} OR supplier_ico ILIKE ${vzor} OR notes ILIKE ${vzor})
        ORDER BY issue_date DESC LIMIT ${limit}`,
     polozka: (r) => ({
-      titulek: r.number, popis: spoj(r.supplier, datum(r.issue_date), castka(r.total_amount)),
+      titulek: r.internal_number || r.number, popis: spoj(r.supplier, datum(r.issue_date), castka(r.total_amount)),
       url: `/ucetnictvi/prijate-faktury/${r.id}`, stitek: r.status || '',
     }),
   },
@@ -131,7 +131,7 @@ export const SKUPINY = [
     dotaz: (sql, vzor, limit) => sql`
       SELECT id, vendor, number, receipt_date, category, total_amount, status
         FROM receipts
-       WHERE vendor ILIKE ${vzor} OR number ILIKE ${vzor} OR notes ILIKE ${vzor}
+       WHERE internal_number ILIKE ${vzor} OR vendor ILIKE ${vzor} OR vendor_ico ILIKE ${vzor} OR number ILIKE ${vzor} OR notes ILIKE ${vzor}
        ORDER BY receipt_date DESC, id DESC LIMIT ${limit}`,
     polozka: (r) => ({
       titulek: r.vendor || r.number || 'Účtenka', popis: spoj(r.vendor && r.number, datum(r.receipt_date), r.category, castka(r.total_amount)),

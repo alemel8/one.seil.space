@@ -1,0 +1,16 @@
+<%#
+  Stav dokladu vůči POHODĚ ve sloupci seznamu.
+
+    include('../../includes/pohoda-stav', { doklad })
+
+  Doklad nalezený v jejím exportu v ní prokazatelně je, proto má přednost před
+  vygenerovaným XML: to účetní nemusela naimportovat. Účtenky evidenci nemají.
+%>
+<% if (doklad.pohoda_v_evidenci) { %>
+  <span class="badge badge-ok" title="Doklad je v POHODĚ: přišel z jejího exportu, nebo ho v něm našel import.">V POHODĚ</span>
+<% } else if (doklad.pohoda_exported_at) { %>
+  <span class="badge badge-info" title="XML pro POHODU naposledy vygenerováno <%= ceskeDatum(prazskeDatum(doklad.pohoda_exported_at)) %>.">Odesláno</span>
+  <br><span class="sekundarni" style="font-size:11px;"><%= ceskeDatum(prazskeDatum(doklad.pohoda_exported_at)) %></span>
+<% } else { %>
+  <span class="badge badge-neutral" title="Pro POHODU se zatím negenerovalo XML.">Neodesláno</span>
+<% } %>

@@ -1,0 +1,32 @@
+<%#
+  Pole filtru seznamu dokladů uvnitř <form class="filtr-lista">. Hodnoty dává src/filtr-dokladu.js.
+
+    include('../../includes/filtr-dokladu', { filtr, hledatPopisek, dodavatelPopisek, dodavatele })
+
+  hledatPopisek     text v poli hledání
+  dodavatelPopisek  Dodavatel, nebo Klient u vydaných faktur
+  dodavatele        názvy do našeptávače pole
+%>
+<input type="text" name="q" value="<%= filtr.q %>" placeholder="<%= hledatPopisek %>" class="form-control" aria-label="<%= hledatPopisek %>">
+<input type="text" name="dodavatel" value="<%= filtr.dodavatel %>" placeholder="<%= dodavatelPopisek %>" class="form-control filtr-uzsi" aria-label="<%= dodavatelPopisek %>" list="filtrDodavatele" autocomplete="off">
+<datalist id="filtrDodavatele">
+  <% dodavatele.forEach(d => { %><option value="<%= d %>"></option><% }) %>
+</datalist>
+<select name="obdobi" class="form-select" aria-label="Období" data-filtr-obdobi>
+  <option value="">Celé období</option>
+  <% filtr.rychlaObdobi.forEach(([hodnota, popis]) => { %><option value="<%= hodnota %>" <%= filtr.obdobi === hodnota ? 'selected' : '' %>><%= popis %></option><% }) %>
+  <option value="vlastni" <%= filtr.obdobi === 'vlastni' ? 'selected' : '' %>>Vlastní rozsah…</option>
+  <optgroup label="Měsíc">
+    <% filtr.mesice.forEach(m => { %><option value="<%= m.hodnota %>" <%= filtr.obdobi === m.hodnota ? 'selected' : '' %>><%= m.popis %></option><% }) %>
+  </optgroup>
+</select>
+<span class="filtr-rozsah" data-filtr-rozsah<%= filtr.obdobi === 'vlastni' ? '' : ' hidden' %>>
+  <input type="date" name="od" value="<%= filtr.obdobi === 'vlastni' ? filtr.od : '' %>" class="form-control" aria-label="Datum od">
+  <span aria-hidden="true">–</span>
+  <input type="date" name="do" value="<%= filtr.obdobi === 'vlastni' ? filtr.do : '' %>" class="form-control" aria-label="Datum do">
+</span>
+<select name="pohoda" class="form-select" aria-label="POHODA">
+  <option value="">POHODA: vše</option>
+  <option value="neodeslano" <%= filtr.pohoda === 'neodeslano' ? 'selected' : '' %>>Neodesláno</option>
+  <option value="odeslano" <%= filtr.pohoda === 'odeslano' ? 'selected' : '' %>>Odesláno nebo v POHODĚ</option>
+</select>

@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import ejs from 'ejs';
 import { jenDatum, ceskeDatum, prazskeDatum } from '../../src/prazsky-cas.js';
-import { tonStavu } from '../../src/stavy.js';
+import { tonStavu, zdrojDokladu } from '../../src/stavy.js';
 
 const views = fileURLToPath(new URL('../../views/', import.meta.url));
 
@@ -28,7 +28,7 @@ export function uzivatel(prepis = {}) {
  * server.js přes defaultContext, tady se přidávají stejně.
  */
 export function vykresliStranku(cesta, locals) {
-  return ejs.renderFile(`${views}pages/${cesta}.ejs`, { jenDatum, ceskeDatum, prazskeDatum, tonStavu, user: uzivatel(), ...locals });
+  return ejs.renderFile(`${views}pages/${cesta}.ejs`, { jenDatum, ceskeDatum, prazskeDatum, tonStavu, zdrojDokladu, user: uzivatel(), ...locals });
 }
 
 /**

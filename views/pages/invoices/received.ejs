@@ -1,7 +1,7 @@
 <div class="page-header">
   <div class="page-header-left">
     <h1>Přijaté faktury</h1>
-    <p><%= total.toLocaleString('cs-CZ') %> <%= total === 1 ? 'faktura' : total >= 2 && total <= 4 ? 'faktury' : 'faktur' %><%= q || statusFilter ? (total >= 2 && total <= 4 ? ' odpovídají filtru' : ' odpovídá filtru') : ' celkem' %></p>
+    <p><%= total.toLocaleString('cs-CZ') %> <%= total === 1 ? 'faktura' : total >= 2 && total <= 4 ? 'faktury' : 'faktur' %><%= filtr.aktivni || statusFilter ? (total >= 2 && total <= 4 ? ' odpovídají filtru' : ' odpovídá filtru') : ' celkem' %></p>
   </div>
   <div class="page-header-akce">
     <a href="/ucetnictvi/prijate-faktury/export.csv" class="btn btn-outline btn-sm">↓ CSV</a>
@@ -24,22 +24,22 @@
 
 <form method="get" class="filtr-lista">
   <% if (strany.vlastniVelikost) { %><input type="hidden" name="velikost" value="<%= strany.naStranku %>"><% } %>
-  <input type="text" name="q" value="<%= q||'' %>" placeholder="Hledat číslo, dodavatel…" class="form-control" aria-label="Hledat číslo nebo dodavatele">
+  <%- include('../../includes/filtr-dokladu', { filtr, hledatPopisek: 'Hledat číslo, dodavatele, IČO, částku…', dodavatelPopisek: 'Dodavatel', dodavatele }) %>
   <select name="status" class="form-select" aria-label="Stav">
     <option value="">Všechny stavy</option>
     <% STATUSES_RECEIVED.forEach(s => { %><option value="<%= s %>" <%= statusFilter===s?'selected':'' %>><%= s %></option><% }) %>
   </select>
   <button type="submit" class="btn btn-outline">Filtrovat</button>
-  <% if (q||statusFilter) { %><a href="/ucetnictvi/prijate-faktury" class="btn btn-ghost">Zrušit filtr</a><% } %>
+  <% if (filtr.aktivni || statusFilter) { %><a href="/ucetnictvi/prijate-faktury" class="btn btn-ghost">Zrušit filtr</a><% } %>
 </form>
 
 <div class="table-wrapper">
-  <table class="data-table">
+  <table class="data-table tesna">
     <thead>
       <tr>
         <th style="width:36px;"><input type="checkbox" id="bulkSelectAll" onchange="bulkToggleAll(this.checked)" title="Vybrat všechny na této stránce" aria-label="Vybrat všechny na této stránce"></th>
         <th>Číslo</th><th>Dodavatel</th><th class="hide-mobile">Přijato</th><th>Splatnost</th>
-        <th class="num mobil">Celkem</th><th>Doklad</th><th class="mobil">Stav</th>
+        <th class="num mobil">Celkem</th><th>Doklad</th><th class="hide-mobile">Zdroj</th><th class="hide-mobile">POHODA</th><th class="mobil">Stav</th>
       </tr>
     </thead>
     <tbody>
@@ -47,18 +47,20 @@
         <% invoices.forEach(inv => { %>
         <%
           const isOverdue = inv.due_date && inv.status !== 'Zaplacena' && inv.status !== 'Storno' && new Date(inv.due_date) < new Date();
+          // U dokladu z POHODY je v number její číslo, číslo od dodavatele je v supplier_number.
+          const cisloDodavatele = inv.supplier_number || inv.number;
         %>
         <tr data-href="/ucetnictvi/prijate-faktury/<%= inv.id %>">
           <td data-bez-prokliku>
             <input type="checkbox" class="bulk-cb" value="<%= inv.id %>" onchange="bulkUpdate()"
-                   data-exported="<%= inv.pohoda_exported_at ? new Date(inv.pohoda_exported_at).toLocaleDateString('cs-CZ') : '' %>">
+                   aria-label="Vybrat fakturu <%= inv.internal_number || inv.number %>"
+                   data-exported="<%= inv.pohoda_v_evidenci || inv.pohoda_exported_at ? '1' : '' %>">
           </td>
           <td class="mono">
-            <a href="/ucetnictvi/prijate-faktury/<%= inv.id %>" class="radek-odkaz"><%= inv.number %></a>
+            <a href="/ucetnictvi/prijate-faktury/<%= inv.id %>" class="radek-odkaz"><%= inv.internal_number || inv.number %></a>
+            <% if (inv.internal_number) { %><span class="cislo-dokladu" title="Číslo dokladu od dodavatele: <%= cisloDodavatele %>"><%= cisloDodavatele %></span><% } %>
             <% if (inv.vat_deductible === false) { %><br><span class="badge" style="background:#fef3c7;color:#92400e;font-size:10px;font-weight:500;"
                  title="Bez nároku na odpočet DPH – celá částka jde do nákladů">bez odpočtu</span><% } %>
-            <% if (inv.pohoda_exported_at) { %><br><span style="font-size:10px;color:var(--text-muted);font-weight:400;"
-                 title="Naposledy exportováno do POHODY">↑ <%= new Date(inv.pohoda_exported_at).toLocaleDateString('cs-CZ') %></span><% } %>
           </td>
           <td><span class="radek-text" title="<%= inv.supplier || '' %>"><%= inv.supplier || '–' %></span></td>
           <td class="mono sekundarni hide-mobile"><%= ceskeDatum(inv.issue_date) %></td>
@@ -88,6 +90,8 @@
               <span style="color:var(--text-muted);font-size:13px;">–</span>
             <% } %>
           </td>
+          <td class="sekundarni hide-mobile"><%= zdrojDokladu(inv) %></td>
+          <td class="hide-mobile"><%- include('../../includes/pohoda-stav', { doklad: inv }) %></td>
           <td class="mobil" data-bez-prokliku>
             <form method="post" action="/ucetnictvi/prijate-faktury/<%= inv.id %>/stav" style="display:inline;">
               <input type="hidden" name="redirect_to" value="<%= strany.aktualni %>">
@@ -99,9 +103,9 @@
         </tr>
         <% }) %>
       <% } else { %>
-        <tr><td colspan="8">
+        <tr><td colspan="10">
           <div class="prazdno">
-            <% if (q || statusFilter) { %>
+            <% if (filtr.aktivni || statusFilter) { %>
               <strong>Filtru neodpovídá žádná faktura</strong>
               <a href="/ucetnictvi/prijate-faktury" class="btn btn-outline btn-sm">Zrušit filtr</a>
             <% } else { %>
@@ -127,7 +131,7 @@ function bulkUpdate() {
   // Opakovaný import založí doklad v POHODĚ znovu – ať to není překvapení
   const exported = [...cbs].filter(c => c.dataset.exported).length;
   document.getElementById('bulkSplit').textContent = exported
-    ? `⚠ ${exported} už jednou exportováno` : '';
+    ? `⚠ ${exported} už v POHODĚ je nebo se exportovalo, import ho založí znovu` : '';
   bar.style.display = cbs.length > 0 ? 'flex' : 'none';
   const allCbs = document.querySelectorAll('.bulk-cb');
   document.getElementById('bulkSelectAll').checked = cbs.length === allCbs.length && allCbs.length > 0;

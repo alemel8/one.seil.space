@@ -6,8 +6,11 @@
     if (i % 2) { %><a href="<%= kus %>" target="_blank" rel="noopener noreferrer"><%= kus %></a><% } else { %><%= kus %><% }
   });
   // Doklady z doby před automatikou jsou v systému z POHODY, proto nejsou předvybrané.
-  const predAutomatikou = files.filter(f => !f.invoiceId && f.stav === 'vychozi');
-  const pending = files.filter(f => !f.invoiceId && f.stav !== 'vychozi' && f.stav !== 'nesparovano');
+  const predAutomatikou = files.filter(f => f.stav === 'vychozi');
+  const nesparovane = files.filter(f => f.stav === 'nesparovano');
+  const pending = files.filter(f => f.stav !== 'vychozi' && f.stav !== 'nesparovano');
+  const veFronte = (f) => automatikaHlida && (f.stav === 'cekajici' || !f.stav);
+  const vFronte = files.filter(veFronte).length;
 %>
 <div class="page-header">
   <div class="page-header-left">
@@ -38,11 +41,13 @@
 <% } %>
 
 <p class="form-hint" style="margin-bottom:16px;">
-  Nové doklady ve složce se načítají samy, kontrola běží každých 5 minut.
+  Nové doklady se načítají samy: letošní a loňskou složku kontroluje automatika každých 5 minut, faktury založí a pošle push.
+  <% if (tab === 'nenahrane' && vFronte) { %>Ve frontě: <%= vFronte %>.<% } %>
   <% if (kontrola) { %>Poslední kontrola: <%= new Date(kontrola).toLocaleString('cs-CZ', { timeZone: 'Europe/Prague' }) %>.<% } else { %>Zatím neproběhla.<% } %>
 </p>
 
 <form method="get" class="filtr-lista">
+  <% if (tab === 'nahrane') { %><input type="hidden" name="tab" value="nahrane"><% } %>
   <select name="year" class="form-select" aria-label="Rok">
     <% for (let y = new Date().getFullYear() + 1; y >= 2020; y--) { %>
       <option value="<%= y %>" <%= year === y ? 'selected' : '' %>><%= y %></option>
@@ -57,18 +62,59 @@
   <button type="submit" class="btn btn-outline">Načíst složku</button>
 </form>
 
+<%- include('../../includes/zalozky', { nazev: 'Doklady ve složce', zalozky, tab, adresa: adresaZalozky }) %>
+
 <% if (files.length === 0) { %>
 <div class="card">
   <div class="prazdno">
     <% if (error) { %>
       <strong>Složku se nepodařilo načíst</strong>
       Důvod je v hlášce nahoře.
+    <% } else if (!slozkaPrazdna && tab === 'nenahrane') { %>
+      <strong>Všechny doklady z této složky jsou nahrané</strong>
+      Najdete je na záložce Nahrané.
+    <% } else if (!slozkaPrazdna) { %>
+      <strong>Z této složky zatím není nic nahrané</strong>
+      Doklady čekají na záložce Nenahrané.
     <% } else { %>
       <strong>V této složce nejsou žádné doklady</strong>
       Zkuste jiný měsíc nebo celý rok.
     <% } %>
   </div>
 </div>
+<% } else if (tab === 'nahrane') { %>
+<div class="table-wrapper">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Soubor</th><th>Faktura</th><th class="hide-mobile">Dodavatel</th><th class="num hide-mobile">Celkem</th><th class="mobil">Výsledek</th><th class="hide-mobile">Složka</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% files.forEach(f => { %>
+        <tr data-href="/ucetnictvi/prijate-faktury/<%= f.invoiceId %>">
+          <td data-bez-prokliku>
+            <span class="radek-text" title="<%= f.name %>">
+              <% if (f.webViewLink) { %><a href="<%= f.webViewLink %>" target="_blank" rel="noopener" class="radek-odkaz"><%= f.name %></a><% } else { %><%= f.name %><% } %>
+            </span>
+          </td>
+          <td class="mono"><a href="/ucetnictvi/prijate-faktury/<%= f.invoiceId %>" class="radek-odkaz"><%= f.faktura.internal_number || f.faktura.number %></a></td>
+          <td class="hide-mobile"><span class="radek-text" title="<%= f.faktura.supplier %>"><%= f.faktura.supplier %></span></td>
+          <td class="num hide-mobile"><%= Number(f.faktura.total_amount).toLocaleString('cs-CZ', { minimumFractionDigits: 2 }) %> <%= f.faktura.currency %></td>
+          <td class="mobil">
+            <% if (f.faktura.source === 'gdrive') { %>
+              <span class="badge badge-ok" title="Faktura vznikla z tohoto dokladu.">Založeno</span>
+            <% } else { %>
+              <span class="badge badge-info" title="Doklad se připojil k faktuře, která v systému už byla.">Spárováno</span>
+            <% } %>
+          </td>
+          <td class="sekundarni hide-mobile"><%= f.folderPath %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<%- include('../../includes/strankovani', { strany }) %>
 <% } else { %>
 <form method="post" action="/ucetnictvi/prijate-faktury/gdrive/import" id="gdForm">
   <input type="hidden" name="year"  value="<%= year %>">
@@ -78,8 +124,8 @@
     <button type="submit" class="btn btn-primary" id="gdSubmit" <%= pending.length === 0 ? 'disabled' : '' %>>
       <span>↓ Načíst vybrané (<span id="gdCount"><%= pending.length %></span>)</span>
     </button>
-    <% if (predAutomatikou.length > 0) { %>
-    <button type="button" class="btn btn-outline" onclick="gdVybratStare()">Vybrat doklady Před automatikou (<%= predAutomatikou.length %>)</button>
+    <% if (nesparovane.length > 0) { %>
+    <button type="submit" name="zalozit_vybrane" value="1" class="btn btn-outline" id="gdZalozit" disabled onclick="return confirm('Z vybraných nespárovaných dokladů založit nové faktury?')">Založit vybrané nespárované jako nové</button>
     <% } %>
     <span class="form-hint">
       Každý doklad se stáhne a vytěží Claudem, u jednoho to trvá asi 10 sekund.
@@ -96,7 +142,7 @@
     <table class="data-table">
       <thead>
         <tr>
-          <th style="width:36px;"><input type="checkbox" id="gdAll" onchange="gdToggle(this.checked)" title="Vybrat vše kromě dokladů Před automatikou" aria-label="Vybrat vše kromě dokladů Před automatikou"<%= pending.length === 0 ? ' disabled' : '' %>></th>
+          <th style="width:36px;"><input type="checkbox" id="gdAll" onchange="gdToggle(this.checked)" title="Vybrat všechny doklady" aria-label="Vybrat všechny doklady"></th>
           <th>Soubor</th><th class="hide-mobile">Složka</th><th>Změněno</th><th class="mobil">Stav</th>
         </tr>
       </thead>
@@ -104,9 +150,7 @@
         <% files.forEach(f => { %>
           <tr>
             <td>
-              <% if (!f.invoiceId) { %>
-                <input type="checkbox" class="gd-cb" name="file_ids" value="<%= f.id %>" aria-label="Vybrat <%= f.name %>" <%- f.stav === 'vychozi' ? 'data-pred-automatikou' : f.stav === 'nesparovano' ? 'data-pred-automatikou data-nesparovano' : 'checked' %> onchange="gdUpdate()">
-              <% } %>
+              <input type="checkbox" class="gd-cb" name="file_ids" value="<%= f.id %>" aria-label="Vybrat <%= f.name %>" <%- f.stav === 'vychozi' ? 'data-pred-automatikou' : f.stav === 'nesparovano' ? 'data-pred-automatikou data-nesparovano' : 'checked' %> onchange="gdUpdate()">
             </td>
             <td>
               <span class="radek-text" title="<%= f.name %>">
@@ -120,17 +164,18 @@
               <%= f.modifiedTime ? ceskeDatum(prazskeDatum(f.modifiedTime)) : '–' %>
             </td>
             <td class="mobil">
-              <% if (f.invoiceId) { %>
-                <a href="/ucetnictvi/prijate-faktury/<%= f.invoiceId %>" class="badge badge-ok" style="text-decoration:none;">Naimportováno</a>
-              <% } else if (f.stav === 'vychozi') { %>
+              <% if (f.stav === 'vychozi') { %>
                 <span class="badge badge-neutral" title="Ve složce byl už před spuštěním automatiky, sám se nenačte.">Před automatikou</span>
               <% } else if (f.stav === 'nesparovano') { %>
                 <span class="badge badge-varovani" title="<%= f.chyba %>">Nespárováno</span>
                 <button type="submit" name="zalozit_novou" value="<%= f.id %>" class="btn btn-ghost btn-sm" title="Faktura v systému není, založit ji z tohoto dokladu">Založit jako novou</button>
               <% } else if (f.stav === 'chyba') { %>
                 <span class="badge badge-chyba" title="<%= f.chyba %>">Chyba</span>
+                <% if (automatikaHlida && f.pokusy < MAX_POKUSU) { %><span class="sekundarni" style="font-size:11px;">zkusí se znovu</span><% } %>
+              <% } else if (veFronte(f)) { %>
+                <span class="badge badge-info" title="Načte se samo při příští kontrole, do 5 minut.">Ve frontě</span>
               <% } else { %>
-                <span class="badge badge-info">Nové</span>
+                <span class="badge badge-neutral" title="Automatika hlídá jen letošní a loňskou složku, tento doklad načtete výběrem.">Nenačteno</span>
               <% } %>
             </td>
           </tr>
@@ -143,28 +188,22 @@
 
 <script>
 const gdRadky = () => [...document.querySelectorAll('.gd-cb')];
-// Řádky Před automatikou nezaškrtne ani Vybrat vše: u starých dokladů by import
-// mohl založit duplicitu. Vybraný ručně zůstane, odškrtnutí všeho ho zruší.
+// Vybrat vše bere i doklady Před automatikou: ty se jen párují a fakturu nezaloží.
 function gdToggle(checked) {
-  gdRadky().forEach(cb => {
-    if (!checked || !cb.hasAttribute('data-pred-automatikou')) cb.checked = checked;
-  });
-  gdUpdate();
-}
-function gdVybratStare() {
-  gdRadky().forEach(cb => { if (cb.hasAttribute('data-pred-automatikou') && !cb.hasAttribute('data-nesparovano')) cb.checked = true; });
+  gdRadky().forEach(cb => { cb.checked = checked; });
   gdUpdate();
 }
 function gdUpdate() {
   const vse = gdRadky();
-  const bezne = vse.filter(cb => !cb.hasAttribute('data-pred-automatikou'));
   const n = vse.filter(cb => cb.checked).length;
   const hlavicka = document.getElementById('gdAll');
   if (!hlavicka) return; // prázdná složka, tabulka se nevykreslí
   document.getElementById('gdCount').textContent = n;
   document.getElementById('gdSubmit').disabled = n === 0;
-  hlavicka.checked = bezne.length > 0 && bezne.every(cb => cb.checked);
-  hlavicka.indeterminate = n > 0 && !hlavicka.checked;
+  const zalozit = document.getElementById('gdZalozit');
+  if (zalozit) zalozit.disabled = !vse.some(cb => cb.checked && cb.hasAttribute('data-nesparovano'));
+  hlavicka.checked = vse.length > 0 && n === vse.length;
+  hlavicka.indeterminate = n > 0 && n < vse.length;
 }
 // Prohlížeč po návratu tlačítkem Zpět vrátí zaškrtnutí, počet musí sedět s nimi.
 window.addEventListener('pageshow', gdUpdate);

@@ -90,7 +90,8 @@ describe('automatický import', { skip: PRESKOCIT }, () => {
 
   // Přílohy jdou do data/media a cesta se nedá přesměrovat, proto se mažou i s fakturami.
   const uklid = async () => {
-    await sql`DELETE FROM gdrive_soubory`;
+    // Řádky ir- patří souběžně běžícímu test/interni-rada.test.js.
+    await sql`DELETE FROM gdrive_soubory WHERE file_id NOT LIKE 'ir-%'`;
     const smazane = await sql`
       DELETE FROM accounting_invoices
       WHERE number LIKE 'FA-%' OR number LIKE 'POHODA-%' OR gdrive_file_id IS NOT NULL
@@ -318,6 +319,26 @@ describe('automatický import', { skip: PRESKOCIT }, () => {
     assert.equal((await importujSoubor(sql, null, 'dic-a', { extract: sDic })).vysledek, 'merged');
     const [{ n }] = await sql`SELECT count(*)::int n FROM accounting_invoices WHERE supplier_ico = '28115708'`;
     assert.equal(n, 1);
+  });
+
+  test('založená faktura má zdroj Disk a interní číslo, připojená si nechá svůj zdroj', async () => {
+    doklady = ['zdroj-novy'];
+    await sql`INSERT INTO gdrive_soubory (file_id, nazev, slozka, stav) VALUES ('zdroj-novy', 'n.pdf', '', 'cekajici')`;
+    await importujSoubor(sql, null, 'zdroj-novy', { extract });
+    const nova = await faktura('zdroj-novy');
+    assert.equal(nova.source, 'gdrive');
+    assert.match(nova.internal_number, /^PF\d{2}-\d{4,}$/);
+
+    const POHODA = { ...VYTEZENO, number: 'FA-ZDROJ-2' };
+    await sql`
+      INSERT INTO accounting_invoices (id, type, number, supplier_number, supplier, supplier_ico, amount, vat_amount, total_amount, currency, status, issue_date, source, pohoda_v_evidenci)
+      VALUES ('zdroj-pohoda', 'received', 'POHODA-261100900', 'FA-ZDROJ-2', 'Jiný s.r.o.', '11223344', 10, 0, 777, 'CZK', 'Zaplacena', ${POHODA.issue_date}, 'pohoda', TRUE)
+    `;
+    await importujSoubor(sql, null, 'zdroj-pripojeny', {
+      extract: async () => ({ ...POHODA, supplier: 'Jiný s.r.o.', supplier_ico: '11223344', total_amount: 777 }),
+    });
+    const [pripojena] = await sql`SELECT source, gdrive_file_id, pohoda_v_evidenci FROM accounting_invoices WHERE id = 'zdroj-pohoda'`;
+    assert.deepEqual([pripojena.source, pripojena.gdrive_file_id, pripojena.pohoda_v_evidenci], ['pohoda', 'zdroj-pripojeny', true]);
   });
 
   test('souběh na stejném souboru se tiše přeskočí', async () => {

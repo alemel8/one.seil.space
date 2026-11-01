@@ -471,8 +471,22 @@ IČO index nezná, hlídá ji aplikace, viz `docs/moduly.md`.
 | `attachment_size` | INT | Velikost v bajtech po zmenšení |
 | `gdrive_file_id` | TEXT UNIQUE | Soubor na Google Disku, ze kterého faktura je |
 | `supplier_number` | TEXT | Číslo dokladu od dodavatele ze sloupce Doklad v exportu POHODY, podle něj se páruje doklad z Disku (migrace 046) |
+| `internal_number` | TEXT UNIQUE | Interní číslo přijaté faktury `PF26-0001`, od data dokladu 1. 1. 2026, přiděluje trigger (migrace 047, viz `interni_rady`) |
+| `source` | TEXT | Odkud doklad přišel: `rucne`, `gdrive`, `pohoda`, `eshop`, `sablona`. U řádků starších než migrace 047 odvozeno ze stop |
+| `pohoda_v_evidenci` | BOOL | Doklad je v POHODĚ: přišel z jejího exportu, nebo ho v něm našel `scripts/import-faktury-xlsx.js`. Na rozdíl od `pohoda_exported_at` nejde o vygenerované XML |
 | `notes` | TEXT | |
 | `created_at` | TIMESTAMPTZ | |
+
+### `interni_rady`
+Čítače interních čísel přijatých dokladů, jeden řádek na druh a rok.
+
+| Sloupec | Typ | Popis |
+|---|---|---|
+| `druh` | TEXT | `PF` přijaté faktury, `UC` účtenky |
+| `rok` | INT | Poslední dvě číslice roku z data dokladu |
+| `posledni` | INT | Poslední přidělené pořadí |
+
+Číslo přiděluje trigger při INSERT a při opravě data na dokladu bez čísla, takže ho dostane každá cesta založení (Disk, formulář, importní skripty). Čítač se mění ve stejné transakci jako doklad, nepovedené založení číslo nespotřebuje. Přidělené číslo se opravou data nemění. Doklady starší než 1. 1. 2026 číslo nemají.
 
 ### `gdrive_soubory`
 Doklady, které automatický import viděl na Google Disku (`src/gdrive-import.js`).
@@ -595,6 +609,7 @@ Bankovní pohyby.
 | `payment_method` | TEXT | Hotovost / Karta / Převodem – určuje agendu v POHODĚ |
 | `vat_deductible` | BOOL | Nárok na odpočet DPH; u reprezentace vždy `FALSE` |
 | `pohoda_exported_at` | TIMESTAMPTZ | Poslední export do POHODY (ochrana před duplicitou) |
+| `internal_number` | TEXT UNIQUE | Interní číslo `UC26-0001`, viz `interni_rady` |
 | `attachment_path` | TEXT | Foto / PDF dokladu v `data/media/` (viz `src/attachments.js`) |
 | `attachment_mime` | TEXT | `image/jpeg`, `application/pdf`, … |
 | `attachment_size` | INT | Velikost v bajtech po zmenšení |

@@ -1,6 +1,6 @@
 <%
   const zalohove = typ === 'zalohove';
-  const sFiltrem = Boolean(q || statusFilter);
+  const sFiltrem = Boolean(filtr.aktivni || statusFilter);
   const bezFiltru = zalohove ? '/ucetnictvi/vydane-faktury?typ=zalohove' : '/ucetnictvi/vydane-faktury';
   const tvar = (jedna, dve, pet) => total === 1 ? jedna : total >= 2 && total <= 4 ? dve : pet;
   const castka = n => Number(n).toLocaleString('cs-CZ', { minimumFractionDigits: 2 });
@@ -38,7 +38,7 @@
 <form method="get" class="filtr-lista">
   <% if (strany.vlastniVelikost) { %><input type="hidden" name="velikost" value="<%= strany.naStranku %>"><% } %>
   <% if (zalohove) { %><input type="hidden" name="typ" value="zalohove"><% } %>
-  <input type="text" name="q" value="<%= q %>" placeholder="Hledat číslo, klient…" class="form-control" aria-label="Hledat číslo nebo klienta">
+  <%- include('../../includes/filtr-dokladu', { filtr, hledatPopisek: 'Hledat číslo, klienta, IČO, částku…', dodavatelPopisek: 'Klient', dodavatele: klienti }) %>
   <select name="status" class="form-select" aria-label="Stav">
     <option value="">Všechny stavy</option>
     <% STATUSES_ISSUED.forEach(s => { %><option value="<%= s %>" <%= statusFilter===s?'selected':'' %>><%= s %></option><% }) %>
@@ -48,13 +48,13 @@
 </form>
 
 <div class="table-wrapper">
-  <table class="data-table">
+  <table class="data-table tesna">
     <thead>
       <tr>
         <% if (!zalohove) { %><th style="width:36px;"><input type="checkbox" id="bulkSelectAll" onchange="bulkToggleAll(this.checked)" title="Vybrat všechny na této stránce" aria-label="Vybrat všechny na této stránce"></th><% } %>
         <th>Číslo</th><th>Klient</th><th class="hide-mobile">Vystavení</th><th class="hide-mobile">Splatnost</th>
         <th class="num hide-mobile">Základ</th><th class="num mobil">Celkem</th>
-        <th>Doklad</th><th class="mobil">Stav</th>
+        <th>Doklad</th><th class="hide-mobile">Zdroj</th><th class="hide-mobile">POHODA</th><th class="mobil">Stav</th>
       </tr>
     </thead>
     <tbody>
@@ -64,13 +64,11 @@
           <% if (!zalohove) { %>
           <td data-bez-prokliku>
             <input type="checkbox" class="bulk-cb" value="<%= inv.id %>" onchange="bulkUpdate()" aria-label="Vybrat fakturu <%= inv.number %>"
-                   data-exported="<%= inv.pohoda_exported_at ? new Date(inv.pohoda_exported_at).toLocaleDateString('cs-CZ') : '' %>">
+                   data-exported="<%= inv.pohoda_v_evidenci || inv.pohoda_exported_at ? '1' : '' %>">
           </td>
           <% } %>
           <td class="mono">
             <a href="/ucetnictvi/vydane-faktury/<%= inv.id %>" class="radek-odkaz"><%= inv.number %></a>
-            <% if (inv.pohoda_exported_at) { %><br><span style="font-size:10px;color:var(--text-muted);font-weight:400;"
-                 title="Naposledy exportováno do POHODY">↑ <%= new Date(inv.pohoda_exported_at).toLocaleDateString('cs-CZ') %></span><% } %>
           </td>
           <td><span class="radek-text" title="<%= inv.client_name || '' %>"><%= inv.client_name || '–' %></span></td>
           <td class="mono sekundarni hide-mobile"><%= ceskeDatum(inv.issue_date) %></td>
@@ -86,11 +84,13 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             </a>
           </td>
+          <td class="sekundarni hide-mobile"><%= zdrojDokladu(inv) %></td>
+          <td class="hide-mobile"><%- include('../../includes/pohoda-stav', { doklad: inv }) %></td>
           <td class="mobil"><span class="badge badge-<%= tonStavu(inv.status) %>"><%= inv.status %></span></td>
         </tr>
         <% }) %>
       <% } else { %>
-        <tr><td colspan="<%= zalohove ? 8 : 9 %>">
+        <tr><td colspan="<%= zalohove ? 10 : 11 %>">
           <div class="prazdno">
             <% if (sFiltrem) { %>
               <strong>Filtru neodpovídá žádná faktura</strong>
@@ -122,7 +122,7 @@ function bulkUpdate() {
   // Opakovaný import založí doklad v POHODĚ znovu – ať to není překvapení
   const exported = [...cbs].filter(c => c.dataset.exported).length;
   document.getElementById('bulkSplit').textContent = exported
-    ? `⚠ ${exported} už jednou exportováno` : '';
+    ? `⚠ ${exported} už v POHODĚ je nebo se exportovalo, import ho založí znovu` : '';
   bar.style.display = cbs.length > 0 ? 'flex' : 'none';
   const allCbs = document.querySelectorAll('.bulk-cb');
   document.getElementById('bulkSelectAll').checked = cbs.length === allCbs.length && allCbs.length > 0;

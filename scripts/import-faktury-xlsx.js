@@ -38,6 +38,9 @@
  *      Slučuje se jen při shodě data nebo částky. Když to poznat nejde, přeskočí
  *      se s varováním.
  *   3. Kontrolně dodavatel+datum+částka – jen varování do logu.
+ *
+ * Každý doklad nalezený v exportu dostane příznak pohoda_v_evidenci (seznamy
+ * ukazují V POHODĚ), i faktura z e-shopu nebo z Disku, kterou tu nezakládá POHODA.
  */
 
 import './lib/load-env.js';   // musí být první – plní process.env z .env
@@ -244,6 +247,8 @@ const stats = {
   statusSynced: 0, statusDrift: 0, statusProtected: 0, dokladDoplnen: 0,
 };
 const warnings = [];
+// Řádky v DB, které export z POHODY obsahuje; příznak se zapíše na konci najednou.
+const vPohode = new Set();
 
 /**
  * Existující faktura – srovnat stav úhrady s POHODOU.
@@ -307,6 +312,7 @@ async function importIssued(icoToCompany, today) {
     const f = mapRow(row, today);
     const dup = existing.get(f.number);
     if (dup) {
+      if (dup.id) vPohode.add(dup.id);
       stats.issuedSkip++;
       await syncStatus(dup, f);
       continue;
@@ -321,12 +327,12 @@ async function importIssued(icoToCompany, today) {
         INSERT INTO accounting_invoices
           (id, type, number, status, client_name, client_ico, client_dic, client_address,
            crm_company_id, issue_date, due_date, paid_date,
-           amount, vat_amount, total_amount, currency, notes, created_at, modified_at)
+           amount, vat_amount, total_amount, currency, notes, source, pohoda_v_evidenci, created_at, modified_at)
         VALUES (
           ${genId()}, 'issued', ${f.number}, ${f.status},
           ${f.name}, ${f.ico}, ${f.dic}, ${f.address},
           ${companyId}, ${f.issueDate}, ${f.dueDate}, ${f.paidDate},
-          ${f.amount}, ${f.vat}, ${f.total}, 'CZK', ${f.notes}, NOW(), NOW()
+          ${f.amount}, ${f.vat}, ${f.total}, 'CZK', ${f.notes}, 'pohoda', TRUE, NOW(), NOW()
         )
       `;
       console.log(`  + ${f.number} | ${f.issueDate} | ${f.name} | ${f.total} Kč | ${f.status}`);
@@ -380,6 +386,7 @@ async function importReceived(icoToCompany, today) {
       continue;
     }
     if (podleCisla.akce === 'existuje') {
+      if (podleCisla.radek.id) vPohode.add(podleCisla.radek.id);
       stats.receivedSkip++;
       // Číslo dodavatele pro párování s Google Diskem; jen prázdné, ruční opravu nepřepíše.
       if (podleCisla.radek.id && !podleCisla.radek.supplier_number && f.doklad) {
@@ -429,7 +436,7 @@ async function importReceived(icoToCompany, today) {
             crm_company_id = COALESCE(crm_company_id, ${f.ico ? icoToCompany.get(f.ico) ?? null : null}),
             issue_date = ${f.issueDate}, due_date = ${f.dueDate}, paid_date = ${zaplaceno ? underVs.paid_date : f.paidDate},
             amount = ${f.amount}, vat_amount = ${f.vat}, total_amount = ${f.total},
-            notes = ${f.notes}, modified_at = NOW()
+            notes = ${f.notes}, pohoda_v_evidenci = TRUE, modified_at = NOW()
           WHERE id = ${underVs.id}
         `;
       }
@@ -467,13 +474,13 @@ async function importReceived(icoToCompany, today) {
           (id, type, number, supplier_number, status, supplier, supplier_ico, supplier_dic,
            supplier_address, supplier_city, supplier_zip, supplier_country,
            crm_company_id, issue_date, due_date, paid_date,
-           amount, vat_amount, total_amount, currency, notes, created_at, modified_at)
+           amount, vat_amount, total_amount, currency, notes, source, pohoda_v_evidenci, created_at, modified_at)
         VALUES (
           ${genId()}, 'received', ${f.number}, ${f.doklad}, ${f.status},
           ${f.name}, ${f.ico}, ${f.dic},
           ${f.street}, ${f.city}, ${f.zip}, 'Česká republika',
           ${companyId}, ${f.issueDate}, ${f.dueDate}, ${f.paidDate},
-          ${f.amount}, ${f.vat}, ${f.total}, 'CZK', ${f.notes}, NOW(), NOW()
+          ${f.amount}, ${f.vat}, ${f.total}, 'CZK', ${f.notes}, 'pohoda', TRUE, NOW(), NOW()
         )
       `;
     }
@@ -505,6 +512,10 @@ try {
   await importIssued(icoToCompany, today);
   await importReceived(icoToCompany, today);
 
+  const ids = [...vPohode];
+  const oznacit = await sql`SELECT id FROM accounting_invoices WHERE id = ANY(${ids}) AND NOT pohoda_v_evidenci`;
+  if (!DRY_RUN) await sql`UPDATE accounting_invoices SET pohoda_v_evidenci = TRUE WHERE id = ANY(${oznacit.map(r => r.id)})`;
+
   if (warnings.length) {
     console.log('\n━━━ Ke kontrole ━━━');
     for (const w of warnings) console.log(`  ! ${w}`);
@@ -514,6 +525,7 @@ try {
   console.log(`Vydané:   +${stats.issued} nových, ${stats.issuedSkip} duplicit přeskočeno`);
   console.log(`Přijaté:  +${stats.received} nových, ${stats.receivedMerged} sloučeno, ${stats.receivedSkip} duplicit přeskočeno`);
   console.log(`Číslo dodavatele doplněno u ${stats.dokladDoplnen} přijatých faktur`);
+  console.log(`Nově označeno V POHODĚ: ${oznacit.length}`);
   console.log(`Stav úhrady: ${stats.statusDrift} rozdílů oproti POHODĚ, ${stats.statusSynced} srovnáno` +
               (stats.statusProtected ? `, ${stats.statusProtected} ponecháno podle banky` : ''));
 } catch (err) {

@@ -11,6 +11,7 @@ import puppeteer from 'puppeteer';
 import { BASE, PRESKOCIT, lokalniDatabaze, prihlas, pozadavky, serverBezi } from './pomocnici/server.js';
 import { overSeznam, odkazStrany } from './pomocnici/seznamy.js';
 import { vykresliStranku } from './pomocnici/render.js';
+import { filtrDokladu } from '../src/filtr-dokladu.js';
 import { strankovani } from '../src/strankovani.js';
 
 const SEZNAM = '/ucetnictvi/vydane-faktury';
@@ -21,7 +22,7 @@ describe('šablona seznamu bez serveru', () => {
   const vykresli = (prepis = {}) => {
     const typ = prepis.typ ?? 'vydane';
     return vykresliStranku('invoices/issued', {
-      invoices: [], total: 0, typ, q: '', statusFilter: '', STATUSES_ISSUED, series: [], formError: '',
+      invoices: [], total: 0, typ, filtr: filtrDokladu({ q: prepis.q }), klienti: [], statusFilter: '', STATUSES_ISSUED, series: [], formError: '',
       strany: strankovani({ cesta: SEZNAM, query: {}, celkem: 0 }),
       zalozky: [{ klic: 'vydane', popisek: 'Vydané', pocet: 0 }, { klic: 'zalohove', popisek: 'Zálohové', pocet: 0 }],
       adresaZalozky: (k) => (k === 'vydane' ? SEZNAM : `${SEZNAM}?typ=${k}`),
@@ -35,7 +36,7 @@ describe('šablona seznamu bez serveru', () => {
     const html = await vykresli();
     assert.ok(html.includes('Zatím žádné vydané faktury'));
     assert.equal(colspan(html), sloupcu(html));
-    assert.equal(sloupcu(html), 9);
+    assert.equal(sloupcu(html), 11);
     assert.ok(html.includes('id="modalCreate"'));
     assert.ok(html.includes('id="bulkBar"'));
     assert.ok(!html.includes('class="strankovani"'), 'prázdný seznam nemá patičku');
@@ -45,7 +46,7 @@ describe('šablona seznamu bez serveru', () => {
     const html = await vykresli({ typ: 'zalohove' });
     assert.ok(html.includes('Zatím žádné zálohové faktury'));
     assert.equal(colspan(html), sloupcu(html));
-    assert.equal(sloupcu(html), 8);
+    assert.equal(sloupcu(html), 10);
     for (const nesmi of ['bulkBar', 'bulk-cb', 'bulkSelectAll', 'pohoda-xml', 'export.csv', 'modalCreate', 'acList']) {
       assert.ok(!html.includes(nesmi), nesmi);
     }
@@ -433,6 +434,7 @@ describe('seznam vydaných a zálohových faktur', { skip: PRESKOCIT }, () => {
       // Vlastní panel: po návratu z bfcache Puppeteer na téže stránce nečeká navigaci spolehlivě.
       const panel = await browser.newPage();
       panel.on('pageerror', e => jsChyby.push(e.message));
+      await panel.setViewport({ width: 1366, height: 800 });
       try {
         await panel.goto(`${BASE}${SEZNAM}?q=${r}`, { waitUntil: 'networkidle0' });
         const boxy = await panel.$$('.bulk-cb');
