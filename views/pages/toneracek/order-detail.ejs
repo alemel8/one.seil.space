@@ -1,9 +1,6 @@
 <%
-  const statusStyle = {
-    'Přijata':        'background:#dbeafe;color:#1e40af',
-    'Vyřízena':       'background:#dcfce7;color:#166534',
-    'Stornována':     'background:#fee2e2;color:#991b1b',
-  }[order.status] || 'background:#f1f5f9;color:#475569';
+  // NUMERIC chodí z databáze jako text, toLocaleString na něm nic neudělá.
+  const kc = (n) => Number(n).toLocaleString('cs-CZ', { minimumFractionDigits: 2 });
 
   const shippingDiffers = order.shipping_address && order.shipping_address !== order.address;
 
@@ -18,7 +15,7 @@
     ceka:      '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
     blokovano: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
   };
-  const SKLAD_BARVA = { odeslano: '#166534', ceka: '#b45309', blokovano: '#b91c1c' };
+  const SKLAD_BARVA = { odeslano: 'var(--ton-ok-text)', ceka: 'var(--ton-varovani-text)', blokovano: 'var(--ton-chyba-text)' };
 
   let skladText;
   if (order.sklad_stav === 'odeslano') {
@@ -39,10 +36,10 @@
 <div class="page-header">
   <div class="page-header-left">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-      <a href="/ucetnictvi/objednavky<%= eshopQs ? '?' + eshopQs : '' %>" style="color:var(--text-muted);text-decoration:none;font-size:13px;">← Objednávky</a>
+      <a href="/ucetnictvi/objednavky<%= eshopQs ? '?' + eshopQs : '' %>" style="color:var(--text-muted);text-decoration:none;font-size:13px;" data-zpet>← Objednávky</a>
       <span style="color:var(--border);">/</span>
       <h1 style="margin:0;">Objednávka #<%= order.order_number %></h1>
-      <span class="badge" style="<%= statusStyle %>"><%= order.status %></span>
+      <span class="badge badge-<%= tonStavu(order.status) %>"><%= order.status %></span>
       <%# E-shop se ukazuje jen u ostatních než Toneráčku – ten zůstává, jak byl. %>
       <% if (shop.slug !== vychoziEshop) { %>
         <span class="badge" style="background:var(--gray-100);color:var(--text-secondary);border:1px solid var(--border);"><%= shop.name %></span>
@@ -56,10 +53,19 @@
 </div>
 
 <% if (typeof saved !== 'undefined' && saved) { %>
-<div class="alert alert-success" style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:12px 16px;border-radius:8px;margin-bottom:20px;">✓ Uloženo</div>
+<div class="hlaska hlaska-ok">✓ Uloženo</div>
 <% } %>
 
-<div style="display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start;">
+<%# Vlastní pravidla: pravý sloupec s pevnou šířkou by na úzkém okně vytlačil stránku za okraj
+    a dlouhé tlačítko skladu by přeteklo kartu. Dva sloupce až od šířky, kde se levý vejde i s bočním menu. %>
+<style>
+.obj-mrizka { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+.obj-udaje { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 8px 16px; font-size: 13px; margin: 0; }
+.obj-udaje .btn { white-space: normal; height: auto; }
+@media (max-width: 1000px) { .obj-mrizka { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 480px) { .obj-udaje { grid-template-columns: 96px minmax(0, 1fr); gap: 8px 12px; } }
+</style>
+<div class="obj-mrizka">
 
   <!-- ── Levý sloupec ───────────────────────────────────────── -->
   <div style="display:flex;flex-direction:column;gap:16px;">
@@ -86,16 +92,16 @@
               </td>
               <td style="text-align:center;padding:10px 0;"><%= item.quantity %></td>
               <td style="text-align:right;padding:10px 0;font-variant-numeric:tabular-nums;">
-                <% if (item.price > 0) { %><%= item.price.toLocaleString('cs-CZ') %> Kč<% } else { %>–<% } %>
+                <% if (item.price > 0) { %><%= kc(item.price) %> Kč<% } else { %>–<% } %>
               </td>
               <td style="text-align:right;padding:10px 0;font-weight:500;font-variant-numeric:tabular-nums;">
-                <% if (item.price > 0) { %><%= (item.price * item.quantity).toLocaleString('cs-CZ') %> Kč<% } else { %>–<% } %>
+                <% if (item.price > 0) { %><%= kc(item.price * item.quantity) %> Kč<% } else { %>–<% } %>
               </td>
             </tr>
             <% }); %>
             <tr>
               <td colspan="3" style="text-align:right;padding:12px 0 0;font-weight:600;color:var(--text-muted);">Celková částka</td>
-              <td style="text-align:right;padding:12px 0 0;font-weight:700;font-size:15px;font-variant-numeric:tabular-nums;"><%= order.total_price.toLocaleString('cs-CZ') %> Kč</td>
+              <td style="text-align:right;padding:12px 0 0;font-weight:700;font-size:15px;font-variant-numeric:tabular-nums;"><%= kc(order.total_price) %> Kč</td>
             </tr>
           </tbody>
         </table>
@@ -106,7 +112,7 @@
     <div class="card">
       <div class="card-body">
         <h2 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 16px;">Zákazník</h2>
-        <dl style="display:grid;grid-template-columns:140px 1fr;gap:8px 16px;font-size:13px;margin:0;">
+        <dl class="obj-udaje">
           <dt style="color:var(--text-muted);">Jméno</dt>
           <dd style="margin:0;font-weight:500;"><%= order.first_name %> <%= order.last_name %></dd>
 
@@ -122,7 +128,7 @@
 
           <% if (order.email) { %>
           <dt style="color:var(--text-muted);">E-mail</dt>
-          <dd style="margin:0;"><a href="mailto:<%= order.email %>" style="color:var(--primary);"><%= order.email %></a></dd>
+          <dd style="margin:0;"><a href="mailto:<%= order.email %>" style="color:var(--link);"><%= order.email %></a></dd>
           <% } %>
 
           <dt style="color:var(--text-muted);">Telefon</dt>
@@ -138,7 +144,7 @@
     <div class="card">
       <div class="card-body">
         <h2 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 16px;">Doručení</h2>
-        <dl style="display:grid;grid-template-columns:140px 1fr;gap:8px 16px;font-size:13px;margin:0;">
+        <dl class="obj-udaje">
           <dt style="color:var(--text-muted);">Způsob</dt>
           <dd style="margin:0;"><%= order.shipping_method %></dd>
 
@@ -161,7 +167,7 @@
           %>
           <dt style="color:var(--text-muted);">Číslo zásilky</dt>
           <dd style="margin:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            <a href="<%= trackingUrl %>" target="_blank" style="font-family:var(--font-mono);font-weight:600;color:var(--primary);text-decoration:none;"><%= order.tracking_number %></a>
+            <a href="<%= trackingUrl %>" target="_blank" style="font-family:var(--font-mono);font-weight:600;color:var(--link);text-decoration:none;"><%= order.tracking_number %></a>
             <a href="/ucetnictvi/objednavky/<%= order.id %>/stitek" target="_blank" class="btn btn-outline btn-sm">Štítek PDF</a>
           </dd>
           <% } %>
@@ -225,7 +231,7 @@
           </div>
           <div style="border-top:1px solid var(--border);padding-top:10px;display:flex;justify-content:space-between;font-weight:700;font-size:15px;">
             <dt>Celkem</dt>
-            <dd style="margin:0;"><%= order.total_price.toLocaleString('cs-CZ') %> Kč</dd>
+            <dd style="margin:0;"><%= kc(order.total_price) %> Kč</dd>
           </div>
         </dl>
       </div>
@@ -241,20 +247,20 @@
         <h2 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 12px;">Faktura</h2>
 
         <% if (typeof error !== 'undefined' && error === 'proforma-nezaplacena') { %>
-          <div class="alert" style="background:#fee2e2;color:#991b1b;padding:10px 12px;border-radius:8px;font-size:12px;margin-bottom:12px;">Nejprve musí být uhrazena zálohová faktura.</div>
+          <div class="hlaska hlaska-chyba" style="padding:10px 12px;font-size:12px;margin-bottom:12px;">Nejprve musí být uhrazena zálohová faktura.</div>
         <% } %>
 
         <% if (isTransfer && proforma) { %>
           <div style="margin-bottom:10px;font-size:13px;">
             <span style="color:var(--text-muted);">Zálohová faktura:</span>
-            <a href="/ucetnictvi/vydane-faktury/<%= proforma.id %>" style="color:var(--primary);font-weight:500;"> <%= proforma.number %></a>
-            <span class="badge" style="margin-left:6px;<%= proformaPaid ? 'background:#dcfce7;color:#166534;' : 'background:#fef3c7;color:#92400e;' %>"><%= proforma.status %></span>
+            <a href="/ucetnictvi/vydane-faktury/<%= proforma.id %>" style="color:var(--link);font-weight:500;"> <%= proforma.number %></a>
+            <span class="badge badge-<%= tonStavu(proforma.status) %>" style="margin-left:6px;"><%= proforma.status %></span>
           </div>
           <a href="/ucetnictvi/vydane-faktury/<%= proforma.id %>/pdf" target="_blank" class="btn btn-outline" style="width:100%;text-align:center;margin-bottom:10px;">📄 Stáhnout zálohovou fakturu</a>
         <% } %>
 
         <% if (isTransfer && proformaPaid && order.status !== 'Vyřízena' && !invoice) { %>
-          <div style="background:#dcfce7;color:#166534;padding:10px 12px;border-radius:8px;font-size:12px;margin-bottom:0;">💰 Zálohová faktura je uhrazena. Po přepnutí stavu objednávky na <strong>Vyřízena</strong> se automaticky vystaví a odešle běžná faktura.</div>
+          <div class="hlaska hlaska-ok" style="padding:10px 12px;font-size:12px;margin-bottom:0;">💰 Zálohová faktura je uhrazena. Po přepnutí stavu objednávky na <strong>Vyřízena</strong> se automaticky vystaví a odešle běžná faktura.</div>
         <% } %>
 
         <% if (isTransfer && !proforma && !invoice) { %>
@@ -268,7 +274,7 @@
         <% } else if (invoice) { %>
           <div style="margin-bottom:10px;font-size:13px;">
             <span style="color:var(--text-muted);">Faktura vystavena:</span>
-            <a href="/ucetnictvi/vydane-faktury/<%= invoice.id %>" style="color:var(--primary);font-weight:500;"> <%= invoice.number %></a>
+            <a href="/ucetnictvi/vydane-faktury/<%= invoice.id %>" style="color:var(--link);font-weight:500;"> <%= invoice.number %></a>
           </div>
           <a href="/ucetnictvi/vydane-faktury/<%= invoice.id %>/pdf" target="_blank" class="btn btn-outline" style="width:100%;text-align:center;margin-bottom:6px;">📄 Stáhnout PDF</a>
         <% } else if (!isTransfer) { %>

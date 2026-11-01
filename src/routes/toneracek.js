@@ -11,6 +11,7 @@ import {
 import { okamzikPlatbySql, zobrazeniUhrady } from '../danovy-doklad.js';
 import { ceskeDatum } from '../prazsky-cas.js';
 import { atribuceZTela, nakupniCenaZPolozky } from '../atribuce-objednavky.js';
+import { parametr, strankovani } from '../strankovani.js';
 
 /** Hodnoty sloupce „Sklad" v seznamu objednávek – filtr bere jen tyhle. */
 const SKLAD_STAVY = ['odeslano', 'ceka', 'blokovano', 'neplati'];
@@ -774,14 +775,12 @@ export default async function toneracekRoutes(fastify) {
   fastify.get('/ucetnictvi/objednavky', async (request, reply) => {
     if (!request.user) return reply.redirect('/prihlasit');
 
-    const q            = (request.query.q      || '').trim();
-    const statusFilter = (request.query.status || '').trim();
-    const skladFilter  = (request.query.sklad  || '').trim();
-    const page    = Math.max(1, parseInt(request.query.page || '1', 10));
-    const perPage = 25;
-    const offset  = (page - 1) * perPage;
+    const q            = parametr(request.query.q);
+    const statusFilter = parametr(request.query.status);
+    const skladZadany  = parametr(request.query.sklad);
+    const skladFilter  = SKLAD_STAVY.includes(skladZadany) ? skladZadany : '';
 
-    const slug = String(request.query.eshop || VYCHOZI_ESHOP).trim().toLowerCase();
+    const slug = (parametr(request.query.eshop) || VYCHOZI_ESHOP).toLowerCase();
     const shop = await shopPodleSlugu(sql, slug);
     if (!shop) {
       return slug === VYCHOZI_ESHOP
@@ -810,17 +809,27 @@ export default async function toneracekRoutes(fastify) {
 
     const where  = sql`WHERE ${conditions.reduce((a, b) => sql`${a} AND ${b}`)}`;
     const zaklad = objednavkySeStavemSkladu(sql, shop, where);
-    const skladWhere = SKLAD_STAVY.includes(skladFilter)
+    const skladWhere = skladFilter
       ? sql`WHERE x.sklad_stav = ${skladFilter}`
       : sql``;
 
     const [{ count }] = await sql`SELECT COUNT(*)::int AS count FROM (${zaklad}) x ${skladWhere}`;
-    const orders      = await sql`
+    // E-shop z routy, ne z adresy: Toneráček jde bez parametru jako v seznamObjednavek().
+    const strany = strankovani({
+      cesta: '/ucetnictvi/objednavky',
+      query: { ...request.query, sklad: skladFilter },
+      celkem: count,
+      zachovat: ['q', 'status', 'sklad'],
+      pevne: shop.slug === VYCHOZI_ESHOP ? {} : { eshop: shop.slug },
+    });
+    const orders = await sql`
       SELECT * FROM (${zaklad}) x ${skladWhere}
-      ORDER BY x.created_at DESC LIMIT ${perPage} OFFSET ${offset}
+      ORDER BY x.created_at DESC, x.id DESC
+      LIMIT ${strany.naStranku} OFFSET ${strany.offset}
     `;
     const statusCounts = await sql`
       SELECT status, COUNT(*)::int AS n FROM shop_orders WHERE shop_id = ${shop.id} GROUP BY status
+      ORDER BY array_position(${ORDER_STATUSES}::text[], status) NULLS LAST, status
     `;
     // Počty pro chipy se počítají nad celým e-shopem, ne nad vyfiltrovaným
     // výběrem – jinak by po kliknutí na „nešlo do skladu" ostatní chipy zmizely.
@@ -841,8 +850,7 @@ export default async function toneracekRoutes(fastify) {
     return reply.view('pages/toneracek/orders.ejs', {
       pageTitle: nadpis, currentPath: '/ucetnictvi/objednavky',
       user: request.user, orders, total: count, shop, eshopy, nadpis,
-      eshopQs: eshopParam(shop), vychoziEshop: VYCHOZI_ESHOP,
-      currentPage: page, totalPages: Math.ceil(count / perPage),
+      eshopQs: eshopParam(shop), vychoziEshop: VYCHOZI_ESHOP, strany,
       q, statusFilter, skladFilter, statusCounts, ORDER_STATUSES,
       skladCounts: Object.fromEntries(skladCounts.map(r => [r.sklad_stav, r.n])),
       duvody: DUVODY_POZASTAVENI,
@@ -862,7 +870,7 @@ export default async function toneracekRoutes(fastify) {
         sql`WHERE o.id = ${request.params.id} AND o.shop_id = ${shop.id}`)}) x
     `;
     if (!order) return reply.code(404).send('Objednávka nenalezena');
-    const items        = await sql`SELECT * FROM shop_order_items WHERE order_id = ${order.id}`;
+    const items        = await sql`SELECT * FROM shop_order_items WHERE order_id = ${order.id} ORDER BY id`;
     const [invoice]    = await sql`SELECT id, number FROM accounting_invoices WHERE order_id = ${order.id} AND type = 'issued' LIMIT 1`;
     const [proforma]   = await sql`SELECT id, number, status FROM accounting_invoices WHERE order_id = ${order.id} AND type = 'proforma' LIMIT 1`;
     const [sentBy]     = order.warehouse_sent_by
