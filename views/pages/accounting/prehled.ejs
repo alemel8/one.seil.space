@@ -1,6 +1,5 @@
 <%
   const fmt = (n) => Number(n||0).toLocaleString('cs-CZ', {minimumFractionDigits:2});
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('cs-CZ') : '–';
   const MONTHS = ['Led','Úno','Bře','Dub','Kvě','Čvn','Čvc','Srp','Zář','Říj','Lis','Pro'];
 
   // Graf: sestavit pole 12 hodnot pro vydané a přijaté
@@ -168,48 +167,21 @@
 
 <!-- ── Faktury po splatnosti ── -->
 <% if (overdue.issued.length > 0 || overdue.received.length > 0) { %>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+<%# Dvě karty vedle sebe jen tam, kde se do nich vejde celá tabulka bez posouvání. %>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,500px),1fr));gap:24px;">
 
   <% if (overdue.issued.length > 0) { %>
-  <div class="card">
-    <div class="card-header" style="color:var(--danger);">⚠ Pohledávky po splatnosti (<%= overdue.issued.length %>)</div>
-    <div class="table-wrapper" style="border:none;border-radius:0;">
-      <table class="data-table">
-        <thead><tr><th>Číslo</th><th>Klient</th><th>Splatnost</th><th style="text-align:right;">Celkem</th></tr></thead>
-        <tbody>
-          <% overdue.issued.forEach(inv => { %>
-          <tr onclick="location.href='/ucetnictvi/vydane-faktury/<%= inv.id %>'" style="cursor:pointer;">
-            <td style="font-weight:600;"><%= inv.number %></td>
-            <td><%= inv.client_name||'–' %></td>
-            <td style="color:var(--danger);font-size:12px;"><%= fmtDate(inv.due_date) %></td>
-            <td style="text-align:right;font-weight:500;"><%= fmt(inv.total_amount) %> <%= inv.currency %></td>
-          </tr>
-          <% }) %>
-        </tbody>
-      </table>
-    </div>
-  </div>
+  <%- include('_po-splatnosti', {
+    nadpis: 'Pohledávky po splatnosti', sloupecProtistrana: 'Klient', pocet: overdueCount.issued, faktury: overdue.issued,
+    seznam: '/ucetnictvi/vydane-faktury', protistrana: inv => inv.client_name, fmt,
+  }) %>
   <% } %>
 
   <% if (overdue.received.length > 0) { %>
-  <div class="card">
-    <div class="card-header" style="color:var(--danger);">⚠ Závazky po splatnosti (<%= overdue.received.length %>)</div>
-    <div class="table-wrapper" style="border:none;border-radius:0;">
-      <table class="data-table">
-        <thead><tr><th>Číslo</th><th>Dodavatel</th><th>Splatnost</th><th style="text-align:right;">Celkem</th></tr></thead>
-        <tbody>
-          <% overdue.received.forEach(inv => { %>
-          <tr onclick="location.href='/ucetnictvi/prijate-faktury/<%= inv.id %>'" style="cursor:pointer;">
-            <td style="font-weight:600;"><%= inv.number %></td>
-            <td><%= inv.supplier||'–' %></td>
-            <td style="color:var(--danger);font-size:12px;"><%= fmtDate(inv.due_date) %></td>
-            <td style="text-align:right;font-weight:500;"><%= fmt(inv.total_amount) %> <%= inv.currency %></td>
-          </tr>
-          <% }) %>
-        </tbody>
-      </table>
-    </div>
-  </div>
+  <%- include('_po-splatnosti', {
+    nadpis: 'Závazky po splatnosti', sloupecProtistrana: 'Dodavatel', pocet: overdueCount.received, faktury: overdue.received,
+    seznam: '/ucetnictvi/prijate-faktury', protistrana: inv => inv.supplier, fmt,
+  }) %>
   <% } %>
 
 </div>

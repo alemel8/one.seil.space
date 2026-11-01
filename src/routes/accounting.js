@@ -1,9 +1,13 @@
 import { getDb, generateId } from '../db.js';
 import { naklady, mzdyPoMesicich, popisNakladu } from '../finance.js';
 import { prazskeDatum } from '../prazsky-cas.js';
+import { parametr, strankovani } from '../strankovani.js';
+import { bezpecnyNavrat } from '../navrat.js';
 
 // Pozn: vydané a přijaté faktury jsou v src/routes/invoices.js
 // Tento soubor spravuje bankovní záznamy, manuální položky a Fio CSV import
+
+const PO_SPLATNOSTI_NA_PREHLEDU = 10;
 
 /**
  * Doklad, ke kterému se příchozí platba sama spáruje, nebo null.
@@ -50,7 +54,7 @@ export default async function accountingRoutes(fastify) {
   // ── Banka ──────────────────────────────────────────────────
 
   fastify.get('/ucetnictvi/banka', async (request, reply) => {
-    const accounts = await sql`SELECT id FROM accounting_bank_accounts WHERE active = TRUE LIMIT 1`;
+    const accounts = await sql`SELECT id FROM accounting_bank_accounts WHERE active = TRUE ORDER BY id LIMIT 1`;
     let defaultAccountId = accounts[0]?.id;
     if (!defaultAccountId) {
       const [acc] = await sql`
@@ -60,11 +64,8 @@ export default async function accountingRoutes(fastify) {
       defaultAccountId = acc.id;
     }
 
-    const q        = (request.query.q    || '').trim();
-    const typeFilter = (request.query.type || '').trim();
-    const page    = Math.max(1, parseInt(request.query.page || '1', 10));
-    const perPage = 50;
-    const offset  = (page - 1) * perPage;
+    const q          = parametr(request.query.q);
+    const typeFilter = parametr(request.query.type);
 
     const conditions = [sql`t.bank_account_id = ${defaultAccountId}`];
     if (q) conditions.push(sql`(t.counterparty_name ILIKE ${'%'+q+'%'} OR t.message ILIKE ${'%'+q+'%'} OR t.variable_symbol ILIKE ${'%'+q+'%'})`);
@@ -72,6 +73,8 @@ export default async function accountingRoutes(fastify) {
     const where = sql`WHERE ${conditions.reduce((a, b) => sql`${a} AND ${b}`)}`;
 
     const [{ count }] = await sql`SELECT COUNT(*)::int AS count FROM accounting_bank_transactions t ${where}`;
+    // Pohybů je víc než dokladů a procházejí se po řadě podle data, proto 50 na stránku.
+    const strany = strankovani({ cesta: '/ucetnictvi/banka', query: request.query, celkem: count, naStranku: 50, zachovat: ['q', 'type'] });
     const transactions = await sql`
       SELECT t.*,
              i.number AS matched_invoice_number,
@@ -80,20 +83,19 @@ export default async function accountingRoutes(fastify) {
       LEFT JOIN accounting_invoices i ON t.matched_invoice_id = i.id
       ${where}
       ORDER BY t.transaction_date DESC, t.id DESC
-      LIMIT ${perPage} OFFSET ${offset}
+      LIMIT ${strany.naStranku} OFFSET ${strany.offset}
     `;
 
     return reply.view('pages/accounting/bank.ejs', {
       pageTitle: 'Banka', currentPath: '/ucetnictvi/banka',
-      user: request.user, transactions, total: count,
-      currentPage: page, totalPages: Math.ceil(count / perPage),
+      user: request.user, transactions, total: count, strany,
       q, typeFilter,
     }, { layout: 'layouts/base.ejs' });
   });
 
   fastify.post('/ucetnictvi/banka/vytvorit', async (request, reply) => {
     const b = request.body || {};
-    const accounts = await sql`SELECT id FROM accounting_bank_accounts WHERE active = TRUE LIMIT 1`;
+    const accounts = await sql`SELECT id FROM accounting_bank_accounts WHERE active = TRUE ORDER BY id LIMIT 1`;
     let bankAccountId = accounts[0]?.id;
     if (!bankAccountId) {
       const [acc] = await sql`
@@ -119,18 +121,19 @@ export default async function accountingRoutes(fastify) {
         ${b.notes || ''}
       )
     `;
-    return reply.redirect('/ucetnictvi/banka');
+    return reply.redirect(bezpecnyNavrat(b.redirect_to, '/ucetnictvi/banka'));
   });
 
   // Párování transakce s fakturou nebo účtenkou
   fastify.post('/ucetnictvi/banka/:id/parovat', async (request, reply) => {
-    const { document_type, document_id, invoice_id } = request.body || {};
+    const { document_type, document_id, invoice_id, redirect_to } = request.body || {};
     const txId = parseInt(request.params.id, 10);
+    const navrat = bezpecnyNavrat(redirect_to, '/ucetnictvi/banka');
 
     // Backward-compat: starý formulář posílá invoice_id
     const docType = document_type || 'invoice';
     const docId   = document_id   || invoice_id;
-    if (!docId) return reply.redirect('/ucetnictvi/banka');
+    if (!docId) return reply.redirect(navrat);
 
     if (docType === 'receipt') {
       await sql`
@@ -154,7 +157,7 @@ export default async function accountingRoutes(fastify) {
       // Den úhrady = den pohybu na účtu, viz zaplatDokladPohybem()
       await zaplatDokladPohybem(sql, { docId, txId });
     }
-    return reply.redirect('/ucetnictvi/banka');
+    return reply.redirect(navrat);
   });
 
   // ── Webhook: příjem transakce z Make (Fio) ───────────────────
@@ -181,7 +184,7 @@ export default async function accountingRoutes(fastify) {
       return reply.status(401).send({ ok: false, error: 'Unauthorized' });
     }
 
-    const accounts = await sql`SELECT id FROM accounting_bank_accounts WHERE active = TRUE LIMIT 1`;
+    const accounts = await sql`SELECT id FROM accounting_bank_accounts WHERE active = TRUE ORDER BY id LIMIT 1`;
     let bankAccountId = accounts[0]?.id;
     if (!bankAccountId) {
       const [acc] = await sql`
@@ -315,7 +318,7 @@ export default async function accountingRoutes(fastify) {
       SET matched_invoice_id = NULL, matched_receipt_id = NULL, matched_at = NULL, matched_by = NULL
       WHERE id = ${request.params.id}
     `;
-    return reply.redirect('/ucetnictvi/banka');
+    return reply.redirect(bezpecnyNavrat(request.body?.redirect_to, '/ucetnictvi/banka'));
   });
 
   // ── API: Vyhledávání dokladů pro párování ────────────────────
@@ -413,9 +416,14 @@ export default async function accountingRoutes(fastify) {
     const [yVatOut]   = await sql`SELECT COALESCE(SUM(vat_amount),0)::numeric   AS v FROM accounting_invoices WHERE type='issued'   AND issue_date BETWEEN ${yStart} AND ${yEnd}`;
     const [yVatIn]    = await sql`SELECT COALESCE(SUM(vat_amount),0)::numeric   AS v FROM accounting_invoices WHERE type='received' AND issue_date BETWEEN ${yStart} AND ${yEnd}`;
 
-    // Nezaplacené faktury
-    const overdueIssued   = await sql`SELECT id, number, client_name, total_amount, currency, due_date FROM accounting_invoices WHERE type='issued'   AND status='Po splatnosti' ORDER BY due_date`;
-    const overdueReceived = await sql`SELECT id, number, supplier,    total_amount, currency, due_date FROM accounting_invoices WHERE type='received' AND status='Po splatnosti' ORDER BY due_date`;
+    // Nezaplacené faktury. Přehled ukáže nejstarší po splatnosti, celý seznam je
+    // na stránce faktur, proto počet zvlášť z COUNT.
+    const overdueIssued   = await sql`SELECT id, number, client_name, total_amount, currency, due_date FROM accounting_invoices WHERE type='issued'   AND status='Po splatnosti' ORDER BY due_date, id LIMIT ${PO_SPLATNOSTI_NA_PREHLEDU}`;
+    const overdueReceived = await sql`SELECT id, number, supplier,    total_amount, currency, due_date FROM accounting_invoices WHERE type='received' AND status='Po splatnosti' ORDER BY due_date, id LIMIT ${PO_SPLATNOSTI_NA_PREHLEDU}`;
+    const [overdueCount]  = await sql`
+      SELECT COUNT(*) FILTER (WHERE type='issued')::int AS issued, COUNT(*) FILTER (WHERE type='received')::int AS received
+      FROM accounting_invoices WHERE status='Po splatnosti'
+    `;
     const pendingIssued   = await sql`SELECT COUNT(*)::int AS n, COALESCE(SUM(total_amount),0)::numeric AS v FROM accounting_invoices WHERE type='issued'   AND status='Nezaplacena'`;
     const pendingReceived = await sql`SELECT COUNT(*)::int AS n, COALESCE(SUM(total_amount),0)::numeric AS v FROM accounting_invoices WHERE type='received' AND status='Nezaplacena'`;
 
@@ -451,6 +459,7 @@ export default async function accountingRoutes(fastify) {
       },
       chartMzdy: await mzdyPoMesicich(sql, year),
       overdue: { issued: overdueIssued, received: overdueReceived },
+      overdueCount,
       pending: { issued: pendingIssued[0], received: pendingReceived[0] },
       monthlyChart,
       cash: { in: Number(cashIn.v), out: Number(cashOut.v) },
