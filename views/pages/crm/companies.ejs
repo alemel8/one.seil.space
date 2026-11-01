@@ -1,114 +1,81 @@
+<%
+  const sFiltrem = Boolean(q || typeFilter || sourceFilter);
+  const SIRKA_VYBERU = 'max-width:min(100%,260px);'; // dlouhá volba by jinak roztáhla select i stránku
+  const TONY_TYPU = { __proto__: null, 'Zákazník': 'ok', 'Dodavatel': 'info', 'Oboje': 'varovani' };
+%>
 <div class="page-header">
   <div class="page-header-left">
     <h1>Firmy</h1>
-    <p><%= total %> firem v systému</p>
+    <p><%= total.toLocaleString('cs-CZ') %> <%= total === 1 ? 'firma' : total >= 2 && total <= 4 ? 'firmy' : 'firem' %><%= !sFiltrem ? ' celkem' : total >= 2 && total <= 4 ? ' odpovídají filtru' : ' odpovídá filtru' %></p>
   </div>
-  <button class="btn btn-primary" data-modal-open="modalCreateCompany">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-    Přidat firmu
-  </button>
+  <div class="page-header-akce">
+    <button class="btn btn-primary" data-modal-open="modalCreateCompany">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Přidat firmu
+    </button>
+  </div>
 </div>
 
-<!-- Hledání + filtr -->
-<form method="get" style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
-  <div style="position:relative;flex:1;min-width:240px;max-width:380px;">
-    <svg style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-    </svg>
-    <input type="text" name="q" value="<%= q || '' %>" placeholder="Hledat firmy, země…" class="form-control" style="padding-left:38px;">
-  </div>
-  <select name="type" class="form-select" style="width:auto;">
+<form method="get" class="filtr-lista">
+  <input type="text" name="q" value="<%= q %>" placeholder="Hledat název, město, IČO…" class="form-control" aria-label="Hledat název, město, zemi nebo IČO">
+  <select name="type" class="form-select" style="<%= SIRKA_VYBERU %>" aria-label="Typ firmy">
     <option value="">Všechny typy</option>
-    <option value="Zákazník" <%= typeFilter === 'Zákazník' ? 'selected' : '' %>>Zákazník</option>
-    <option value="Dodavatel" <%= typeFilter === 'Dodavatel' ? 'selected' : '' %>>Dodavatel</option>
-    <option value="Oboje" <%= typeFilter === 'Oboje' ? 'selected' : '' %>>Oboje</option>
-    <option value="Ostatní" <%= typeFilter === 'Ostatní' ? 'selected' : '' %>>Ostatní</option>
+    <% ['Zákazník', 'Dodavatel', 'Oboje', 'Ostatní'].forEach(t => { %><option value="<%= t %>" <%= typeFilter === t ? 'selected' : '' %>><%= t %></option><% }) %>
   </select>
-  <select name="source" class="form-select" style="width:auto;">
+  <select name="source" class="form-select" style="<%= SIRKA_VYBERU %>" aria-label="Zdroj">
     <option value="">Všechny zdroje</option>
-    <% (sources || []).forEach(s => { %>
-      <option value="<%= s.source %>" <%= sourceFilter === s.source ? 'selected' : '' %>><%= s.source %></option>
-    <% }); %>
+    <% sources.forEach(s => { %><option value="<%= s.source %>" <%= sourceFilter === s.source ? 'selected' : '' %>><%= s.source %></option><% }) %>
     <option value="-" <%= sourceFilter === '-' ? 'selected' : '' %>>(bez zdroje)</option>
   </select>
   <button type="submit" class="btn btn-outline">Filtrovat</button>
-  <% if (q || typeFilter || sourceFilter) { %>
-    <a href="/crm/firmy" class="btn btn-ghost">Zrušit filtr</a>
-  <% } %>
+  <% if (sFiltrem) { %><a href="/crm/firmy" class="btn btn-ghost">Zrušit filtr</a><% } %>
 </form>
 
-<!-- Tabulka -->
 <div class="table-wrapper">
   <table class="data-table">
     <thead>
       <tr>
         <th>Název firmy</th>
         <th>Typ</th>
-        <th>Zdroj</th>
-        <th>Země</th>
-        <th>Město</th>
-        <th>E-mail</th>
-        <th>Telefon</th>
-        <th>Přidána</th>
+        <th class="hide-mobile">Zdroj</th>
+        <th class="hide-mobile">Země</th>
+        <th class="mobil">Město</th>
+        <th class="hide-mobile">E-mail</th>
+        <th class="mobil">Telefon</th>
+        <th class="hide-mobile">Přidána</th>
       </tr>
     </thead>
     <tbody>
-      <% if (companies && companies.length > 0) { %>
+      <% if (companies.length > 0) { %>
         <% companies.forEach(company => { %>
-        <tr class="clickable-row" style="cursor:pointer;" onclick="window.location='/crm/firmy/<%= company.id %>'">
-          <td style="font-weight:500;"><%= company.name %></td>
-          <td>
-            <% if (company.company_type === 'Zákazník') { %>
-              <span class="badge" style="background:#dcfce7;color:#166534;">Zákazník</span>
-            <% } else if (company.company_type === 'Dodavatel') { %>
-              <span class="badge" style="background:#dbeafe;color:#1e40af;">Dodavatel</span>
-            <% } else if (company.company_type === 'Oboje') { %>
-              <span class="badge" style="background:#fef9c3;color:#854d0e;">Oboje</span>
-            <% } else { %>
-              <span class="badge" style="background:var(--gray-100);color:var(--gray-600);">Ostatní</span>
-            <% } %>
-          </td>
-          <td>
-            <% if (company.source) { %>
-              <span class="badge" style="background:var(--gray-100);color:var(--gray-600);font-size:11px;"><%= company.source %></span>
-            <% } else { %><span style="color:var(--text-muted);">–</span><% } %>
-          </td>
-          <td><%= company.country || '–' %></td>
-          <td style="color:var(--text-muted);"><%= company.city || '–' %></td>
-          <td style="font-size:13px;">
-            <% if (company.email) { %>
-              <a href="mailto:<%= company.email %>" style="color:var(--primary);" onclick="event.stopPropagation()"><%= company.email %></a>
-            <% } else { %>–<% } %>
-          </td>
-          <td style="font-size:13px;color:var(--text-muted);"><%= company.phone || '–' %></td>
-          <td style="color:var(--text-muted);font-size:12px;"><%= new Date(company.created_at).toLocaleDateString('cs-CZ') %></td>
+        <tr data-href="/crm/firmy/<%= company.id %>">
+          <td><a href="/crm/firmy/<%= company.id %>" class="radek-odkaz radek-text" title="<%= company.name %>"><%= company.name || '(bez názvu)' %></a></td>
+          <td><span class="badge badge-<%= TONY_TYPU[company.company_type] || 'neutral' %>"><%= company.company_type || 'Ostatní' %></span></td>
+          <td class="hide-mobile"><% if (company.source) { %><span class="badge badge-neutral"><%= company.source %></span><% } else { %>–<% } %></td>
+          <td class="hide-mobile"><%= company.country || '–' %></td>
+          <td class="mobil sekundarni"><%= company.city || '–' %></td>
+          <td class="hide-mobile"><% if (company.email) { %><a href="mailto:<%= company.email %>" class="radek-text" style="color:var(--link);" title="<%= company.email %>"><%= company.email %></a><% } else { %>–<% } %></td>
+          <td class="mobil mono sekundarni"><%= company.phone || '–' %></td>
+          <td class="mono sekundarni hide-mobile"><%= ceskeDatum(prazskeDatum(company.created_at)) %></td>
         </tr>
-        <% }); %>
+        <% }) %>
       <% } else { %>
-      <tr>
-        <td colspan="7" style="text-align:center;padding:48px;color:var(--text-muted);">
-          <%= (q || typeFilter || sourceFilter) ? 'Žádné firmy nenalezeny' : 'Zatím žádné firmy' %>
-        </td>
-      </tr>
+        <tr><td colspan="8">
+          <div class="prazdno">
+            <% if (sFiltrem) { %>
+              <strong>Filtru neodpovídá žádná firma</strong>
+              <a href="/crm/firmy" class="btn btn-outline btn-sm">Zrušit filtr</a>
+            <% } else { %>
+              <strong>Zatím žádné firmy</strong>
+              První přidáte tlačítkem Přidat firmu.
+            <% } %>
+          </div>
+        </td></tr>
       <% } %>
     </tbody>
   </table>
 </div>
-
-<!-- Stránkování -->
-<% if (totalPages > 1) { %>
-<div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;font-size:13px;color:var(--text-muted);">
-  <span>Stránka <%= currentPage %> z <%= totalPages %> – celkem <%= total %> firem</span>
-  <div style="display:flex;gap:6px;">
-    <% if (currentPage > 1) { %>
-      <a href="?page=<%= currentPage - 1 %><%= q ? '&q=' + q : '' %><%= typeFilter ? '&type=' + typeFilter : '' %><%= sourceFilter ? '&source=' + encodeURIComponent(sourceFilter) : '' %>" class="btn btn-outline btn-sm">← Předchozí</a>
-    <% } %>
-    <% if (currentPage < totalPages) { %>
-      <a href="?page=<%= currentPage + 1 %><%= q ? '&q=' + q : '' %><%= typeFilter ? '&type=' + typeFilter : '' %><%= sourceFilter ? '&source=' + encodeURIComponent(sourceFilter) : '' %>" class="btn btn-outline btn-sm">Další →</a>
-    <% } %>
-  </div>
-</div>
-<% } %>
+<%- include('../../includes/strankovani', { strany }) %>
 
 <!-- Modal: Přidat firmu -->
 <div class="modal-backdrop" id="modalCreateCompany">

@@ -1,0 +1,36 @@
+<%#
+  Tabulka objednávek na záložce detailu firmy a kontaktu.
+
+    include('_objednavky', { objednavky: orders, strany, sZakaznikem: true })
+
+  sZakaznikem  sloupec Zákazník: firma má objednávky od více lidí, kontakt jen své
+%>
+<div class="table-wrapper">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Číslo</th>
+        <% if (sZakaznikem) { %><th class="hide-mobile">Zákazník</th><% } %>
+        <th>Datum</th>
+        <th class="num">Částka</th>
+        <th>Stav</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (objednavky.length > 0) { %>
+        <% objednavky.forEach(o => { const adresa = `/ucetnictvi/objednavky/${o.id}`; %>
+        <tr data-href="<%= adresa %>">
+          <td class="mono"><a href="<%= adresa %>" class="radek-odkaz">#<%= o.order_number %></a></td>
+          <% if (sZakaznikem) { %><td class="hide-mobile"><%= [o.first_name, o.last_name].filter(Boolean).join(' ') || '–' %></td><% } %>
+          <td class="mono sekundarni"><%= ceskeDatum(prazskeDatum(o.created_at)) %></td>
+          <td class="num"><%= Number(o.total_price).toLocaleString('cs-CZ', { minimumFractionDigits: 2 }) %> <%= o.currency %></td>
+          <td><span class="badge badge-<%= tonStavu(o.status) %>"><%= o.status %></span></td>
+        </tr>
+        <% }) %>
+      <% } else { %>
+        <tr><td colspan="<%= sZakaznikem ? 5 : 4 %>"><div class="prazdno"><strong>Žádné objednávky</strong></div></td></tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+<%- include('../../includes/strankovani', { strany }) %>

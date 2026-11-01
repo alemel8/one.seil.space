@@ -1,6 +1,6 @@
 <%
   const fmt  = n  => Number(n||0).toLocaleString('cs-CZ', {minimumFractionDigits:2});
-  const fmtD = d  => d ? new Date(d).toLocaleDateString('cs-CZ') : '–';
+  const fmtD = d  => ceskeDatum(prazskeDatum(d)) || '–'; // sloupce TIMESTAMPTZ, DATE jde rovnou přes ceskeDatum
   const currentTab = tab || 'zakladni';
   // Režim úprav (src/upravy.js): tužka v hlavičce jen u záložky s formulářem
   // záznamu; bez JS otevře úpravy ?upravit=1. Poznámky mají vlastní routu,
@@ -15,14 +15,11 @@
 <div class="page-header">
   <div class="page-header-left">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-      <a href="/crm/firmy" class="btn btn-ghost btn-sm">← Firmy</a>
+      <%# width: hlavička bez akcí (firma bez IČO, záložka bez formuláře) roztáhne na telefonu tlačítka přes celou šířku %>
+      <a href="/crm/firmy" class="btn btn-ghost btn-sm" style="width:auto;" data-zpet>← Firmy</a>
       <h1 style="margin:0;"><%= company.name %></h1>
-      <span class="badge" style="background:var(--info-bg);color:var(--info);"><%= company.company_type || 'Zákazník' %></span>
-      <% if (company.company_status === 'Aktivní') { %>
-        <span class="badge" style="background:#dcfce7;color:#166534;">Aktivní</span>
-      <% } else if (company.company_status) { %>
-        <span class="badge" style="background:#f3f4f6;color:#6b7280;"><%= company.company_status %></span>
-      <% } %>
+      <span class="badge badge-info"><%= company.company_type || 'Zákazník' %></span>
+      <% if (company.company_status) { %><span class="badge badge-<%= tonStavu(company.company_status) %>"><%= company.company_status %></span><% } %>
     </div>
   </div>
   <% if (company.ico || formular) { %>
@@ -48,21 +45,7 @@
 <div data-hlaska style="background:var(--info-bg);color:var(--info);border:1px solid #bae6fd;padding:10px 16px;border-radius:8px;margin-bottom:16px;">✓ Data aktualizována z ARES</div>
 <% } %>
 
-<!-- Tabs -->
-<nav class="tabs" aria-label="Sekce firmy">
-  <% [
-    ['zakladni',   'Základní informace'],
-    ['kontakty',   'Kontakty (' + stats.totalContacts + ')'],
-    ['objednavky', 'Objednávky (' + stats.totalOrders + ')'],
-    ['faktury',    'Faktury (' + stats.totalInvoices + ')'],
-    ['smlouvy',    'Smlouvy (' + contracts.length + ')'],
-    ['poznamky',   'Poznámky'],
-  ].forEach(function(item) {
-    const key = item[0]; const label = item[1];
-  %>
-  <a href="?tab=<%= key %>" class="tab<%= currentTab===key ? ' active' : '' %>"<%- currentTab===key ? ' aria-current="page"' : '' %>><%= label %></a>
-  <% }) %>
-</nav>
+<%- include('../../includes/zalozky', { nazev: 'Sekce firmy', zalozky, tab: currentTab, adresa: k => `/crm/firmy/${company.id}?tab=${k}` }) %>
 
 <!-- ══ TAB: ZÁKLADNÍ INFORMACE ══ -->
 <% if (currentTab === 'zakladni') { %>
@@ -75,31 +58,31 @@
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
       <div class="card" style="text-align:center;">
         <div class="card-body" style="padding:16px 12px;">
-          <div style="font-size:26px;font-weight:700;color:var(--primary);"><%= stats.totalContacts %></div>
+          <div style="font-size:26px;font-weight:700;color:var(--text-primary);"><%= stats.totalContacts %></div>
           <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Kontaktů</div>
         </div>
       </div>
       <div class="card" style="text-align:center;">
         <div class="card-body" style="padding:16px 12px;">
-          <div style="font-size:26px;font-weight:700;color:var(--primary);"><%= stats.totalOrders %></div>
+          <div style="font-size:26px;font-weight:700;color:var(--text-primary);"><%= stats.totalOrders %></div>
           <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Objednávek</div>
         </div>
       </div>
       <div class="card" style="text-align:center;">
         <div class="card-body" style="padding:16px 12px;">
-          <div style="font-size:26px;font-weight:700;color:var(--primary);"><%= stats.totalInvoices %></div>
+          <div style="font-size:26px;font-weight:700;color:var(--text-primary);"><%= stats.totalInvoices %></div>
           <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Faktur</div>
         </div>
       </div>
       <div class="card" style="grid-column:span 2;text-align:center;">
         <div class="card-body" style="padding:16px;">
-          <div style="font-size:22px;font-weight:700;color:#166534;"><%= fmt(stats.totalInvoiced) %> CZK</div>
+          <div style="font-size:22px;font-weight:700;color:var(--ton-ok-text);"><%= fmt(stats.totalInvoiced) %> CZK</div>
           <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Celkem fakturováno (<%= stats.paidInvoices %> zaplaceno)</div>
         </div>
       </div>
       <div class="card" style="text-align:center;">
         <div class="card-body" style="padding:16px 12px;">
-          <div style="font-size:26px;font-weight:700;color:<%= stats.openOrders > 0 ? '#b45309' : 'var(--text-muted)' %>;"><%= stats.openOrders %></div>
+          <div style="font-size:26px;font-weight:700;color:<%= stats.openOrders > 0 ? 'var(--ton-varovani-text)' : 'var(--text-muted)' %>;"><%= stats.openOrders %></div>
           <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Otevřených obj.</div>
         </div>
       </div>
@@ -197,74 +180,31 @@
 <% if (contacts.length > 0) { %>
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;">
   <% contacts.forEach(function(c) { %>
-  <div class="card" style="cursor:pointer;" onclick="location.href='/crm/kontakty/<%= c.id %>'">
+  <a href="/crm/kontakty/<%= c.id %>" class="card" style="display:block;color:inherit;text-decoration:none;">
     <div class="card-body" style="display:flex;gap:12px;align-items:center;">
-      <div style="width:44px;height:44px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;font-size:15px;">
+      <div style="width:44px;height:44px;border-radius:50%;background:var(--primary);color:var(--deep-space);display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;font-size:15px;">
         <%= (c.first_name||'').charAt(0) %><%= (c.last_name||'').charAt(0) %>
       </div>
       <div style="min-width:0;">
-        <div style="font-weight:600;"><%= [c.title, c.first_name, c.last_name].filter(Boolean).join(' ') %></div>
-        <% if (c.email) { %><div style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= c.email %></div><% } %>
-        <% if (c.phone) { %><div style="font-size:12px;color:var(--text-muted);"><%= c.phone %></div><% } %>
+        <div style="font-weight:600;"><%= [c.title, c.first_name, c.last_name].filter(Boolean).join(' ') || c.email || '(bez jména)' %></div>
+        <% if (c.email) { %><div style="font-size:12px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= c.email %></div><% } %>
+        <% if (c.phone) { %><div style="font-size:12px;color:var(--text-secondary);"><%= c.phone %></div><% } %>
       </div>
     </div>
-  </div>
+  </a>
   <% }) %>
 </div>
 <% } else { %>
-<div style="text-align:center;padding:48px;color:var(--text-muted);">Žádné kontakty. Přidejte první kontakt tlačítkem výše.</div>
+<div class="prazdno"><strong>Žádné kontakty</strong>Přidejte první kontakt tlačítkem výše.</div>
 <% } %>
 
 <!-- ══ TAB: OBJEDNÁVKY ══ -->
 <% } else if (currentTab === 'objednavky') { %>
-<% if (orders.length > 0) { %>
-<div class="table-wrapper">
-  <table class="data-table">
-    <thead><tr><th>Číslo</th><th>Zákazník</th><th>Datum</th><th style="text-align:right;">Částka</th><th>Stav</th></tr></thead>
-    <tbody>
-    <% orders.forEach(function(o) {
-         const sc = o.status==='Vyřízena' ? '#dcfce7:#166534' : o.status==='Stornována' ? '#f3f4f6:#6b7280' : '#fef9c3:#92400e';
-         const parts = sc.split(':'); %>
-    <tr style="cursor:pointer;" onclick="location.href='/ucetnictvi/objednavky/<%= o.id %>'">
-      <td style="font-weight:600;">#<%= o.order_number %></td>
-      <td><%= [o.first_name, o.last_name].filter(Boolean).join(' ') || '–' %></td>
-      <td style="color:var(--text-muted);font-size:13px;"><%= fmtD(o.created_at) %></td>
-      <td style="text-align:right;font-weight:600;"><%= fmt(o.total_price) %> CZK</td>
-      <td><span class="badge" style="background:<%= parts[0] %>;color:<%= parts[1] %>;"><%= o.status %></span></td>
-    </tr>
-    <% }) %>
-    </tbody>
-  </table>
-</div>
-<% } else { %>
-<div style="text-align:center;padding:48px;color:var(--text-muted);">Žádné objednávky</div>
-<% } %>
+<%- include('_objednavky', { objednavky: orders, strany, sZakaznikem: true }) %>
 
 <!-- ══ TAB: FAKTURY ══ -->
 <% } else if (currentTab === 'faktury') { %>
-<% if (invoices.length > 0) { %>
-<div class="table-wrapper">
-  <table class="data-table">
-    <thead><tr><th>Číslo</th><th>Typ</th><th>Datum</th><th>Splatnost</th><th style="text-align:right;">Celkem</th><th>Stav</th></tr></thead>
-    <tbody>
-    <% invoices.forEach(function(inv) {
-         const sc = inv.status==='Zaplacena' ? '#dcfce7:#166534' : inv.status==='Storno' ? '#f3f4f6:#6b7280' : inv.status==='Po splatnosti' ? '#fee2e2:#991b1b' : '#fef9c3:#92400e';
-         const parts = sc.split(':'); %>
-    <tr style="cursor:pointer;" onclick="location.href='/ucetnictvi/<%= inv.type==='issued' ? 'vydane' : 'prijate' %>-faktury/<%= inv.id %>'">
-      <td style="font-weight:600;"><%= inv.number %></td>
-      <td><span style="font-size:12px;color:var(--text-muted);"><%= inv.type==='issued' ? 'Vydaná' : 'Přijatá' %></span></td>
-      <td style="color:var(--text-muted);font-size:13px;"><%= fmtD(inv.issue_date) %></td>
-      <td style="color:var(--text-muted);font-size:13px;"><%= fmtD(inv.due_date) %></td>
-      <td style="text-align:right;font-weight:600;"><%= fmt(inv.total_amount) %> <%= inv.currency %></td>
-      <td><span class="badge" style="background:<%= parts[0] %>;color:<%= parts[1] %>;"><%= inv.status %></span></td>
-    </tr>
-    <% }) %>
-    </tbody>
-  </table>
-</div>
-<% } else { %>
-<div style="text-align:center;padding:48px;color:var(--text-muted);">Žádné faktury</div>
-<% } %>
+<%- include('_faktury', { faktury: invoices, strany }) %>
 
 <!-- ══ TAB: SMLOUVY ══ -->
 <% } else if (currentTab === 'smlouvy') { %>
@@ -273,21 +213,19 @@
 </div>
 <% if (contracts.length > 0) { %>
 <div style="display:flex;flex-direction:column;gap:12px;">
-  <% contracts.forEach(function(c) {
-       const sc = c.status==='Aktivní' ? '#dcfce7:#166534' : c.status==='Ukončená' ? '#f3f4f6:#6b7280' : '#fef9c3:#92400e';
-       const parts = sc.split(':'); %>
+  <% contracts.forEach(function(c) { %>
   <div class="card">
     <div class="card-body" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
       <div style="flex:1;min-width:0;">
         <div style="font-weight:600;margin-bottom:4px;"><%= c.title || 'Bez názvu' %></div>
         <div style="font-size:12px;color:var(--text-muted);">
           <% if (c.type) { %><%= c.type %> · <% } %>
-          Podpis: <%= fmtD(c.signed_date) %><% if (c.end_date) { %> · Platnost do: <%= fmtD(c.end_date) %><% } %><% if (c.amount) { %> · <%= fmt(c.amount) %> <%= c.currency %><% } %>
+          Podpis: <%= ceskeDatum(c.signed_date) || '–' %><% if (c.end_date) { %> · Platnost do: <%= ceskeDatum(c.end_date) %><% } %><% if (c.amount) { %> · <%= fmt(c.amount) %> <%= c.currency %><% } %>
         </div>
         <% if (c.notes) { %><div style="font-size:12px;color:var(--text-muted);margin-top:4px;"><%= c.notes %></div><% } %>
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
-        <span class="badge" style="background:<%= parts[0] %>;color:<%= parts[1] %>;"><%= c.status %></span>
+        <span class="badge badge-<%= tonStavu(c.status) %>"><%= c.status %></span>
         <form method="post" action="/crm/smlouvy/<%= c.id %>/smazat" onsubmit="return confirm('Smazat smlouvu?')">
           <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger);">Smazat</button>
         </form>
@@ -297,7 +235,7 @@
   <% }) %>
 </div>
 <% } else { %>
-<div style="text-align:center;padding:48px;color:var(--text-muted);">Žádné smlouvy. Přidejte první smlouvu tlačítkem výše.</div>
+<div class="prazdno"><strong>Žádné smlouvy</strong>Přidejte první smlouvu tlačítkem výše.</div>
 <% } %>
 
 <!-- ══ TAB: POZNÁMKY ══ -->

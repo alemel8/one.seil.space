@@ -1,0 +1,41 @@
+<%#
+  Tabulka dokladů na záložce detailu firmy a kontaktu. Jedna kopie, ať se odkaz
+  dokladu znovu nerozejde: zálohová faktura má detail pod vydanými, pod přijatými
+  skončí 404.
+
+    include('_faktury', { faktury: invoices, strany })
+%>
+<%
+  const TYPY = { __proto__: null, issued: 'Faktura', proforma: 'Zálohová faktura', received: 'Přijatá faktura' };
+%>
+<div class="table-wrapper">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Číslo</th>
+        <th class="hide-mobile">Typ</th>
+        <th>Datum</th>
+        <th class="hide-mobile">Splatnost</th>
+        <th class="num mobil">Celkem</th>
+        <th>Stav</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (faktury.length > 0) { %>
+        <% faktury.forEach(f => { const adresa = `/ucetnictvi/${f.type === 'received' ? 'prijate' : 'vydane'}-faktury/${f.id}`; %>
+        <tr data-href="<%= adresa %>">
+          <td class="mono"><a href="<%= adresa %>" class="radek-odkaz"><%= f.number || '(bez čísla)' %></a></td>
+          <td class="sekundarni hide-mobile"><%= TYPY[f.type] || f.type %></td>
+          <td class="mono sekundarni"><%= ceskeDatum(f.issue_date) %></td>
+          <td class="mono sekundarni hide-mobile"><%= ceskeDatum(f.due_date) || '–' %></td>
+          <td class="num mobil"><%= Number(f.total_amount).toLocaleString('cs-CZ', { minimumFractionDigits: 2 }) %> <%= f.currency %></td>
+          <td><span class="badge badge-<%= tonStavu(f.status) %>"><%= f.status %></span></td>
+        </tr>
+        <% }) %>
+      <% } else { %>
+        <tr><td colspan="6"><div class="prazdno"><strong>Žádné faktury</strong></div></td></tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+<%- include('../../includes/strankovani', { strany }) %>
