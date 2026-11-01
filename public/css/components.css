@@ -80,7 +80,15 @@
   font-size: 11.5px;
   font-weight: 600;
   letter-spacing: 0.2px;
+  white-space: nowrap;
 }
+
+/* Tóny stavů, mapa stav → tón je v src/stavy.js */
+.badge-ok { background: var(--ton-ok-bg); color: var(--ton-ok-text); }
+.badge-varovani { background: var(--ton-varovani-bg); color: var(--ton-varovani-text); }
+.badge-chyba { background: var(--ton-chyba-bg); color: var(--ton-chyba-text); }
+.badge-info { background: var(--ton-info-bg); color: var(--ton-info-text); }
+.badge-neutral { background: var(--ton-neutral-bg); color: var(--ton-neutral-text); }
 
 .badge-supplier { background: #EDE9FE; color: #6D28D9; }
 .badge-customer { background: #DBEAFE; color: #1D4ED8; }
@@ -227,6 +235,20 @@
 
 .modal-backdrop.open .modal { transform: translateY(0) scale(1); }
 
+/* Modaly, které šablona přepíná inline stylem display (vydané faktury, e-shopy,
+   číselné řady). Bez vlastního pravidla se vykreslily v toku na konci stránky. */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  z-index: 300;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.modal-overlay .modal { transform: none; }
+
 .modal-lg { max-width: 960px; }
 .modal-sm { max-width: 480px; }
 
@@ -326,7 +348,7 @@
   box-shadow: 0 0 0 3px rgba(20, 230, 230, 0.18);
 }
 
-.form-control::placeholder { color: var(--text-muted); }
+.form-control::placeholder { color: var(--text-placeholder); }
 
 [data-theme="dark"] .form-control,
 [data-theme="dark"] .form-select {
@@ -492,6 +514,7 @@
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   background: var(--bg-card);
+  box-shadow: var(--shadow-sm);
 }
 
 table.data-table {
@@ -508,22 +531,29 @@ table.data-table {
 [data-theme="dark"] .data-table thead { background: var(--sidebar-hover); }
 
 .data-table th {
-  padding: 11px 16px;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--text-muted);
+  padding: 10px 16px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.6px;
   text-align: left;
   white-space: nowrap;
 }
 
 .data-table td {
-  padding: 13px 16px;
+  padding: 11px 16px;
   color: var(--text-primary);
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
 }
+
+/* Čísla dokladů, kódy a částky: Space Mono podle design systému, částky vpravo. */
+.data-table .mono { font-family: var(--font-mono); font-size: 12.5px; white-space: nowrap; }
+.data-table .num { text-align: right; white-space: nowrap; }
+.data-table td.num { font-family: var(--font-mono); font-size: 12.5px; }
+.data-table .sekundarni { color: var(--text-secondary); font-size: 12.5px; }
 
 .data-table tbody tr:last-child td { border-bottom: none; }
 
@@ -533,11 +563,156 @@ table.data-table {
 
 .data-table tbody tr:hover { background: var(--gray-50); }
 
-[data-theme="dark"] .data-table tbody tr:hover { background: var(--sidebar-hover); }
+[data-theme="dark"] .data-table tbody tr:hover { background: var(--gray-100); }
 
 /* Řádek s proklikem na detail. Třída se ve views používala už dřív, ale
    v CSS chyběla – na vydaných fakturách proto řádky neměly ani kurzor. */
 .clickable-row { cursor: pointer; }
+
+/* Řádek jako odkaz (public/js/app.js): klik kamkoli do řádku otevře záznam,
+   skutečný odkaz v buňce drží klávesnici a otevření v novém panelu. */
+tr[data-href] { cursor: pointer; }
+.radek-odkaz { color: inherit; font-weight: 700; text-decoration: none; }
+.radek-odkaz:hover { color: var(--link); text-decoration: underline; }
+.radek-odkaz:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: var(--radius-xs); }
+
+/* Dlouhý text v buňce: nejvýš dva řádky, celý je v title. POHODA má v názvu
+   dodavatele někdy i celou adresu a řádek by narostl na čtyři. */
+.radek-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-width: 160px;
+  max-width: 340px;
+  overflow-wrap: anywhere;
+}
+
+/* Stav přímo v řádku: odznak, který jde změnit (tón z tonStavu). Pozadí odznaku
+   je zkratka background, proto šipka až tady, za .badge-*. */
+.stav-vyber {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  border-radius: var(--radius-full);
+  padding: 4px 24px 4px 10px;
+  font-family: var(--font-primary);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 11px;
+}
+.stav-vyber:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+/* ── Seznamy: filtr, prázdný stav, hlášky, hromadná lišta ─── */
+.filtr-lista { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; }
+.filtr-lista .form-control { width: 280px; max-width: 100%; }
+.filtr-lista .form-select { width: auto; }
+
+.prazdno { padding: 44px 20px; text-align: center; font-size: 13.5px; color: var(--text-secondary); }
+.prazdno strong { display: block; margin-bottom: 4px; font-size: 14.5px; color: var(--text-primary); }
+.prazdno .btn { margin-top: 12px; }
+
+.hlaska { padding: 10px 16px; margin-bottom: 16px; border-radius: var(--radius-sm); font-size: 13.5px; }
+.hlaska a { color: inherit; font-weight: 700; }
+.hlaska-ok { background: var(--ton-ok-bg); color: var(--ton-ok-text); }
+.hlaska-varovani { background: var(--ton-varovani-bg); color: var(--ton-varovani-text); }
+.hlaska-chyba { background: var(--ton-chyba-bg); color: var(--ton-chyba-text); }
+.hlaska-info { background: var(--ton-info-bg); color: var(--ton-info-text); }
+
+/* Výběr řádků v seznamu: pod lištou aplikace, Deep Space na světlé cyan (bílá na cyan má 1,6:1). */
+.hromadna-lista {
+  position: sticky;
+  top: calc(var(--topbar-height) + 8px);
+  z-index: 50;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 16px;
+  margin-bottom: 12px;
+  background: var(--primary-light);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-md);
+  color: var(--deep-space);
+  font-size: 13.5px;
+}
+.hromadna-lista .sekundarni { font-size: 12.5px; opacity: 0.85; }
+[data-theme="dark"] .hromadna-lista { background: var(--sidebar-active); color: var(--text-primary); }
+
+/* ── Stránkování (views/includes/strankovani.ejs) ─────────── */
+/* Patička leží za .table-wrapper, uvnitř by se s řádky posouvala do strany.
+   Vlastní plocha: --text-secondary má na Mist málo kontrastu. */
+.strankovani {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  padding: 10px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.table-wrapper:has(+ .strankovani) { border-bottom: 0; border-radius: var(--radius-lg) var(--radius-lg) 0 0; box-shadow: none; }
+.card > .strankovani,
+.card-body > .strankovani { border-width: 1px 0 0; border-radius: 0 0 var(--radius-lg) var(--radius-lg); box-shadow: none; }
+
+/* Na počítači drží patička u spodního okraje okna: seznam má desítky řádků a bez
+   ní by člověk nepoznal, že pokračuje. Na telefonu tam je spodní navigace. */
+@media not all and (max-width: 768px) {
+  .strankovani { position: sticky; bottom: 0; z-index: 5; }
+  .table-wrapper + .strankovani,
+  .card > .strankovani,
+  .card-body > .strankovani { box-shadow: 0 -2px 8px rgba(10, 22, 38, 0.06); }
+}
+
+.strankovani-rozsah { margin: 0 auto 0 0; font-family: var(--font-mono); font-size: 12px; white-space: nowrap; }
+.strankovani-rozsah strong { font-weight: 700; color: var(--text-primary); }
+
+.strankovani-velikost { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.strankovani-popisek { margin-right: 4px; font-size: 12.5px; }
+.strankovani-volba {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 30px; height: 28px; padding: 0 6px;
+  border-radius: var(--radius-xs);
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+a.strankovani-volba:hover { background: var(--gray-100); color: var(--text-primary); }
+.strankovani-volba[aria-current] { background: var(--gray-100); color: var(--text-primary); font-weight: 700; }
+
+.strankovani-kroky { display: inline-flex; align-items: center; gap: 4px; }
+.strankovani-krok,
+.strankovani-cislo {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  min-width: 32px; height: 32px; padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 12.5px; font-weight: 500;
+  text-decoration: none; white-space: nowrap;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+.strankovani-cislo { padding: 0 6px; font-family: var(--font-mono); font-size: 12px; }
+a.strankovani-krok:hover,
+a.strankovani-cislo:hover { background: var(--gray-100); border-color: var(--gray-400); }
+/* Aktuální stránka: výplň Cyan a text Deep Space. Cyan nikdy jako text na bílé. */
+.strankovani-cislo[aria-current="page"] {
+  background: var(--primary); border-color: var(--primary);
+  color: var(--deep-space); font-weight: 700;
+}
+.strankovani-krok[aria-disabled="true"] { opacity: 0.45; cursor: default; }
+.strankovani-vypustka { padding: 0 2px; }
+.strankovani-pozice { display: none; font-family: var(--font-mono); font-size: 12px; white-space: nowrap; }
+.strankovani a:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
 /* ── Page header ──────────────────────────────────────────── */
 .page-header {
@@ -583,20 +758,32 @@ table.data-table {
   border-bottom: 2px solid transparent;
   font-size: 13.5px;
   font-weight: 500;
-  color: var(--gray-600);   /* --text-muted má na Mist jen 2,2:1 */
+  color: var(--text-secondary);
   white-space: nowrap;
   text-decoration: none;
   transition: color var(--transition-fast), border-color var(--transition-fast);
 }
 .tab:hover { color: var(--text-primary); }
-[data-theme="dark"] .tab { color: var(--text-secondary); }
+.tab-pocet {
+  display: inline-block;
+  margin-left: 2px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--gray-100);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+.tab.active .tab-pocet { background: var(--primary-light); color: var(--deep-space); }
+[data-theme="dark"] .tab.active .tab-pocet { background: var(--sidebar-active); color: var(--text-primary); }
 .tab.active {
   color: var(--text-primary);
   font-weight: 600;
   border-bottom-color: var(--primary);
 }
 .tab:focus-visible {
-  outline: 2px solid var(--primary);
+  outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
   border-radius: var(--radius-xs);
 }
@@ -608,7 +795,7 @@ table.data-table {
    tužka se na tomtéž místě změní v Uložit. Popis v docs/moduly.md. */
 .btn-ikona { width: 37px; height: 37px; padding: 0; flex: 0 0 auto; } /* stejně vysoké jako Uložit, přepnutí neposkočí */
 .btn-ikona svg { width: 16px; height: 16px; }
-.btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
@@ -654,13 +841,13 @@ table.data-table {
 .pole-hodnota-blok { display: block; white-space: pre-wrap; line-height: 1.55; }
 .pole-hodnota a { color: var(--primary-dark); }
 [data-theme="dark"] .pole-hodnota a { color: var(--primary); }
-.pole-prazdne { color: var(--text-secondary); } /* --text-muted má na bílé jen 2,5:1 */
+.pole-prazdne { color: var(--text-secondary); }
 .pole-mono { font-family: var(--font-mono); }
 .pole-varovani { color: #b91c1c; font-weight: 500; } /* --danger má na bílé jen 3,8:1 */
 .pole-uspech { color: #166534; font-weight: 500; }
 [data-theme="dark"] .pole-varovani { color: var(--danger); }
 [data-theme="dark"] .pole-uspech { color: var(--success); }
-.form-hint { font-size: 12px; color: var(--text-secondary); } /* --text-muted má na bílé jen 2,5:1 */
+.form-hint { font-size: 12px; color: var(--text-secondary); }
 .upravit-zrusit { color: var(--text-primary); } /* ghost text na pozadí stránky má jen 4,3:1 */
 .kod { background: var(--gray-100); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
 [data-theme="dark"] .kod { background: var(--sidebar-hover); } /* --gray-100 se v tmavém režimu nepřepisuje */
@@ -771,13 +958,29 @@ table.data-table {
 
   /* ── Záložky – těsnější, posouvají se prstem ──────────────── */
   .tabs { margin-bottom: 16px; }
-  .tab { padding: 10px 14px; font-size: 13px; }
+  .tab { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 10px 14px; font-size: 13px; }
+
+  /* ── Stránkování: jen Předchozí, pozice a Další, dotykové cíle ── */
+  .strankovani { padding: 12px; gap: 10px 12px; }
+  .strankovani-volba { min-width: 40px; height: 40px; font-size: 13px; }
+  .strankovani-kroky { flex: 1 1 100%; justify-content: space-between; gap: 8px; }
+  .strankovani-cislo, .strankovani-vypustka { display: none; }
+  .strankovani-pozice { display: inline; }
+  .strankovani-krok { min-width: 44px; height: 44px; padding: 0 14px; font-size: 13.5px; }
+
+  .filtr-lista .form-control { width: 100%; }
+  .stav-vyber { font-size: 16px; padding: 6px 28px 6px 12px; } /* menší písmo by iOS při výběru přiblížil */
+  .radek-text { min-width: 130px; }
+
+  /* ── Sloupec, který má zůstat vidět i na telefonu ─────────── */
+  .data-table th.mobil, .data-table td.mobil { display: table-cell; }
 
   /* ── Bank transaction list: hide less important columns ───── */
   .data-table .hide-mobile { display: none !important; }
 
   /* ── Bulk bar: wrap on small screens ──────────────────────── */
   #bulkBar { flex-wrap: wrap; }
+  .hromadna-lista { top: calc(var(--topbar-height) + 4px); }
 
   /* ── PDF 2-column modal: single column on phone ───────────── */
   .rf-modal.rf-expanded,

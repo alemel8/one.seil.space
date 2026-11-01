@@ -68,6 +68,32 @@ document.addEventListener('DOMContentLoaded', () => {
   // zůstala za okrajem a uživatel by nevěděl, kde je.
   document.querySelector('.tabs .tab.active')?.scrollIntoView({ inline: 'center', block: 'nearest' });
 
+  // ── Návrat ze záznamu na seznam ───────────────────────────
+  // Patička seznamu nese adresu téhle stránky i s filtrem (data-seznam,
+  // views/includes/strankovani.ejs); odkaz „← Zpět“ s data-zpet na ni vede.
+  // Přežije to uložení detailu, po kterém už referrer míří na detail. Bez
+  // sessionStorage vede odkaz na začátek seznamu.
+  try {
+    const seznam = document.querySelector('[data-seznam]');
+    if (seznam) sessionStorage.setItem(`seil-seznam:${location.pathname}`, seznam.dataset.seznam);
+    document.querySelectorAll('a[data-zpet]').forEach(a => {
+      const cesta = new URL(a.href).pathname;
+      const ulozeno = sessionStorage.getItem(`seil-seznam:${cesta}`);
+      if (ulozeno && (ulozeno === cesta || ulozeno.startsWith(`${cesta}?`))) a.href = ulozeno;
+    });
+  } catch {}
+
+  // ── Řádek tabulky jako odkaz ──────────────────────────────
+  // Skutečný odkaz leží v buňce (klávesnice, nový panel), tohle jen zvětšuje
+  // plochu kliku. Ovládací prvky v řádku a označování textu klik nepřebírá.
+  document.addEventListener('click', e => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const radek = e.target.closest?.('tr[data-href]');
+    if (!radek || e.target.closest('a, button, input, select, textarea, label, summary, [data-bez-prokliku]')) return;
+    if (window.getSelection?.().toString()) return;
+    window.location.href = radek.dataset.href;
+  });
+
   // ── Hledání v liště ───────────────────────────────────────
   const hledaniPole = document.getElementById('hledaniPole');
   const hledaniForm = hledaniPole?.closest('form');
@@ -137,8 +163,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // scrollovat. Inline obsluha proběhne dřív než tenhle posluchač na dokumentu.
   // Hlídá se jen klik uvnitř modalu: tělo zamyká i otevřené menu na mobilu
   // a náhled dokladu, ty se klikem jinam odemknout nesmí.
+  // .modal-overlay se přepíná inline stylem display, poznává se podle něj.
+  const otevrenyOverlay = () => [...document.querySelectorAll('.modal-overlay')].some(m => m.style.display && m.style.display !== 'none');
   document.addEventListener('click', (e) => {
-    if (e.target.closest?.('.modal-backdrop') && !document.querySelector('.modal-backdrop.open')) {
+    if (e.target.closest?.('.modal-backdrop, .modal-overlay') && !document.querySelector('.modal-backdrop.open') && !otevrenyOverlay()) {
       document.body.style.overflow = '';
     }
   });

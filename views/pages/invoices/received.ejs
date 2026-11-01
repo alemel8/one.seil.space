@@ -1,9 +1,9 @@
 <div class="page-header">
   <div class="page-header-left">
     <h1>Přijaté faktury</h1>
-    <p><%= total %> faktur celkem</p>
+    <p><%= total.toLocaleString('cs-CZ') %> <%= total === 1 ? 'faktura' : total >= 2 && total <= 4 ? 'faktury' : 'faktur' %><%= q || statusFilter ? ' odpovídá filtru' : ' celkem' %></p>
   </div>
-  <div style="display:flex;gap:8px;">
+  <div class="page-header-akce">
     <a href="/ucetnictvi/prijate-faktury/export.csv" class="btn btn-outline btn-sm">↓ CSV</a>
     <a href="/ucetnictvi/prijate-faktury/gdrive" class="btn btn-outline btn-sm">☁ Načíst z Google Disku</a>
     <button class="btn btn-primary" onclick="rfOpen()">+ Přidat fakturu</button>
@@ -11,65 +11,61 @@
 </div>
 
 <!-- Bulk action bar -->
-<div id="bulkBar" style="display:none;position:sticky;top:0;z-index:50;background:var(--primary);color:#fff;padding:10px 16px;border-radius:var(--radius-md);margin-bottom:12px;align-items:center;gap:12px;">
-  <span id="bulkCount" style="font-weight:600;font-size:14px;"></span>
-  <span id="bulkSplit" style="font-size:13px;opacity:0.9;"></span>
+<div id="bulkBar" class="hromadna-lista" style="display:none;">
+  <strong id="bulkCount"></strong>
+  <span id="bulkSplit"></span>
+  <span class="sekundarni" style="margin-right:auto;">Výběr platí jen pro tuto stránku. Na víc dokladů najednou zvětšete počet řádků na stránku.</span>
   <form id="bulkPohodaForm" method="post" action="/ucetnictvi/prijate-faktury/pohoda-xml" style="display:inline;" target="_blank">
     <div id="bulkInputs"></div>
-    <button type="submit" class="btn btn-sm" style="background:#fff;color:var(--primary);font-weight:600;">↓ Export POHODA XML</button>
+    <button type="submit" class="btn btn-primary btn-sm">↓ Export POHODA XML</button>
   </form>
-  <button type="button" class="btn btn-sm" style="background:rgba(255,255,255,0.2);color:#fff;" onclick="bulkClearAll()">Zrušit výběr</button>
+  <button type="button" class="btn btn-ghost btn-sm" onclick="bulkClearAll()">Zrušit výběr</button>
 </div>
 
-<form method="get" style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
-  <input type="text" name="q" value="<%= q||'' %>" placeholder="Hledat číslo, dodavatel…" class="form-control" style="max-width:280px;">
-  <select name="status" class="form-select" style="width:auto;">
+<form method="get" class="filtr-lista">
+  <input type="text" name="q" value="<%= q||'' %>" placeholder="Hledat číslo, dodavatel…" class="form-control" aria-label="Hledat číslo nebo dodavatele">
+  <select name="status" class="form-select" aria-label="Stav">
     <option value="">Všechny stavy</option>
     <% STATUSES_RECEIVED.forEach(s => { %><option value="<%= s %>" <%= statusFilter===s?'selected':'' %>><%= s %></option><% }) %>
   </select>
   <button type="submit" class="btn btn-outline">Filtrovat</button>
-  <% if (q||statusFilter) { %><a href="/ucetnictvi/prijate-faktury" class="btn btn-ghost">Zrušit</a><% } %>
+  <% if (q||statusFilter) { %><a href="/ucetnictvi/prijate-faktury" class="btn btn-ghost">Zrušit filtr</a><% } %>
 </form>
 
 <div class="table-wrapper">
   <table class="data-table">
     <thead>
       <tr>
-        <th style="width:36px;"><input type="checkbox" id="bulkSelectAll" onchange="bulkToggleAll(this.checked)" title="Vybrat vše"></th>
-        <th>Číslo</th><th>Dodavatel</th><th>Přijato</th><th>Splatnost</th>
-        <th style="text-align:right;">Celkem</th><th>Doklad</th><th>Stav</th><th></th>
+        <th style="width:36px;"><input type="checkbox" id="bulkSelectAll" onchange="bulkToggleAll(this.checked)" title="Vybrat všechny na této stránce" aria-label="Vybrat všechny na této stránce"></th>
+        <th>Číslo</th><th>Dodavatel</th><th class="hide-mobile">Přijato</th><th>Splatnost</th>
+        <th class="num mobil">Celkem</th><th>Doklad</th><th class="mobil">Stav</th>
       </tr>
     </thead>
     <tbody>
       <% if (invoices.length > 0) { %>
         <% invoices.forEach(inv => { %>
         <%
-          const sc = inv.status==='Zaplacena' ? '#dcfce7:#166534' :
-                     inv.status==='Po splatnosti' ? '#fee2e2:#991b1b' :
-                     inv.status==='Storno' ? '#f3f4f6:#6b7280' : '#fef9c3:#92400e';
-          const [bg,cl] = sc.split(':');
           const isOverdue = inv.due_date && inv.status !== 'Zaplacena' && inv.status !== 'Storno' && new Date(inv.due_date) < new Date();
         %>
-        <tr style="cursor:pointer;" onclick="location.href='/ucetnictvi/prijate-faktury/<%= inv.id %>'">
-          <td onclick="event.stopPropagation();">
+        <tr data-href="/ucetnictvi/prijate-faktury/<%= inv.id %>">
+          <td data-bez-prokliku>
             <input type="checkbox" class="bulk-cb" value="<%= inv.id %>" onchange="bulkUpdate()"
                    data-exported="<%= inv.pohoda_exported_at ? new Date(inv.pohoda_exported_at).toLocaleDateString('cs-CZ') : '' %>">
           </td>
-          <td style="font-weight:600;">
-            <%= inv.number %>
+          <td class="mono">
+            <a href="/ucetnictvi/prijate-faktury/<%= inv.id %>" class="radek-odkaz"><%= inv.number %></a>
             <% if (inv.vat_deductible === false) { %><br><span class="badge" style="background:#fef3c7;color:#92400e;font-size:10px;font-weight:500;"
                  title="Bez nároku na odpočet DPH – celá částka jde do nákladů">bez odpočtu</span><% } %>
             <% if (inv.pohoda_exported_at) { %><br><span style="font-size:10px;color:var(--text-muted);font-weight:400;"
                  title="Naposledy exportováno do POHODY">↑ <%= new Date(inv.pohoda_exported_at).toLocaleDateString('cs-CZ') %></span><% } %>
           </td>
-          <td><%= inv.supplier || '–' %></td>
-          <td style="color:var(--text-muted);font-size:13px;"><%= new Date(inv.issue_date).toLocaleDateString('cs-CZ') %></td>
-          <td style="color:var(--text-muted);font-size:13px;<%= isOverdue ? 'color:var(--danger);font-weight:500;' : '' %>">
-            <%= inv.due_date ? new Date(inv.due_date).toLocaleDateString('cs-CZ') : '–' %>
-            <% if (isOverdue) { %> ⚠<% } %>
+          <td><span class="radek-text" title="<%= inv.supplier || '' %>"><%= inv.supplier || '–' %></span></td>
+          <td class="mono sekundarni hide-mobile"><%= ceskeDatum(inv.issue_date) %></td>
+          <td class="mono <%= isOverdue ? 'pole-varovani' : 'sekundarni' %>">
+            <%= inv.due_date ? ceskeDatum(inv.due_date) : '–' %><% if (isOverdue) { %> <span title="Po splatnosti">⚠</span><% } %>
           </td>
-          <td style="text-align:right;font-weight:600;"><%= Number(inv.total_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= inv.currency %></td>
-          <td onclick="event.stopPropagation();">
+          <td class="num mobil"><%= Number(inv.total_amount).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> <%= inv.currency %></td>
+          <td data-bez-prokliku>
             <% if (inv.attachment_path && inv.attachment_missing) { %>
               <span class="doklad-thumb doklad-thumb-missing" title="Doklad chybí – soubor <%= inv.attachment_path %> na serveru není. Nahrajte jej prosím znovu.">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
@@ -91,11 +87,10 @@
               <span style="color:var(--text-muted);font-size:13px;">–</span>
             <% } %>
           </td>
-          <td><span class="badge" style="background:<%= bg %>;color:<%= cl %>;"><%= inv.status %></span></td>
-          <td onclick="event.stopPropagation()">
+          <td class="mobil" data-bez-prokliku>
             <form method="post" action="/ucetnictvi/prijate-faktury/<%= inv.id %>/stav" style="display:inline;">
-              <input type="hidden" name="redirect_to" value="/ucetnictvi/prijate-faktury">
-              <select name="status" class="form-select" style="width:auto;padding:4px 8px;font-size:12px;" onchange="this.form.submit()">
+              <input type="hidden" name="redirect_to" value="<%= strany.aktualni %>">
+              <select name="status" class="stav-vyber badge-<%= tonStavu(inv.status) %>" aria-label="Stav faktury <%= inv.number %>" onchange="this.form.submit()">
                 <% STATUSES_RECEIVED.forEach(s => { %><option value="<%= s %>" <%= inv.status===s?'selected':'' %>><%= s %></option><% }) %>
               </select>
             </form>
@@ -103,11 +98,22 @@
         </tr>
         <% }) %>
       <% } else { %>
-        <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-muted);">Žádné přijaté faktury</td></tr>
+        <tr><td colspan="8">
+          <div class="prazdno">
+            <% if (q || statusFilter) { %>
+              <strong>Filtru neodpovídá žádná faktura</strong>
+              <a href="/ucetnictvi/prijate-faktury" class="btn btn-outline btn-sm">Zrušit filtr</a>
+            <% } else { %>
+              <strong>Zatím žádné přijaté faktury</strong>
+              Nové se načítají samy z Google Disku.
+            <% } %>
+          </div>
+        </td></tr>
       <% } %>
     </tbody>
   </table>
 </div>
+<%- include('../../includes/strankovani', { strany }) %>
 
 <script>
 function bulkUpdate() {
@@ -120,7 +126,7 @@ function bulkUpdate() {
   // Opakovaný import založí doklad v POHODĚ znovu – ať to není překvapení
   const exported = [...cbs].filter(c => c.dataset.exported).length;
   document.getElementById('bulkSplit').textContent = exported
-    ? `· ⚠ ${exported} už jednou exportováno` : '';
+    ? `⚠ ${exported} už jednou exportováno` : '';
   bar.style.display = cbs.length > 0 ? 'flex' : 'none';
   const allCbs = document.querySelectorAll('.bulk-cb');
   document.getElementById('bulkSelectAll').checked = cbs.length === allCbs.length && allCbs.length > 0;

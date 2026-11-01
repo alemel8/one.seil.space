@@ -14,6 +14,8 @@ import { ceskeDatum, jenDatum, prazskeDatum, pridejDny } from '../prazsky-cas.js
 import { rezimUprav } from '../upravy.js';
 import { extractInvoiceData, importujSoubor } from '../gdrive-import.js';
 import { shodaBezIco } from '../prijata-faktura.js';
+import { parametr, strankovani } from '../strankovani.js';
+import { bezpecnyNavrat } from '../navrat.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '../..');
@@ -929,11 +931,8 @@ export default async function invoicesRoutes(fastify) {
   });
 
   fastify.get('/ucetnictvi/prijate-faktury', async (request, reply) => {
-    const q            = (request.query.q      || '').trim();
-    const statusFilter = (request.query.status || '').trim();
-    const page    = Math.max(1, parseInt(request.query.page || '1', 10));
-    const perPage = 25;
-    const offset  = (page - 1) * perPage;
+    const q            = parametr(request.query.q);
+    const statusFilter = parametr(request.query.status);
 
     const conditions = [sql`type = 'received'`];
     if (q) conditions.push(sql`(number ILIKE ${'%'+q+'%'} OR supplier ILIKE ${'%'+q+'%'})`);
@@ -941,13 +940,17 @@ export default async function invoicesRoutes(fastify) {
     const where = sql`WHERE ${conditions.reduce((a, b) => sql`${a} AND ${b}`)}`;
 
     const [{ count }] = await sql`SELECT COUNT(*)::int AS count FROM accounting_invoices ${where}`;
-    const invoices    = await sql`SELECT * FROM accounting_invoices ${where} ORDER BY issue_date DESC LIMIT ${perPage} OFFSET ${offset}`;
+    const strany = strankovani({ cesta: '/ucetnictvi/prijate-faktury', query: request.query, celkem: count, zachovat: ['q', 'status'] });
+    const invoices = await sql`
+      SELECT * FROM accounting_invoices ${where}
+      ORDER BY issue_date DESC, created_at DESC, id DESC
+      LIMIT ${strany.naStranku} OFFSET ${strany.offset}
+    `;
     markMissingAttachments(invoices);
 
     return reply.view('pages/invoices/received.ejs', {
       pageTitle: 'Přijaté faktury', currentPath: '/ucetnictvi/prijate-faktury',
-      user: request.user, invoices, total: count,
-      currentPage: page, totalPages: Math.ceil(count / perPage),
+      user: request.user, invoices, total: count, strany,
       q, statusFilter, STATUSES_RECEIVED,
     }, { layout: 'layouts/base.ejs' });
   });
@@ -1207,7 +1210,7 @@ export default async function invoicesRoutes(fastify) {
     const updates = [sql`status = ${status}`, sql`modified_at = NOW()`];
     if (status === 'Zaplacena') updates.push(sql`paid_date = CURRENT_DATE`);
     await sql`UPDATE accounting_invoices SET ${updates.reduce((a, b) => sql`${a}, ${b}`)} WHERE id = ${request.params.id}`;
-    return reply.redirect(redirect_to || `/ucetnictvi/prijate-faktury/${request.params.id}`);
+    return reply.redirect(bezpecnyNavrat(redirect_to, `/ucetnictvi/prijate-faktury/${request.params.id}`));
   });
 
   // ── POHODA XML export ─────────────────────────────────────────

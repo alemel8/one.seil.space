@@ -6,6 +6,7 @@ import view from '@fastify/view';
 import staticPlugin from '@fastify/static';
 import ejs from 'ejs';
 import { jenDatum, ceskeDatum, prazskeDatum } from './prazsky-cas.js';
+import { tonStavu } from './stavy.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getDb, closeAll } from './db.js';
@@ -57,8 +58,9 @@ await fastify.register(view, {
   root: path.join(projectRoot, 'views'),
   layout: false,
   // jenDatum/ceskeDatum: pole.ejs vykresluje datum nezávisle na TZ procesu;
-  // prazskeDatum: den ze sloupce TIMESTAMPTZ, ceskeDatum čte hodnoty sloupců DATE
-  defaultContext: { appName: 'one.seil.space', jenDatum, ceskeDatum, prazskeDatum },
+  // prazskeDatum: den ze sloupce TIMESTAMPTZ, ceskeDatum čte hodnoty sloupců DATE;
+  // tonStavu: barva odznaku stavu (src/stavy.js)
+  defaultContext: { appName: 'one.seil.space', jenDatum, ceskeDatum, prazskeDatum, tonStavu },
   options: { views: path.join(projectRoot, 'views') },
 });
 

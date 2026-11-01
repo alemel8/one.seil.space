@@ -1,0 +1,18 @@
+<%#
+  Pruh záložek pod hlavičkou stránky. Záložky přepíná server přes ?tab= (src/zalozky.js).
+
+    include('../../includes/zalozky', { nazev: 'Sekce e-shopu', zalozky, tab, adresa: k => `${url}?tab=${k}` })
+
+  zalozky  pole [klíč, popisek, …], další prvky si drží stránka (id formuláře)
+           nebo objekty { klic, popisek, pocet } s počtem řádků v odznaku
+  tab      klíč otevřené záložky
+  adresa   odkaz záložky podle klíče; absolutní, když stránku vykresluje i POST
+  nazev    popisek pruhu pro čtečku
+%>
+<nav class="tabs" aria-label="<%= nazev %>">
+  <% zalozky.forEach(z => {
+    const [klic, popisek, pocet] = Array.isArray(z) ? [z[0], z[1]] : [z.klic, z.popisek, z.pocet];
+  %>
+  <a href="<%= adresa(klic) %>" class="tab<%= tab === klic ? ' active' : '' %>"<%- tab === klic ? ' aria-current="page"' : '' %>><%= popisek %><% if (pocet !== undefined && pocet !== null) { %> <span class="tab-pocet"><%= pocet %></span><% } %></a>
+  <% }) %>
+</nav>

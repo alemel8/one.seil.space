@@ -1,0 +1,57 @@
+<%#
+  Patička seznamu: rozsah, počet řádků na stránku a přechod mezi stranami. Hodnoty
+  dává src/strankovani.js, sem patří jen zobrazení.
+
+    include('../../includes/strankovani', { strany })
+
+  Bez řádků se nevykreslí nic (prázdný stav ukazuje seznam). Odkazy místo formuláře:
+  fungují bez JavaScriptu a patička smí ležet i uvnitř jiného formuláře. data-seznam
+  je adresa téhle stránky pro odkaz „← Zpět“ na detailu (public/js/app.js).
+%>
+<% if (strany.celkem > 0) {
+  const cislo = n => Number(n).toLocaleString('cs-CZ');
+%>
+<div class="strankovani" data-seznam="<%= strany.aktualni %>">
+  <p class="strankovani-rozsah"><strong><%= cislo(strany.od) %>–<%= cislo(strany.do) %></strong> z <strong><%= cislo(strany.celkem) %></strong></p>
+
+  <% if (strany.celkem > strany.velikosti[0]) { %>
+  <div class="strankovani-velikost" role="group" aria-label="Počet řádků na stránku">
+    <span class="strankovani-popisek">Na stránku</span>
+    <% strany.velikosti.forEach(v => { %>
+      <% if (v === strany.naStranku) { %>
+      <span class="strankovani-volba" aria-current="true"><%= v %></span>
+      <% } else { %>
+      <a class="strankovani-volba" href="<%= strany.odkazVelikost(v) %>"><%= v %></a>
+      <% } %>
+    <% }) %>
+  </div>
+  <% } %>
+
+  <% if (strany.pocetStran > 1) { %>
+  <nav class="strankovani-kroky" aria-label="Stránkování">
+    <% if (strany.strana > 1) { %>
+    <a class="strankovani-krok" rel="prev" href="<%= strany.odkaz(strany.strana - 1) %>"><span aria-hidden="true">‹</span> Předchozí</a>
+    <% } else { %>
+    <span class="strankovani-krok" aria-disabled="true"><span aria-hidden="true">‹</span> Předchozí</span>
+    <% } %>
+
+    <% strany.okno.forEach(c => { %>
+      <% if (c === null) { %>
+      <span class="strankovani-vypustka" aria-hidden="true">…</span>
+      <% } else if (c === strany.strana) { %>
+      <span class="strankovani-cislo" aria-current="page"><%= c %></span>
+      <% } else { %>
+      <a class="strankovani-cislo" href="<%= strany.odkaz(c) %>"><%= c %></a>
+      <% } %>
+    <% }) %>
+    <span class="strankovani-pozice"><%= strany.strana %> / <%= strany.pocetStran %></span>
+
+    <% if (strany.strana < strany.pocetStran) { %>
+    <a class="strankovani-krok" rel="next" href="<%= strany.odkaz(strany.strana + 1) %>">Další <span aria-hidden="true">›</span></a>
+    <% } else { %>
+    <span class="strankovani-krok" aria-disabled="true">Další <span aria-hidden="true">›</span></span>
+    <% } %>
+  </nav>
+  <% } %>
+</div>
+<% } %>
