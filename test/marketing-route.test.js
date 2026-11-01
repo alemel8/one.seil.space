@@ -154,7 +154,7 @@ describe('sekce Marketing', { skip: !DATABASE_URL && 'bez DATABASE_URL' }, () =>
     assert.equal(res.headers.get('location'), '/prihlasit');
   });
 
-  test('přehled: tržby bez DPH bez storna, PNO z API i ručních nákladů, kanály a marže', async () => {
+  test('přehled: tržby bez DPH bez storna, PNO z API i ručních nákladů a marže', async () => {
     const res = await get(cestaPrehledu());
     assert.equal(res.status, 200);
     const html = await text(res);
@@ -165,16 +165,23 @@ describe('sekce Marketing', { skip: !DATABASE_URL && 'bez DATABASE_URL' }, () =>
     // náklady 100 (Sklik z API) + 62 (Heureka ručně, celé období) = 162 → PNO 10,8 %
     assert.ok(html.includes('162,00 Kč'), 'náklady celkem');
     assert.ok(html.includes('10,8 %'), 'PNO');
-    // kanály: Google Ads (gclid) 1 objednávka, Sklik má náklad bez objednávky, neznámý 1
-    assert.ok(/Google Ads<\/td>\s*<td[^>]*>1</.test(html), 'Google Ads s jednou objednávkou');
-    assert.ok(/Neznámý \(bez atribuce\)<\/td>\s*<td[^>]*>1</.test(html), 'objednávka bez atribuce');
-    assert.ok(html.includes('zdroj objednávky zná 50 %'), 'pokrytí atribuce');
     // marže ze známé nákupní ceny: 1165/1,21 − 500 = 462,81 (DOPRAVA se přeskočí)
     assert.ok(html.includes('462,81 Kč'), 'marže ze známé nákupní ceny');
     // zaplaceno jen karta se stavem Zaplaceno: 1210/1,21 = 1 000,00
     assert.ok(html.includes('zaplaceno 1 000,00 Kč'), 'z toho zaplaceno');
     assert.ok(html.includes('Heureka'), 'ruční náklad v tabulce platforem');
     assert.ok(html.includes('id="marketing-data"'), 'data pro graf');
+  });
+
+  test('záložka Kanály: objednávky a tržby po kanálech, pokrytí atribuce', async () => {
+    const res = await get(`${cestaPrehledu()}&tab=kanaly`);
+    assert.equal(res.status, 200);
+    const html = await text(res);
+    // Google Ads (gclid) 1 objednávka, Sklik má náklad bez objednávky, neznámý 1
+    assert.ok(/Google Ads<\/td>\s*<td[^>]*>1</.test(html), 'Google Ads s jednou objednávkou');
+    assert.ok(/Neznámý \(bez atribuce\)<\/td>\s*<td[^>]*>1</.test(html), 'objednávka bez atribuce');
+    assert.ok(html.includes('zdroj objednávky zná 50 %'), 'pokrytí atribuce');
+    assert.ok(!html.includes('5 000,00'), 'storno nepatří ani do kanálů');
   });
 
   test('přehled bez dat ukazuje pomlčky a varování o nenastavených platformách', async () => {

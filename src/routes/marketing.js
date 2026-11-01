@@ -13,14 +13,24 @@
 
 import { getDb } from '../db.js';
 import { prazskyCas, jenDatum } from '../prazsky-cas.js';
-import { PRESETY, vyhodnotObdobi } from '../marketing/obdobi.js';
+import { PRESETY, rozsahCesky, vyhodnotObdobi } from '../marketing/obdobi.js';
 import * as kpi from '../marketing/kpi.js';
 import { PLATFORMA_POPIS, sestavPrehled } from '../marketing/prehled.js';
-import { behySyncu, nactiZdroje } from '../marketing/zdroje.js';
+import { behySyncu, nactiZdroje, pocetBehuSyncu } from '../marketing/zdroje.js';
 import { maKlic } from '../marketing/tajemstvi.js';
 import { isConfigured as maGoogleServiceAccount } from '../google-auth.js';
+import { parametr, strankovani } from '../strankovani.js';
+import { bezpecnyNavrat } from '../navrat.js';
+import { zalozka } from '../zalozky.js';
 
 const VYCHOZI_ESHOP = 'toneracek';
+
+/** Záložky přehledu; první je výchozí a do adresy se nepíše. */
+const ZALOZKY_PREHLEDU = [
+  ['prehled', 'Přehled'],
+  ['kanaly', 'Kanály'],
+  ['vyhledavani', 'Vyhledávání a e-shop'],
+];
 
 /** Platformy ručních nákladů – stejný seznam jako CHECK v migraci 042. */
 export const RUCNI_PLATFORMY = ['google_ads', 'sklik', 'zbozi', 'heureka', 'meta', 'ostatni'];
@@ -38,7 +48,7 @@ export default async function marketingRoutes(fastify) {
              marketing_pno_alert_pct::float8 AS marketing_pno_alert_pct
       FROM shops WHERE active = TRUE
       ORDER BY (slug = ${VYCHOZI_ESHOP}) DESC, name`;
-    const slug = String(query?.eshop || '').trim().toLowerCase();
+    const slug = parametr(query?.eshop).toLowerCase();
     const shop = eshopy.find(e => e.slug === slug) ?? eshopy.find(e => e.slug === VYCHOZI_ESHOP) ?? eshopy[0] ?? null;
     return { eshopy, shop };
   }
@@ -56,6 +66,12 @@ export default async function marketingRoutes(fastify) {
     return s ? `?${s}` : '';
   }
 
+  /** Dotaz přehledu: e-shop, období a záložka. Stejná adresa pro záložky i přepínač e-shopů. */
+  const dotazPrehledu = (shop, obdobi, tab) => dotaz(shop, obdobi, { tab: tab === ZALOZKY_PREHLEDU[0][0] ? null : tab });
+
+  /** Parametry odkazů stran: e-shop, na kterém seznam opravdu je, ne hodnota z adresy. */
+  const eshopSeznamu = (shop) => (shop.slug === VYCHOZI_ESHOP ? {} : { eshop: shop.slug });
+
   const spolecne = (request, currentPath, eshopy, shop) => ({
     user: request.user, currentPath, eshopy, shop, vychoziEshop: VYCHOZI_ESHOP,
     saved: request.query.saved === '1', error: request.query.error || null,
@@ -67,11 +83,14 @@ export default async function marketingRoutes(fastify) {
     const { eshopy, shop } = await eshopZDotazu(request.query);
     const dnes = prazskyCas().datum;
     const obdobi = vyhodnotObdobi(request.query, dnes);
+    const tab = zalozka(ZALOZKY_PREHLEDU, request.query.tab);
+    const stranka = {
+      pageTitle: 'Marketing', ...spolecne(request, '/marketing', eshopy, shop),
+      obdobi, presety: PRESETY, dotaz, dotazPrehledu, zalozky: ZALOZKY_PREHLEDU, tab,
+    };
 
     if (!shop) {
-      return reply.view('pages/marketing/prehled.ejs', {
-        pageTitle: 'Marketing', ...spolecne(request, '/marketing', eshopy, null), obdobi, presety: PRESETY, prehled: null, dotaz,
-      }, { layout: 'layouts/base.ejs' });
+      return reply.view('pages/marketing/prehled.ejs', { ...stranka, prehled: null }, { layout: 'layouts/base.ejs' });
     }
 
     const rozsah = { shopId: shop.id, od: obdobi.od, do: obdobi.do };
@@ -92,15 +111,16 @@ export default async function marketingRoutes(fastify) {
     ]);
     const polozky = await kpi.polozkyObjednavek(sql, objednavky.map(o => o.id));
 
+    // Skládá se celý i pro jednu záložku: varování nad pruhem potřebují zdroje a ruční
+    // náklady, kanály tržby a náklady, takže úspora by chtěla rozebrat sestavPrehled.
     const prehled = sestavPrehled({
       shop, obdobi, objednavky, polozky, nakladyApi, rucni, trzbyDny, nakladyDny, apiDny,
       funnel, kanalyGa4Radky, organika, merchant, konverze, eshopDny, zdroje, dnes,
     });
 
     return reply.view('pages/marketing/prehled.ejs', {
-      pageTitle: 'Marketing', ...spolecne(request, '/marketing', eshopy, shop),
-      obdobi, presety: PRESETY, prehled, dotaz, dnes,
-      extraJs: '<script src="/static/chart.umd.min.js"></script><script src="/static/js/marketing.js"></script>',
+      ...stranka, prehled, dnes,
+      extraJs: tab === 'prehled' ? '<script src="/static/chart.umd.min.js"></script><script src="/static/js/marketing.js"></script>' : '',
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -112,18 +132,25 @@ export default async function marketingRoutes(fastify) {
 
   fastify.get('/marketing/naklady', async (request, reply) => {
     const { eshopy, shop } = await eshopZDotazu(request.query);
-    const naklady = shop ? await sql`
-      SELECT n.id, n.platform, n.date_from::text AS date_from, n.date_to::text AS date_to,
-             n.amount::float8 AS amount, n.note, n.created_at,
-             TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS zadal
-      FROM marketing_manual_costs n
-      LEFT JOIN users u ON u.id = n.created_by
-      WHERE n.shop_id = ${shop.id}
-      ORDER BY n.date_from DESC, n.id DESC
-      LIMIT 200` : [];
+    let naklady = [];
+    let strany = null;
+    if (shop) {
+      const [{ count }] = await sql`SELECT COUNT(*)::int AS count FROM marketing_manual_costs WHERE shop_id = ${shop.id}`;
+      strany = strankovani({ cesta: '/marketing/naklady', query: request.query, celkem: count, pevne: eshopSeznamu(shop) });
+      naklady = await sql`
+        SELECT n.id, n.platform, n.date_from::text AS date_from, n.date_to::text AS date_to,
+               n.amount::float8 AS amount, n.note, n.created_at,
+               TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS zadal
+        FROM marketing_manual_costs n
+        LEFT JOIN users u ON u.id = n.created_by
+        WHERE n.shop_id = ${shop.id}
+        ORDER BY n.date_from DESC, n.id DESC
+        LIMIT ${strany.naStranku} OFFSET ${strany.offset}`;
+    }
     return reply.view('pages/marketing/naklady.ejs', {
       pageTitle: 'Ruční náklady na reklamu', ...spolecne(request, '/marketing/naklady', eshopy, shop),
-      naklady, platformy: RUCNI_PLATFORMY, platformaPopis: PLATFORMA_POPIS, dotaz, dnes: prazskyCas().datum,
+      naklady, strany, smazano: request.query.smazano === '1',
+      platformy: RUCNI_PLATFORMY, platformaPopis: PLATFORMA_POPIS, rozsahCesky, dotaz, dnes: prazskyCas().datum,
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -151,20 +178,32 @@ export default async function marketingRoutes(fastify) {
   fastify.post('/marketing/naklady/:id/smazat', async (request, reply) => {
     const { shop } = await eshopZDotazu({ eshop: request.body?.eshop ?? request.query.eshop });
     if (!shop) return reply.code(400).send('Neznámý e-shop');
-    const id = parseInt(request.params.id, 10) || 0;
+    // Číslo nad rozsah sloupce by Postgres odmítl a stránka by spadla na 500; devět číslic ruční náklady nepřekročí.
+    const id = /^\d{1,9}$/.test(request.params.id) ? Number(request.params.id) : 0;
     // Jen vlastní e-shop: id z cizího e-shopu se nesmaže, ani omylem.
-    await sql`DELETE FROM marketing_manual_costs WHERE id = ${id} AND shop_id = ${shop.id}`;
-    return reply.redirect(`/marketing/naklady${dotaz(shop, null, { saved: 1 })}`);
+    const { count } = await sql`DELETE FROM marketing_manual_costs WHERE id = ${id} AND shop_id = ${shop.id}`;
+    const navrat = bezpecnyNavrat(request.body?.redirect_to, `/marketing/naklady${dotaz(shop, null)}`);
+    return reply.redirect(count ? `${navrat}${navrat.includes('?') ? '&' : '?'}smazano=1` : navrat);
   });
 
   // ── Synchronizace ───────────────────────────────────────────
 
   fastify.get('/marketing/sync', async (request, reply) => {
     const { eshopy, shop } = await eshopZDotazu(request.query);
-    const [zdroje, behy] = shop ? await Promise.all([nactiZdroje(sql, shop.id), behySyncu(sql, shop.id, 50)]) : [[], []];
+    let zdroje = [];
+    let behy = [];
+    let strany = null;
+    if (shop) {
+      const pocet = await pocetBehuSyncu(sql, shop.id);
+      // 50 na stránku: automat dělá až 8 běhů denně, tolik se tu ukazovalo i před stránkováním.
+      strany = strankovani({ cesta: '/marketing/sync', query: request.query, celkem: pocet, naStranku: 50, pevne: eshopSeznamu(shop) });
+      [zdroje, behy] = await Promise.all([nactiZdroje(sql, shop.id), behySyncu(sql, shop.id, strany.naStranku, strany.offset)]);
+    }
     return reply.view('pages/marketing/sync.ejs', {
       pageTitle: 'Synchronizace marketingu', ...spolecne(request, '/marketing/sync', eshopy, shop),
-      zdroje, behy, dotaz, maGoogleSa: maGoogleServiceAccount(), maSecretsKey: maKlic(),
+      zdroje, behy, strany, dotaz, rozsahCesky,
+      zadnyBeh: request.query.behu === '0', behSChybou: Number(parametr(request.query.chyb)) > 0,
+      maGoogleSa: maGoogleServiceAccount(), maSecretsKey: maKlic(),
       jeAdmin: Boolean(request.user?.is_admin),
     }, { layout: 'layouts/base.ejs' });
   });
@@ -196,7 +235,9 @@ export default async function marketingRoutes(fastify) {
         do: jenDatum(String(b.do || '').trim()) || null,
         userId: request.user.id,
       });
-      return zpet(null, { behu: Array.isArray(vysledek) ? vysledek.length : 1 });
+      const behy = Array.isArray(vysledek) ? vysledek : [vysledek];
+      const chyb = behy.filter(beh => beh?.status === 'chyba').length;
+      return zpet(null, { behu: behy.length, ...(chyb ? { chyb } : {}) });
     } catch (err) {
       if (err?.name === 'SyncBeziError') return zpet('sync-bezi');
       request.log.error({ err, shop: shop.slug }, 'Ruční sync marketingu selhal');

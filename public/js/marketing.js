@@ -11,6 +11,11 @@
   try { data = JSON.parse(el.textContent); } catch (e) { return; }
   if (!data || !data.dny || !data.dny.length) return;
 
+  // Výchozí šedý text a černá mřížka Chart.js by v tmavém režimu skoro nebyly vidět.
+  var tmave = document.documentElement.getAttribute('data-theme') === 'dark';
+  Chart.defaults.color = tmave ? '#A9B3C0' : '#4B5563';
+  Chart.defaults.borderColor = tmave ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
+
   var kc = function (v) { return v == null ? '–' : Number(v).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Kč'; };
   var pct = function (v) { return v == null ? '–' : Number(v).toLocaleString('cs-CZ', { maximumFractionDigits: 1 }) + ' %'; };
 
@@ -25,6 +30,8 @@
     },
     options: {
       responsive: true,
+      maintainAspectRatio: false, // výšku drží obal v šabloně, poměr stran by graf na telefonu zplacatil
+      locale: 'cs-CZ',
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { position: 'top' },
