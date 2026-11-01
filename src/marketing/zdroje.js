@@ -217,13 +217,19 @@ export function tajemstviZdroje(zdroj, shop, env = process.env) {
   return shop?.webhook_secret || shop?.shop_webhook_secret || '';
 }
 
-/** Poslední běhy syncu e-shopu pro nastavení a stránku Synchronizace. */
-export async function behySyncu(sql, shopId, limit = 50) {
+/** Běhy syncu e-shopu od nejnovějšího: nastavení bere prvních pár, stránka Synchronizace stránkuje. */
+export async function behySyncu(sql, shopId, limit = 50, offset = 0) {
   return sql`
     SELECT r.*, TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS spustil
     FROM marketing_sync_runs r
     LEFT JOIN users u ON u.id = r.started_by
     WHERE r.shop_id = ${shopId}
-    ORDER BY r.started_at DESC
-    LIMIT ${limit}`;
+    ORDER BY r.started_at DESC, r.id DESC
+    LIMIT ${limit} OFFSET ${offset}`;
+}
+
+/** Počet běhů syncu e-shopu pro patičku seznamu. */
+export async function pocetBehuSyncu(sql, shopId) {
+  const [{ pocet }] = await sql`SELECT COUNT(*)::int AS pocet FROM marketing_sync_runs WHERE shop_id = ${shopId}`;
+  return pocet;
 }
