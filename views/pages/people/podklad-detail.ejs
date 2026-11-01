@@ -10,11 +10,13 @@
     <h1><%= (podklad.kody || []).join(', ') || 'Fakturační podklad' %></h1>
     <p>
       <%= mista.join(' · ') %><% if (mista.length) { %> · <% } %>
-      <a href="/lide/tym/<%= podklad.public_id %>?tab=podklady" style="color:var(--primary);text-decoration:none;"><%= jmeno %></a>
+      <a href="/lide/tym/<%= podklad.public_id %>?tab=podklady" style="color:var(--link);text-decoration:none;"><%= jmeno %></a>
       · <%= den(podklad.report_date) %>
     </p>
   </div>
-  <a href="/lide/podklady" class="btn btn-outline">← Na podklady</a>
+  <div class="page-header-akce">
+    <a href="/lide/podklady" class="btn btn-outline" data-zpet>← Na podklady</a>
+  </div>
 </div>
 
 <div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;align-items:start;">
@@ -56,7 +58,7 @@
           <dt style="color:var(--text-muted);">Datum</dt>
           <dd><%= den(podklad.report_date) %></dd>
           <dt style="color:var(--text-muted);">Stav</dt>
-          <dd><span class="badge" style="background:var(--gray-100);color:var(--text-secondary);"><%= podklad.status %></span></dd>
+          <dd><span class="badge badge-<%= tonStavu(podklad.status) %>"><%= (PODKLAD_STAVY.find(s => s[0] === podklad.status) || [, podklad.status])[1] %></span></dd>
         </dl>
       </div>
     </div>
@@ -70,7 +72,7 @@
         <% if (podklad.invoice_id) { %>
           <dl style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13.5px;margin:0;">
             <dt style="color:var(--text-muted);">Faktura</dt>
-            <dd><a href="/ucetnictvi/vydane-faktury/<%= podklad.invoice_id %>" style="color:var(--primary);text-decoration:none;"><%= podklad.faktura_cislo %></a></dd>
+            <dd><a href="/ucetnictvi/vydane-faktury/<%= podklad.invoice_id %>" style="color:var(--link);text-decoration:none;"><%= podklad.faktura_cislo %></a></dd>
             <dt style="color:var(--text-muted);">Stav</dt>
             <dd><%= podklad.faktura_stav %></dd>
             <dt style="color:var(--text-muted);">Vystavena</dt>

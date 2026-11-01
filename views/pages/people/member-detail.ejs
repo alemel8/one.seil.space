@@ -75,19 +75,19 @@
       <div style="font-size:14px;color:var(--text-muted);margin-bottom:6px;"><%= member.position %></div>
       <% } %>
       <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">
-        <a href="mailto:<%= member.email %>" style="color:var(--primary)"><%= member.email %></a>
+        <a href="mailto:<%= member.email %>" style="color:var(--link)"><%= member.email %></a>
         <% if (member.phone) { %> · <%= member.phone %><% } %>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
         <% if (member.is_admin) { %>
-          <span class="badge" style="background:#fef9c3;color:#854d0e;">Správce</span>
+          <span class="badge badge-varovani">Správce</span>
         <% } else { %>
-          <span class="badge" style="background:var(--info-bg);color:var(--info);">Uživatel</span>
+          <span class="badge badge-info">Uživatel</span>
         <% } %>
         <% if (!member.is_active) { %>
-          <span class="badge" style="background:var(--danger-bg);color:#991b1b;">Neaktivní</span>
+          <span class="badge badge-chyba">Neaktivní</span>
         <% } else { %>
-          <span class="badge" style="background:var(--success-bg);color:#15803D;">Aktivní</span>
+          <span class="badge badge-ok">Aktivní</span>
         <% } %>
       </div>
     </div>
@@ -99,22 +99,18 @@
   // vlastní dotaz, takže načítat všechny naráz při otevření profilu by bylo
   // plýtvání – a jen tady jde do popisku doplnit počet.
   const zalozky = [
-    ['detail',    'Detail',               true],
-    ['banka',     'Bankovní účet',        true],
-    ['ekonomika', 'Ekonomika',            Boolean(maData)],
-    ['podklady',  `Fakturační podklady (${pocty.podklady})`, pocty.podklady > 0],
-    ['mzdy',      `Mzdy (${pocty.mzdy})`, pocty.mzdy > 0],
-    ['hodiny',    `Hodiny (${pocty.mereni})`, pocty.mereni > 0],
-    ['vydaje',    `Platby mimo mzdu (${pocty.platby})`, true],
-    ['dokumenty', `Dokumenty (${pocty.dokumenty})`, true],
-    ['pristupy',  'Přístupy',             true],
-  ].filter(z => z[2]);
+    { klic: 'detail',    popisek: 'Detail' },
+    { klic: 'banka',     popisek: 'Bankovní účet' },
+    { klic: 'ekonomika', popisek: 'Ekonomika', jen: Boolean(maData) },
+    { klic: 'podklady',  popisek: 'Podklady', pocet: pocty.podklady, jen: pocty.podklady > 0 },
+    { klic: 'mzdy',      popisek: 'Mzdy', pocet: pocty.mzdy, jen: pocty.mzdy > 0 },
+    { klic: 'hodiny',    popisek: 'Hodiny', pocet: pocty.mereni, jen: pocty.mereni > 0 },
+    { klic: 'vydaje',    popisek: 'Platby', pocet: pocty.platby },
+    { klic: 'dokumenty', popisek: 'Dokumenty', pocet: pocty.dokumenty },
+    { klic: 'pristupy',  popisek: 'Přístupy' },
+  ].filter(z => z.jen !== false);
 %>
-<nav class="tabs" aria-label="Sekce člena týmu">
-  <% zalozky.forEach(function (z) { const key = z[0], label = z[1]; %>
-  <a href="?tab=<%= key %>" class="tab<%= currentTab===key ? ' active' : '' %>"<%- currentTab===key ? ' aria-current="page"' : '' %>><%= label %></a>
-  <% }) %>
-</nav>
+<%- include('../../includes/zalozky', { nazev: 'Sekce člena týmu', zalozky, tab: currentTab, adresa: k => `?tab=${k}` }) %>
 
 <% if (currentTab === 'detail') { %>
   <div class="card">
@@ -235,17 +231,17 @@
         <dt style="color:var(--text-muted);font-weight:500;">Stav účtu</dt>
         <dd>
           <% if (member.is_active) { %>
-            <span class="badge" style="background:var(--success-bg);color:#15803D;">Aktivní</span>
+            <span class="badge badge-ok">Aktivní</span>
           <% } else { %>
-            <span class="badge" style="background:var(--danger-bg);color:#991b1b;">Neaktivní</span>
+            <span class="badge badge-chyba">Neaktivní</span>
           <% } %>
         </dd>
         <dt style="color:var(--text-muted);font-weight:500;">Role</dt>
         <dd>
           <% if (member.is_admin) { %>
-            <span class="badge" style="background:#fef9c3;color:#854d0e;">Správce</span>
+            <span class="badge badge-varovani">Správce</span>
           <% } else { %>
-            <span class="badge" style="background:var(--info-bg);color:var(--info);">Uživatel</span>
+            <span class="badge badge-info">Uživatel</span>
           <% } %>
         </dd>
         <% if (member.updated_at) { %>

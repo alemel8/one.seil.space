@@ -1,13 +1,6 @@
 <%
   const fmtD = d => d ? new Date(d).toLocaleDateString('cs-CZ') : '–';
   const fmtDT = d => d ? new Date(d).toLocaleString('cs-CZ') : '–';
-  const statusColor = s => ({
-    'Aktivní':      ['var(--success-bg)', '#166534'],
-    'Pozastaveno':  ['var(--warning-bg)', '#92400e'],
-    'Dokončeno':    ['var(--info-bg)',    '#1e40af'],
-    'V přípravě':   ['var(--gray-100)',   'var(--gray-600)'],
-  }[s] || ['var(--gray-100)', 'var(--gray-600)']);
-  const sc = statusColor(item.status);
   const meta = PROJECT_TYPES[item.type] || { label: item.type, icon: 'web.svg', color: 'var(--text-muted)' };
   // Režim úprav (src/upravy.js): jeden formulář záznamu, bez JS otevře úpravy ?upravit=1.
   const formular = 'formPodprojekt';
@@ -24,9 +17,9 @@
         <span class="project-type-icon" style="--icon-url:url(/static/img/project-types/<%= meta.icon %>);--icon-color:<%= meta.color %>;"></span>
       </span>
       <h1 style="margin:0;"><%= item.name %></h1>
-      <span class="badge" style="background:<%= sc[0] %>;color:<%= sc[1] %>;"><%= item.status %></span>
+      <span class="badge badge-<%= tonStavu(item.status) %>"><%= item.status %></span>
     </div>
-    <p><%= meta.label %> · Klient: <a href="/crm/firmy/<%= item.company_id %>" style="color:var(--primary);"><%= item.company_name %></a></p>
+    <p><%= meta.label %> · Klient: <a href="/crm/firmy/<%= item.company_id %>" style="color:var(--link);"><%= item.company_name %></a></p>
   </div>
   <div class="page-header-akce">
     <form method="post" action="/projekty/podprojekty/<%= item.id %>/smazat" onsubmit="return confirm('Smazat tento podprojekt?');" style="display:inline;">
@@ -104,7 +97,7 @@
             <% if (health.checked_at) { %><div>Poslední kontrola: <%= fmtDT(health.checked_at) %></div><% } %>
             <% if (health.error) { %><div style="color:var(--danger);"><%= health.error %></div><% } %>
           </div>
-          <a href="/monitoring" style="display:inline-block;margin-top:10px;font-size:12px;color:var(--primary);">Zobrazit monitoring →</a>
+          <a href="/monitoring" style="display:inline-block;margin-top:10px;font-size:12px;color:var(--link);">Zobrazit monitoring →</a>
         <% } else { %>
           <div style="color:var(--text-muted);font-size:13px;">Bez napojeného healthchecku. Přidejte ho tužkou nahoře.</div>
         <% } %>
@@ -116,7 +109,7 @@
       <div class="card-header"><strong>Napojený eshop</strong></div>
       <div class="card-body" style="font-size:13px;">
         <div style="font-weight:600;margin-bottom:4px;"><%= shop.name %></div>
-        <% if (/^https?:\/\//i.test(shop.url || '')) { %><a href="<%= shop.url %>" target="_blank" rel="noopener noreferrer" style="color:var(--primary);"><%= shop.url %></a><% } else if (shop.url) { %><%= shop.url %><% } %>
+        <% if (/^https?:\/\//i.test(shop.url || '')) { %><a href="<%= shop.url %>" target="_blank" rel="noopener noreferrer" style="color:var(--link);"><%= shop.url %></a><% } else if (shop.url) { %><%= shop.url %><% } %>
       </div>
     </div>
     <% } %>

@@ -1,87 +1,112 @@
 <%
   const stavLabel = s => (TASK_STAVY.find(x => x[0] === s) || [, s])[1];
-  const stavBarva = s => s === 'done' ? ['var(--success-bg)', '#15803D']
-    : s === 'in_progress' ? ['var(--info-bg)', 'var(--info)']
-    : s === 'on_hold' ? ['var(--gray-100)', 'var(--text-secondary)']
-    : ['var(--warning-bg)', '#92400e'];
-  const poTerminu = u => u.due_date && u.status !== 'done' && new Date(u.due_date) < new Date();
+  const dnes = prazskeDatum(new Date());
+  const poTerminu = u => u.due_date && u.status !== 'done' && jenDatum(u.due_date) < dnes;
+  const maFiltr = filtry.q || filtry.stav || filtry.klient;
+  const malo = total >= 2 && total <= 4;
+  const nazev = total === 1 ? 'úkol' : malo ? 'úkoly' : 'úkolů';
+  const nehotove = total === 1 ? 'nehotový ' : malo ? 'nehotové ' : 'nehotových ';
 %>
 
 <div class="page-header">
   <div class="page-header-left">
     <h1>Úkoly</h1>
-    <p><%= ukoly.length %> úkolů<%= filtry.jenNehotove ? ' (nehotové)' : '' %></p>
+    <p><%= total.toLocaleString('cs-CZ') %> <%= filtry.jenNehotove ? nehotove : '' %><%= nazev %><%= maFiltr ? (malo ? ' odpovídají filtru' : ' odpovídá filtru') : filtry.jenNehotove ? '' : ' celkem' %></p>
   </div>
-  <button class="btn btn-primary" data-modal-open="modalUkol">+ Nový úkol</button>
+  <div class="page-header-akce">
+    <button class="btn btn-primary" data-modal-open="modalUkol">+ Nový úkol</button>
+  </div>
 </div>
 
-<form method="get" style="display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap;">
-  <input type="text" name="q" value="<%= filtry.q %>" placeholder="Hledat úkol nebo GUK-…"
-         class="form-control" style="flex:1;min-width:200px;max-width:320px;">
-  <select name="klient" class="form-select" style="max-width:200px;">
+<form method="get" class="filtr-lista">
+  <input type="text" name="q" value="<%= filtry.q %>" placeholder="Hledat úkol nebo GUK-…" class="form-control" aria-label="Hledat úkol nebo jeho kód">
+  <select name="klient" class="form-select" style="max-width:200px;" aria-label="Klient">
     <option value="">Všichni klienti</option>
     <% klienti.forEach(function (k) { %>
       <option value="<%= k.id %>" <%= filtry.klient === k.id ? 'selected' : '' %>><%= k.name %></option>
     <% }) %>
   </select>
-  <select name="stav" class="form-select" style="max-width:170px;">
+  <select name="stav" class="form-select" aria-label="Stav">
     <option value="">Všechny stavy</option>
     <% TASK_STAVY.forEach(function (s) { %>
       <option value="<%= s[0] %>" <%= filtry.stav === s[0] ? 'selected' : '' %>><%= s[1] %></option>
     <% }) %>
   </select>
   <label class="toggle-label" style="font-size:13px;">
-    <input type="checkbox" name="vse" value="1" class="toggle-input" <%= filtry.jenNehotove ? '' : 'checked' %>>
+    <input type="checkbox" name="vse" value="1" class="toggle-input" <%= filtry.vse ? 'checked' : '' %>>
     <span class="toggle-switch"></span>
     <span class="toggle-text">i hotové</span>
   </label>
   <button type="submit" class="btn btn-outline">Filtrovat</button>
+  <% if (maFiltr || filtry.vse) { %><a href="/prace/ukoly" class="btn btn-ghost">Zrušit filtr</a><% } %>
 </form>
 
-<div class="card">
-  <div class="table-wrapper" style="border:none;border-radius:0;">
-    <table class="data-table">
-      <thead><tr><th style="width:90px;">ID</th><th>Souhrn</th><th>Klient</th><th>Řešitel</th><th>Termín</th><th style="text-align:right;">Čas</th><th style="width:60px;"></th></tr></thead>
-      <tbody>
-        <% if (!ukoly.length) { %>
-          <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);">Žádné úkoly neodpovídají filtru</td></tr>
-        <% } %>
-        <% ukoly.forEach(function (u) { const b = stavBarva(u.status); %>
-        <tr>
-          <td style="font-family:var(--font-mono);font-size:12.5px;white-space:nowrap;">
-            <% if (u.bezi) { %><span class="stopky-tecka" style="margin-right:5px;"></span><% } %>
-            <a href="/prace/ukoly/<%= u.id %>" style="color:var(--primary);text-decoration:none;"><%= u.code || '–' %></a>
-          </td>
-          <td style="font-size:13.5px;">
-            <a href="/prace/ukoly/<%= u.id %>" style="color:var(--text-primary);text-decoration:none;"><%= u.summary %></a>
-            <span class="badge" style="background:<%= b[0] %>;color:<%= b[1] %>;margin-left:8px;"><%= stavLabel(u.status) %></span>
-          </td>
-          <td style="font-size:13px;color:var(--text-muted);"><%= u.klient || '–' %></td>
-          <td style="font-size:13px;color:var(--text-muted);"><%= [u.resitel_jmeno, u.resitel_prijmeni].filter(Boolean).join(' ') || '–' %></td>
-          <td style="font-size:12.5px;white-space:nowrap;color:<%= poTerminu(u) ? 'var(--danger)' : 'var(--text-muted)' %>;">
-            <%= u.due_date ? new Date(u.due_date).toLocaleDateString('cs-CZ') : '–' %><%= poTerminu(u) ? ' ⚠' : '' %>
-          </td>
-          <td style="text-align:right;font-family:var(--font-mono);font-size:13px;"><%= hodinyMinuty(u.sekund) %></td>
-          <td>
-            <% if (bezi && bezi.task_id === u.id) { %>
-              <form method="post" action="/prace/stopky/stop">
-                <input type="hidden" name="back" value="/prace/ukoly">
-                <button type="submit" class="btn btn-danger btn-sm" title="Zastavit">■</button>
-              </form>
+<div class="table-wrapper">
+  <table class="data-table" style="min-width:0;">
+    <thead>
+      <tr>
+        <th class="hide-mobile">ID</th><th>Souhrn</th><th class="hide-mobile">Klient</th><th class="hide-mobile">Řešitel</th>
+        <th>Termín</th><th class="num">Čas</th><th class="mobil">Stav</th><th aria-label="Stopky"></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (!ukoly.length) { %>
+        <tr><td colspan="8">
+          <div class="prazdno">
+            <% if (maFiltr) { %>
+              <strong>Filtru neodpovídá žádný úkol</strong>
+              <a href="/prace/ukoly" class="btn btn-outline btn-sm">Zrušit filtr</a>
+            <% } else if (filtry.jenNehotove) { %>
+              <strong>Všechno je hotové</strong>
+              <a href="/prace/ukoly?vse=1" class="btn btn-outline btn-sm">Zobrazit i hotové</a>
             <% } else { %>
-              <form method="post" action="/prace/stopky/start">
-                <input type="hidden" name="ukol_id" value="<%= u.id %>">
-                <input type="hidden" name="back" value="/prace/ukoly">
-                <button type="submit" class="btn btn-ghost btn-sm" title="<%= bezi ? 'Zastaví běžící a spustí tenhle' : 'Spustit stopky' %>">▶</button>
-              </form>
+              <strong>Zatím žádné úkoly</strong>
+              První založte tlačítkem Nový úkol.
             <% } %>
-          </td>
-        </tr>
-        <% }) %>
-      </tbody>
-    </table>
-  </div>
+          </div>
+        </td></tr>
+      <% } %>
+      <% ukoly.forEach(function (u) { %>
+      <tr data-href="/prace/ukoly/<%= u.id %>">
+        <td class="mono hide-mobile">
+          <% if (u.bezi) { %><span class="stopky-tecka" style="margin-right:5px;" title="Měření běží"></span><% } %>
+          <a href="/prace/ukoly/<%= u.id %>" class="radek-odkaz"><%= u.code || '–' %></a>
+        </td>
+        <td><a href="/prace/ukoly/<%= u.id %>" class="radek-odkaz radek-text" style="font-weight:500;" title="<%= u.summary %>"><%= u.summary || 'Bez souhrnu' %></a></td>
+        <td class="sekundarni hide-mobile"><span class="radek-text" title="<%= u.klient || '' %>"><%= u.klient || '–' %></span></td>
+        <td class="sekundarni hide-mobile" style="white-space:nowrap;"><%= [u.resitel_jmeno, u.resitel_prijmeni].filter(Boolean).join(' ') || '–' %></td>
+        <td class="mono sekundarni">
+          <% if (poTerminu(u)) { %><span class="pole-varovani" title="Po termínu"><%= ceskeDatum(u.due_date) %> ⚠</span><% } else { %><%= u.due_date ? ceskeDatum(u.due_date) : '–' %><% } %>
+        </td>
+        <td class="num"><%= hodinyMinuty(u.sekund) %></td>
+        <td class="mobil" data-bez-prokliku>
+          <form method="post" action="/prace/ukoly/<%= u.id %>/stav" style="display:inline;">
+            <input type="hidden" name="back" value="<%= strany.aktualni %>">
+            <select name="status" class="stav-vyber badge-<%= tonStavu(u.status) %>" aria-label="Stav úkolu <%= u.code || u.summary %>" onchange="this.form.submit()">
+              <% TASK_STAVY.forEach(function (s) { %><option value="<%= s[0] %>" <%= u.status === s[0] ? 'selected' : '' %>><%= s[1] %></option><% }) %>
+            </select>
+          </form>
+        </td>
+        <td data-bez-prokliku>
+          <% if (bezi && bezi.task_id === u.id) { %>
+            <form method="post" action="/prace/stopky/stop">
+              <input type="hidden" name="back" value="<%= strany.aktualni %>">
+              <button type="submit" class="btn btn-danger btn-sm" title="Zastavit" aria-label="Zastavit stopky">■</button>
+            </form>
+          <% } else { %>
+            <form method="post" action="/prace/stopky/start">
+              <input type="hidden" name="ukol_id" value="<%= u.id %>">
+              <input type="hidden" name="back" value="<%= strany.aktualni %>">
+              <button type="submit" class="btn btn-ghost btn-sm" title="<%= bezi ? 'Zastaví běžící a spustí tenhle' : 'Spustit stopky' %>" aria-label="Spustit stopky na úkolu <%= u.code || u.summary %>">▶</button>
+            </form>
+          <% } %>
+        </td>
+      </tr>
+      <% }) %>
+    </tbody>
+  </table>
 </div>
+<%- include('../../includes/strankovani', { strany }) %>
 
 <div class="modal-backdrop" id="modalUkol">
   <div class="modal modal-sm">

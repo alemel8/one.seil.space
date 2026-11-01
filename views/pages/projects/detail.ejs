@@ -1,14 +1,6 @@
 <%
   const fmtD = d => d ? new Date(d).toLocaleDateString('cs-CZ') : '–';
   const currentTab = tab || 'prehled';
-  const statusColor = s => ({
-    'Aktivní':      ['var(--success-bg)', '#166534'],
-    'Pozastaveno':  ['var(--warning-bg)', '#92400e'],
-    'Dokončeno':    ['var(--info-bg)',    '#1e40af'],
-    'Archivováno':  ['var(--gray-100)',   'var(--gray-600)'],
-    'V přípravě':   ['var(--gray-100)',   'var(--gray-600)'],
-  }[s] || ['var(--gray-100)', 'var(--gray-600)']);
-  const sc = statusColor(project.status);
   // Režim úprav (src/upravy.js): tužka v hlavičce jen na záložce s formulářem
   // záznamu; bez JS otevře úpravy ?upravit=1.
   const FORMULARE = { __proto__: null, prehled: 'formProjekt' }; // tab z URL: bez prototypu ?tab=constructor nic nenajde
@@ -21,11 +13,11 @@
 <div class="page-header">
   <div class="page-header-left">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-      <a href="/projekty" class="btn btn-ghost btn-sm">← Projekty</a>
+      <a href="/projekty" class="btn btn-ghost btn-sm" data-zpet>← Projekty</a>
       <h1 style="margin:0;"><%= project.name %></h1>
-      <span class="badge" style="background:<%= sc[0] %>;color:<%= sc[1] %>;"><%= project.status %></span>
+      <span class="badge badge-<%= tonStavu(project.status) %>"><%= project.status %></span>
     </div>
-    <p>Klient: <a href="/crm/firmy/<%= project.company_id %>" style="color:var(--primary);"><%= project.company_name %></a></p>
+    <p>Klient: <a href="/crm/firmy/<%= project.company_id %>" style="color:var(--link);"><%= project.company_name %></a></p>
   </div>
   <div class="page-header-akce">
     <form method="post" action="/projekty/<%= project.id %>/smazat" onsubmit="return confirm('Smazat projekt včetně všech podprojektů?');" style="display:inline;">
@@ -42,11 +34,12 @@
 <% } %>
 
 <!-- Tabs -->
-<nav class="tabs" aria-label="Sekce projektu">
-  <% [['prehled','Přehled'], ['podprojekty', 'Podprojekty (' + items.length + ')']].forEach(function(it) { %>
-  <a href="?tab=<%= it[0] %>" class="tab<%= currentTab===it[0] ? ' active' : '' %>"<%- currentTab===it[0] ? ' aria-current="page"' : '' %>><%= it[1] %></a>
-  <% }) %>
-</nav>
+<%- include('../../includes/zalozky', {
+  nazev: 'Sekce projektu',
+  zalozky: [{ klic: 'prehled', popisek: 'Přehled' }, { klic: 'podprojekty', popisek: 'Podprojekty', pocet: items.length }],
+  tab: currentTab,
+  adresa: k => `?tab=${k}`,
+}) %>
 
 <!-- ══ TAB: PŘEHLED ══ -->
 <% if (currentTab === 'prehled') { %>
@@ -135,8 +128,8 @@
 
 <% if (items.length > 0) { %>
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;">
-  <% items.forEach(it => { const meta = PROJECT_TYPES[it.type] || { label: it.type, icon: 'web.svg', color: 'var(--text-muted)' }; const isc = statusColor(it.status); %>
-  <div class="card" style="cursor:pointer;" onclick="location.href='/projekty/podprojekty/<%= it.id %>'">
+  <% items.forEach(it => { const meta = PROJECT_TYPES[it.type] || { label: it.type, icon: 'web.svg', color: 'var(--text-muted)' }; %>
+  <a href="/projekty/podprojekty/<%= it.id %>" class="card" style="display:block;color:inherit;text-decoration:none;">
     <div class="card-body" style="display:flex; gap:12px;">
       <div class="project-type-swatch" style="background:<%= meta.color %>22;">
         <span class="project-type-icon" style="--icon-url:url(/static/img/project-types/<%= meta.icon %>);--icon-color:<%= meta.color %>;"></span>
@@ -144,7 +137,7 @@
       <div style="min-width:0;flex:1;">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
           <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><%= it.name %></div>
-          <span class="badge" style="background:<%= isc[0] %>;color:<%= isc[1] %>;flex-shrink:0;"><%= it.status %></span>
+          <span class="badge badge-<%= tonStavu(it.status) %>" style="flex-shrink:0;"><%= it.status %></span>
         </div>
         <div style="font-size:12px;color:var(--text-muted);margin-top:2px;"><%= meta.label %></div>
         <% if (it.production_url) { %>
@@ -152,11 +145,11 @@
         <% } %>
       </div>
     </div>
-  </div>
+  </a>
   <% }) %>
 </div>
 <% } else { %>
-<div style="text-align:center;padding:48px;color:var(--text-muted);">Žádné podprojekty. Přidejte první tlačítkem výše.</div>
+<div class="card"><div class="prazdno"><strong>Zatím žádné podprojekty</strong>První přidejte tlačítkem výše.</div></div>
 <% } %>
 
 <% } %>

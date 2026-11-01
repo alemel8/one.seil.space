@@ -85,8 +85,8 @@ export async function posledniPohyby(sql, userId, limit = 12) {
   `;
 }
 
-/** Fakturační podklady člověka i s počty příloh a stavem navázané faktury. */
-export async function podkladyUzivatele(sql, userId) {
+/** Stránka fakturačních podkladů člověka i s počty příloh a stavem navázané faktury. */
+export async function podkladyUzivatele(sql, userId, { limit, offset }) {
   return sql`
     SELECT w.*,
            i.number AS faktura_cislo, i.status AS faktura_stav, i.total_amount::float8 AS faktura_castka,
@@ -101,36 +101,36 @@ export async function podkladyUzivatele(sql, userId) {
       FROM hr_work_reports w
       LEFT JOIN accounting_invoices i ON i.id = w.invoice_id
      WHERE w.user_id = ${userId}
-     ORDER BY w.report_date DESC
+     ORDER BY w.report_date DESC, w.id DESC
+     LIMIT ${limit} OFFSET ${offset}
   `;
 }
 
-/** Mzdové listy člověka. Měsíc s víc listy označíme – Airtable jich vedl víc. */
-export async function mzdyUzivatele(sql, userId) {
-  const rows = await sql`
+/**
+ * Stránka mzdových listů člověka. Měsíc s víc listy označíme – Airtable jich vedl
+ * víc. Okenní COUNT proběhne před LIMIT, takže druhý list najde i na jiné stránce.
+ */
+export async function mzdyUzivatele(sql, userId, { limit, offset }) {
+  return sql`
     SELECT r.*, r.paid_total::float8 AS paid_total, r.company_cost::float8 AS company_cost,
+           COUNT(*) OVER (PARTITION BY r.period) > 1 AS mesic_ma_vic_listu,
            (SELECT COUNT(*)::int FROM attachments a WHERE a.payroll_run_id = r.id) AS priloh
       FROM hr_payroll_runs r
      WHERE r.user_id = ${userId}
      ORDER BY r.period DESC, r.id
+     LIMIT ${limit} OFFSET ${offset}
   `;
-  const pocty = new Map();
-  for (const r of rows) {
-    const k = String(r.period).slice(0, 7);
-    pocty.set(k, (pocty.get(k) ?? 0) + 1);
-  }
-  for (const r of rows) r.mesic_ma_vic_listu = pocty.get(String(r.period).slice(0, 7)) > 1;
-  return rows;
 }
 
-/** Platby mimo mzdu. */
-export async function platbyUzivatele(sql, userId) {
+/** Stránka plateb mimo mzdu. */
+export async function platbyUzivatele(sql, userId, { limit, offset }) {
   return sql`
     SELECT p.*, p.amount::float8 AS amount,
            (SELECT COUNT(*)::int FROM attachments a WHERE a.payroll_item_id = p.id) AS priloh
       FROM hr_payroll_items p
      WHERE p.user_id = ${userId}
      ORDER BY p.paid_on DESC, p.id
+     LIMIT ${limit} OFFSET ${offset}
   `;
 }
 
@@ -148,7 +148,7 @@ export async function dokumentyUzivatele(sql, userId) {
 /** Mzdy napříč lidmi za rok – mřížka měsíc × člověk. */
 export async function mzdyPrehled(sql, rok) {
   const rows = await sql`
-    SELECT r.id, r.user_id, r.period, r.paid, r.hours,
+    SELECT r.id, r.user_id, r.period, to_char(r.period, 'YYYY-MM') AS mesic, r.paid, r.hours,
            r.gross::float8 AS gross, r.paid_total::float8 AS paid_total,
            r.company_cost::float8 AS company_cost,
            (SELECT COUNT(*)::int FROM attachments a WHERE a.payroll_run_id = r.id) AS priloh
@@ -163,8 +163,8 @@ export async function mzdyPrehled(sql, rok) {
   `;
   // Mřížka ukáže i díru v měsíci – u souvislé řady je to to hlavní,
   // co chcete hlídat, a plochý seznam by ji schoval.
-  const mesice = [...new Set(rows.map(r => String(r.period).slice(0, 7)))].sort().reverse();
-  const bunky = new Map(rows.map(r => [`${String(r.period).slice(0, 7)}|${r.user_id}`, r]));
+  const mesice = [...new Set(rows.map(r => r.mesic))].sort().reverse();
+  const bunky = new Map(rows.map(r => [`${r.mesic}|${r.user_id}`, r]));
   return { lide, mesice, bunky, rows };
 }
 
@@ -175,15 +175,31 @@ export async function mzdoveRoky(sql) {
   return r.map(x => x.rok);
 }
 
-/** Fakturační podklady napříč lidmi, s volitelnými filtry. */
-export async function podkladyPrehled(sql, { q = '', stav = '', osoba = '' } = {}) {
+/** Podmínka přehledu podkladů, společná výpisu i souhrnu. Čte aliasy w a u. */
+function podminkaPodkladu(sql, { q = '', stav = '', osoba = '' } = {}) {
   const kde = [];
   if (q)     kde.push(sql`(w.title ILIKE ${'%' + q + '%'} OR w.invoice_number ILIKE ${'%' + q + '%'})`);
   if (stav)  kde.push(sql`w.status = ${stav}`);
   if (osoba) kde.push(sql`u.public_id = ${osoba}`);
-  const where = kde.length
+  return kde.length
     ? kde.reduce((a, b) => sql`${a} AND ${b}`, sql`WHERE TRUE`) : sql``;
+}
 
+/** Počet podkladů a jejich částka za celý filtr. Storno se počítá do počtu, ne do částky, stejně jako na osobním účtu. */
+export async function podkladySouhrn(sql, filtry) {
+  const [souhrn] = await sql`
+    SELECT COUNT(*)::int AS pocet,
+           COALESCE(SUM(w.total_amount) FILTER (WHERE w.status <> 'storno'), 0)::float8 AS celkem
+      FROM hr_work_reports w
+      JOIN users u ON u.id = w.user_id
+      LEFT JOIN accounting_invoices i ON i.id = w.invoice_id
+      ${podminkaPodkladu(sql, filtry)}
+  `;
+  return souhrn;
+}
+
+/** Stránka fakturačních podkladů napříč lidmi, s volitelnými filtry. */
+export async function podkladyPrehled(sql, filtry, { limit, offset }) {
   return sql`
     SELECT w.*, w.total_amount::float8 AS total_amount,
            u.public_id, u.first_name, u.last_name,
@@ -196,8 +212,9 @@ export async function podkladyPrehled(sql, { q = '', stav = '', osoba = '' } = {
       FROM hr_work_reports w
       JOIN users u ON u.id = w.user_id
       LEFT JOIN accounting_invoices i ON i.id = w.invoice_id
-      ${where}
-     ORDER BY w.report_date DESC
+      ${podminkaPodkladu(sql, filtry)}
+     ORDER BY w.report_date DESC, w.id DESC
+     LIMIT ${limit} OFFSET ${offset}
   `;
 }
 
