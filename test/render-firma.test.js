@@ -16,6 +16,7 @@ import crypto from 'node:crypto';
 import postgres from 'postgres';
 import { vykresliStranku, zkontrolujDetail } from './pomocnici/render.js';
 import { lokalniDatabaze, serverBezi, prihlas, pozadavky, PRESKOCIT } from './pomocnici/server.js';
+import { strankovani } from '../src/strankovani.js';
 
 // ── A) bez serveru ──────────────────────────────────────────
 
@@ -44,7 +45,10 @@ function vykresli(tab, prepis = {}) {
     pageTitle: company.name, currentPath: '/crm/firmy', company,
     contacts: [], orders: [], invoices: [], contracts: [],
     stats: { totalInvoiced: 0, paidInvoices: 0, openOrders: 0, totalOrders: 0, totalInvoices: 0, totalContacts: 0 },
-    creator: null, editor: null, aresUpdated: false, saved: false, tab, rezimUprav: false, ...prepis,
+    creator: null, editor: null, aresUpdated: false, saved: false, tab, rezimUprav: false,
+    zalozky: ZALOZKY.map(klic => ({ klic, popisek: klic })),
+    strany: strankovani({ cesta: `/crm/firmy/${company.id}`, celkem: 0, pevne: { tab } }),
+    ...prepis,
   });
 }
 

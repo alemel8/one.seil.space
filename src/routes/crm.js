@@ -1,21 +1,44 @@
 import { getDb, generateId } from '../db.js';
 import { rezimUprav } from '../upravy.js';
+import { parametr, strankovani } from '../strankovani.js';
+import { zalozka } from '../zalozky.js';
+import { escapujLike } from '../hledani.js';
+
+const ZALOZKY_FIRMY = [
+  ['zakladni', 'Základní informace'],
+  ['kontakty', 'Kontakty'],
+  ['objednavky', 'Objednávky'],
+  ['faktury', 'Faktury'],
+  ['smlouvy', 'Smlouvy'],
+  ['poznamky', 'Poznámky'],
+];
+
+const ZALOZKY_KONTAKTU = [
+  ['prehled', 'Přehled'],
+  ['objednavky', 'Objednávky'],
+  ['faktury', 'Faktury'],
+];
+
+/** Záložky s počtem řádků v odznaku; záložka bez počtu odznak nemá. */
+const sPocty = (seznam, pocty) => seznam.map(([klic, popisek]) => ({ klic, popisek, pocet: pocty[klic] }));
 
 export default async function crmRoutes(fastify) {
   const sql = getDb();
 
+  // Firma kontaktu: název připojené firmy, jinak text z účtu. Kontakt založený
+  // v aplikaci má jen company_id, účet z e-shopu často jen company_name.
+  const firmaKontaktu = sql`COALESCE(NULLIF(co.name, ''), c.company_name)`;
+
   // ── Firmy ──────────────────────────────────────────────────
 
   fastify.get('/crm/firmy', async (request, reply) => {
-    const q            = (request.query.q      || '').trim();
-    const typeFilter   = (request.query.type   || '').trim();
-    const sourceFilter = (request.query.source || '').trim();
-    const page    = Math.max(1, parseInt(request.query.page || '1', 10));
-    const perPage = 25;
-    const offset  = (page - 1) * perPage;
+    const q            = parametr(request.query.q);
+    const typeFilter   = parametr(request.query.type);
+    const sourceFilter = parametr(request.query.source);
+    const vzor = `%${escapujLike(q)}%`;
 
     const conditions = [];
-    if (q)          conditions.push(sql`(name ILIKE ${'%' + q + '%'} OR city ILIKE ${'%' + q + '%'} OR country ILIKE ${'%' + q + '%'} OR ico ILIKE ${'%' + q + '%'})`);
+    if (q)          conditions.push(sql`(name ILIKE ${vzor} OR city ILIKE ${vzor} OR country ILIKE ${vzor} OR ico ILIKE ${vzor})`);
     if (typeFilter) conditions.push(sql`company_type = ${typeFilter}`);
     // „(bez zdroje)" je vlastní volba, aby šlo najít ručně založené záznamy –
     // prázdný řetězec znamená „nefiltrovat", takže NULL potřebuje svůj klíč.
@@ -26,15 +49,20 @@ export default async function crmRoutes(fastify) {
       : sql``;
 
     const [{ count }] = await sql`SELECT COUNT(*)::int AS count FROM crm_companies ${where}`;
-    const companies   = await sql`SELECT * FROM crm_companies ${where} ORDER BY name LIMIT ${perPage} OFFSET ${offset}`;
+    const strany = strankovani({ cesta: '/crm/firmy', query: request.query, celkem: count, zachovat: ['q', 'type', 'source'] });
+    const companies = await sql`
+      SELECT id, name, company_type, source, country, city, email, phone, created_at
+      FROM crm_companies ${where}
+      ORDER BY name, id
+      LIMIT ${strany.naStranku} OFFSET ${strany.offset}
+    `;
     const sources     = await sql`
       SELECT DISTINCT source FROM crm_companies WHERE source IS NOT NULL ORDER BY source
     `;
 
     return reply.view('pages/crm/companies.ejs', {
       pageTitle: 'Firmy', currentPath: '/crm/firmy', user: request.user,
-      companies, q, typeFilter, sourceFilter, sources, total: count,
-      currentPage: page, totalPages: Math.ceil(count / perPage),
+      companies, q, typeFilter, sourceFilter, sources, total: count, strany,
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -55,32 +83,67 @@ export default async function crmRoutes(fastify) {
     const [company] = await sql`SELECT * FROM crm_companies WHERE id = ${request.params.id}`;
     if (!company) return reply.code(404).send('Firma nenalezena');
 
-    const [contacts, orders, invoices, contracts, creatorRow, editorRow] = await Promise.all([
-      sql`SELECT * FROM crm_contacts WHERE company_id = ${company.id} ORDER BY last_name, first_name`,
-      sql`SELECT id, order_number, status, total_price, created_at, first_name, last_name
-          FROM shop_orders WHERE crm_company_id = ${company.id} ORDER BY created_at DESC`,
-      sql`SELECT id, type, number, status, issue_date, due_date, total_amount, currency
-          FROM accounting_invoices WHERE crm_company_id = ${company.id} ORDER BY issue_date DESC`,
-      sql`SELECT * FROM crm_contracts WHERE company_id = ${company.id} ORDER BY created_at DESC`,
-      company.created_by ? sql`SELECT first_name, last_name, email FROM users WHERE id = ${company.created_by}` : Promise.resolve([]),
-      company.modified_by ? sql`SELECT first_name, last_name, email FROM users WHERE id = ${company.modified_by}` : Promise.resolve([]),
-    ]);
+    const tab = zalozka(ZALOZKY_FIRMY, request.query.tab);
 
-    // Dashboard stats
-    const totalInvoiced = invoices.reduce((s, i) => s + Number(i.total_amount || 0), 0);
-    const paidInvoices  = invoices.filter(i => i.status === 'Zaplacena').length;
-    const openOrders    = orders.filter(o => !['Vyřízena','Stornována'].includes(o.status)).length;
+    // Počty v záložkách a KPI ze SQL: řádky se načítají jen pro otevřenou záložku
+    // a po stránkách, z nich by to vyšlo špatně. Fakturováno sčítá všechny typy
+    // dokladů i měny tak, jak to stránka ukazovala vždy.
+    const [souhrn] = await sql`
+      SELECT
+        (SELECT COUNT(*)::int FROM crm_contacts  WHERE company_id = ${company.id}) AS kontaktu,
+        (SELECT COUNT(*)::int FROM crm_contracts WHERE company_id = ${company.id}) AS smluv,
+        o.objednavek, o.otevrenych, f.faktur, f.zaplacenych, f.fakturovano
+      FROM (
+        SELECT COUNT(*)::int AS objednavek,
+               (COUNT(*) FILTER (WHERE status NOT IN ('Vyřízena', 'Stornována')))::int AS otevrenych
+        FROM shop_orders WHERE crm_company_id = ${company.id}
+      ) o CROSS JOIN (
+        SELECT COUNT(*)::int AS faktur,
+               (COUNT(*) FILTER (WHERE status = 'Zaplacena'))::int AS zaplacenych,
+               COALESCE(SUM(total_amount), 0) AS fakturovano
+        FROM accounting_invoices WHERE crm_company_id = ${company.id}
+      ) f
+    `;
+    const stats = {
+      totalInvoiced: Number(souhrn.fakturovano), paidInvoices: souhrn.zaplacenych, openOrders: souhrn.otevrenych,
+      totalOrders: souhrn.objednavek, totalInvoices: souhrn.faktur, totalContacts: souhrn.kontaktu, totalContracts: souhrn.smluv,
+    };
+
+    const cesta = `/crm/firmy/${company.id}`;
+    const osoba = async (id) => (id ? (await sql`SELECT first_name, last_name, email FROM users WHERE id = ${id}`)[0] || null : null);
+    let contacts = [], orders = [], invoices = [], contracts = [], strany = null, creator = null, editor = null;
+    if (tab === 'zakladni') {
+      [creator, editor] = await Promise.all([osoba(company.created_by), osoba(company.modified_by)]);
+    } else if (tab === 'kontakty') {
+      contacts = await sql`SELECT * FROM crm_contacts WHERE company_id = ${company.id} ORDER BY last_name, first_name, id`;
+    } else if (tab === 'objednavky') {
+      strany = strankovani({ cesta, query: request.query, celkem: stats.totalOrders, pevne: { tab } });
+      orders = await sql`
+        SELECT id, order_number, status, total_price, currency, created_at, first_name, last_name
+        FROM shop_orders WHERE crm_company_id = ${company.id}
+        ORDER BY created_at DESC, id DESC
+        LIMIT ${strany.naStranku} OFFSET ${strany.offset}
+      `;
+    } else if (tab === 'faktury') {
+      strany = strankovani({ cesta, query: request.query, celkem: stats.totalInvoices, pevne: { tab } });
+      invoices = await sql`
+        SELECT id, type, number, status, issue_date, due_date, total_amount, currency
+        FROM accounting_invoices WHERE crm_company_id = ${company.id}
+        ORDER BY issue_date DESC, id DESC
+        LIMIT ${strany.naStranku} OFFSET ${strany.offset}
+      `;
+    } else if (tab === 'smlouvy') {
+      contracts = await sql`SELECT * FROM crm_contracts WHERE company_id = ${company.id} ORDER BY created_at DESC, id DESC`;
+    }
 
     return reply.view('pages/crm/company-detail.ejs', {
       pageTitle: company.name, currentPath: '/crm/firmy', user: request.user,
-      company, contacts, orders, invoices, contracts,
-      stats: { totalInvoiced, paidInvoices, openOrders,
-               totalOrders: orders.length, totalInvoices: invoices.length, totalContacts: contacts.length },
-      creator: creatorRow[0] || null,
-      editor:  editorRow[0]  || null,
+      company, contacts, orders, invoices, contracts, stats, strany,
+      creator, editor,
       aresUpdated: request.query.ares === '1',
       saved: request.query.saved === '1',
-      tab: request.query.tab || 'zakladni',
+      tab,
+      zalozky: sPocty(ZALOZKY_FIRMY, { kontakty: stats.totalContacts, objednavky: stats.totalOrders, faktury: stats.totalInvoices, smlouvy: stats.totalContracts }),
       rezimUprav: rezimUprav(request.query),
     }, { layout: 'layouts/base.ejs' });
   });
@@ -131,15 +194,13 @@ export default async function crmRoutes(fastify) {
   // ── Kontakty ───────────────────────────────────────────────
 
   fastify.get('/crm/kontakty', async (request, reply) => {
-    const q             = (request.query.q       || '').trim();
-    const companyFilter = (request.query.company || '').trim();
-    const sourceFilter  = (request.query.source  || '').trim();
-    const page    = Math.max(1, parseInt(request.query.page || '1', 10));
-    const perPage = 25;
-    const offset  = (page - 1) * perPage;
+    const q             = parametr(request.query.q);
+    const companyFilter = parametr(request.query.company);
+    const sourceFilter  = parametr(request.query.source);
+    const vzor = `%${escapujLike(q)}%`;
 
     const conditions = [];
-    if (q)             conditions.push(sql`(c.first_name ILIKE ${'%'+q+'%'} OR c.last_name ILIKE ${'%'+q+'%'} OR c.email ILIKE ${'%'+q+'%'} OR c.phone ILIKE ${'%'+q+'%'})`);
+    if (q)             conditions.push(sql`(c.first_name ILIKE ${vzor} OR c.last_name ILIKE ${vzor} OR c.email ILIKE ${vzor} OR c.phone ILIKE ${vzor})`);
     if (companyFilter) conditions.push(sql`c.company_id = ${companyFilter}`);
     if (sourceFilter === '-') conditions.push(sql`c.source IS NULL`);
     else if (sourceFilter)    conditions.push(sql`c.source = ${sourceFilter}`);
@@ -148,34 +209,37 @@ export default async function crmRoutes(fastify) {
       : sql``;
 
     const [{ count }] = await sql`SELECT COUNT(*)::int AS count FROM crm_contacts c ${where}`;
-    const contacts    = await sql`
-      SELECT c.*, co.name AS company_display_name
+    const strany = strankovani({ cesta: '/crm/kontakty', query: request.query, celkem: count, zachovat: ['q', 'company', 'source'] });
+    const contacts = await sql`
+      SELECT c.id, c.first_name, c.last_name, c.title, c.email, c.phone, c.company_id, c.source, c.is_registered, c.created_at,
+             ${firmaKontaktu} AS company_display_name
       FROM crm_contacts c
       LEFT JOIN crm_companies co ON c.company_id = co.id
       ${where}
-      ORDER BY c.last_name, c.first_name
-      LIMIT ${perPage} OFFSET ${offset}
+      ORDER BY c.last_name, c.first_name, c.id
+      LIMIT ${strany.naStranku} OFFSET ${strany.offset}
     `;
-    const companies = await sql`SELECT id, name FROM crm_companies ORDER BY name`;
+    const companies = await sql`SELECT id, name FROM crm_companies ORDER BY name, id`;
     const sources   = await sql`
       SELECT DISTINCT source FROM crm_contacts WHERE source IS NOT NULL ORDER BY source
     `;
 
     return reply.view('pages/crm/contacts.ejs', {
       pageTitle: 'Kontakty', currentPath: '/crm/kontakty', user: request.user,
-      contacts, q, companyFilter, sourceFilter, sources, total: count,
-      currentPage: page, totalPages: Math.ceil(count / perPage), companies,
+      contacts, q, companyFilter, sourceFilter, sources, total: count, strany, companies,
     }, { layout: 'layouts/base.ejs' });
   });
 
   fastify.get('/crm/kontakty/:id', async (request, reply) => {
     const [contact] = await sql`
-      SELECT c.*, co.name AS company_display_name
+      SELECT c.*, ${firmaKontaktu} AS company_display_name
       FROM crm_contacts c
       LEFT JOIN crm_companies co ON c.company_id = co.id
       WHERE c.id = ${request.params.id}
     `;
     if (!contact) return reply.code(404).send('Kontakt nenalezen');
+
+    const tab = zalozka(ZALOZKY_KONTAKTU, request.query.tab);
 
     /*
      * Zákazník e-shopu má v Seilu i doklady, jen se sem dosud netahaly.
@@ -186,37 +250,55 @@ export default async function crmRoutes(fastify) {
      * `crm_contact_id`, ale u dokladů vystavených ke starším objednávkám
      * bývá prázdné.
      */
-    const [orders, invoices] = await Promise.all([
-      sql`
-        SELECT id, order_number, status, total_price, created_at, company
-        FROM shop_orders WHERE crm_contact_id = ${contact.id}
-        ORDER BY created_at DESC
-      `,
-      sql`
-        SELECT i.id, i.type, i.number, i.status, i.issue_date, i.due_date,
-               i.total_amount, i.currency
-        FROM accounting_invoices i
-        WHERE i.crm_contact_id = ${contact.id}
-           OR i.order_id IN (SELECT id FROM shop_orders WHERE crm_contact_id = ${contact.id})
-        ORDER BY i.issue_date DESC NULLS LAST
-      `,
-    ]);
+    const dokladyKontaktu = sql`
+      (i.crm_contact_id = ${contact.id}
+       OR i.order_id IN (SELECT id FROM shop_orders WHERE crm_contact_id = ${contact.id}))
+    `;
 
     // „Zaplaceno" se počítá z dokladů, ne z objednávek – objednávka může být
     // přijatá a nezaplacená a sečíst ji jako tržbu by bylo zavádějící.
+    const [s] = await sql`
+      SELECT o.objednavek, o.utraceno, o.posledni, f.faktur, f.zaplaceno
+      FROM (
+        SELECT COUNT(*)::int AS objednavek, COALESCE(SUM(total_price), 0) AS utraceno, MAX(created_at) AS posledni
+        FROM shop_orders WHERE crm_contact_id = ${contact.id}
+      ) o CROSS JOIN (
+        SELECT COUNT(*)::int AS faktur,
+               COALESCE(SUM(i.total_amount) FILTER (WHERE i.status = 'Zaplacena'), 0) AS zaplaceno
+        FROM accounting_invoices i WHERE ${dokladyKontaktu}
+      ) f
+    `;
     const souhrn = {
-      objednavek: orders.length,
-      utraceno: orders.reduce((a, o) => a + Number(o.total_price || 0), 0),
-      zaplaceno: invoices
-        .filter((i) => i.status === 'Zaplacena')
-        .reduce((a, i) => a + Number(i.total_amount || 0), 0),
-      posledni: orders[0]?.created_at ?? null,
+      objednavek: s.objednavek, faktur: s.faktur, posledni: s.posledni,
+      utraceno: Number(s.utraceno), zaplaceno: Number(s.zaplaceno),
     };
 
+    const cesta = `/crm/kontakty/${contact.id}`;
+    let orders = [], invoices = [], strany = null;
+    if (tab === 'objednavky') {
+      strany = strankovani({ cesta, query: request.query, celkem: souhrn.objednavek, pevne: { tab } });
+      orders = await sql`
+        SELECT id, order_number, status, total_price, currency, created_at
+        FROM shop_orders WHERE crm_contact_id = ${contact.id}
+        ORDER BY created_at DESC, id DESC
+        LIMIT ${strany.naStranku} OFFSET ${strany.offset}
+      `;
+    } else if (tab === 'faktury') {
+      strany = strankovani({ cesta, query: request.query, celkem: souhrn.faktur, pevne: { tab } });
+      invoices = await sql`
+        SELECT i.id, i.type, i.number, i.status, i.issue_date, i.due_date, i.total_amount, i.currency
+        FROM accounting_invoices i
+        WHERE ${dokladyKontaktu}
+        ORDER BY i.issue_date DESC, i.id DESC
+        LIMIT ${strany.naStranku} OFFSET ${strany.offset}
+      `;
+    }
+
     return reply.view('pages/crm/contact-detail.ejs', {
-      pageTitle: `${contact.first_name} ${contact.last_name}`.trim(),
+      pageTitle: `${contact.first_name} ${contact.last_name}`.trim() || contact.email || 'Kontakt',
       currentPath: '/crm/kontakty', user: request.user,
-      contact, orders, invoices, souhrn,
+      contact, orders, invoices, souhrn, strany, tab,
+      zalozky: sPocty(ZALOZKY_KONTAKTU, { objednavky: souhrn.objednavek, faktury: souhrn.faktur }),
     }, { layout: 'layouts/base.ejs' });
   });
 
