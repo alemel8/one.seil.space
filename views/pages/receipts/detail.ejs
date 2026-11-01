@@ -19,7 +19,7 @@
 <div class="page-header">
   <div class="page-header-left">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-      <a href="/ucetnictvi/uctenky" class="btn btn-ghost btn-sm">← Zpět</a>
+      <a href="/ucetnictvi/uctenky" class="btn btn-ghost btn-sm" data-zpet>← Zpět</a>
       <h1><%= receipt.vendor || 'Účtenka' %></h1>
       <span class="badge" style="background:<%= sb %>;color:<%= sc %>;font-size:13px;"><%= receipt.status %></span>
       <span class="badge" style="background:<%= hotove ? '#e0e7ff' : '#fce7f3' %>;color:<%= hotove ? '#3730a3' : '#9d174d' %>;font-size:12px;"
