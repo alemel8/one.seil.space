@@ -1,8 +1,8 @@
 <%
   // Režim úprav (src/upravy.js): každá záložka má vlastní formulář a POST, tužka
   // nese ?tab=, jinak by kontrola při Uložit formulář v načtené stránce nenašla.
-  const formular = (zalozky.find(([k]) => k === tab) || [])[2];
-  const rezim = rezimUprav ? 'upravy' : 'zobrazeni';
+  const formular = tab === 'rady' && !rady.length ? null : (zalozky.find(([k]) => k === tab) || [])[2];
+  const rezim = formular && rezimUprav ? 'upravy' : 'zobrazeni';
   const urlZpet = `/nastaveni/firma?tab=${tab}`;
   const textChyby = (text) => String(text).split(/(https:\/\/console\.(?:developers|cloud)\.google\.com\/[^\s"'<>]*[^\s"'<>.,;:)])/).forEach((kus, i) => {
     if (i % 2) { %><a href="<%= kus %>" target="_blank" rel="noopener noreferrer"><%= kus %></a><% } else { %><%= kus %><% }
@@ -12,11 +12,13 @@
 <div class="page-header">
   <div class="page-header-left">
     <h1>Nastavení firmy</h1>
-    <p>Údaje firmy na fakturách, export do POHODY a napojení na Google Disk</p>
+    <p>Údaje firmy na fakturách, číselné řady, export do POHODY a napojení na Google Disk</p>
   </div>
+  <% if (formular) { %>
   <div class="page-header-akce">
     <%- include('../../includes/upravit', { formular, urlUpravit: `${urlZpet}&upravit=1`, urlZpet }) %>
   </div>
+  <% } %>
 </div>
 
 <% if (saved) { %>
@@ -30,7 +32,6 @@
 
 <%- include('../../includes/zalozky', { nazev: 'Sekce nastavení firmy', zalozky, tab, adresa: k => `/nastaveni/firma?tab=${k}` }) %>
 
-<div style="max-width:720px;">
 <% if (tab === 'zakladni') { %>
 <form method="post" action="/nastaveni/firma/zakladni" id="<%= formular %>" class="upravitelne" autocomplete="off">
   <div class="card">
@@ -70,6 +71,9 @@
   </div>
   <%- include('../../includes/upravit', { paticka: true, formular, urlZpet }) %>
 </form>
+<% } else if (tab === 'rady') { %>
+<%- include('../../includes/ciselne-rady', { rady, akce: '/nastaveni/firma/rady', urlZpet, sDruhem: false,
+  popis: 'Řady, ze kterých SEIL fakturuje mimo e-shopy. Vybírají se při založení nebo duplikaci vydané faktury, řady e-shopů se nastavují v detailu e-shopu.' }) %>
 <% } else if (tab === 'pohoda') { %>
 <form method="post" action="/nastaveni/firma/pohoda" id="<%= formular %>" class="upravitelne" autocomplete="off">
   <div class="card">
@@ -121,5 +125,4 @@
   </div>
 </div>
 <% } %>
-</div>
 </div>

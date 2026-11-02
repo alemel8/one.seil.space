@@ -95,7 +95,6 @@ export const ACCESS_SECTIONS = [
     adminOnly: true,
     items: [
       { key: 'nastaveni.firma',         label: 'Nastavení firmy',   path: '/nastaveni/firma' },
-      { key: 'nastaveni.ciselne-rady',  label: 'Číselné řady',      path: '/nastaveni/ciselne-rady' },
       { key: 'nastaveni.ucetni-osnova', label: 'Účetní osnova',     path: '/nastaveni/ucetni-osnova' },
       { key: 'nastaveni.eshopy',        label: 'Eshopy', path: '/nastaveni/eshopy' },
     ],

@@ -3,7 +3,7 @@
 <%
   // Režim úprav (src/upravy.js): tužka v hlavičce jen u záložky, která má
   // formulář záznamu (třetí prvek v zalozky); bez JS otevře úpravy ?upravit=1.
-  const formular = (zalozky.find(([k]) => k === tab) || [])[2] || null;
+  const formular = tab === 'rady' && !rady.length ? null : (zalozky.find(([k]) => k === tab) || [])[2] || null;
   const rezim = formular && rezimUprav ? 'upravy' : 'zobrazeni';
   // Absolutně: POST „Ověřit připojení“ vykreslí stránku na jiné adrese, relativní odkaz by z ní vedl do 404.
   const urlDetailu = `/nastaveni/eshopy/${shop.id}`;
@@ -41,6 +41,10 @@
 
 <% if (saved) { %>
 <div data-hlaska class="alert alert-success jen-zobrazeni" style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;padding:12px 16px;border-radius:8px;margin-bottom:20px;">✓ Uloženo</div>
+<% } %>
+
+<% if (typeof chybaRad !== 'undefined' && chybaRad) { %>
+<div data-hlaska class="hlaska hlaska-chyba"><%= chybaRad %></div>
 <% } %>
 
 <% if (typeof error !== 'undefined' && error === 'identita-barva') { %>
@@ -151,7 +155,7 @@
 <%- include('../../includes/zalozky', { nazev: 'Sekce e-shopu', zalozky, tab, adresa: k => `${urlDetailu}?tab=${k}` }) %>
 
 <% if (tab === 'zakladni') { %>
-<div class="card" style="max-width:820px;">
+<div class="card">
   <div class="card-header">Základní informace</div>
   <div class="card-body">
     <form method="post" action="/nastaveni/eshopy/<%= shop.id %>/zakladni" id="formZakladni" class="upravitelne" autocomplete="off">
@@ -228,6 +232,11 @@
         </form>
       </div>
     </div>
+<% } %>
+
+<% if (tab === 'rady') { %>
+<%- include('../../includes/ciselne-rady', { rady, akce: `${urlDetailu}/rady`, urlZpet: urlZalozky, sDruhem: true,
+  popis: 'Z těchto řad dostávají čísla objednávky a doklady e-shopu. Automaticky se použije první aktivní řada každého druhu.' }) %>
 <% } %>
 
 <% if (tab === 'napojeni') { %>

@@ -17,7 +17,7 @@ Přístup je chráněn přihlášením; existuje role uživatel a administrátor
 | **VPS monitoring** | RAM, CPU, disk, Docker, SSL, backupy, 72h grafy |
 | **Healthchecky** | HTTP ping monitorovaných URL, notifikace při výpadku |
 | **Marketing** | PNO, ROAS, marže a zisk po reklamě po e-shopech; náklady z GA4, Google Ads, Search Console, Merchant, Sklik/Zboží, Heureka, Meta a z e-shopu; ruční náklady; noční synchronizace |
-| **Správa** | uživatelé, nastavení firmy, číselné řady, e-shopy (klíče pro API v detailu e-shopu) |
+| **Správa** | uživatelé, nastavení firmy včetně číselných řad SEIL, e-shopy (číselné řady a klíče pro API v detailu e-shopu) |
 
 ## Technologický stack
 

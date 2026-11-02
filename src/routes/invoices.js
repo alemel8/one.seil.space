@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { renderSeriesNumber, paymentVs } from '../series-format.js';
+import { dalsiCisloRady, nahledRady, paymentVs, radaPodleCisla } from '../series-format.js';
 import { saveAttachment, deleteAttachment, isSupportedMime, markMissingAttachments } from '../attachments.js';
 import { denUhradyZFormulare, uhradaFakturyObjednavky, zobrazeniUhrady } from '../danovy-doklad.js';
 import { ceskeDatum, jenDatum, prazskeDatum, pridejDny } from '../prazsky-cas.js';
@@ -53,6 +53,8 @@ const FORM_ERRORS = {
   polozky:   'Faktura musí mít alespoň jednu položku s popisem.',
   castka:    'Celková částka musí být větší než nula.',
   duplicita: 'Faktura s tímto číslem už existuje.',
+  rada:      'Zvolená číselná řada není aktivní. Vyberte jinou.',
+  'rada-obsazena': 'Příští číslo z řady už má jiná faktura. Upravte příští pořadí v Nastavení firmy, záložka Číselné řady.',
 };
 
 // ── Načtení nastavení firmy (issuer) ─────────────────────────
@@ -255,15 +257,6 @@ export async function deliverReminder(sql, { invoice, email, level, reminderId =
 
 // ── Generování čísla z číselné řady ──────────────────────────
 
-async function nextInvoiceNumber(sql, seriesId, now = new Date()) {
-  const [series] = await sql`
-    UPDATE invoice_number_series SET current_number = current_number + 1
-    WHERE id = ${seriesId} AND active = TRUE RETURNING *
-  `;
-  if (!series) throw new Error('Číselná řada nenalezena nebo není aktivní');
-  return renderSeriesNumber(series, now);
-}
-
 // Výchozí číselná řada podle eshopu, ze kterého objednávka přišla
 async function pickDefaultSeries(sql, shopId, entityType) {
   const [series] = await sql`
@@ -345,7 +338,7 @@ export async function generateProformaForOrder(sql, order, { now = new Date() } 
 
   const seriesId = await pickDefaultSeries(sql, order.shop_id, 'zalohova_faktura');
   let number = '';
-  if (seriesId) number = await nextInvoiceNumber(sql, seriesId, now);
+  if (seriesId) number = await dalsiCisloRady(sql, seriesId, now);
   if (!number) number = `ZF-${issueDate.slice(0, 4)}-${order.order_number}`;
 
   const vatRate = 21;
@@ -403,7 +396,7 @@ export async function generateInvoiceForOrder(sql, order, { fromProforma, now = 
 
   const seriesId = await pickDefaultSeries(sql, order.shop_id, 'faktura');
   let number = '';
-  if (seriesId) number = await nextInvoiceNumber(sql, seriesId, now);
+  if (seriesId) number = await dalsiCisloRady(sql, seriesId, now);
   // Bez číselné řady. Nové objednávky mají invoice_number prázdné (číslo se
   // do něj zapisuje až níž); starší v něm nesou číslo, které e-shop zákazníkovi
   // už ukázal, a to se tu radši dodrží.
@@ -452,6 +445,45 @@ export async function generateInvoiceForOrder(sql, order, { fromProforma, now = 
   return invoice;
 }
 
+/**
+ * Předvyplněný formulář nové faktury podle staré. Převezme odběratele, položky
+ * a předkontaci, dostane dnešní datum a stejně dlouhou splatnost. Číslo, úhrada,
+ * vazba na objednávku ani stav v POHODĚ se nepřebírají, jde o nový doklad.
+ *
+ * Faktura z exportu POHODY položky nemá, má jen text a součty. Z nich vznikne
+ * jediný řádek, jinak by její duplikace nešla uložit. Text je pak v položce
+ * a do poznámky se znovu neopisuje.
+ */
+export function predlohaDuplikatu(zdroj, polozky, dnes = prazskeDatum(new Date())) {
+  const vystaveno = jenDatum(zdroj.issue_date);
+  const splatno = jenDatum(zdroj.due_date);
+  const dnu = vystaveno && splatno ? Math.round((Date.parse(splatno) - Date.parse(vystaveno)) / 86400000) : -1;
+  const zaklad = Number(zdroj.amount) || 0;
+  return {
+    id: zdroj.id,
+    number: zdroj.number,
+    series_id: zdroj.series_id,
+    client_name: zdroj.client_name,
+    client_ico: zdroj.client_ico,
+    client_dic: zdroj.client_dic,
+    client_address: zdroj.client_address,
+    client_email: zdroj.client_email,
+    currency: zdroj.currency,
+    account_debit: zdroj.account_debit,
+    account_credit: zdroj.account_credit,
+    issue_date: dnes,
+    due_date: pridejDny(dnes, dnu >= 0 ? dnu : 14),
+    notes: polozky.length ? zdroj.notes : '',
+    polozky: polozky.length ? polozky : [{
+      name: String(zdroj.notes || '').replace(/\s+/g, ' ').trim().slice(0, 255) || 'Plnění dle faktury',
+      quantity: 1,
+      unit: 'ks',
+      price_per_unit: zaklad,
+      vat_rate: zaklad ? Math.round(Number(zdroj.vat_amount) / zaklad * 100) : 21,
+    }],
+  };
+}
+
 export default async function invoicesRoutes(fastify) {
   const sql = getDb();
 
@@ -488,7 +520,27 @@ export default async function invoicesRoutes(fastify) {
       LIMIT ${strany.naStranku} OFFSET ${strany.offset}
     `;
     // Modal Nová faktura zakládá jen vydanou fakturu, na záložce Zálohové není.
-    const series = zalohove ? [] : await sql`SELECT * FROM invoice_number_series WHERE active = TRUE ORDER BY name`;
+    // Řady SEIL první: podle pořadí se volí výchozí řada i shoda čísla duplikátu.
+    const series = zalohove ? [] : (await sql`
+      SELECT * FROM invoice_number_series
+      WHERE active = TRUE AND entity_type = 'faktura'
+      ORDER BY shop_id NULLS FIRST, name, id
+    `).map(s => ({ ...s, ...nahledRady(s) }));
+
+    // Odkaz Duplikovat z detailu faktury: formulář se předvyplní, nic se nezaloží
+    // a žádné číslo se nespotřebuje, dokud člověk neuloží.
+    let predloha = null;
+    if (!zalohove && parametr(request.query.duplikovat)) {
+      const [zdroj] = await sql`
+        SELECT * FROM accounting_invoices WHERE id = ${parametr(request.query.duplikovat)} AND type = 'issued'
+      `;
+      if (zdroj) {
+        const polozky = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${zdroj.id} ORDER BY id`;
+        predloha = predlohaDuplikatu(zdroj, polozky);
+      }
+    }
+    const radaDuplikatu = predloha && (series.find(s => s.id === predloha.series_id) || radaPodleCisla(predloha.number, series));
+    const vychoziRada = (radaDuplikatu || series.find(s => !s.shop_id))?.id ?? null;
 
     const adresaZalozky = (klic) => {
       const p = new URLSearchParams();
@@ -503,7 +555,7 @@ export default async function invoicesRoutes(fastify) {
       pageTitle: zalohove ? 'Zálohové faktury' : 'Vydané faktury', currentPath: '/ucetnictvi/vydane-faktury',
       user: request.user, invoices, total: pocty[typ], strany, typ, adresaZalozky,
       zalozky: DRUHY_VYDANYCH.map(([klic, popisek]) => ({ klic, popisek, pocet: pocty[klic].toLocaleString('cs-CZ') })),
-      filtr, statusFilter, STATUSES_ISSUED, series,
+      filtr, statusFilter, STATUSES_ISSUED, series, vychoziRada, predloha, dnes: prazskeDatum(new Date()),
       klienti: (await sql`
         SELECT client_name FROM accounting_invoices WHERE type IN ('issued', 'proforma') AND client_name <> ''
         GROUP BY client_name ORDER BY MAX(issue_date) DESC LIMIT 500
@@ -545,7 +597,9 @@ export default async function invoicesRoutes(fastify) {
   // Vytvořit vydanou fakturu manuálně
   fastify.post('/ucetnictvi/vydane-faktury/vytvorit', async (request, reply) => {
     const b = request.body || {};
-    const fail = code => reply.redirect(`/ucetnictvi/vydane-faktury?formError=${code}`);
+    // Po chybě v duplikaci se vrátí předvyplněný formulář, ne prázdný.
+    const duplikat = b.duplikat_z ? `duplikovat=${encodeURIComponent(b.duplikat_z)}&` : '';
+    const fail = code => reply.redirect(`/ucetnictvi/vydane-faktury?${duplikat}formError=${code}`);
 
     const clientName = (b.client_name || '').trim();
     if (!clientName) return fail('klient');
@@ -556,8 +610,18 @@ export default async function invoicesRoutes(fastify) {
     const { amount, vatAmount, total } = sumItems(items);
     if (total <= 0) return fail('castka');
 
-    // Ruční číslo nesmí kolidovat; číslo z řady je z podstaty nové
-    const manualNumber = (b.number || '').trim();
+    // Faktura patří k e-shopu své řady: podle něj se tiskne hlavička dokladu.
+    let rada = null;
+    if (b.series_id) {
+      [rada] = await sql`
+        SELECT id, shop_id FROM invoice_number_series
+        WHERE id = ${parseInt(b.series_id, 10) || 0} AND entity_type = 'faktura' AND active = TRUE
+      `;
+      if (!rada) return fail('rada');
+    }
+
+    // Ruční číslo se bere jen bez řady a nesmí kolidovat
+    const manualNumber = rada ? '' : (b.number || '').trim();
     if (manualNumber) {
       const [clash] = await sql`
         SELECT id FROM accounting_invoices WHERE type = 'issued' AND number = ${manualNumber} LIMIT 1
@@ -565,24 +629,23 @@ export default async function invoicesRoutes(fastify) {
       if (clash) return fail('duplicita');
     }
 
-    let number = manualNumber;
-    if (!number && b.series_id) number = await nextInvoiceNumber(sql, parseInt(b.series_id, 10));
-    if (!number) number = `FV-${new Date().getFullYear()}-${Date.now()}`;
-
     const id = generateId();
     const clientIco = (b.client_ico || '').trim();
 
     try {
       await sql.begin(async tx => {
+        const number = rada
+          ? await dalsiCisloRady(tx, rada.id)
+          : manualNumber || `FV-${new Date().getFullYear()}-${Date.now()}`;
         await tx`
           INSERT INTO accounting_invoices
-            (id, type, series_id, number, status, client_name, client_ico, client_dic, client_address,
+            (id, type, series_id, shop_id, number, status, client_name, client_ico, client_dic, client_address,
              client_email, crm_company_id, crm_contact_id,
              amount, vat_amount, total_amount, currency, issue_date, due_date, notes,
              account_debit, account_credit)
           VALUES (
             ${id}, 'issued',
-            ${b.series_id ? parseInt(b.series_id, 10) : null},
+            ${rada?.id ?? null}, ${rada?.shop_id ?? null},
             ${number}, ${b.status || 'Nezaplacena'},
             ${clientName}, ${clientIco},
             ${(b.client_dic||'').trim()}, ${(b.client_address||'').trim()},
@@ -609,7 +672,7 @@ export default async function invoicesRoutes(fastify) {
         }
       });
     } catch (err) {
-      if (err.code === '23505') return fail('duplicita');   // unique_violation
+      if (err.code === '23505') return fail(rada ? 'rada-obsazena' : 'duplicita');   // unique_violation
       throw err;
     }
 
@@ -1388,7 +1451,9 @@ export default async function invoicesRoutes(fastify) {
       LEFT JOIN invoice_number_series s ON r.series_id = s.id
       ORDER BY r.active DESC, r.name
     `;
-    const series = await sql`SELECT * FROM invoice_number_series WHERE active = TRUE ORDER BY name`;
+    const series = await sql`
+      SELECT * FROM invoice_number_series WHERE active = TRUE AND entity_type = 'faktura' ORDER BY shop_id NULLS FIRST, name
+    `;
     return reply.view('pages/invoices/recurring.ejs', {
       pageTitle: 'Šablony opakujících se faktur', currentPath: '/ucetnictvi/sablony-faktur',
       user: request.user, templates, series,

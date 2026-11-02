@@ -4,6 +4,9 @@
   const bezFiltru = zalohove ? '/ucetnictvi/vydane-faktury?typ=zalohove' : '/ucetnictvi/vydane-faktury';
   const tvar = (jedna, dve, pet) => total === 1 ? jedna : total >= 2 && total <= 4 ? dve : pet;
   const castka = n => Number(n).toLocaleString('cs-CZ', { minimumFractionDigits: 2 });
+  const predloha = locals.predloha || null;
+  const hodnota = (pole) => predloha ? predloha[pole] ?? '' : '';
+  const vychoziRada = locals.vychoziRada ?? null;
 %>
 <div class="page-header">
   <div class="page-header-left">
@@ -145,7 +148,7 @@ window.addEventListener('pageshow', bulkUpdate);
 <div id="modalCreate" class="modal-backdrop">
   <div class="modal">
     <div class="modal-header">
-      <h2 class="modal-title">Nová vydaná faktura</h2>
+      <h2 class="modal-title"><%= predloha ? `Duplikovat fakturu ${predloha.number}` : 'Nová vydaná faktura' %></h2>
       <button type="button" class="modal-close" data-modal-close="modalCreate" aria-label="Zavřít">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
@@ -155,68 +158,75 @@ window.addEventListener('pageshow', bulkUpdate);
     <% } %>
     <%# Bez flexu by .modal-body neroloval a patička s tlačítkem by zůstala oříznutá pod okrajem okna. %>
     <form method="post" action="/ucetnictvi/vydane-faktury/vytvorit" style="display:flex;flex-direction:column;min-height:0;">
+      <% if (predloha) { %>
+      <input type="hidden" name="duplikat_z" value="<%= predloha.id %>">
+      <input type="hidden" name="currency" value="<%= predloha.currency %>">
+      <% } %>
       <div class="modal-body" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <% if (predloha) { %>
+        <div class="hlaska hlaska-ok" style="grid-column:1/-1;margin:0;">Vznikne nová faktura s vlastním číslem a dnešním datem. Původní faktura se nezmění, číslo se přidělí až po uložení.</div>
+        <% } %>
         <div class="form-group" style="grid-column:1/-1;">
-          <label class="form-label">Číselná řada</label>
-          <select name="series_id" class="form-select">
+          <label class="form-label" for="radaFaktury">Číselná řada</label>
+          <select name="series_id" id="radaFaktury" class="form-select">
             <option value="">– Zadat číslo ručně –</option>
             <% series.forEach(s => { %>
-            <option value="<%= s.id %>"><%= s.name %></option>
+            <option value="<%= s.id %>" <%= s.id === vychoziRada ? 'selected' : '' %>><%= s.name %><%= s.cislo ? ` (příští ${s.cislo})` : '' %></option>
             <% }) %>
           </select>
         </div>
-        <div class="form-group" style="grid-column:1/-1;">
-          <label class="form-label">Číslo faktury (pokud nezvolíte řadu)</label>
-          <input type="text" name="number" class="form-control" placeholder="FV-2026-0001">
+        <div class="form-group" id="rucniCislo" style="grid-column:1/-1;">
+          <label class="form-label" for="cisloFaktury">Číslo faktury</label>
+          <input type="text" name="number" id="cisloFaktury" class="form-control" placeholder="FV-2026-0001">
         </div>
         <div class="form-group" style="grid-column:1/-1;">
           <label class="form-label">Klient *</label>
-          <input type="text" name="client_name" class="form-control" required placeholder="Název firmy nebo jméno">
+          <input type="text" name="client_name" class="form-control" required placeholder="Název firmy nebo jméno" value="<%= hodnota('client_name') %>">
         </div>
         <div class="form-group">
           <label class="form-label">IČO klienta</label>
-          <input type="text" name="client_ico" class="form-control">
+          <input type="text" name="client_ico" class="form-control" value="<%= hodnota('client_ico') %>">
         </div>
         <div class="form-group">
           <label class="form-label">DIČ klienta</label>
-          <input type="text" name="client_dic" class="form-control">
+          <input type="text" name="client_dic" class="form-control" value="<%= hodnota('client_dic') %>">
         </div>
         <div class="form-group" style="grid-column:1/-1;">
           <label class="form-label">Adresa klienta</label>
-          <input type="text" name="client_address" class="form-control">
+          <input type="text" name="client_address" class="form-control" value="<%= hodnota('client_address') %>">
         </div>
         <div class="form-group" style="grid-column:1/-1;">
           <label class="form-label">E-mail klienta</label>
-          <input type="email" name="client_email" class="form-control" placeholder="pro odeslání faktury">
+          <input type="email" name="client_email" class="form-control" placeholder="pro odeslání faktury" value="<%= hodnota('client_email') %>">
         </div>
 
-        <%- include('../../includes/invoice-items', { items: [] }) %>
+        <%- include('../../includes/invoice-items', { items: predloha ? predloha.polozky : [] }) %>
 
         <div class="form-group">
           <label class="form-label">Datum vystavení</label>
-          <input type="date" name="issue_date" class="form-control" value="<%= new Date().toISOString().split('T')[0] %>">
+          <input type="date" name="issue_date" class="form-control" value="<%= hodnota('issue_date') || locals.dnes || new Date().toISOString().split('T')[0] %>">
         </div>
         <div class="form-group">
           <label class="form-label">Datum splatnosti</label>
-          <input type="date" name="due_date" class="form-control">
+          <input type="date" name="due_date" class="form-control" value="<%= hodnota('due_date') %>">
         </div>
         <div class="form-group" style="grid-column:1/-1;">
           <label class="form-label">Poznámka</label>
-          <textarea name="notes" class="form-control" rows="2"></textarea>
+          <textarea name="notes" class="form-control" rows="2"><%= hodnota('notes') %></textarea>
         </div>
         <div class="form-group">
           <label class="form-label">Předkontace MD</label>
-          <input type="text" name="account_debit" class="form-control ac-account" placeholder="např. 311" list="acList" autocomplete="off">
+          <input type="text" name="account_debit" class="form-control ac-account" placeholder="např. 311" list="acList" autocomplete="off" value="<%= hodnota('account_debit') %>">
         </div>
         <div class="form-group">
           <label class="form-label">Předkontace D</label>
-          <input type="text" name="account_credit" class="form-control ac-account" placeholder="např. 604" list="acList" autocomplete="off">
+          <input type="text" name="account_credit" class="form-control ac-account" placeholder="např. 604" list="acList" autocomplete="off" value="<%= hodnota('account_credit') %>">
         </div>
       </div>
       <datalist id="acList"></datalist>
       <div class="modal-footer">
         <button type="button" class="btn btn-ghost" data-modal-close="modalCreate">Zrušit</button>
-        <button type="submit" class="btn btn-primary">Vytvořit fakturu</button>
+        <button type="submit" class="btn btn-primary"><%= predloha ? 'Vytvořit duplikát' : 'Vytvořit fakturu' %></button>
       </div>
     </form>
   </div>
@@ -224,11 +234,31 @@ window.addEventListener('pageshow', bulkUpdate);
 
 <script>
 // Otevírání a zavírání modalu (data-modal-open, data-modal-close) obsluhuje app.js.
-// Po odmítnutí serverem otevři formulář rovnou i s chybovou hláškou
-<% if (formError) { %>
+// Po odmítnutí serverem otevři formulář rovnou i s chybovou hláškou, duplikaci vždy
+<% if (formError || predloha) { %>
 document.getElementById('modalCreate').classList.add('open');
 document.body.style.overflow = 'hidden';
 <% } %>
+<% if (predloha) { %>
+// Obnovení stránky po zavření formuláře už duplikaci znovu neotevře.
+{
+  const adresa = new URL(location.href);
+  adresa.searchParams.delete('duplikovat');
+  adresa.searchParams.delete('formError');
+  history.replaceState(null, '', adresa);
+}
+<% } %>
+// Ruční číslo jen bez řady, řada ho na serveru stejně přebije
+{
+  const rada = document.getElementById('radaFaktury');
+  const rucni = document.getElementById('rucniCislo');
+  const prepni = () => {
+    rucni.style.display = rada.value ? 'none' : '';
+    if (rada.value) document.getElementById('cisloFaktury').value = '';
+  };
+  rada.addEventListener('change', prepni);
+  prepni();
+}
 // Předkontace autocomplete
 fetch('/api/accounting-chart').then(r => r.json()).then(list => {
   const dl = document.getElementById('acList');

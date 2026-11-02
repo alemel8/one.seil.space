@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { getDb, generateId } from '../db.js';
 import { rezimUprav } from '../upravy.js';
 import { jenDatum } from '../prazsky-cas.js';
-import { renderSeriesNumber } from '../series-format.js';
+import { dalsiCisloRady, nahledRady, renderSeriesNumber, rokVPraze } from '../series-format.js';
 import { invalidateBrandCache, shopBrand } from '../brand.js';
 import { hashKlice, otiskKlice, vygenerujKlic } from '../eshop-klice.js';
 import { behySyncu, nactiZdroje, nastavMarketingEshopu, tajemstviZdroje, ulozZdroj, ZdrojError } from '../marketing/zdroje.js';
@@ -28,6 +28,7 @@ const ESHOP_S_VLASTNIM_API = 'toneracek';
 const ZALOZKY_ESHOPU = [
   ['zakladni',     'Základní informace', 'formZakladni'],
   ['identita',     'Identita e-mailů',   'formIdentita'],
+  ['rady',         'Číselné řady',       'formRady'],
   ['napojeni',     'Napojení e-shopu',   null],
   ['expedice',     'Expedice do skladu', 'formExpedice'],
   ['marketing',    'Marketing',          'formMarketing'],
@@ -38,11 +39,30 @@ const ZALOZKY_ESHOPU = [
 const ZALOZKY_FIRMY = [
   ['zakladni',  'Základní údaje',    'formFirmaZakladni'],
   ['fakturace', 'Banka a fakturace', 'formFirmaFakturace'],
+  ['rady',      'Číselné řady',      'formRady'],
   ['pohoda',    'Export do POHODY',  'formFirmaPohoda'],
   ['disk',      'Google Disk',       'formFirmaDisk'],
 ];
-const CHYBY_FIRMY = { __proto__: null, nazev: 'Název firmy je povinný.' };
+const CHYBY_RAD = {
+  __proto__: null,
+  'rada-nazev': 'Řada se neuložila: vyplňte název.',
+  'rada-format': 'Řada se neuložila: formát musí obsahovat pořadí (N), například 21YYNNNN. Povolená jsou písmena, číslice a znaky - / . _, nejvýš 30 znaků.',
+  'rada-poradi': 'Řada se neuložila: příští pořadí musí být celé číslo od 1 výš.',
+  'rada-obsazena': 'Řada se neuložila: příští číslo už má existující doklad. Zadejte vyšší pořadí.',
+};
+const CHYBY_FIRMY = { __proto__: null, nazev: 'Název firmy je povinný.', ...CHYBY_RAD };
 const textFirmy = (hodnota) => String(hodnota ?? '').trim();
+
+/** Doklad, jehož číslo řada přiděluje. Objednávky se nekontrolují, čísla mají v shop_orders. */
+const DOKLAD_RADY = { __proto__: null, faktura: 'issued', zalohova_faktura: 'proforma' };
+const DRUHY_RAD = ['faktura', 'zalohova_faktura', 'objednavka'];
+const ZNAKY_FORMATU = /^[A-Za-z0-9/._-]{1,30}$/;
+// Objednávka smí mít jen náhodné číslo (YYMMXXXX), doklad musí mít pořadí, ať řada nemá díry.
+const platnyFormat = (format, druh) => ZNAKY_FORMATU.test(format) && (druh === 'objednavka' ? /[NX]/ : /N/).test(format);
+const cislePoradi = (hodnota) => {
+  const text = String(hodnota ?? '').trim();
+  return /^[0-9]{1,9}$/.test(text) && Number(text) >= 1 ? Number(text) : null;
+};
 
 export default async function settingsRoutes(fastify) {
   const sql = getDb();
@@ -57,10 +77,11 @@ export default async function settingsRoutes(fastify) {
   fastify.get('/nastaveni/firma', async (request, reply) => {
     const [company] = await sql`SELECT * FROM company_settings LIMIT 1`;
     const firma = company || {};
+    const tab = zalozka(ZALOZKY_FIRMY, request.query.tab);
     return reply.view('pages/settings/company.ejs', {
       pageTitle: 'Nastavení firmy', currentPath: '/nastaveni/firma',
       user: request.user, company: firma,
-      tab: zalozka(ZALOZKY_FIRMY, request.query.tab), zalozky: ZALOZKY_FIRMY,
+      tab, zalozky: ZALOZKY_FIRMY, rady: tab === 'rady' ? await nactiRady(null) : [],
       saved: request.query.saved === '1',
       error: CHYBY_FIRMY[request.query.error] || null,
       rezimUprav: rezimUprav(request.query),
@@ -127,58 +148,107 @@ export default async function settingsRoutes(fastify) {
 
   // ── Číselné řady ─────────────────────────────────────────────
 
-  fastify.get('/nastaveni/ciselne-rady', async (request, reply) => {
-    const seriesRows = await sql`
-      SELECT s.*, sh.name AS shop_name
-      FROM invoice_number_series s
-      LEFT JOIN shops sh ON s.shop_id = sh.id
-      ORDER BY s.active DESC, s.name
+  //
+  // Řady SEIL (shop_id IS NULL) se nastavují v Nastavení firmy, řady e-shopu v jeho
+  // detailu. Oba okruhy sdílejí routy níž: adresa určuje, kterých řad se POST smí
+  // dotknout, a přístupy z matice platí stejně jako pro zbytek té stránky.
+
+  /** Řady jednoho okruhu s náhledem příštího čísla. */
+  async function nactiRady(shopId) {
+    const rady = await sql`
+      SELECT * FROM invoice_number_series
+      WHERE ${shopId === null ? sql`shop_id IS NULL` : sql`shop_id = ${shopId}`}
+      ORDER BY active DESC, entity_type, name, id
     `;
-    const series = seriesRows.map(s => ({
-      ...s,
-      example: renderSeriesNumber({ ...s, current_number: s.current_number + 1 }),
-    }));
-    const shops = await sql`SELECT id, name FROM shops WHERE active = TRUE ORDER BY name`;
-    return reply.view('pages/settings/invoice-series.ejs', {
-      pageTitle: 'Číselné řady', currentPath: '/nastaveni/ciselne-rady',
-      user: request.user, series, shops,
-      saved: request.query.saved === '1',
-      error: request.query.error || null,
-    }, { layout: 'layouts/base.ejs' });
-  });
+    return rady.map(r => ({ ...r, ...nahledRady(r) }));
+  }
 
-  fastify.post('/nastaveni/ciselne-rady/vytvorit', async (request, reply) => {
-    const b = request.body || {};
-    const format = (b.format || '').trim();
-    if (!(b.name || '').trim() || (!(b.prefix || '').trim() && !format)) return reply.redirect('/nastaveni/ciselne-rady?error=missing');
-    const startNum = Math.max(0, parseInt(b.start_number || '1', 10));
-    await sql`
-      INSERT INTO invoice_number_series
-        (name, prefix, year, current_number, start_number, padding, shop_id, active, entity_type, format)
-      VALUES (
-        ${b.name.trim()}, ${(b.prefix || '').trim().toUpperCase()},
-        ${b.year ? parseInt(b.year, 10) : null},
-        ${startNum - 1},
-        ${startNum},
-        ${parseInt(b.padding || '4', 10)},
-        ${b.shop_id ? parseInt(b.shop_id, 10) : null},
-        TRUE,
-        ${['objednavka', 'zalohova_faktura'].includes(b.entity_type) ? b.entity_type : 'faktura'},
-        ${format || null}
-      )
-    `;
-    return reply.redirect('/nastaveni/ciselne-rady?saved=1');
-  });
+  fastify.get('/nastaveni/ciselne-rady', async (request, reply) => reply.redirect('/nastaveni/firma?tab=rady'));
 
-  fastify.post('/nastaveni/ciselne-rady/:id/deaktivovat', async (request, reply) => {
-    await sql`UPDATE invoice_number_series SET active = FALSE WHERE id = ${request.params.id}`;
-    return reply.redirect('/nastaveni/ciselne-rady');
-  });
+  for (const zaklad of ['/nastaveni/firma/rady', '/nastaveni/eshopy/:id/rady']) {
+    const okruh = (request) => {
+      // Nesmyslné id je 0, žádná řada: adresa e-shopu nesmí spadnout do okruhu SEIL.
+      const shopId = request.params.id === undefined ? null : parseInt(request.params.id, 10) || 0;
+      return { shopId, adresa: shopId === null ? '/nastaveni/firma?tab=rady' : `/nastaveni/eshopy/${shopId}?tab=rady` };
+    };
 
-  fastify.post('/nastaveni/ciselne-rady/:id/aktivovat', async (request, reply) => {
-    await sql`UPDATE invoice_number_series SET active = TRUE WHERE id = ${request.params.id}`;
-    return reply.redirect('/nastaveni/ciselne-rady');
-  });
+    fastify.post(`${zaklad}/vytvorit`, async (request, reply) => {
+      const { shopId, adresa } = okruh(request);
+      if (shopId !== null) {
+        const [shop] = await sql`SELECT id FROM shops WHERE id = ${shopId}`;
+        if (!shop) return reply.code(404).send('Eshop nenalezen');
+      }
+      const b = request.body || {};
+      const nazev = textFirmy(b.name);
+      const format = textFirmy(b.format);
+      // SEIL fakturuje mimo objednávky, zálohové faktury a objednávky vznikají jen v e-shopu.
+      const druh = shopId !== null && DRUHY_RAD.includes(b.entity_type) ? b.entity_type : 'faktura';
+      const poradi = cislePoradi(b.dalsi);
+      if (!nazev) return reply.redirect(`${adresa}&error=rada-nazev`);
+      if (!platnyFormat(format, druh)) return reply.redirect(`${adresa}&error=rada-format`);
+      if (!poradi) return reply.redirect(`${adresa}&error=rada-poradi`);
+      await sql`
+        INSERT INTO invoice_number_series
+          (name, prefix, format, current_number, start_number, padding, shop_id, entity_type, active, rok_citace)
+        VALUES (${nazev}, '', ${format}, ${poradi - 1}, 1, 4, ${shopId}, ${druh}, TRUE, ${rokVPraze()})
+      `;
+      return reply.redirect(`${adresa}&saved=1`);
+    });
+
+    // Řady z formuláře v jedné transakci: buď se uloží všechny, nebo žádná.
+    fastify.post(`${zaklad}/ulozit`, async (request, reply) => {
+      const { shopId, adresa } = okruh(request);
+      const b = request.body || {};
+      const chyba = (kod) => reply.redirect(`${adresa}&error=${kod}&upravit=1`);
+      const zmeny = [];
+      for (const rada of await nactiRady(shopId)) {
+        // Řada založená až po otevření formuláře v těle není, ta se nemění.
+        if (b[`name_${rada.id}`] === undefined) continue;
+        const nazev = textFirmy(b[`name_${rada.id}`]);
+        const format = textFirmy(b[`format_${rada.id}`]);
+        if (!nazev) return chyba('rada-nazev');
+        // Starší řada bez formátu (prefix, rok, počet číslic) ho mít nemusí.
+        if ((format || rada.format) && !platnyFormat(format, rada.entity_type)) return chyba('rada-format');
+
+        // Řada bez pořadí v čísle (YYMMXXXX) pole nemá, čítač se u ní nemění.
+        const zadane = b[`dalsi_${rada.id}`];
+        const poradi = zadane === undefined ? rada.poradi : cislePoradi(zadane);
+        if (!poradi) return chyba('rada-poradi');
+        const noveCislo = poradi !== rada.poradi;
+        const novyFormat = format !== (rada.format || '');
+
+        // Otevřený formulář nesmí vrátit čítač, který mezitím posunula nová faktura,
+        // proto se kontroluje i tichý návrat k dřívějšímu pořadí.
+        const typDokladu = DOKLAD_RADY[rada.entity_type];
+        if ((noveCislo || novyFormat) && typDokladu) {
+          const cislo = renderSeriesNumber({ ...rada, format: format || null, current_number: poradi });
+          const [obsazeno] = await sql`SELECT id FROM accounting_invoices WHERE type = ${typDokladu} AND number = ${cislo} LIMIT 1`;
+          if (obsazeno) return chyba('rada-obsazena');
+        }
+        zmeny.push({
+          id: rada.id,
+          hodnoty: {
+            name: nazev, format: format || null,
+            ...(noveCislo ? { current_number: poradi - 1, rok_citace: rokVPraze() } : {}),
+          },
+        });
+      }
+      await sql.begin(async tx => {
+        for (const { id, hodnoty } of zmeny) await tx`UPDATE invoice_number_series SET ${tx(hodnoty)} WHERE id = ${id}`;
+      });
+      return reply.redirect(`${adresa}&saved=1`);
+    });
+
+    fastify.post(`${zaklad}/:radaId/aktivni`, async (request, reply) => {
+      const { shopId, adresa } = okruh(request);
+      await sql`
+        UPDATE invoice_number_series SET active = ${request.body?.aktivni === '1'}
+        WHERE id = ${parseInt(request.params.radaId, 10) || 0}
+          AND ${shopId === null ? sql`shop_id IS NULL` : sql`shop_id = ${shopId}`}
+      `;
+      return reply.redirect(`${adresa}&saved=1`);
+    });
+  }
 
   // ── Eshopy ────────────────────────────────────────────────────
   //
@@ -241,7 +311,7 @@ const BARVA_ESHOPU = /^#[0-9a-fA-F]{3,8}$/;
     // nedefinované proměnné. `extra.tab` dávají přímo renderující POSTy
     // (nový klíč, tajemství, ověření), které nemají query string.
     const tab = zalozka(ZALOZKY_ESHOPU, extra.tab ?? request.query.tab);
-    const data = { checks: [], channels: [], rules: [], eshopKlice: [], expedice: [], marketingZdroje: [], marketingBehy: [] };
+    const data = { checks: [], channels: [], rules: [], eshopKlice: [], expedice: [], marketingZdroje: [], marketingBehy: [], rady: [] };
 
     if (tab === 'healthchecky') {
       [data.checks, data.channels, data.rules] = await Promise.all([
@@ -262,6 +332,7 @@ const BARVA_ESHOPU = /^#[0-9a-fA-F]{3,8}$/;
         `,
       ]);
     }
+    if (tab === 'rady') data.rady = await nactiRady(shop.id);
     if (tab === 'napojeni') {
       data.eshopKlice = (await sql`
         SELECT k.id, k.label, k.active, k.created_at, k.last_used_at, k.revoked_at, k.key_hash,
@@ -309,6 +380,7 @@ const BARVA_ESHOPU = /^#[0-9a-fA-F]{3,8}$/;
       overeni: extra.overeni || null,
       saved: request.query.saved === '1',
       error: extra.error || request.query.error || null,
+      chybaRad: CHYBY_RAD[request.query.error] || null,
       rezimUprav: rezimUprav(request.query),
     }, { layout: 'layouts/base.ejs' });
   }
@@ -674,15 +746,11 @@ const BARVA_ESHOPU = /^#[0-9a-fA-F]{3,8}$/;
 
   fastify.post('/api/invoice-series/:id/next', async (request, reply) => {
     if (!request.user) return reply.code(401).send({ error: 'Unauthorized' });
-    const [series] = await sql`
-      UPDATE invoice_number_series
-      SET current_number = current_number + 1
-      WHERE id = ${request.params.id} AND active = TRUE
-      RETURNING *
-    `;
-    if (!series) return reply.code(404).send({ error: 'Číselná řada nenalezena' });
-
-    const number = renderSeriesNumber(series);
-    return reply.send({ number, seriesId: series.id });
+    try {
+      const number = await dalsiCisloRady(sql, request.params.id);
+      return reply.send({ number, seriesId: Number(request.params.id) });
+    } catch {
+      return reply.code(404).send({ error: 'Číselná řada nenalezena' });
+    }
   });
 }

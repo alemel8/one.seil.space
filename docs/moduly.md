@@ -107,6 +107,7 @@ faktura bere DUZP.
 | `GET /ucetnictvi/vydane-faktury` | Seznam vydaných faktur |
 | `GET /ucetnictvi/vydane-faktury/nova` | Formulář nové faktury |
 | `POST /ucetnictvi/vydane-faktury/vytvorit` | Vytvořit fakturu |
+| `GET /ucetnictvi/vydane-faktury?duplikovat=<id>` | Formulář nové faktury předvyplněný podle jiné (*Duplikace vydané faktury* níž) |
 | `GET /ucetnictvi/vydane-faktury/:id` | Detail faktury |
 | `GET /ucetnictvi/vydane-faktury/:id/pdf` | Stáhnout PDF |
 | `POST /ucetnictvi/vydane-faktury/:id/odeslat-email` | Odeslat fakturu e-mailem |
@@ -826,11 +827,12 @@ Vše admin-only.
 
 | Route | Popis |
 |---|---|
-| `GET /nastaveni/firma` | Nastavení firmy po záložkách (`?tab=zakladni\|fakturace\|pohoda\|disk`) |
+| `GET /nastaveni/firma` | Nastavení firmy po záložkách (`?tab=zakladni\|fakturace\|rady\|pohoda\|disk`) |
 | `POST /nastaveni/firma/zakladni`, `…/fakturace`, `…/pohoda`, `…/disk` | Každá záložka zapisuje jen své sloupce; neúplné tělo vrátí 400 a řádek nezmění. Společný POST už není |
-| `GET /nastaveni/ciselne-rady`, `POST …/ciselne-rady/vytvorit`, `POST …/ciselne-rady/:id/deaktivovat\|aktivovat` | Číselné řady pro faktury (prefix, rok, padding) |
+| `POST /nastaveni/firma/rady/vytvorit\|ulozit`, `POST …/rady/:radaId/aktivni` | Číselné řady SEIL (`shop_id IS NULL`) |
+| `POST /nastaveni/eshopy/:id/rady/vytvorit\|ulozit`, `POST …/rady/:radaId/aktivni` | Číselné řady e-shopu. Adresa určuje okruh, cizí řady se POST nedotkne. `GET /nastaveni/ciselne-rady` přesměruje na Nastavení firmy |
 | `GET /nastaveni/eshopy`, `POST /nastaveni/eshopy/vytvorit` | Seznam e-shopů, založení nového (slug jen malá písmena, číslice a pomlčky) |
-| `GET /nastaveni/eshopy/:id` | Detail e-shopu po záložkách (`?tab=zakladni\|identita\|napojeni\|expedice\|marketing\|healthchecky`) |
+| `GET /nastaveni/eshopy/:id` | Detail e-shopu po záložkách (`?tab=zakladni\|identita\|rady\|napojeni\|expedice\|marketing\|healthchecky`) |
 | `POST /nastaveni/eshopy/:id/zakladni` | Název, URL a stav e-shopu; slug je neměnný |
 | `POST /nastaveni/eshopy/:id/identita` | Identita e-shopu v e-mailech |
 | `POST /nastaveni/eshopy/:id/eshop-klic/vytvorit`, `…/eshop-klic/:keyId/zrusit` | Klíče pro `/api/eshop` (ne pro Toneráček) |
@@ -867,11 +869,24 @@ projektu a člena týmu.
 nečte, ale expedice a noční stahování ano – přepínač je proto zašedlý
 a routa u něj `active` z těla ignoruje.
 
-Záložky `zakladni`, `identita`, `expedice` a `marketing` jsou formuláře
+Záložky `zakladni`, `identita`, `rady`, `expedice` a `marketing` jsou formuláře
 záznamu v režimu úprav (třetí prvek `ZALOZKY_ESHOPU` je id formuláře,
 `napojeni` a `healthchecky` ho nemají, a tak tužku neukazují). Marketing má
 marži a práh PNO ve vlastní kartě; napojení platforem pod ní má dál své
 formuláře s vlastním Uložit a Ověřit připojení – tužka se jich netýká.
+
+### Číselné řady
+
+Řady SEIL (`shop_id IS NULL`) se nastavují v Nastavení firmy, řady e-shopu v jeho detailu; obě záložky vykresluje `views/includes/ciselne-rady.ejs`. V režimu úprav se mění název, formát a příští pořadí, aktivace je samostatný POST v řádku. Příští číslo, které už má doklad stejného druhu, se neuloží, takže starý otevřený formulář nevrátí čítač přes vydanou fakturu.
+
+- Číslo přiděluje `dalsiCisloRady()` v `src/series-format.js`, ve stejné transakci jako vložení dokladu: nepovedené založení číslo nespotřebuje. Řady objednávek si čítač posouvají samy (`toneracek.js`, `eshop-api.js`), mají náhodné číslo a roční restart se jich netýká.
+- Řada s rokem i pořadím v čísle (`21YYNNNN`) začíná každý rok od `start_number`, jako v POHODĚ. Který rok čítač nese, říká `rok_citace`. Rok je pražský a bere se z okamžiku přidělení, ne z data vystavení.
+- SEIL má od migrace 048 tři řady pokračující po POHODĚ: `21YYNNNN`, `23YYNNNN` a `25YYNNNN`. Opravné daňové doklady (`RR04NNNNN`) One SEIL nevystavuje, řadu nemají.
+- Faktura založená z řady dostane `shop_id` řady, podle něj se tiskne hlavička dokladu. Nabízejí se jen aktivní řady druhu `faktura`, výchozí je první řada SEIL.
+
+### Duplikace vydané faktury
+
+Odkaz Duplikovat na detailu vede na `GET /ucetnictvi/vydane-faktury?duplikovat=<id>`. Otevře se formulář nové faktury předvyplněný z `predlohaDuplikatu()`; nic se nezaloží a číslo se nespotřebuje, dokud člověk neuloží. Přebírá se odběratel, položky, měna, poznámka a předkontace, datum vystavení je dnešní a splatnost stejně dlouhá. Úhrada, objednávka a stav v POHODĚ se nepřebírají. Řada je ta z původní faktury, u faktury z POHODY první aktivní řada, jejímuž formátu číslo odpovídá (`radaPodleCisla()`). Faktura z POHODY položky nemá, v předloze je jeden řádek z textu a součtů. Zálohová faktura a opravný doklad se záporným součtem se neduplikují.
 
 ### Stránkování seznamů
 

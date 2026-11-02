@@ -1,3 +1,5 @@
+<%# Zálohovka vzniká jen z objednávky a opravný doklad se záporným součtem formulář neuloží. %>
+<% const lzeDuplikovat = invoice.type === 'issued' && Number(invoice.total_amount) > 0; %>
 <div class="page-header">
   <div class="page-header-left">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -12,6 +14,7 @@
     </a>
     <button class="btn btn-ghost" data-modal-open="modalEmail">✉️ Odeslat</button>
     <button class="btn btn-outline" data-modal-open="modalStatus">Změnit stav</button>
+    <% if (lzeDuplikovat) { %><a href="/ucetnictvi/vydane-faktury?duplikovat=<%= invoice.id %>" class="btn btn-outline">Duplikovat</a><% } %>
   </div>
 </div>
 
@@ -153,6 +156,7 @@
         <% } %>
         <button class="btn btn-ghost" data-modal-open="modalStatus" style="width:100%;">🔄 Změnit stav</button>
         <button class="btn btn-ghost" data-modal-open="modalEdit" style="width:100%;">✏️ Upravit fakturu</button>
+        <% if (lzeDuplikovat) { %><a href="/ucetnictvi/vydane-faktury?duplikovat=<%= invoice.id %>" class="btn btn-ghost" style="width:100%;text-align:center;">📑 Duplikovat fakturu</a><% } %>
       </div>
     </div>
 

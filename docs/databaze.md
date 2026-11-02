@@ -522,12 +522,15 @@ Položky faktur.
 |---|---|---|
 | `id` | SERIAL PK | |
 | `name` | TEXT | Zobrazovaný název |
-| `prefix` | TEXT | Např. `FV` |
-| `year` | INT | Volitelně; zařazuje rok do čísla |
-| `current_number` | INT | Aktuální čítač |
-| `start_number` | INT | Počáteční hodnota |
-| `padding` | INT | Počet číslic (vedoucí nuly) |
-| `shop_id` | INT → shops | Volitelné přiřazení e-shopu |
+| `prefix` | TEXT | Starší tvar čísla bez formátu, např. `FV` |
+| `year` | INT | Starší tvar: zařazuje rok do čísla |
+| `format` | TEXT | Formát s tokeny, např. `21YYNNNN` (`src/series-format.js`); má přednost před prefixem |
+| `entity_type` | TEXT | `faktura`, `zalohova_faktura` nebo `objednavka` |
+| `current_number` | INT | Poslední přidělené pořadí |
+| `start_number` | INT | Pořadí prvního dokladu nového roku |
+| `rok_citace` | INT | Rok, do kterého patří `current_number`; řada s rokem i pořadím v čísle se v novém roce restartuje |
+| `padding` | INT | Starší tvar: počet číslic (vedoucí nuly) |
+| `shop_id` | INT → shops | E-shop řady; prázdné = řada SEIL |
 | `active` | BOOL | |
 
 ### `recurring_invoices`

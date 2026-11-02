@@ -52,8 +52,8 @@ e-shop nemá vyplněnou identitu, API objednávky odmítá (`503`).
    musí být ověřená v **tomtéž** Resend účtu, který používá One SEIL. Náhled:
    tlačítko *Náhled e-mailu*.
 
-3. **Číselné řady** – Nastavení → Číselné řady, tři řady s e-shopem
-   `Dílna Vlněnka`. Formáty schvaluje účetní; pravidla:
+3. **Číselné řady** – detail e-shopu, záložka Číselné řady, tři řady.
+   Formáty schvaluje účetní; pravidla:
    - **objednávka** (`objednavka`): jen číslice (e-shop čte číslo objednávky
      jako celé číslo a bankovní párování odstraňuje jen `-` a `/`), nesmí
      začínat čtyřmístným rokem (variabilní symbol by se mohl trefit do čísla

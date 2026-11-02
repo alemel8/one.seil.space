@@ -15,7 +15,7 @@
 <%- include('../includes/zalozky', { nazev: 'Sekce profilu', zalozky, tab, adresa: k => `/profil?tab=${k}` }) %>
 
 <% if (tab === 'udaje') { %>
-<div style="display:flex;flex-direction:column;gap:20px;max-width:720px;">
+<div style="display:flex;flex-direction:column;gap:20px;">
 
   <!-- Profilová fotka -->
   <div class="card">
@@ -97,7 +97,7 @@ function previewFoto(input) {
 
 </script>
 <% } else if (tab === 'heslo') { %>
-<div style="max-width:480px;">
+<div>
   <!-- Změna hesla -->
   <div class="card">
     <div class="card-header">Změna hesla</div>

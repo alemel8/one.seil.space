@@ -12,6 +12,7 @@ import { vykresliStranku, zkontrolujDetail } from './pomocnici/render.js';
 const ZALOZKY = [
   ['zakladni',     'Základní informace', 'formZakladni'],
   ['identita',     'Identita e-mailů',   'formIdentita'],
+  ['rady',         'Číselné řady',       'formRady'],
   ['napojeni',     'Napojení e-shopu',   null],
   ['expedice',     'Expedice do skladu', 'formExpedice'],
   ['marketing',    'Marketing',          'formMarketing'],
@@ -30,6 +31,8 @@ function vykresli(tab, prepis = {}) {
   return vykresliStranku('settings/shop-detail', {
     pageTitle: shop.name, currentPath: '/nastaveni/eshopy', shop, tab, zalozky: ZALOZKY,
     checks: [], channels: [], rules: [], eshopKlice: [], expedice: [], marketingZdroje: [], marketingBehy: [],
+    rady: [{ id: 3, name: 'Faktury', entity_type: 'faktura', format: 'YYYYNNNN', current_number: 4, start_number: 1, active: true, poradi: 5, cislo: '20260005' }],
+    chybaRad: null,
     maPacketaHeslo: false, maWebhookSecret: false, tajemstviZProstredi: false, otiskWebhookSecret: '', vydavaEshopKlice: true,
     novyEshopKlic: null, novyWebhookSecret: null, serviceAccountEmail: '', maGoogleSa: false, maSecretsKey: false, overeni: null,
     saved: false, error: null, rezimUprav: false, ...prepis,
@@ -43,6 +46,7 @@ const SLOUPCE = {
               'tagline', 'claim', 'logo_mark_url', 'logo_wordmark_url', 'color_primary', 'color_primary_dark', 'color_primary_light', 'color_on_primary_soft'],
   expedice:  ['warehouse_email', 'warehouse_email_bcc', 'warehouse_dispatch_since'],
   marketing: ['marketing_margin_pct', 'marketing_pno_alert_pct'],
+  rady:      ['name_3', 'format_3', 'dalsi_3'],
 };
 
 for (const [tab, , formular] of ZALOZKY) {

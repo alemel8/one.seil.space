@@ -2,6 +2,7 @@
 // Spouštění: 1× při startu, pak každých 24 hodin
 
 import { getDb, generateId } from './db.js';
+import { dalsiCisloRady } from './series-format.js';
 
 function nextDate(current, frequency, dayOfMonth) {
   const d = new Date(current);
@@ -19,9 +20,8 @@ async function runRecurring(log) {
   const today = new Date().toISOString().slice(0, 10);
 
   const templates = await sql`
-    SELECT r.*, s.prefix, s.year, s.padding, s.current_number
+    SELECT r.*
     FROM recurring_invoices r
-    LEFT JOIN invoice_number_series s ON r.series_id = s.id
     WHERE r.active = TRUE AND r.next_run_date <= ${today}
   `;
 
@@ -31,15 +31,7 @@ async function runRecurring(log) {
   for (const tmpl of templates) {
     try {
       let number = '';
-      if (tmpl.series_id && tmpl.prefix) {
-        const [updated] = await sql`
-          UPDATE invoice_number_series SET current_number = current_number + 1
-          WHERE id = ${tmpl.series_id} RETURNING current_number, prefix, year, padding
-        `;
-        const num = String(updated.current_number).padStart(updated.padding, '0');
-        const yr  = updated.year ? `-${updated.year}` : '';
-        number = `${updated.prefix}${yr}-${num}`;
-      }
+      if (tmpl.series_id) number = await dalsiCisloRady(sql, tmpl.series_id);
 
       const issueDate = today;
       const dueDate   = new Date(Date.now() + tmpl.due_days * 86400000).toISOString().slice(0, 10);
@@ -52,10 +44,10 @@ async function runRecurring(log) {
       const invoiceId = generateId();
       await sql`
         INSERT INTO accounting_invoices
-          (id, type, number, client_name, client_ico, client_dic, client_address,
+          (id, type, series_id, number, client_name, client_ico, client_dic, client_address,
            amount, vat_amount, total_amount, currency, status, issue_date, due_date, source)
         VALUES (
-          ${invoiceId}, 'issued', ${number},
+          ${invoiceId}, 'issued', ${tmpl.series_id}, ${number},
           ${tmpl.client_name}, ${tmpl.client_ico}, ${tmpl.client_dic}, ${tmpl.client_address},
           ${amount}, ${vatAmount}, ${total}, 'CZK', 'Nezaplacena', ${issueDate}, ${dueDate}, 'sablona'
         )

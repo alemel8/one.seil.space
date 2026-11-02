@@ -1,0 +1,118 @@
+<%#
+  Číselné řady jednoho okruhu: řady SEIL v Nastavení firmy, řady e-shopu v jeho detailu.
+
+    include('../../includes/ciselne-rady', { rady, akce: '/nastaveni/firma/rady', urlZpet, sDruhem: false, popis: '…' })
+
+  rady     řádky invoice_number_series s náhledem (poradi, cislo) z nactiRady()
+  akce     základ adres POSTů; určuje i okruh, kterého se smí dotknout
+  urlZpet  odkaz Zrušit
+  sDruhem  true → nová řada si volí druh (e-shop); SEIL zakládá jen řady faktur
+
+  Pole řádků míří na formulář form= mimo tabulku, protože tlačítka Aktivovat
+  a Deaktivovat jsou vlastní formuláře a vnořit se nesmí (režim úprav, docs/moduly.md).
+  Názvy polí nesou id řady: POST pozná řádek a upravy.js sleduje každé pole zvlášť.
+%>
+<% const DRUHY = { faktura: 'Faktura', zalohova_faktura: 'Zálohová faktura', objednavka: 'Objednávka' }; %>
+<form method="post" action="<%= akce %>/ulozit" id="formRady" class="upravitelne" autocomplete="off"></form>
+<div class="card">
+  <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+    <strong>Číselné řady</strong>
+    <button type="button" class="btn btn-outline btn-sm jen-zobrazeni" data-modal-open="modalNovaRada">+ Nová řada</button>
+  </div>
+  <div class="card-body" style="padding-bottom:0;">
+    <p style="font-size:13px;color:var(--text-muted);margin:0 0 16px;"><%= popis %></p>
+  </div>
+  <div class="table-wrapper" style="border:none;border-radius:0;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Název</th><th>Druh</th><th>Formát</th><th>Příští pořadí</th>
+          <th class="jen-zobrazeni">Příští číslo</th><th>Stav</th><th class="jen-zobrazeni"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% rady.forEach(r => { const sPoradim = !r.format || /N/.test(r.format); %>
+        <tr>
+          <td style="min-width:170px;"><%- include('pole', { pole: { label: 'Název řady', skrytyPopisek: true, name: 'name_' + r.id, form: 'formRady', value: r.name, required: true, maxlength: 100 } }) %></td>
+          <td><%= DRUHY[r.entity_type] || r.entity_type %></td>
+          <td style="min-width:150px;"><%- include('pole', { pole: { label: 'Formát čísla', skrytyPopisek: true, name: 'format_' + r.id, form: 'formRady', value: r.format, maxlength: 30, tridaHodnoty: 'pole-mono' } }) %></td>
+          <td style="min-width:110px;">
+            <% if (sPoradim) { %>
+            <%- include('pole', { pole: { label: 'Příští pořadí', skrytyPopisek: true, name: 'dalsi_' + r.id, form: 'formRady', typ: 'number', min: 1, step: 1, value: r.poradi, required: true, zobraz: r.poradi } }) %>
+            <% } else { %>–<% } %>
+          </td>
+          <td class="jen-zobrazeni"><code class="kod"><%= sPoradim ? r.cislo : r.format %></code></td>
+          <td>
+            <% if (r.active) { %>
+              <span class="badge" style="background:#dcfce7;color:#166534;">Aktivní</span>
+            <% } else { %>
+              <span class="badge" style="background:var(--gray-100);color:var(--gray-500);">Neaktivní</span>
+            <% } %>
+          </td>
+          <td class="jen-zobrazeni" style="text-align:right;">
+            <form method="post" action="<%= akce %>/<%= r.id %>/aktivni" style="display:inline;"<% if (r.active) { %> onsubmit="return confirm('Deaktivovat tuto řadu?')"<% } %>>
+              <input type="hidden" name="aktivni" value="<%= r.active ? '0' : '1' %>">
+              <button type="submit" class="btn btn-ghost btn-sm"><%= r.active ? 'Deaktivovat' : 'Aktivovat' %></button>
+            </form>
+          </td>
+        </tr>
+        <% }) %>
+        <% if (!rady.length) { %>
+        <tr><td colspan="7"><div class="prazdno"><strong>Zatím žádné číselné řady</strong>Založte první tlačítkem Nová řada.</div></td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+  <div class="card-body jen-upravy">
+    <small class="form-hint" style="display:block;">
+      Formát skládají tokeny <code>YYYY</code>/<code>YY</code> rok, <code>MM</code> měsíc, <code>DD</code> den, <code>N</code> pořadí
+      (<code>NNNN</code> = 0001) a <code>X</code> náhodná číslice. Řada s rokem i pořadím v čísle začíná každý rok od 1.
+      Příští číslo, které už nějaký doklad má, se neuloží.
+    </small>
+  </div>
+</div>
+<%- include('upravit', { paticka: true, formular: 'formRady', urlZpet }) %>
+
+<div id="modalNovaRada" class="modal-backdrop">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 class="modal-title">Nová číselná řada</h2>
+      <button type="button" class="modal-close" data-modal-close="modalNovaRada" aria-label="Zavřít">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form method="post" action="<%= akce %>/vytvorit" style="display:flex;flex-direction:column;min-height:0;">
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
+        <div class="form-group">
+          <label class="form-label required" for="novaRadaNazev">Název</label>
+          <input type="text" id="novaRadaNazev" name="name" class="form-control" maxlength="100" required>
+        </div>
+        <% if (sDruhem) { %>
+        <div class="form-group">
+          <label class="form-label" for="novaRadaDruh">Druh</label>
+          <select id="novaRadaDruh" name="entity_type" class="form-select">
+            <% Object.entries(DRUHY).forEach(([k, popisek]) => { %><option value="<%= k %>"><%= popisek %></option><% }) %>
+          </select>
+        </div>
+        <% } %>
+        <div class="form-group">
+          <label class="form-label required" for="novaRadaFormat">Formát čísla</label>
+          <input type="text" id="novaRadaFormat" name="format" class="form-control" maxlength="30" required placeholder="21YYNNNN" pattern="[A-Za-z0-9/._\-]+">
+          <small class="form-hint">
+            Tokeny: <code>YYYY</code>/<code>YY</code> rok, <code>MM</code> měsíc, <code>DD</code> den, <code>N</code> pořadí (<code>NNNN</code> = 0001),
+            <code>X</code> náhodná číslice. Řada s rokem i pořadím v čísle začíná každý rok od 1.
+          </small>
+        </div>
+        <div class="form-group">
+          <label class="form-label required" for="novaRadaDalsi">Příští pořadí</label>
+          <input type="number" id="novaRadaDalsi" name="dalsi" class="form-control" value="1" min="1" step="1" required>
+          <small class="form-hint">Pořadí prvního dokladu z téhle řady. Pokračujete-li ve staré řadě, zadejte poslední použité + 1.</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" data-modal-close="modalNovaRada">Zrušit</button>
+        <button type="submit" class="btn btn-primary">Založit řadu</button>
+      </div>
+    </form>
+  </div>
+</div>

@@ -71,3 +71,49 @@ export function paymentVs(invoice, orderNumber) {
   if (invoice?.type === 'proforma' && orderNumber) return invoiceVs(orderNumber);
   return invoiceVs(invoice?.number);
 }
+
+/**
+ * Řada s rokem i pořadím v čísle čísluje každý rok znovu (21260023 → 21270001),
+ * stejně jako POHODA. Čítač je jeden, sloupec rok_citace říká, do kterého roku
+ * patří. Bez roku nebo bez pořadí v čísle se nic nerestartuje.
+ */
+const cislujePoRocich = (format) => /Y{2}/.test(format || '') && /N/.test(format || '');
+export const rokVPraze = (date = new Date()) => Number(prazskyCas(date).datum.slice(0, 4));
+
+/** Příští pořadí a číslo řady bez zápisu, pro nastavení a výběr řady na faktuře. */
+export function nahledRady(series, date = new Date()) {
+  const novyRok = cislujePoRocich(series.format) && series.rok_citace != null && series.rok_citace !== rokVPraze(date);
+  const poradi = novyRok ? series.start_number : series.current_number + 1;
+  return { poradi, cislo: renderSeriesNumber({ ...series, current_number: poradi }, date) };
+}
+
+/**
+ * Přidělí další číslo řady. Volejte v transakci s vložením dokladu, nepovedené
+ * založení pak číslo nespotřebuje a v řadě nevznikne díra.
+ */
+export async function dalsiCisloRady(sql, seriesId, date = new Date()) {
+  const rok = rokVPraze(date);
+  const [series] = await sql`
+    UPDATE invoice_number_series
+    SET current_number = CASE
+          WHEN rok_citace <> ${rok} AND format ~ 'Y{2}' AND format ~ 'N' THEN start_number
+          ELSE current_number + 1
+        END,
+        rok_citace = ${rok}
+    WHERE id = ${seriesId} AND active = TRUE
+    RETURNING *
+  `;
+  if (!series) throw new Error('Číselná řada nenalezena nebo není aktivní');
+  return renderSeriesNumber(series, date);
+}
+
+/** První řada, jejímuž formátu číslo odpovídá. Pořadí v `rady` rozhoduje o shodě (SEIL před e-shopy). */
+export function radaPodleCisla(cislo, rady) {
+  return rady.find((r) => {
+    if (!r.format) return false;
+    const vzor = r.format.split(/(Y{4}|Y{2}|M{2}|D{2}|X+|N+)/)
+      .map((kus, i) => (i % 2 ? `\\d{${kus.length}}` : kus.replace(/[.*+?^${}()|[\]\\/-]/g, '\\$&')))
+      .join('');
+    return new RegExp(`^${vzor}$`).test(String(cislo ?? ''));
+  }) || null;
+}
