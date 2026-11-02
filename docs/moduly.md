@@ -107,6 +107,7 @@ faktura bere DUZP.
 | `GET /ucetnictvi/vydane-faktury` | Seznam vydaných faktur |
 | `GET /ucetnictvi/vydane-faktury/nova` | Formulář nové faktury |
 | `POST /ucetnictvi/vydane-faktury/vytvorit` | Vytvořit fakturu |
+| `POST /ucetnictvi/vydane-faktury/:id/smazat` | Smazat doklad, který nejde do POHODY (*Smazání vydaného dokladu* níž) |
 | `GET /ucetnictvi/vydane-faktury?duplikovat=<id>` | Formulář nové faktury předvyplněný podle jiné (*Duplikace vydané faktury* níž) |
 | `GET /ucetnictvi/vydane-faktury/:id` | Detail faktury |
 | `GET /ucetnictvi/vydane-faktury/:id/pdf` | Stáhnout PDF |
@@ -887,6 +888,12 @@ formuláře s vlastním Uložit a Ověřit připojení – tužka se jich netýk
 ### Duplikace vydané faktury
 
 Odkaz Duplikovat na detailu vede na `GET /ucetnictvi/vydane-faktury?duplikovat=<id>`. Otevře se formulář nové faktury předvyplněný z `predlohaDuplikatu()`; nic se nezaloží a číslo se nespotřebuje, dokud člověk neuloží. Přebírá se odběratel, položky, měna, poznámka a předkontace, datum vystavení je dnešní a splatnost stejně dlouhá. Úhrada, objednávka a stav v POHODĚ se nepřebírají. Řada je ta z původní faktury, u faktury z POHODY první aktivní řada, jejímuž formátu číslo odpovídá (`radaPodleCisla()`). Faktura z POHODY položky nemá, v předloze je jeden řádek z textu a součtů. Zálohová faktura a opravný doklad se záporným součtem se neduplikují.
+
+### Smazání vydaného dokladu
+
+Tlačítko Smazat na detailu je jen u dokladu bez překážky, jinak karta Akce řekne proč; totéž kontroluje `prekazkaSmazani()` při POSTu pod zámkem řádku. Smazat nejde doklad se stavem V POHODĚ nebo Odesláno (XML má účetní a import se tady nepozná), doklad k objednávce e-shopu, doklad se spárovanou platbou nebo fakturačním podkladem a zálohová faktura, ze které vznikla vydaná.
+
+S dokladem zmizí položky, historie e-mailů a upomínky. Když byl poslední v řadě a e-mailem neodešel, čítač se vrátí a číslo dostane další doklad. Jinak v řadě zůstane díra, opravit ji jde v Číselných řadách. Smazání se zapisuje do logu s číslem a uživatelem.
 
 ### Stránkování seznamů
 

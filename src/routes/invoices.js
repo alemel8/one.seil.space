@@ -5,9 +5,9 @@ import { brandForShopId } from '../brand.js';
 import { buildPohodaXml } from '../pohoda.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { writeFile, mkdir } from 'node:fs/promises';
+import { writeFile, mkdir, unlink } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { dalsiCisloRady, nahledRady, paymentVs, radaPodleCisla } from '../series-format.js';
+import { dalsiCisloRady, nahledRady, paymentVs, radaPodleCisla, renderSeriesNumber } from '../series-format.js';
 import { saveAttachment, deleteAttachment, isSupportedMime, markMissingAttachments } from '../attachments.js';
 import { denUhradyZFormulare, uhradaFakturyObjednavky, zobrazeniUhrady } from '../danovy-doklad.js';
 import { ceskeDatum, jenDatum, prazskeDatum, pridejDny } from '../prazsky-cas.js';
@@ -445,6 +445,38 @@ export async function generateInvoiceForOrder(sql, order, { fromProforma, now = 
   return invoice;
 }
 
+/** Proč vydaný doklad smazat nejde. Ukazuje se na detailu, adresa nese jen kód. */
+const PROC_NELZE_SMAZAT = {
+  __proto__: null,
+  pohoda:     'Doklad je v POHODĚ nebo se pro ni exportoval.',
+  objednavka: 'Doklad patří k objednávce e-shopu.',
+  banka:      'Doklad je spárovaný s platbou v bance. Nejdřív platbu odpárujte.',
+  podklad:    'Doklad je navázaný na fakturační podklad.',
+  zalohova:   'Ze zálohové faktury už vznikla vydaná faktura.',
+};
+
+/**
+ * Kód překážky smazání, nebo null. „Odesláno“ se počítá jako v POHODĚ: XML už má
+ * účetní a jestli ho naimportovala, se tady nepozná. Doklad k objednávce se nemaže
+ * vůbec: e-shop z něj bere číslo a stav a příznak V POHODĚ doplní až import z exportu,
+ * takže „není v POHODĚ“ u něj nic neznamená. Spárovanou platbu nebo podklad by cizí
+ * klíč potichu odvázal a zůstaly by vést k dokladu, který není.
+ */
+async function prekazkaSmazani(sql, invoice) {
+  if (invoice.pohoda_v_evidenci || invoice.pohoda_exported_at) return 'pohoda';
+  if (invoice.order_id) return 'objednavka';
+  const [vazby] = await sql`
+    SELECT
+      EXISTS (SELECT 1 FROM accounting_bank_transactions WHERE matched_invoice_id = ${invoice.id}) AS banka,
+      EXISTS (SELECT 1 FROM hr_work_reports WHERE invoice_id = ${invoice.id}) AS podklad,
+      EXISTS (SELECT 1 FROM accounting_invoices WHERE proforma_invoice_id = ${invoice.id}) AS zalohova
+  `;
+  if (vazby.banka || invoice.bank_transaction_id) return 'banka';
+  if (vazby.podklad) return 'podklad';
+  if (vazby.zalohova) return 'zalohova';
+  return null;
+}
+
 /**
  * Předvyplněný formulář nové faktury podle staré. Převezme odběratele, položky
  * a předkontaci, dostane dnešní datum a stejně dlouhou splatnost. Číslo, úhrada,
@@ -556,6 +588,7 @@ export default async function invoicesRoutes(fastify) {
       user: request.user, invoices, total: pocty[typ], strany, typ, adresaZalozky,
       zalozky: DRUHY_VYDANYCH.map(([klic, popisek]) => ({ klic, popisek, pocet: pocty[klic].toLocaleString('cs-CZ') })),
       filtr, statusFilter, STATUSES_ISSUED, series, vychoziRada, predloha, dnes: prazskeDatum(new Date()),
+      smazano: request.query.smazano === '1',
       klienti: (await sql`
         SELECT client_name FROM accounting_invoices WHERE type IN ('issued', 'proforma') AND client_name <> ''
         GROUP BY client_name ORDER BY MAX(issue_date) DESC LIMIT 500
@@ -587,6 +620,8 @@ export default async function invoicesRoutes(fastify) {
       emailSent, emailError, emailLog, emailCelkem, reminders,
       suggestedEmail: await resolveClientEmail(sql, invoice),
       formError: FORM_ERRORS[request.query.formError] || '',
+      nelzeSmazat: PROC_NELZE_SMAZAT[await prekazkaSmazani(sql, invoice)] || null,
+      chybaSmazani: PROC_NELZE_SMAZAT[request.query.smazatError] || null,
       // Předvyplněný den úhrady ve změně stavu: už zapsaný, jinak pražský dnešek
       vychoziDenUhrady: denUhradyZFormulare(invoice.paid_date),
       // Data dokladu stejně jako v PDF – nezávisle na časovém pásmu procesu
@@ -776,6 +811,41 @@ export default async function invoicesRoutes(fastify) {
     });
 
     return reply.redirect(`/ucetnictvi/vydane-faktury/${invoice.id}`);
+  });
+
+  // Smazání vydaného dokladu, který do POHODY neodešel. Zámek řádku drží kontrolu
+  // a mazání pohromadě: souběžný export do POHODY počká a nic už nenajde.
+  fastify.post('/ucetnictvi/vydane-faktury/:id/smazat', async (request, reply) => {
+    const vysledek = await sql.begin(async tx => {
+      const [invoice] = await tx`
+        SELECT * FROM accounting_invoices WHERE id = ${request.params.id} AND type IN ('issued', 'proforma') FOR UPDATE
+      `;
+      if (!invoice) return null;
+      const prekazka = await prekazkaSmazani(tx, invoice);
+      if (prekazka) return { invoice, prekazka };
+
+      // Poslední číslo řady se vrátí, ať po faktuře založené omylem nezůstane díra.
+      // Číslo, které už klient dostal e-mailem, se nepoužije pro jiný doklad.
+      const [odeslano] = await tx`SELECT 1 FROM invoice_emails WHERE invoice_id = ${invoice.id} AND status = 'odeslano' LIMIT 1`;
+      const [rada] = invoice.series_id && !odeslano
+        ? await tx`SELECT * FROM invoice_number_series WHERE id = ${invoice.series_id} FOR UPDATE`
+        : [];
+      if (rada && renderSeriesNumber(rada) === invoice.number) {
+        await tx`UPDATE invoice_number_series SET current_number = current_number - 1 WHERE id = ${rada.id}`;
+      }
+
+      await tx`DELETE FROM accounting_invoices WHERE id = ${invoice.id}`;
+      return { invoice };
+    });
+
+    if (!vysledek) return reply.code(404).send('Faktura nenalezena');
+    const { invoice, prekazka } = vysledek;
+    if (prekazka) return reply.redirect(`/ucetnictvi/vydane-faktury/${invoice.id}?smazatError=${prekazka}`);
+
+    if (invoice.pdf_path) await unlink(path.join(PDFS_DIR, path.basename(invoice.pdf_path))).catch(() => {});
+    if (invoice.attachment_path) await deleteAttachment(invoice.attachment_path);
+    request.log.info({ id: invoice.id, number: invoice.number, type: invoice.type, userId: request.user?.id }, 'Smazán vydaný doklad');
+    return reply.redirect(`/ucetnictvi/vydane-faktury?${invoice.type === 'proforma' ? 'typ=zalohove&' : ''}smazano=1`);
   });
 
   // Změna stavu faktury

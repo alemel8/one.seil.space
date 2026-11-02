@@ -22,6 +22,10 @@
   <% } %>
 </div>
 
+<% if (locals.smazano) { %>
+<div class="hlaska hlaska-ok" role="status">Doklad byl smazán.</div>
+<% } %>
+
 <%- include('../../includes/zalozky', { nazev: 'Druh faktur', zalozky, tab: typ, adresa: adresaZalozky }) %>
 
 <% if (!zalohove) { %>

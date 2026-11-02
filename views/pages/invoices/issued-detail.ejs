@@ -1,5 +1,10 @@
 <%# Zálohovka vzniká jen z objednávky a opravný doklad se záporným součtem formulář neuloží. %>
 <% const lzeDuplikovat = invoice.type === 'issued' && Number(invoice.total_amount) > 0; %>
+<%
+  const nelzeSmazat = locals.nelzeSmazat || null;
+  const potvrzeniSmazani = `Smazat doklad ${invoice.number} i s položkami? Akce nejde vrátit.`
+    + ((locals.emailLog || []).some(e => e.status === 'odeslano') ? ' Doklad už byl odeslán e-mailem.' : '');
+%>
 <div class="page-header">
   <div class="page-header-left">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -15,8 +20,17 @@
     <button class="btn btn-ghost" data-modal-open="modalEmail">✉️ Odeslat</button>
     <button class="btn btn-outline" data-modal-open="modalStatus">Změnit stav</button>
     <% if (lzeDuplikovat) { %><a href="/ucetnictvi/vydane-faktury?duplikovat=<%= invoice.id %>" class="btn btn-outline">Duplikovat</a><% } %>
+    <% if (!nelzeSmazat) { %>
+    <form method="post" action="/ucetnictvi/vydane-faktury/<%= invoice.id %>/smazat" data-potvrdit="<%= potvrzeniSmazani %>" onsubmit="return confirm(this.dataset.potvrdit)" style="display:inline;">
+      <button type="submit" class="btn btn-outline" style="color:var(--danger);">Smazat</button>
+    </form>
+    <% } %>
   </div>
 </div>
+
+<% if (locals.chybaSmazani) { %>
+<div class="hlaska hlaska-chyba" role="alert">Doklad se nesmazal: <%= chybaSmazani %></div>
+<% } %>
 
 <div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;align-items:start;">
 
@@ -157,6 +171,13 @@
         <button class="btn btn-ghost" data-modal-open="modalStatus" style="width:100%;">🔄 Změnit stav</button>
         <button class="btn btn-ghost" data-modal-open="modalEdit" style="width:100%;">✏️ Upravit fakturu</button>
         <% if (lzeDuplikovat) { %><a href="/ucetnictvi/vydane-faktury?duplikovat=<%= invoice.id %>" class="btn btn-ghost" style="width:100%;text-align:center;">📑 Duplikovat fakturu</a><% } %>
+        <% if (nelzeSmazat) { %>
+        <p style="margin:0;font-size:12px;color:var(--text-muted);line-height:1.5;">Smazat nejde. <%= nelzeSmazat %></p>
+        <% } else { %>
+        <form method="post" action="/ucetnictvi/vydane-faktury/<%= invoice.id %>/smazat" data-potvrdit="<%= potvrzeniSmazani %>" onsubmit="return confirm(this.dataset.potvrdit)">
+          <button type="submit" class="btn btn-ghost" style="width:100%;color:var(--danger);">🗑 Smazat doklad</button>
+        </form>
+        <% } %>
       </div>
     </div>
 
