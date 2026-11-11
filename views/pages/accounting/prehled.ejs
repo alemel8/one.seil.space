@@ -43,11 +43,13 @@
     <div class="kpi-label">Tržby</div>
     <div class="kpi-value positive"><%= fmt(kpi.month.issued) %></div>
     <div class="kpi-formula">Vydané faktury</div>
+    <% if (kpi.month.trzbyPrepocet) { %><div class="kpi-formula"><%= kpi.month.trzbyPrepocet %></div><% } %>
   </div>
   <div class="kpi-card">
     <div class="kpi-label">Náklady</div>
     <div class="kpi-value negative"><%= fmt(kpi.month.received) %></div>
     <div class="kpi-formula"><%= kpi.month.nakladyPopis %></div>
+    <% if (kpi.month.nakladyPrepocet) { %><div class="kpi-formula<%= kpi.month.naklady.meny.bezKurzu ? ' kpi-formula-varovani' : '' %>"><%= kpi.month.nakladyPrepocet %></div><% } %>
   </div>
   <div class="kpi-card">
     <div class="kpi-label">Hrubý zisk</div>
@@ -102,11 +104,13 @@
     <div class="kpi-label">Tržby</div>
     <div class="kpi-value positive"><%= fmt(kpi.year.issued) %></div>
     <div class="kpi-formula">Vydané faktury</div>
+    <% if (kpi.year.trzbyPrepocet) { %><div class="kpi-formula"><%= kpi.year.trzbyPrepocet %></div><% } %>
   </div>
   <div class="kpi-card">
     <div class="kpi-label">Náklady</div>
     <div class="kpi-value negative"><%= fmt(kpi.year.received) %></div>
     <div class="kpi-formula"><%= kpi.year.nakladyPopis %></div>
+    <% if (kpi.year.nakladyPrepocet) { %><div class="kpi-formula<%= kpi.year.naklady.meny.bezKurzu ? ' kpi-formula-varovani' : '' %>"><%= kpi.year.nakladyPrepocet %></div><% } %>
   </div>
   <div class="kpi-card">
     <div class="kpi-label">Hrubý zisk</div>

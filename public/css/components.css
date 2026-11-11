@@ -186,6 +186,17 @@
   font-style: italic;
 }
 
+/* Druhý řádek popisku (přepočet cizí měny) patří k prvnímu. */
+.kpi-formula + .kpi-formula { margin-top: -6px; }
+
+/* Doklad v cizí měně bez kurzu ČNB: součet nad tím je neúplný, proto se
+   řádek neschovává ani na telefonu (viz .kpi-formula v media query). */
+.kpi-formula-varovani {
+  color: var(--danger);
+  font-style: normal;
+  font-weight: 600;
+}
+
 .kpi-value {
   font-size: 22px;
   font-weight: 700;
@@ -903,6 +914,7 @@ a.strankovani-cislo:hover { background: var(--gray-100); border-color: var(--gra
   .kpi-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 12px; }
   .kpi-value { font-size: 18px; }
   .kpi-formula { display: none; }
+  .kpi-formula.kpi-formula-varovani { display: block; }
 
   /* ── Tables – horizontal scroll ──────────────────────────── */
   .table-wrapper { -webkit-overflow-scrolling: touch; }

@@ -35,12 +35,14 @@
       <div class="kpi-label">Tržby</div>
       <div class="kpi-value positive kpi-anim" data-value="<%= kpi.issuedMonth %>" data-fmt="czk" style="font-size:20px;">–</div>
       <div class="kpi-formula kpi-anim" data-value="<%= kpi.issuedCount %>" data-fmt="count" data-suffix=" vydaných faktur">–</div>
+      <% if (kpi.trzbyPrepocet) { %><div class="kpi-formula"><%= kpi.trzbyPrepocet %></div><% } %>
     </a>
 
     <a href="/ucetnictvi/prijate-faktury" class="kpi-card kpi-link">
       <div class="kpi-label">Náklady</div>
       <div class="kpi-value negative kpi-anim" data-value="<%= kpi.receivedMonth %>" data-fmt="czk" style="font-size:20px;">–</div>
       <div class="kpi-formula"><%= kpi.nakladyPopis %></div>
+      <% if (kpi.nakladyPrepocet) { %><div class="kpi-formula<%= kpi.naklady.meny.bezKurzu ? ' kpi-formula-varovani' : '' %>"><%= kpi.nakladyPrepocet %></div><% } %>
     </a>
 
     <a href="/ucetnictvi/uctenky" class="kpi-card kpi-link">

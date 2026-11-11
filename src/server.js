@@ -317,6 +317,16 @@ try {
   startMarketingScheduler(fastify.log);
 }
 
+// ── Background: kurzy ČNB ────────────────────────────────────
+//
+// Každých 30 minut zjistí, jestli už ČNB mohla vyhlásit kurz, který chybí,
+// a stáhne roční soubor. Přehledy podle něj přepočítávají cizí měny na Kč.
+// Podrobnosti v hlavičce src/kurzy-cnb.js.
+{
+  const { startKurzyScheduler } = await import('./kurzy-cnb.js');
+  startKurzyScheduler(fastify.log);
+}
+
 // ── Background: přijaté faktury z Google Disku ───────────────
 //
 // Každých 5 minut hledá nové doklady ve složce; co v ní bylo před první

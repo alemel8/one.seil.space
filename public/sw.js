@@ -15,7 +15,9 @@
 // v10: stránkování seznamů, sdílené záložky, tokeny kontrastu (variables.css, components.css, app.js)
 // v11: statika beze změny, podle verze je zvenku vidět nasazení migrace 046
 // v12: filtr dokladů s obdobím (app.js, components.css)
-const CACHE_NAME = 'one-seil-v13';
+// v14: přepočet cizích měn v přehledech, varování pod částkou (components.css);
+//      podle verze je zvenku vidět nasazení migrace 049
+const CACHE_NAME = 'one-seil-v14';
 
 // Při instalaci – předcache jen statické assets
 self.addEventListener('install', event => {

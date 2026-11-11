@@ -2,7 +2,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getHistoryDb } from '../db.js';
-import { naklady, popisNakladu } from '../finance.js';
+import { naklady, popisNakladu, popisPrepoctu, trzby } from '../finance.js';
 import { CITY_COORDS, normalizeCityName, projectToMap } from '../cz-cities.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -64,14 +64,15 @@ export default async function dashboardRoutes(fastify) {
     const mStart = `${selectedMonth}-01`;
     const mEnd   = new Date(selYear, selMonthNum, 0).toISOString().slice(0,10);
 
+    // Tržby a náklady (včetně účtenek) jdou přes src/finance.js: tam se
+    // doklady v cizí měně přepočítávají kurzem ČNB.
     const [
-      [issued], [received], [overdueCount], [ordersWaiting], [uctenky], cityRows, [remindersWaiting],
+      mTrzby, mNaklady, [overdueCount], [ordersWaiting], cityRows, [remindersWaiting],
     ] = await Promise.all([
-      sql`SELECT COALESCE(SUM(total_amount),0)::numeric AS v, COUNT(*)::int AS n FROM accounting_invoices WHERE type='issued'   AND issue_date BETWEEN ${mStart} AND ${mEnd}`,
-      sql`SELECT COALESCE(SUM(total_amount),0)::numeric AS v, COUNT(*)::int AS n FROM accounting_invoices WHERE type='received' AND issue_date BETWEEN ${mStart} AND ${mEnd}`,
+      trzby(sql, mStart, mEnd),
+      naklady(sql, mStart, mEnd),
       sql`SELECT COUNT(*)::int AS n FROM accounting_invoices WHERE status='Po splatnosti' AND issue_date BETWEEN ${mStart} AND ${mEnd}`,
       sql`SELECT COUNT(*)::int AS n FROM shop_orders WHERE status = 'Přijata' AND created_at BETWEEN ${mStart} AND ${mEnd}::date + INTERVAL '1 day'`,
-      sql`SELECT COUNT(*)::int AS n, COALESCE(SUM(total_amount),0)::numeric AS v FROM receipts WHERE receipt_date BETWEEN ${mStart} AND ${mEnd}`,
       sql`
         SELECT COALESCE(NULLIF(TRIM(city), ''), NULLIF(TRIM(shipping_city), '')) AS order_city, COUNT(*)::int AS n
         FROM shop_orders
@@ -102,23 +103,23 @@ export default async function dashboardRoutes(fastify) {
     const mapPoints = [...cityCounts.values()].map(c => ({ ...c, ...projectToMap(c.lat, c.lon) }));
     const otherCities = [...unmapped.values()].sort((a, b) => b.n - a.n);
 
-    const mNaklady = await naklady(sql, mStart, mEnd);
-
     return reply.view('pages/home.ejs', {
       pageTitle: 'Přehled', currentPath: '/',
       user: request.user,
       selectedMonth, monthOptions,
       kpi: {
-        issuedMonth: Number(issued.v), issuedCount: issued.n,
+        issuedMonth: mTrzby.celkem, issuedCount: mTrzby.pocet,
+        trzbyPrepocet: popisPrepoctu(mTrzby.meny),
         // „Náklady" nejsou jen přijaté faktury – mzdy a účtenky patří do
         // zisku taky, jinak je nadhodnocený. Rozpad viz src/finance.js.
-        receivedMonth: mNaklady.celkem, receivedCount: received.n,
+        receivedMonth: mNaklady.celkem,
         naklady: mNaklady, nakladyPopis: popisNakladu(mNaklady),
-        profit: Number(issued.v) - mNaklady.celkem,
+        nakladyPrepocet: popisPrepoctu(mNaklady.meny),
+        profit: mTrzby.celkem - mNaklady.celkem,
         overdue: overdueCount.n,
         remindersWaiting: remindersWaiting.n,
         ordersWaiting: ordersWaiting.n,
-        uctenkyCount: uctenky.n, uctenkyMonth: Number(uctenky.v),
+        uctenkyCount: mNaklady.pocty.uctenky, uctenkyMonth: mNaklady.uctenky,
       },
       mapPoints, otherCities,
       vps: vpsOk ? { ram: latest.memory, cpu: latest.cpu, disk: latest.disk } : null,

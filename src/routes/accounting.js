@@ -1,5 +1,5 @@
 import { getDb, generateId } from '../db.js';
-import { naklady, mzdyPoMesicich, popisNakladu } from '../finance.js';
+import { naklady, mzdyPoMesicich, popisNakladu, popisPrepoctu, trzby } from '../finance.js';
 import { prazskeDatum } from '../prazsky-cas.js';
 import { parametr, strankovani } from '../strankovani.js';
 import { bezpecnyNavrat } from '../navrat.js';
@@ -361,7 +361,7 @@ export default async function accountingRoutes(fastify) {
       SELECT
         TO_CHAR(DATE_TRUNC('month', issue_date), 'YYYY-MM') AS month,
         type,
-        COALESCE(SUM(total_amount), 0)::numeric AS v
+        COALESCE(SUM(castka_czk(total_amount, currency, COALESCE(taxable_date, issue_date))), 0)::numeric AS v
       FROM accounting_invoices
       WHERE issue_date >= ${sinceStr}
       GROUP BY 1, 2
@@ -370,7 +370,7 @@ export default async function accountingRoutes(fastify) {
     const receiptRows = await sql`
       SELECT
         TO_CHAR(DATE_TRUNC('month', receipt_date), 'YYYY-MM') AS month,
-        COALESCE(SUM(total_amount), 0)::numeric AS v
+        COALESCE(SUM(castka_czk(total_amount, currency, receipt_date)), 0)::numeric AS v
       FROM receipts
       WHERE receipt_date >= ${sinceStr}
       GROUP BY 1
@@ -403,18 +403,21 @@ export default async function accountingRoutes(fastify) {
     const yStart = `${year}-01-01`;
     const yEnd   = `${year}-12-31`;
 
+    // Všechny částky jsou v korunách: doklad v cizí měně se přepočítá kurzem
+    // ČNB ke dni dokladu (castka_czk, migrations/049_kurzy_cnb.sql).
+
     // Měsíc
-    const [mIssued]   = await sql`SELECT COALESCE(SUM(total_amount),0)::numeric AS v FROM accounting_invoices WHERE type='issued'   AND issue_date BETWEEN ${mStart} AND ${mEnd}`;
+    const mTrzby = await trzby(sql, mStart, mEnd);
     // Náklady už nejsou jen přijaté faktury – viz src/finance.js
     const mNaklady = await naklady(sql, mStart, mEnd);
-    const [mVatOut]   = await sql`SELECT COALESCE(SUM(vat_amount),0)::numeric   AS v FROM accounting_invoices WHERE type='issued'   AND issue_date BETWEEN ${mStart} AND ${mEnd}`;
-    const [mVatIn]    = await sql`SELECT COALESCE(SUM(vat_amount),0)::numeric   AS v FROM accounting_invoices WHERE type='received' AND issue_date BETWEEN ${mStart} AND ${mEnd}`;
+    const [mVatOut]   = await sql`SELECT COALESCE(SUM(castka_czk(vat_amount, currency, COALESCE(taxable_date, issue_date))),0)::numeric AS v FROM accounting_invoices WHERE type='issued'   AND issue_date BETWEEN ${mStart} AND ${mEnd}`;
+    const [mVatIn]    = await sql`SELECT COALESCE(SUM(castka_czk(vat_amount, currency, COALESCE(taxable_date, issue_date))),0)::numeric AS v FROM accounting_invoices WHERE type='received' AND issue_date BETWEEN ${mStart} AND ${mEnd}`;
 
     // Rok
-    const [yIssued]   = await sql`SELECT COALESCE(SUM(total_amount),0)::numeric AS v FROM accounting_invoices WHERE type='issued'   AND issue_date BETWEEN ${yStart} AND ${yEnd}`;
+    const yTrzby = await trzby(sql, yStart, yEnd);
     const yNaklady = await naklady(sql, yStart, yEnd);
-    const [yVatOut]   = await sql`SELECT COALESCE(SUM(vat_amount),0)::numeric   AS v FROM accounting_invoices WHERE type='issued'   AND issue_date BETWEEN ${yStart} AND ${yEnd}`;
-    const [yVatIn]    = await sql`SELECT COALESCE(SUM(vat_amount),0)::numeric   AS v FROM accounting_invoices WHERE type='received' AND issue_date BETWEEN ${yStart} AND ${yEnd}`;
+    const [yVatOut]   = await sql`SELECT COALESCE(SUM(castka_czk(vat_amount, currency, COALESCE(taxable_date, issue_date))),0)::numeric AS v FROM accounting_invoices WHERE type='issued'   AND issue_date BETWEEN ${yStart} AND ${yEnd}`;
+    const [yVatIn]    = await sql`SELECT COALESCE(SUM(castka_czk(vat_amount, currency, COALESCE(taxable_date, issue_date))),0)::numeric AS v FROM accounting_invoices WHERE type='received' AND issue_date BETWEEN ${yStart} AND ${yEnd}`;
 
     // Nezaplacené faktury. Přehled ukáže nejstarší po splatnosti, celý seznam je
     // na stránce faktur, proto počet zvlášť z COUNT.
@@ -424,36 +427,41 @@ export default async function accountingRoutes(fastify) {
       SELECT COUNT(*) FILTER (WHERE type='issued')::int AS issued, COUNT(*) FILTER (WHERE type='received')::int AS received
       FROM accounting_invoices WHERE status='Po splatnosti'
     `;
-    const pendingIssued   = await sql`SELECT COUNT(*)::int AS n, COALESCE(SUM(total_amount),0)::numeric AS v FROM accounting_invoices WHERE type='issued'   AND status='Nezaplacena'`;
-    const pendingReceived = await sql`SELECT COUNT(*)::int AS n, COALESCE(SUM(total_amount),0)::numeric AS v FROM accounting_invoices WHERE type='received' AND status='Nezaplacena'`;
+    const pendingIssued   = await sql`SELECT COUNT(*)::int AS n, COALESCE(SUM(castka_czk(total_amount, currency, COALESCE(taxable_date, issue_date))),0)::numeric AS v FROM accounting_invoices WHERE type='issued'   AND status='Nezaplacena'`;
+    const pendingReceived = await sql`SELECT COUNT(*)::int AS n, COALESCE(SUM(castka_czk(total_amount, currency, COALESCE(taxable_date, issue_date))),0)::numeric AS v FROM accounting_invoices WHERE type='received' AND status='Nezaplacena'`;
 
     // Graf – měsíce roku
     const monthlyChart = await sql`
       SELECT
         EXTRACT(MONTH FROM issue_date)::int AS m,
         type,
-        COALESCE(SUM(total_amount),0)::numeric AS v
+        COALESCE(SUM(castka_czk(total_amount, currency, COALESCE(taxable_date, issue_date))),0)::numeric AS v
       FROM accounting_invoices
       WHERE issue_date BETWEEN ${yStart} AND ${yEnd}
       GROUP BY m, type ORDER BY m
     `;
 
     // Cashflow banka (typy: credit/debit)
-    const [cashIn]  = await sql`SELECT COALESCE(SUM(amount),0)::numeric AS v FROM accounting_bank_transactions WHERE type='credit'`;
-    const [cashOut] = await sql`SELECT COALESCE(SUM(amount),0)::numeric AS v FROM accounting_bank_transactions WHERE type='debit'`;
+    // Pohyby na eurovém účtu jsou v eurech, i ty se přepočítají ke dni pohybu.
+    const [cashIn]  = await sql`SELECT COALESCE(SUM(castka_czk(amount, currency, transaction_date)),0)::numeric AS v FROM accounting_bank_transactions WHERE type='credit'`;
+    const [cashOut] = await sql`SELECT COALESCE(SUM(castka_czk(amount, currency, transaction_date)),0)::numeric AS v FROM accounting_bank_transactions WHERE type='debit'`;
 
     return reply.view('pages/accounting/prehled.ejs', {
       pageTitle: 'Finanční přehled', currentPath: '/ucetnictvi/prehled',
       user: request.user, year, month,
       kpi: {
         month: {
-          issued: Number(mIssued.v), received: mNaklady.celkem,
+          issued: mTrzby.celkem, received: mNaklady.celkem,
+          trzbyPrepocet: popisPrepoctu(mTrzby.meny),
           naklady: mNaklady, nakladyPopis: popisNakladu(mNaklady),
+          nakladyPrepocet: popisPrepoctu(mNaklady.meny),
           vatOut: Number(mVatOut.v), vatIn: Number(mVatIn.v),
         },
         year: {
-          issued: Number(yIssued.v), received: yNaklady.celkem,
+          issued: yTrzby.celkem, received: yNaklady.celkem,
+          trzbyPrepocet: popisPrepoctu(yTrzby.meny),
           naklady: yNaklady, nakladyPopis: popisNakladu(yNaklady),
+          nakladyPrepocet: popisPrepoctu(yNaklady.meny),
           vatOut: Number(yVatOut.v), vatIn: Number(yVatIn.v),
         },
       },
