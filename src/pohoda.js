@@ -99,19 +99,37 @@ function symVar(number) {
 }
 
 // Předkontace dokladu: bez nároku na odpočet má vlastní (typicky 513 Repre),
-// jinak platí předkontace z dokladu a nakonec výchozí z nastavení.
+// jinak platí zkratka z POHODY na dokladu (migrace 050), starší předkontace
+// z dokladu, vzor z předchozího dokladu téhož partnera (src/pohoda-vzor.js,
+// doc._vzor) a nakonec výchozí z nastavení.
 function predkontaceOf(doc, deductible, opts, fallbackKey) {
   if (!deductible && opts.predkontaceNoVat) return opts.predkontaceNoVat;
-  return doc.account_debit || opts[fallbackKey] || '';
+  return doc.pohoda_predkontace || doc.account_debit || doc._vzor?.predkontace || opts[fallbackKey] || '';
 }
 
-// Členění DPH – výchozí „inland“ posílat nemusíme, zajímá nás jen doklad
-// bez nároku na odpočet, který se do přiznání nemá dostat vůbec.
-function classificationVatXml(ns, deductible, indent) {
-  if (deductible) return '';
+// Členění DPH. Zkratka z dokladu nebo ze vzoru jde jako ids („bez“, „PD“,
+// „PDosDan“), ať doklad v POHODĚ vypadá jako ty, které účetní zadala ručně.
+// Bez zkratky posíláme jen doklad bez nároku na odpočet, který se do přiznání
+// nemá dostat vůbec; výchozí „inland“ doplní POHODA sama.
+function classificationVatXml(ns, doc, deductible, indent) {
+  const zkratka = doc.pohoda_cleneni_dph || (deductible ? doc._vzor?.cleneni : '');
+  const obsah = zkratka
+    ? `<typ:ids>${esc(trunc(zkratka, 20))}</typ:ids>`
+    : !deductible ? '<typ:classificationVATType>nonSubsume</typ:classificationVATType>' : '';
+  if (!obsah) return '';
   return `\n${indent}<${ns}:classificationVAT>`
-       + `\n${indent}  <typ:classificationVATType>nonSubsume</typ:classificationVATType>`
+       + `\n${indent}  ${obsah}`
        + `\n${indent}</${ns}:classificationVAT>`;
+}
+
+// Kód měny, stejně jako mena_kod() v databázi (migrace 049): doklady z Disku
+// čte model a místo ISO kódu může vrátit „Kč“ nebo „€“.
+export function menaKod(m) {
+  const v = String(m ?? '').trim().toUpperCase();
+  if (['', 'CZK', 'KČ', 'KC'].includes(v)) return 'CZK';
+  if (['€', 'EURO'].includes(v)) return 'EUR';
+  if (['$', 'US$'].includes(v)) return 'USD';
+  return v;
 }
 
 // ── Faktura (vydaná i přijatá) → POHODA XML ──────────────────
@@ -120,6 +138,14 @@ function classificationVatXml(ns, deductible, indent) {
 // z vlastní číselné řady. Dodavatelovo číslo jde do originalDocument („Doklad")
 // a jeho číslice do variabilního symbolu, ať jde platba spárovat. Kdybychom ho
 // poslali jako numberRequested, import padá na duplicitě s cizí řadou.
+//
+// Doklad v cizí měně: částky na dokladu jsou v té měně, a tak jdou do POHODY
+// v cizí měně (foreignCurrency). Částky v homeCurrency by POHODA u dokladu
+// v cizí měně ignorovala a doklad by vznikl s nulou (Anthropic, listopad 2026).
+// Kurz a koruny doplní POHODA ze svého kurzovního lístku. Ten bere kurz ČNB
+// vyhlášený předchozí pracovní den (5. 11. 2026 → 24,31 ze 4. 11.), stejně
+// jako účetní u dokladů zadaných ručně; přehledy One SEIL počítají s kurzem
+// ze dne dokladu (migrace 049), proto ho sem neposíláme.
 function invoiceToXml(inv, items = [], idx = 1, opts = {}) {
   const issued      = inv.type === 'issued';
   const type        = issued ? 'issuedInvoice' : 'receivedInvoice';
@@ -139,6 +165,9 @@ function invoiceToXml(inv, items = [], idx = 1, opts = {}) {
     issued ? 'predkontaceIssued' : 'predkontaceReceived');
   const total = Number(inv.total_amount || 0)
     || Number(inv.amount || 0) + Number(inv.vat_amount || 0);
+  const mena    = menaKod(inv.currency);
+  const cizi    = mena !== 'CZK';
+  const castky  = cizi ? 'inv:foreignCurrency' : 'inv:homeCurrency';
 
   const itemXml = (text, quantity, unitPrice, base, vat, rate) => `
         <inv:invoiceItem>
@@ -147,11 +176,11 @@ function invoiceToXml(inv, items = [], idx = 1, opts = {}) {
           <inv:unit>ks</inv:unit>
           <inv:payVAT>false</inv:payVAT>
           <inv:rateVAT>${rate}</inv:rateVAT>
-          <inv:homeCurrency>
+          <${castky}>
             <typ:unitPrice>${fmtNum(unitPrice)}</typ:unitPrice>
             <typ:price>${fmtNum(base)}</typ:price>
             <typ:priceVAT>${fmtNum(vat)}</typ:priceVAT>
-          </inv:homeCurrency>
+          </${castky}>
         </inv:invoiceItem>`;
 
   const fallbackText = inv.notes
@@ -214,7 +243,7 @@ function invoiceToXml(inv, items = [], idx = 1, opts = {}) {
         <inv:dateDue>${fmtDate(inv.due_date) || issueDate}</inv:dateDue>` : ''}${predkontace ? `
         <inv:accounting>
           <typ:ids>${esc(trunc(predkontace, 20))}</typ:ids>
-        </inv:accounting>` : ''}${classificationVatXml('inv', deductible, '        ')}
+        </inv:accounting>` : ''}${classificationVatXml('inv', inv, deductible, '        ')}
         <inv:text>${esc(trunc(inv.notes || fallbackText, 240))}</inv:text>
         <inv:partnerIdentity>
           <typ:address>
@@ -236,14 +265,14 @@ function invoiceToXml(inv, items = [], idx = 1, opts = {}) {
       <inv:invoiceDetail>${itemsXml}
       </inv:invoiceDetail>
       <inv:invoiceSummary>
-        <inv:roundingDocument>none</inv:roundingDocument>
-        <inv:homeCurrency>${sumXml}
-        </inv:homeCurrency>${(inv.currency && inv.currency !== 'CZK') ? `
+        <inv:roundingDocument>none</inv:roundingDocument>${cizi ? `
         <inv:foreignCurrency>
           <typ:currency>
-            <typ:ids>${esc(inv.currency)}</typ:ids>
+            <typ:ids>${esc(trunc(mena, 3))}</typ:ids>
           </typ:currency>
-        </inv:foreignCurrency>` : ''}
+        </inv:foreignCurrency>` : `
+        <inv:homeCurrency>${sumXml}
+        </inv:homeCurrency>`}
       </inv:invoiceSummary>
     </inv:invoice>
   </dat:dataPackItem>`;
@@ -301,7 +330,7 @@ function receiptToXml(r, idx = 1, opts = {}) {
         <vou:dateTax>${date}</vou:dateTax>` : ''}${predkontace ? `
         <vou:accounting>
           <typ:ids>${esc(trunc(predkontace, 20))}</typ:ids>
-        </vou:accounting>` : ''}${classificationVatXml('vou', deductible, '        ')}
+        </vou:accounting>` : ''}${classificationVatXml('vou', r, deductible, '        ')}
         <vou:text>${esc(receiptText(r))}</vou:text>${r.vendor ? `
         <vou:partnerIdentity>
           <typ:address>
@@ -355,7 +384,7 @@ function receiptToCommitmentXml(r, idx = 1, opts = {}) {
         <inv:dateDue>${date}</inv:dateDue>` : ''}${predkontace ? `
         <inv:accounting>
           <typ:ids>${esc(trunc(predkontace, 20))}</typ:ids>
-        </inv:accounting>` : ''}${classificationVatXml('inv', deductible, '        ')}
+        </inv:accounting>` : ''}${classificationVatXml('inv', r, deductible, '        ')}
         <inv:text>${esc(text)}</inv:text>${r.vendor ? `
         <inv:partnerIdentity>
           <typ:address>

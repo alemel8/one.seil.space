@@ -3,6 +3,7 @@ import { renderInvoicePdf } from '../pdf.js';
 import { sendInvoiceEmail, sendReminderEmail } from '../email.js';
 import { brandForShopId } from '../brand.js';
 import { buildPohodaXml } from '../pohoda.js';
+import { historiePredkontaci, najdiVzor } from '../pohoda-vzor.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { writeFile, mkdir, unlink } from 'node:fs/promises';
@@ -38,6 +39,14 @@ const ZALOZKY_UPOMINEK = [['ceka', 'Čeká na odeslání'], ['odeslana', 'Odesla
 // formulář nabízí vypnout a export pak celou částku hodí do nákladů.
 function vatDeductibleFrom(body) {
   return ['on', '1', 'true'].includes(String(body.vat_deductible ?? ''));
+}
+
+// Zkratka předkontace nebo členění DPH z POHODY (migrace 050). Export ji
+// stejně zkrátí na 20 znaků (src/pohoda.js), tak ať detail ukazuje, co odejde.
+// Routy ji ukládají jen, když ji formulář posílá: starší formulář bez pole
+// ji nesmí smazat.
+function zkratkaPohody(v) {
+  return String(v ?? '').trim().slice(0, 20);
 }
 
 // Hlášky detailu přijaté faktury podle ?error=. Text nikdy nejde z adresy.
@@ -790,6 +799,8 @@ export default async function invoicesRoutes(fastify) {
           notes = ${(b.notes||'').trim()},
           account_debit = ${(b.account_debit||'').trim()},
           account_credit = ${(b.account_credit||'').trim()},
+          ${b.pohoda_predkontace !== undefined ? tx`pohoda_predkontace = ${zkratkaPohody(b.pohoda_predkontace)},` : tx``}
+          ${b.pohoda_cleneni_dph !== undefined ? tx`pohoda_cleneni_dph = ${zkratkaPohody(b.pohoda_cleneni_dph)},` : tx``}
           amount = ${totals.amount}, vat_amount = ${totals.vatAmount}, total_amount = ${totals.total},
           modified_at = NOW()
         WHERE id = ${invoice.id}
@@ -1067,9 +1078,10 @@ export default async function invoicesRoutes(fastify) {
     const [bankTx] = invoice.bank_transaction_id
       ? await sql`SELECT * FROM accounting_bank_transactions WHERE id = ${invoice.bank_transaction_id}`
       : [null];
+    const vzorPohody = invoice.pohoda_predkontace ? null : najdiVzor(invoice, await historiePredkontaci(sql, 'received'));
     return reply.view('pages/invoices/received-detail.ejs', {
       pageTitle: `Přijatá ${invoice.internal_number || invoice.number}`, currentPath: '/ucetnictvi/prijate-faktury',
-      user: request.user, invoice, bankTx, STATUSES_RECEIVED,
+      user: request.user, invoice, bankTx, STATUSES_RECEIVED, vzorPohody,
       saved: request.query.saved === '1',
       error: CHYBY_PRIJATE[request.query.error] || null,
       rezimUprav: rezimUprav(request.query),
@@ -1113,6 +1125,8 @@ export default async function invoicesRoutes(fastify) {
           notes            = ${(b.notes||'').trim()},
           account_debit    = ${(b.account_debit||'').trim()},
           account_credit   = ${(b.account_credit||'').trim()},
+          ${b.pohoda_predkontace !== undefined ? sql`pohoda_predkontace = ${zkratkaPohody(b.pohoda_predkontace)},` : sql``}
+          ${b.pohoda_cleneni_dph !== undefined ? sql`pohoda_cleneni_dph = ${zkratkaPohody(b.pohoda_cleneni_dph)},` : sql``}
           vat_deductible   = ${vatDeductibleFrom(b)},
           modified_at      = NOW()
         WHERE id = ${request.params.id} AND type = 'received'
@@ -1480,8 +1494,12 @@ export default async function invoicesRoutes(fastify) {
       byInvoice.get(it.invoice_id).push(it);
     }
 
+    // Doklad bez zkratek z POHODY je převezme z posledního dokladu téhož partnera.
+    const historie = invoices.some(inv => !inv.pohoda_predkontace) ? await historiePredkontaci(sql, type) : [];
+    const vzor = inv => (inv.pohoda_predkontace ? null : najdiVzor(inv, historie));
+
     const xml = buildPohodaXml(
-      invoices.map(inv => ({ ...inv, _items: byInvoice.get(inv.id) || [] })),
+      invoices.map(inv => ({ ...inv, _items: byInvoice.get(inv.id) || [], _vzor: vzor(inv) })),
       {
         ico:                 issuer.ico,
         predkontaceReceived: issuer.pohoda_predkontace_prijate || '',

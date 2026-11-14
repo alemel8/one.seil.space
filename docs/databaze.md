@@ -474,6 +474,8 @@ IČO index nezná, hlídá ji aplikace, viz `docs/moduly.md`.
 | `internal_number` | TEXT UNIQUE | Interní číslo přijaté faktury `PF26-0001`, od data dokladu 1. 1. 2026, přiděluje trigger (migrace 047, viz `interni_rady`) |
 | `source` | TEXT | Odkud doklad přišel: `rucne`, `gdrive`, `pohoda`, `eshop`, `sablona`. U řádků starších než migrace 047 odvozeno ze stop |
 | `pohoda_v_evidenci` | BOOL | Doklad je v POHODĚ: přišel z jejího exportu, nebo ho v něm našel `scripts/import-faktury-xlsx.js`. Na rozdíl od `pohoda_exported_at` nejde o vygenerované XML |
+| `pohoda_predkontace` | TEXT | Zkratka předkontace z POHODY (`11Fp`, `5Fv`), doplňuje ji import exportu z POHODY, jde do XML jako `accounting` (migrace 050) |
+| `pohoda_cleneni_dph` | TEXT | Zkratka členění DPH z POHODY (`PD`, `bez`, `UD`), stejně jako předkontace (migrace 050) |
 | `notes` | TEXT | |
 | `created_at` | TIMESTAMPTZ | |
 

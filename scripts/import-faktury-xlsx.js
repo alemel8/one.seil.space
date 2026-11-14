@@ -31,16 +31,21 @@
  *      v DB – hlavní klíč. Stejné číslo od jiného dodavatele je jiná faktura
  *      (migrace 044), ale jen když se liší IČO i název. Jinak, nebo když sedí datum
  *      a částka, jde nejspíš o opravené IČO nebo název: přeskočí se s varováním.
- *   2. Variabilní symbol a dodavatel proti number a dodavateli v DB – zachytí
- *      faktury, které do systému přitekly jinou cestou (import z Disku) a jsou
- *      vedené pod číslem dodavatele. Ty se ve výchozím stavu sloučí do
- *      existujícího záznamu (zůstane id i příloha), s --no-merge se jen přeskočí.
- *      Slučuje se jen při shodě data nebo částky. Když to poznat nejde, přeskočí
- *      se s varováním.
+ *   2. Doklad (číslo dodavatele v POHODĚ) a potom variabilní symbol proti number
+ *      a dodavateli v DB – zachytí faktury, které do systému přitekly jinou
+ *      cestou (import z Disku) a jsou vedené pod číslem dodavatele. Ty se ve
+ *      výchozím stavu sloučí do existujícího záznamu (zůstane id i příloha),
+ *      s --no-merge se jen přeskočí. Slučuje se jen při shodě data nebo částky.
+ *      Když to poznat nejde, přeskočí se s varováním.
+ *      Doklad, který do POHODY poslal export XML z One SEIL (pohoda_exported_at),
+ *      se jen propojí: převezme číslo POHODY, údaje zůstanou. Když ho POHODA
+ *      má s nulou (cizí měna před opravou exportu), nepropojí se a hlásí se.
  *   3. Kontrolně dodavatel+datum+částka – jen varování do logu.
  *
  * Každý doklad nalezený v exportu dostane příznak pohoda_v_evidenci (seznamy
  * ukazují V POHODĚ), i faktura z e-shopu nebo z Disku, kterou tu nezakládá POHODA.
+ * Předkontace a členění DPH z exportu se zapíšou k dokladu (migrace 050),
+ * export XML je pak pošle zpátky a další doklady téhož partnera je převezmou.
  */
 
 import './lib/load-env.js';   // musí být první – plní process.env z .env
@@ -154,7 +159,14 @@ function mapRow(row, today) {
     vat:       vatTotal(row),
     total:     num(row['Celkem']),
     notes:     buildNotes(row),
+    predkontace: str(row['Předkontace']),
+    cleneni:     str(row['ČlDPH']),
   };
+}
+
+/** Číslo dokladu jako klíč: bez mezer, pomlček a lomítek, velkými písmeny. */
+function klicCisla(v) {
+  return str(v).toUpperCase().replace(/[^0-9A-Z]/g, '');
 }
 
 /** Název souboru na porovnávací tvar: bez diakritiky, mezer a přípony. */
@@ -243,12 +255,19 @@ function readImport(kind, label) {
 
 const stats = {
   issued: 0, issuedSkip: 0,
-  received: 0, receivedSkip: 0, receivedMerged: 0,
+  received: 0, receivedSkip: 0, receivedMerged: 0, receivedLinked: 0, receivedZero: 0,
   statusSynced: 0, statusDrift: 0, statusProtected: 0, dokladDoplnen: 0,
 };
 const warnings = [];
 // Řádky v DB, které export z POHODY obsahuje; příznak se zapíše na konci najednou.
 const vPohode = new Set();
+// Předkontace a členění DPH z POHODY podle id řádku v DB (migrace 050), zapíšou se na konci.
+const zkratky = new Map();
+let zkratkyNovych = 0;
+const zapamatujZkratky = (id, f) => {
+  if (!id) return;
+  if (f.predkontace || f.cleneni) zkratky.set(id, { predkontace: f.predkontace, cleneni: f.cleneni });
+};
 
 /**
  * Existující faktura – srovnat stav úhrady s POHODOU.
@@ -313,23 +332,27 @@ async function importIssued(icoToCompany, today) {
     const dup = existing.get(f.number);
     if (dup) {
       if (dup.id) vPohode.add(dup.id);
+      zapamatujZkratky(dup.id, f);
       stats.issuedSkip++;
       await syncStatus(dup, f);
       continue;
     }
 
     const companyId = f.ico ? icoToCompany.get(f.ico) ?? null : null;
+    const id = genId();
+    if (f.predkontace || f.cleneni) zkratkyNovych++;
 
     if (DRY_RUN) {
       console.log(`  [nová] ${f.number} | ${f.issueDate} | ${f.name} | ${f.total} Kč | ${f.status}`);
     } else {
+      zapamatujZkratky(id, f);
       await sql`
         INSERT INTO accounting_invoices
           (id, type, number, status, client_name, client_ico, client_dic, client_address,
            crm_company_id, issue_date, due_date, paid_date,
            amount, vat_amount, total_amount, currency, notes, source, pohoda_v_evidenci, created_at, modified_at)
         VALUES (
-          ${genId()}, 'issued', ${f.number}, ${f.status},
+          ${id}, 'issued', ${f.number}, ${f.status},
           ${f.name}, ${f.ico}, ${f.dic}, ${f.address},
           ${companyId}, ${f.issueDate}, ${f.dueDate}, ${f.paidDate},
           ${f.amount}, ${f.vat}, ${f.total}, 'CZK', ${f.notes}, 'pohoda', TRUE, NOW(), NOW()
@@ -354,7 +377,7 @@ async function importReceived(icoToCompany, today) {
 
   const dbRows = await sql`
     SELECT id, number, supplier, supplier_ico, supplier_number, status, issue_date::text AS issue_date,
-           paid_date::text AS paid_date, total_amount, bank_transaction_id
+           paid_date::text AS paid_date, total_amount, currency, bank_transaction_id, pohoda_exported_at
     FROM accounting_invoices WHERE type = 'received'
   `;
   const byNumber = new Map();
@@ -362,6 +385,17 @@ async function importReceived(icoToCompany, today) {
   for (const r of dbRows) pridej(r.number, r);
   const seznam = (radky) => radky.map(r => r.supplier).join(', ');
   const cislaVExportu = new Set(rows.map(row => mapRow(row, today).number));
+  // Index pro krok 2: doklad z Disku nebo ručně zadaný je vedený pod číslem dodavatele,
+  // které POHODA drží v poli Doklad. Čísla z tohoto exportu jsou samostatné doklady
+  // POHODY a číslo dodavatele u nich (supplier_number) se sem nepočítá: Twilio dává
+  // stejné číslo víc fakturám a druhá by se pak nezaložila.
+  const byKlic = new Map();
+  for (const r of dbRows) {
+    const k = klicCisla(r.number);
+    if (k && !cislaVExportu.has(r.number)) byKlic.set(k, [...(byKlic.get(k) ?? []), r]);
+  }
+  const pouzite = new Set();   // řádky propojené nebo sloučené v tomto běhu
+  const podleDokladu = (doklad) => (byKlic.get(klicCisla(doklad)) ?? []).filter(r => !pouzite.has(r.id));
   // Kontrolní index pro fuzzy shodu (jiné číslo, ale stejné datum i částka)
   const byDateAmount = new Map();
   for (const r of dbRows) {
@@ -387,6 +421,7 @@ async function importReceived(icoToCompany, today) {
     }
     if (podleCisla.akce === 'existuje') {
       if (podleCisla.radek.id) vPohode.add(podleCisla.radek.id);
+      zapamatujZkratky(podleCisla.radek.id, f);
       stats.receivedSkip++;
       // Číslo dodavatele pro párování s Google Diskem; jen prázdné, ruční opravu nepřepíše.
       if (podleCisla.radek.id && !podleCisla.radek.supplier_number && f.doklad) {
@@ -406,21 +441,72 @@ async function importReceived(icoToCompany, today) {
       continue;
     }
 
-    // 2) duplicita pod variabilním symbolem (faktura přišla jinou cestou)
-    // Číslo z tohoto exportu je samostatný doklad POHODY, ne faktura z Disku pod číslem dodavatele.
-    const podleVs = f.varsym && !cislaVExportu.has(f.varsym) ? posudVs(byNumber.get(f.varsym) ?? [], f) : { akce: 'zadna' };
-    if (podleVs.akce === 'nejiste') {
+    // 2) doklad vedený tady pod číslem dodavatele, které má POHODA v poli Doklad.
+    // Rozhoduje se stejně jako u VS (posudVs): stejný dodavatel a datum nebo částka.
+    const podleDokl = f.doklad ? posudVs(podleDokladu(f.doklad), f) : { akce: 'zadna' };
+    if (podleDokl.akce === 'nejiste') {
       stats.receivedSkip++;
-      warnings.push(`${f.number} (${f.name}): VS ${f.varsym} má ${seznam(podleVs.radky)}, dodavatele nejde rozlišit – přeskočeno, zkontrolovat ručně`);
+      warnings.push(`${f.number} (${f.name}): doklad ${f.doklad} má ${seznam(podleDokl.radky)}, dodavatele nejde rozlišit – přeskočeno, zkontrolovat ručně`);
       continue;
     }
-    const underVs = podleVs.radek;
+
+    // 2a) Do POHODY ho poslal export XML z One SEIL. Údaje tedy pocházejí odsud
+    // a POHODA je má z nich, převezme se jen její číslo a předkontace.
+    const zOneSeil = podleDokl.radek?.pohoda_exported_at ? podleDokl.radek : null;
+    if (zOneSeil) {
+      pouzite.add(zOneSeil.id);
+      // Nulu dávala POHODA dokladům v cizí měně z exportu před listopadem 2026.
+      // Takový doklad se nepropojí: v POHODĚ se má smazat a poslat znovu, jinak
+      // by zůstal vyřazený z exportu a nula v účetnictví.
+      if (f.total === 0 && num(zOneSeil.total_amount) !== 0) {
+        stats.receivedSkip++;
+        stats.receivedZero++;
+        warnings.push(
+          `${f.number} (${f.name}): v POHODĚ s nulovou částkou, tady ${zOneSeil.number} na ` +
+          `${num(zOneSeil.total_amount)} ${zOneSeil.currency} – nepropojeno, doklad v POHODĚ smazat a vyexportovat znovu`
+        );
+        continue;
+      }
+      if (!DRY_RUN) {
+        await sql`
+          UPDATE accounting_invoices SET
+            number = ${f.number},
+            supplier_number = CASE WHEN supplier_number = '' THEN ${f.doklad} ELSE supplier_number END,
+            modified_at = NOW()
+          WHERE id = ${zOneSeil.id}
+        `;
+      }
+      vPohode.add(zOneSeil.id);
+      zapamatujZkratky(zOneSeil.id, f);
+      pridej(f.number, { ...zOneSeil, number: f.number });
+      stats.receivedLinked++;
+      console.log(`  = ${f.number} | propojeno s ${zOneSeil.number}, do POHODY šel exportem z One SEIL`);
+      await syncStatus(zOneSeil, f);
+      continue;
+    }
+
+    // 2b) duplicita pod variabilním symbolem (faktura přišla jinou cestou)
+    // Číslo z tohoto exportu je samostatný doklad POHODY, ne faktura z Disku pod číslem dodavatele.
+    let jak = 'doklad';
+    let underVs = podleDokl.radek;
+    if (!underVs) {
+      jak = 'VS';
+      const podleVs = f.varsym && !cislaVExportu.has(f.varsym) ? posudVs((byNumber.get(f.varsym) ?? []).filter(r => !pouzite.has(r.id)), f) : { akce: 'zadna' };
+      if (podleVs.akce === 'nejiste') {
+        stats.receivedSkip++;
+        warnings.push(`${f.number} (${f.name}): VS ${f.varsym} má ${seznam(podleVs.radky)}, dodavatele nejde rozlišit – přeskočeno, zkontrolovat ručně`);
+        continue;
+      }
+      underVs = podleVs.radek;
+    }
     if (underVs) {
       if (NO_MERGE) {
         stats.receivedSkip++;
-        warnings.push(`${f.number}: již v DB pod VS ${f.varsym} (id ${underVs.id}) – přeskočeno`);
+        warnings.push(`${f.number}: již v DB pod ${jak === 'VS' ? `VS ${f.varsym}` : `číslem ${underVs.number}`} (id ${underVs.id}) – přeskočeno`);
         continue;
       }
+      pouzite.add(underVs.id);
+      zapamatujZkratky(underVs.id, f);
       // Navázaný bankovní pohyb je tvrdší důkaz než POHODA, viz syncStatus.
       const zaplaceno = underVs.status === 'Zaplacena' && f.status !== 'Zaplacena' && underVs.bank_transaction_id;
       if (zaplaceno) {
@@ -440,14 +526,14 @@ async function importReceived(icoToCompany, today) {
           WHERE id = ${underVs.id}
         `;
       }
-      byNumber.set(f.varsym, byNumber.get(f.varsym).filter(r => r !== underVs));
+      byNumber.set(underVs.number, byNumber.get(underVs.number).filter(r => r !== underVs));
       pridej(f.number, { ...underVs, number: f.number, supplier: f.name, supplier_ico: f.ico, issue_date: f.issueDate, total_amount: f.total });
       stats.receivedMerged++;
       warnings.push(
         `${f.number}: sloučeno s existujícím záznamem "${underVs.number}" ` +
         `(${underVs.supplier}, ${underVs.issue_date}, ${num(underVs.total_amount)} Kč) – příloha zachována`
       );
-      console.log(`  ~ ${f.number} | sloučeno se záznamem pod VS ${f.varsym}`);
+      console.log(`  ~ ${f.number} | sloučeno se záznamem pod ${jak === 'VS' ? `VS ${f.varsym}` : `číslem ${underVs.number}`}`);
       continue;
     }
 
@@ -465,10 +551,13 @@ async function importReceived(icoToCompany, today) {
     }
 
     const companyId = f.ico ? icoToCompany.get(f.ico) ?? null : null;
+    const id = genId();
+    if (f.predkontace || f.cleneni) zkratkyNovych++;
 
     if (DRY_RUN) {
       console.log(`  [nová] ${f.number} | ${f.issueDate} | ${f.name} | ${f.total} Kč | ${f.status}`);
     } else {
+      zapamatujZkratky(id, f);
       await sql`
         INSERT INTO accounting_invoices
           (id, type, number, supplier_number, status, supplier, supplier_ico, supplier_dic,
@@ -476,7 +565,7 @@ async function importReceived(icoToCompany, today) {
            crm_company_id, issue_date, due_date, paid_date,
            amount, vat_amount, total_amount, currency, notes, source, pohoda_v_evidenci, created_at, modified_at)
         VALUES (
-          ${genId()}, 'received', ${f.number}, ${f.doklad}, ${f.status},
+          ${id}, 'received', ${f.number}, ${f.doklad}, ${f.status},
           ${f.name}, ${f.ico}, ${f.dic},
           ${f.street}, ${f.city}, ${f.zip}, 'Česká republika',
           ${companyId}, ${f.issueDate}, ${f.dueDate}, ${f.paidDate},
@@ -492,7 +581,42 @@ async function importReceived(icoToCompany, today) {
     stats.received++;
   }
 
-  console.log(`  ✓ vloženo ${stats.received}, sloučeno ${stats.receivedMerged}, přeskočeno jako duplicita ${stats.receivedSkip}`);
+  console.log(`  ✓ vloženo ${stats.received}, sloučeno ${stats.receivedMerged}, propojeno ${stats.receivedLinked}, přeskočeno jako duplicita ${stats.receivedSkip}`);
+}
+
+// ── Předkontace a členění DPH ─────────────────────────────────
+
+/**
+ * Zapíše zkratky z POHODY k dokladům, které export obsahuje. POHODA je pro
+ * účtování zdroj pravdy, takže přepíše i jinou hodnotu; prázdná zkratka
+ * v exportu ale nic nemaže. Vrací počet změněných řádků, nebo null, když
+ * databáze sloupce ještě nemá (migrace 050 na produkci neproběhla).
+ */
+async function zapisZkratky() {
+  const [sloupec] = await sql`
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'accounting_invoices' AND column_name = 'pohoda_predkontace'
+  `;
+  if (!sloupec) return null;
+
+  const radky = await sql`
+    SELECT id, pohoda_predkontace, pohoda_cleneni_dph FROM accounting_invoices WHERE id = ANY(${[...zkratky.keys()]})
+  `;
+  let zmeneno = 0;
+  for (const r of radky) {
+    const z = zkratky.get(r.id);
+    const predkontace = z.predkontace || r.pohoda_predkontace;
+    const cleneni = z.cleneni || r.pohoda_cleneni_dph;
+    if (predkontace === r.pohoda_predkontace && cleneni === r.pohoda_cleneni_dph) continue;
+    zmeneno++;
+    if (!DRY_RUN) {
+      await sql`
+        UPDATE accounting_invoices SET pohoda_predkontace = ${predkontace}, pohoda_cleneni_dph = ${cleneni}
+        WHERE id = ${r.id}
+      `;
+    }
+  }
+  return zmeneno;
 }
 
 // ── Hlavní ────────────────────────────────────────────────────
@@ -515,6 +639,7 @@ try {
   const ids = [...vPohode];
   const oznacit = await sql`SELECT id FROM accounting_invoices WHERE id = ANY(${ids}) AND NOT pohoda_v_evidenci`;
   if (!DRY_RUN) await sql`UPDATE accounting_invoices SET pohoda_v_evidenci = TRUE WHERE id = ANY(${oznacit.map(r => r.id)})`;
+  const zkratkyZmeneny = await zapisZkratky();
 
   if (warnings.length) {
     console.log('\n━━━ Ke kontrole ━━━');
@@ -524,8 +649,14 @@ try {
   console.log('\n=== Hotovo ===');
   console.log(`Vydané:   +${stats.issued} nových, ${stats.issuedSkip} duplicit přeskočeno`);
   console.log(`Přijaté:  +${stats.received} nových, ${stats.receivedMerged} sloučeno, ${stats.receivedSkip} duplicit přeskočeno`);
+  console.log(`Z One SEIL: ${stats.receivedLinked} propojeno s číslem POHODY` +
+              (stats.receivedZero ? `, ${stats.receivedZero} nepropojeno, v POHODĚ s nulou (viz Ke kontrole)` : ''));
   console.log(`Číslo dodavatele doplněno u ${stats.dokladDoplnen} přijatých faktur`);
   console.log(`Nově označeno V POHODĚ: ${oznacit.length}`);
+  console.log(zkratkyZmeneny === null
+    ? 'Předkontace a členění DPH: databáze nemá sloupce (migrace 050 neproběhla), nic nezapsáno – spustit znovu po nasazení'
+    : `Předkontace a členění DPH: ${zkratkyZmeneny} dokladů doplněno nebo změněno` +
+      (zkratkyNovych ? `, ${DRY_RUN ? 'k tomu' : 'z toho'} ${zkratkyNovych} nových` : ''));
   console.log(`Stav úhrady: ${stats.statusDrift} rozdílů oproti POHODĚ, ${stats.statusSynced} srovnáno` +
               (stats.statusProtected ? `, ${stats.statusProtected} ponecháno podle banky` : ''));
 } catch (err) {

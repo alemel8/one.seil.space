@@ -104,6 +104,19 @@
     <div class="card">
       <div class="card-header"><strong>Účtování (předkontace)</strong></div>
       <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <%
+          // Bez zkratky z POHODY ukáže, co export převezme z předchozí faktury dodavatele.
+          const vzor = typeof vzorPohody !== 'undefined' ? vzorPohody : null;
+          const zVzoru = (zkratka) => zkratka ? `${zkratka} (jako ${vzor.cislo})` : undefined;
+        %>
+        <%- include('../../includes/pole', { pole: { label: 'Předkontace v POHODĚ', name: 'pohoda_predkontace', value: invoice.pohoda_predkontace, maxlength: 20,
+          placeholder: vzor && vzor.predkontace ? vzor.predkontace : 'např. 11Fp', tridaHodnoty: 'pole-mono', form: formular,
+          zobraz: !invoice.pohoda_predkontace && vzor ? zVzoru(vzor.predkontace) : undefined,
+          hint: 'Zkratka předkontace z POHODY. Doplní ji import exportu z POHODY. Prázdné = export vezme zkratku z poslední faktury téhož dodavatele, jinak výchozí z Nastavení firmy.' } }) %>
+        <%- include('../../includes/pole', { pole: { label: 'Členění DPH v POHODĚ', name: 'pohoda_cleneni_dph', value: invoice.pohoda_cleneni_dph, maxlength: 20,
+          placeholder: vzor && vzor.cleneni ? vzor.cleneni : 'např. PD', tridaHodnoty: 'pole-mono', form: formular,
+          zobraz: !invoice.pohoda_cleneni_dph && !invoice.pohoda_predkontace && vzor && invoice.vat_deductible !== false ? zVzoru(vzor.cleneni) : undefined,
+          hint: 'Zkratka členění DPH z POHODY (PD, bez, PDosDan…). Prázdné = jako u poslední faktury téhož dodavatele, jinak tuzemské plnění.' } }) %>
         <%- include('../../includes/pole', { pole: { label: 'MD (má dáti)', name: 'account_debit', value: invoice.account_debit, placeholder: '518', tridaHodnoty: 'pole-mono', form: formular } }) %>
         <%- include('../../includes/pole', { pole: { label: 'D (dal)', name: 'account_credit', value: invoice.account_credit, placeholder: '321', tridaHodnoty: 'pole-mono', form: formular } }) %>
         <%- include('../../includes/pole', { pole: { label: 'Odpočet DPH', name: 'vat_deductible', typ: 'checkbox', value: invoice.vat_deductible !== false, hodnotaVstupu: 'on', form: formular,

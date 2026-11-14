@@ -28,6 +28,7 @@ const invoice = {
   amount: '1000.00', vat_amount: '210.00', total_amount: '1210.00', currency: 'CZK',
   issue_date: new Date('2026-02-02T00:00:00Z'), due_date: new Date('2026-02-16T00:00:00Z'), paid_date: null,
   notes: 'Kancelářské potřeby', account_debit: '518', account_credit: '321', vat_deductible: true,
+  pohoda_predkontace: '', pohoda_cleneni_dph: '',
   attachment_path: null, attachment_mime: null, attachment_size: null, attachment_missing: false,
   bank_transaction_id: null, pohoda_exported_at: null,
   created_at: new Date('2026-02-03T10:00:00Z'), modified_at: new Date('2026-02-03T10:00:00Z'),
@@ -42,7 +43,8 @@ function vykresli(prepis = {}) {
 
 // Sloupce z UPDATE v POST /ucetnictvi/prijate-faktury/:id/upravit (src/routes/invoices.js)
 const SLOUPCE = ['number', 'supplier', 'supplier_ico', 'supplier_dic', 'supplier_address', 'supplier_city', 'supplier_zip', 'supplier_country',
-  'amount', 'vat_amount', 'total_amount', 'currency', 'issue_date', 'due_date', 'notes', 'account_debit', 'account_credit', 'vat_deductible'];
+  'amount', 'vat_amount', 'total_amount', 'currency', 'issue_date', 'due_date', 'notes', 'account_debit', 'account_credit', 'vat_deductible',
+  'pohoda_predkontace', 'pohoda_cleneni_dph'];
 
 test('tužka, formulář záznamu a všechny sloupce v obou režimech, bez vnořeného formuláře', async () => {
   const zobrazeni = await vykresli();
@@ -117,6 +119,24 @@ test('bez nároku na odpočet: žlutý box jen v zobrazení; zaplaceno jen pro �
   assert.ok((bez.match(/<span class="pole-prazdne">–/g) || []).length >= 4, 'prázdná pole ukážou pomlčku');
 });
 
+test('předkontace z POHODY: vlastní zkratka, jinak vzor z předchozí faktury dodavatele', async () => {
+  const vzorPohody = { predkontace: '11Fp', cleneni: 'bez', cislo: 'PF26-0121' };
+  let html = await vykresli({ vzorPohody });
+  assert.match(html, /<div class="pole-hodnota pole-mono">11Fp \(jako PF26-0121\)<\/div>/, 'předkontace ze vzoru i s dokladem, odkud je');
+  assert.match(html, /<div class="pole-hodnota pole-mono">bez \(jako PF26-0121\)<\/div>/, 'členění ze vzoru');
+  assert.match(html, /name="pohoda_predkontace" form="formFaktura" placeholder="11Fp" maxlength="20"/, 'vstup zůstane prázdný, vzor jen jako placeholder');
+
+  html = await vykresli({ invoice: { ...invoice, pohoda_predkontace: '13Fp', pohoda_cleneni_dph: 'PD' }, vzorPohody: null });
+  assert.match(html, /<div class="pole-hodnota pole-mono">13Fp<\/div>/);
+  assert.match(html, /<input type="text" class="form-control" value="PD" id="pole-pohoda_cleneni_dph"/);
+
+  html = await vykresli({ invoice: { ...invoice, vat_deductible: false }, vzorPohody });
+  assert.ok(!html.includes('bez (jako'), 'reprezentace jde jako nezahrnovat do DPH, členění ze vzoru neukazuje');
+
+  html = await vykresli();
+  assert.ok(html.includes('placeholder="např. 11Fp"'), 'bez vzoru jen příklad');
+});
+
 // ── Proti běžícímu serveru a lokální databázi ──────────────────
 
 describe('proti serveru', { skip: PRESKOCIT }, () => {
@@ -170,13 +190,21 @@ describe('proti serveru', { skip: PRESKOCIT }, () => {
       supplier_address: 'Nádražní 1', supplier_city: 'Brno', supplier_zip: '602 00', supplier_country: 'Česká republika',
       amount: '1000', vat_amount: '210', total_amount: '1210', currency: 'CZK', issue_date: '2026-02-02', due_date: '2026-02-16',
       notes: 'Kancelářské potřeby', account_debit: '518', account_credit: '321', vat_deductible: 'on',
+      pohoda_predkontace: ' 11Fp ', pohoda_cleneni_dph: 'bez',
     };
     const res = await req.post(`/ucetnictvi/prijate-faktury/${id}/upravit`, telo);
     assert.equal(res.status, 302);
     assert.equal(res.headers.get('location'), `/ucetnictvi/prijate-faktury/${id}?saved=1`, 'úspěch vrací do zobrazení bez upravit');
-    const [po] = await sql`SELECT supplier, supplier_ico, notes, account_debit, vat_deductible FROM accounting_invoices WHERE id = ${id}`;
+    const [po] = await sql`SELECT supplier, supplier_ico, notes, account_debit, vat_deductible, pohoda_predkontace, pohoda_cleneni_dph FROM accounting_invoices WHERE id = ${id}`;
     assert.equal(po.supplier, `Nový dodavatel ${r}`);
     assert.deepEqual([po.supplier_ico, po.notes, po.account_debit, po.vat_deductible], ['87654321', 'Kancelářské potřeby', '518', true]);
+    assert.deepEqual([po.pohoda_predkontace, po.pohoda_cleneni_dph], ['11Fp', 'bez'], 'zkratky z POHODY se uloží oříznuté');
+
+    // Formulář bez polí zkratek (starší stránka v prohlížeči) je nesmaže.
+    const { pohoda_predkontace, pohoda_cleneni_dph, ...bezZkratek } = telo;
+    await req.post(`/ucetnictvi/prijate-faktury/${id}/upravit`, bezZkratek);
+    const [stale] = await sql`SELECT pohoda_predkontace, pohoda_cleneni_dph FROM accounting_invoices WHERE id = ${id}`;
+    assert.deepEqual([stale.pohoda_predkontace, stale.pohoda_cleneni_dph], ['11Fp', 'bez']);
 
     const html = await (await req.get(`/ucetnictvi/prijate-faktury/${id}?saved=1`)).text();
     assert.ok(html.includes('data-rezim="zobrazeni"'), 'po uložení je zpět zobrazení');

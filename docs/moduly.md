@@ -354,8 +354,34 @@ Doklady ve stavu Storno se do balíčku nedostanou. Po exportu se zapíše
 `pohoda_exported_at` – seznam pak u dokladu ukáže datum a hromadná lišta
 varuje, že opakovaný import doklad v POHODĚ založí znovu.
 
-Předkontace se berou v pořadí: předkontace z dokladu → předkontace
-z Nastavení firmy (záložka Export do POHODY) → nic (POHODA nastaví „Nevím“).
+Předkontace se berou v pořadí: zkratka z POHODY na dokladu
+(`pohoda_predkontace`, migrace 050) → předkontace z dokladu (`account_debit`)
+→ vzor z posledního dokladu téhož partnera → předkontace z Nastavení firmy
+(záložka Export do POHODY) → nic (POHODA nastaví „Nevím“). Členění DPH jde
+jako zkratka (`<typ:ids>bez</typ:ids>`) z dokladu nebo ze vzoru, bez ní jen
+`nonSubsume` u dokladu bez nároku na odpočet.
+
+**Vzor partnera** (`src/pohoda-vzor.js`): zkratky předkontace a členění DPH
+doplňuje k dokladům import exportu z POHODY. Doklad bez nich je při exportu
+převezme z nejnovějšího dokladu téhož dodavatele nebo odběratele: podle IČO,
+jinak podle názvu, kde stačí, že jeden začíná druhým („Anthropic, PBC“
+a „Anthropic, PBC @anthropic548…“), a u přijatých podle předpony čísla ze
+Stripe (`IM69EW9T-0034`). Členění se převezme, jen když oba doklady DPH mají,
+nebo oba nemají. Vzor se k dokladu neukládá; detail přijaté faktury ukáže,
+co export použije.
+
+**Doklad v cizí měně** jde s částkami v té měně (`inv:foreignCurrency`
+v položkách i v souhrnu, bez `homeCurrency`). Kurz a koruny doplní POHODA ze
+svého kurzovního lístku, tedy kurzem ČNB z předchozího pracovního dne, jako
+u dokladů, které účetní zadala ručně. Do listopadu 2026 export posílal částky
+v `homeCurrency` a jen značku měny, POHODA je ignorovala a doklady založila
+s nulou.
+
+**Zpětný import** (`scripts/import-faktury-xlsx.js`): doklad, který do POHODY
+poslal tento export (`pohoda_exported_at`), najde podle pole *Doklad*, převezme
+číslo POHODY, předkontaci a členění a ostatní údaje nechá. Když ho POHODA má
+s nulovou částkou, nepropojí ho a vypíše ho ke kontrole: v POHODĚ se smaže
+a vyexportuje znovu.
 
 ---
 

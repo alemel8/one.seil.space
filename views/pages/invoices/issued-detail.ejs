@@ -354,6 +354,15 @@
           <label class="form-label">Předkontace D</label>
           <input type="text" name="account_credit" class="form-control" value="<%= invoice.account_credit || '' %>">
         </div>
+        <div class="form-group">
+          <label class="form-label" for="ieditPredkontace">Předkontace v POHODĚ</label>
+          <input type="text" name="pohoda_predkontace" id="ieditPredkontace" class="form-control" maxlength="20" placeholder="např. 5Fv" value="<%= invoice.pohoda_predkontace || '' %>">
+          <small style="color:var(--text-muted);font-size:12px;">Prázdné = jako u poslední faktury téhož odběratele</small>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="ieditCleneni">Členění DPH v POHODĚ</label>
+          <input type="text" name="pohoda_cleneni_dph" id="ieditCleneni" class="form-control" maxlength="20" placeholder="např. UD" value="<%= invoice.pohoda_cleneni_dph || '' %>">
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-ghost" data-modal-close="modalEdit">Zrušit</button>
