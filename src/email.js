@@ -67,15 +67,28 @@ function isUndeliverable(to) {
  * do kódu. Po odladění tuhle proměnnou smaž – chodí do ní kopie veškeré
  * zákaznické pošty včetně faktur, tedy osobní údaje. Firemních e-mailů
  * (`audience: 'company'`) se netýká; ty si o kopii musí říct samy.
+ *
+ * Oba zdroje smějí nést víc adres oddělených čárkou nebo středníkem. Resend
+ * bere v `bcc` jednu adresu na položku pole – celý řetězec
+ * „a@x.cz,b@y.cz“ jako jedna položka doručil kopii jen na první adresu.
  */
-function bccFor(audience, to, explicit) {
-  const bcc = String(explicit ?? process.env.EMAIL_BCC ?? '').trim();
-  if (!bcc) return undefined;
+export function bccFor(audience, to, explicit) {
+  const seznam = String(explicit ?? process.env.EMAIL_BCC ?? '');
   if (!explicit && audience !== 'customer') return undefined;
-  // Ať nechodí dvakrát, když adresátem je zrovna ta samá adresa.
-  const address = (String(to).match(/<([^>]*)>/)?.[1] ?? String(to)).trim().toLowerCase();
-  if (address === bcc.toLowerCase()) return undefined;
-  return [bcc];
+  // Ať nechodí dvakrát, když adresátem je zrovna jedna z kopií.
+  const videne = new Set([holaAdresa(to)]);
+  const kopie = seznam.split(/[,;]/).map((a) => a.trim()).filter((a) => {
+    const klic = holaAdresa(a);
+    if (!klic || videne.has(klic)) return false;
+    videne.add(klic);
+    return true;
+  });
+  return kopie.length ? kopie : undefined;
+}
+
+/** Adresa bez zobrazovaného jména, malými písmeny – pro porovnání. */
+function holaAdresa(adresa) {
+  return (String(adresa).match(/<([^>]*)>/)?.[1] ?? String(adresa)).trim().toLowerCase();
 }
 
 async function deliver({ audience, from, replyTo, to, bcc: skrytaKopie, subject, html, attachments }) {
