@@ -64,12 +64,27 @@ export const METRIKY_SOUCTU = [
 ];
 export const METRIKY_KANALU = ['sessions', 'totalUsers', 'ecommercePurchases', 'purchaseRevenue'];
 
-/** ID property z napojení; G-… (ID streamu) ani text neprojdou – API by vrátilo 400 a sync by hlásil trvalou chybu bez vysvětlení. */
+/**
+ * Nejvíc číslic, které ID property může mít. Property mají 9 číslic
+ * (Toneráček 318467224, Dílna Vlněnka 564413361, rok 2026), číselné ID
+ * webového datového streamu 11 (16346658592). Admin API na ID streamu
+ * vrací 403 „The caller does not have permission“ – stejně jako na
+ * chybějícího čtenáře – a operátor pak hledá chybu v přístupech.
+ */
+export const MAX_CISLIC_PROPERTY = 10;
+
+/** ID property z napojení; G-… ani číselné ID streamu ani text neprojdou – API by vrátilo 400/403 a sync by hlásil trvalou chybu bez vysvětlení. */
 export function propertyId(source) {
   const id = jenCislice(source?.external_id);
   if (!id) {
     throw new AdapterError(
       `GA4: ID property musí být číslo (např. 318467224), ne „${String(source?.external_id ?? '').trim()}“ – G-… je ID datového streamu, property je v GA4 → Správa → Nastavení vlastnosti`,
+      { permanent: true, platform },
+    );
+  }
+  if (id.length > MAX_CISLIC_PROPERTY) {
+    throw new AdapterError(
+      `GA4: ${id} vypadá jako ID datového streamu (${id.length} číslic), ne ID property (9 číslic, např. 318467224) – property je v GA4 → Správa → Nastavení vlastnosti → ID vlastnosti`,
       { permanent: true, platform },
     );
   }

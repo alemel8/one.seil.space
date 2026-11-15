@@ -475,6 +475,24 @@ describe('ga4', () => {
     assert.equal(g.volani.length, 0);
   });
 
+  test('číselné ID datového streamu (11 číslic) je trvalá chyba bez volání Googlu, 9 i 10 číslic projde', async () => {
+    const g = falesnyGoogle(() => fixture('ga4-property'));
+    const err = await ga4.fetchDaily({ source: { external_id: '16346658592' }, ...OKNO, googleJsonImpl: g.googleJsonImpl }).catch(e => e);
+    assert.ok(err instanceof AdapterError);
+    assert.equal(err.permanent, true);
+    assert.match(err.message, /16346658592 vypadá jako ID datového streamu \(11 číslic\)/);
+    assert.match(err.message, /ID vlastnosti/);
+    assert.equal(g.volani.length, 0);
+
+    const o = await ga4.overit({ source: { external_id: 'properties/16346658592' }, googleJsonImpl: g.googleJsonImpl });
+    assert.equal(o.ok, false);
+    assert.match(o.zprava, /vypadá jako ID datového streamu/);
+    assert.equal(g.volani.length, 0);
+
+    assert.equal(ga4.propertyId({ external_id: '564413361' }), '564413361');
+    assert.equal(ga4.propertyId({ external_id: '1234567890' }), '1234567890');
+  });
+
   test('bez GOOGLE_SERVICE_ACCOUNT_JSON je to trvalá chyba s návodem, bez volání', async () => {
     const ulozeny = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
     delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
