@@ -4,8 +4,8 @@
  *
  * ## Datum na dokladu není „dnes“
  *
- * Faktura k objednávce vzniká až přepnutím na „Vyřízena“, často dny po
- * platbě. Daňový doklad přitom musí uvádět den uskutečnění plnění nebo den
+ * Faktura k objednávce vzniká až vyřízením (ručně, nebo samo po převzetí
+ * zásilky Zásilkovnou), často dny po platbě. Daňový doklad přitom musí uvádět den uskutečnění plnění nebo den
  * přijetí úplaty, liší-li se ode dne vystavení (§ 29 odst. 1 písm. h ZDPH).
  * Dřív dostala karta zaplacená 1. 9. na fakturu „zaplaceno 7. 9.“.
  *
@@ -171,8 +171,8 @@ export function zobrazeniUhrady({ invoice, paid = false, paymentMethod = '' } = 
  * fakturu jako den přijetí úplaty: karta denPlatbyKartou() (`paid_at`,
  * u zaplacené objednávky bez něj den založení), převod den úhrady zálohovky.
  * Dobírka zaplacená není, ale plnění proběhlo odesláním: ranní expedice ji
- * posílá do skladu sama, kdežto fakturu vystaví až ruční „Vyřízena“ –
- * rozhoduje proto pražský den `warehouse_sent_at`.
+ * posílá do skladu sama, kdežto fakturu vystaví až vyřízení (ruční, nebo
+ * po převzetí zásilky) – rozhoduje proto pražský den `warehouse_sent_at`.
  */
 export function denVznikuPovinnosti(objednavka) {
   switch (objednavka?.payment_method) {

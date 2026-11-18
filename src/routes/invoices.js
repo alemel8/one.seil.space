@@ -388,8 +388,9 @@ export async function generateProformaForOrder(sql, order, { now = new Date() } 
 
 // ── Vystavit běžnou (vydanou) fakturu z objednávky ────────────────
 //
-// Volá se automaticky při přepnutí stavu objednávky na "Vyřízena"
-// (src/routes/toneracek.js) a z ruční záchranné akce níž. Stav, den úhrady
+// Volá se automaticky při vyřízení objednávky (src/vyrizeni-objednavky.js –
+// ruční přepnutí na "Vyřízena" i převzetí zásilky Zásilkovnou) a z ruční
+// záchranné akce níž. Stav, den úhrady
 // a DUZP určuje uhradaFakturyObjednavky() v src/danovy-doklad.js: karta
 // a převod jsou zaplacené ke dni přijetí úplaty (u převodu je podmínkou
 // zaplacená zálohová faktura `fromProforma`, ze které se faktura vystaví
@@ -739,7 +740,7 @@ export default async function invoicesRoutes(fastify) {
   });
 
   // Vystavit běžnou fakturu z objednávky – ruční záchranná akce
-  // (normálně se vystavuje automaticky při přepnutí stavu na Vyřízena, viz toneracek.js)
+  // (normálně se vystavuje automaticky při vyřízení objednávky, viz src/vyrizeni-objednavky.js)
   fastify.post('/ucetnictvi/objednavky/:id/generovat-fakturu', async (request, reply) => {
     if (!request.user) return reply.redirect('/prihlasit');
 

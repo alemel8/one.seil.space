@@ -206,6 +206,14 @@
           </dd>
           <% } %>
 
+          <% if (sledovani.stav) { %>
+          <%# Poslední stav, který Zásilkovna hlásila sledování zásilek (src/sledovani-zasilek.js). %>
+          <dt style="color:var(--text-muted);">Zásilkovna</dt>
+          <dd style="margin:0;color:<%= sledovani.prevzato ? 'var(--ton-ok-text)' : 'inherit' %>;">
+            <%= sledovani.stav %><% if (sledovani.kdy) { %><span style="color:var(--text-muted);"> · <%= sledovani.kdy %></span><% } %>
+          </dd>
+          <% } %>
+
           <dt style="color:var(--text-muted);">Sklad</dt>
           <dd style="margin:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
             <span style="display:inline-flex;align-items:center;gap:6px;color:<%= SKLAD_BARVA[order.sklad_stav] || 'var(--text-muted)' %>;">
@@ -314,6 +322,8 @@
             <a href="/ucetnictvi/vydane-faktury/<%= invoice.id %>" style="color:var(--link);font-weight:500;"> <%= invoice.number %></a>
           </div>
           <a href="/ucetnictvi/vydane-faktury/<%= invoice.id %>/pdf" target="_blank" class="btn btn-outline" style="width:100%;text-align:center;margin-bottom:6px;">📄 Stáhnout PDF</a>
+        <% } else if (sledovani.ceka) { %>
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Faktura se vystaví a odešle zákazníkovi sama, jakmile Zásilkovna převezme zásilku.</p>
         <% } else if (!isTransfer) { %>
           <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Faktura se vystaví automaticky po přepnutí stavu objednávky na Vyřízena.</p>
         <% } %>
@@ -324,6 +334,22 @@
     <div class="card">
       <div class="card-body">
         <h2 style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 16px;">Stav objednávky</h2>
+        <% if (sledovani.chyba) { %>
+          <div class="hlaska hlaska-chyba" style="padding:10px 12px;font-size:12px;margin-bottom:12px;">
+            Zásilkovna balík převzala, ale automatické vyřízení se nepovedlo celé: <%= sledovani.chyba %>
+            <% if (invoice) { %><br>E-mail s fakturou jde poslat znovu z <a href="/ucetnictvi/vydane-faktury/<%= invoice.id %>">detailu faktury</a>.<% } %>
+          </div>
+        <% } %>
+        <% if (sledovani.vyrizenoAutomaticky) { %>
+          <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px;line-height:1.5;">
+            Vyřízena automaticky <%= sledovani.vyrizenoAutomaticky %>, když Zásilkovna převzala zásilku.
+          </p>
+        <% } else if (sledovani.ceka) { %>
+          <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px;line-height:1.5;">
+            Jakmile Zásilkovna převezme zásilku od skladu, objednávka se vyřídí sama
+            a zákazník dostane e-mail s fakturou. Přepnout ji můžete i ručně.
+          </p>
+        <% } %>
         <form method="post" action="/ucetnictvi/objednavky/<%= order.id %>/stav">
           <div style="margin-bottom:12px;">
             <label class="form-label" style="font-size:12px;">Nový stav</label>

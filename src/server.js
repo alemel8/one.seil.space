@@ -308,6 +308,16 @@ try {
   startExpediceScheduler(fastify.log);
 }
 
+// ── Background: sledování zásilek odeslaných do skladu ───────
+//
+// Každých 5 minut se ptá Zásilkovny na zásilky, které odešly do skladu;
+// jakmile balík převezme, objednávka se vyřídí sama (faktura a e-mail
+// zákazníkovi). Podrobnosti v hlavičce src/sledovani-zasilek.js.
+{
+  const { startSledovaniZasilekScheduler } = await import('./sledovani-zasilek.js');
+  startSledovaniZasilekScheduler(fastify.log);
+}
+
 // ── Background: noční stahování marketingových statistik ─────
 //
 // Po páté pražského času jeden běh na zdroj a den; okno se přepisuje zpětně,

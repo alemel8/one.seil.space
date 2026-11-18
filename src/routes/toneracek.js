@@ -3,15 +3,40 @@ import { sendOrderCancelledEmail } from '../email.js';
 import { brandForShopId } from '../brand.js';
 import { sendPushToAll } from '../push.js';
 import { renderSeriesNumber } from '../series-format.js';
-import { fetchPacketLabelPdf } from '../packeta.js';
+import { fetchPacketLabelPdf, jePrevzataDopravcem, popisStavuZasilky } from '../packeta.js';
+import { SLEDOVAT_DNI } from '../sledovani-zasilek.js';
 import {
   DUVODY_POZASTAVENI, ExpediceBeziError, najdiObjednavkyKExpedici, objednavkySeStavemSkladu,
-  pozadejEshopOPodaniBaliku, prazskyCas, spustExpedici, zalozBeh,
+  prazskyCas, spustExpedici, zalozBeh,
 } from '../expedice.js';
-import { okamzikPlatbySql, zobrazeniUhrady } from '../danovy-doklad.js';
+import { okamzikPlatbySql } from '../danovy-doklad.js';
+import { VYRIZENA, vyridObjednavku } from '../vyrizeni-objednavky.js';
 import { ceskeDatum } from '../prazsky-cas.js';
 import { atribuceZTela, nakupniCenaZPolozky } from '../atribuce-objednavky.js';
 import { parametr, strankovani } from '../strankovani.js';
+
+const PRAZSKY_CAS = new Intl.DateTimeFormat('cs-CZ', {
+  timeZone: 'Europe/Prague', day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
+});
+
+/**
+ * Co o objednávce ví sledování zásilek (src/sledovani-zasilek.js), řečí
+ * detailu. `ceka` = automat ji vyřídí sám, až Zásilkovna převezme balík.
+ */
+function sledovaniZasilky(order, { maFakturu, now = new Date() }) {
+  const sledovanaDo = order.warehouse_sent_at
+    ? new Date(order.warehouse_sent_at).getTime() + SLEDOVAT_DNI * 86_400_000
+    : 0;
+  return {
+    stav: order.packet_status ? popisStavuZasilky(order.packet_status, order.packet_status_text) : '',
+    kdy: order.packet_status_at ? PRAZSKY_CAS.format(new Date(order.packet_status_at)) : '',
+    prevzato: jePrevzataDopravcem({ codeText: order.packet_status }),
+    ceka: Boolean(order.warehouse_sent_at && order.tracking_number) && !maFakturu && !order.auto_fulfilled_at
+      && !['Vyřízena', 'Stornována'].includes(order.status) && now.getTime() < sledovanaDo,
+    vyrizenoAutomaticky: order.auto_fulfilled_at ? PRAZSKY_CAS.format(new Date(order.auto_fulfilled_at)) : '',
+    chyba: order.auto_fulfill_error || '',
+  };
+}
 
 /** Hodnoty sloupce „Sklad" v seznamu objednávek – filtr bere jen tyhle. */
 const SKLAD_STAVY = ['odeslano', 'ceka', 'blokovano', 'neplati'];
@@ -98,7 +123,8 @@ function verifyApiKey(request) {
 //
 // Podání balíku u Zásilkovny se přestěhovalo do src/expedice.js – potřebuje ho
 // i ranní expedice, protože u převodu vzniká zásilka až přepnutím na
-// „Vyřízena", takže zaplacená objednávka ráno štítek nemá.
+// „Vyřízena", takže zaplacená objednávka ráno štítek nemá. Volá ho odtamtud
+// i vyřízení objednávky (src/vyrizeni-objednavky.js).
 
 async function getToneracekShopId(sql) {
   const rows = await sql`SELECT id FROM shops WHERE slug = 'toneracek' LIMIT 1`;
@@ -905,6 +931,7 @@ export default async function toneracekRoutes(fastify) {
       sentBy: sentBy ? `${sentBy.first_name} ${sentBy.last_name}`.trim() : null,
       rucneOdeslano: Boolean(order.warehouse_sent_by) || beh?.kind === 'rucni',
       expedice: expedice || null,
+      sledovani: sledovaniZasilky(order, { maFakturu: Boolean(invoice) }),
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -947,84 +974,19 @@ export default async function toneracekRoutes(fastify) {
     `;
     if (!order) return reply.code(404).send('Objednávka nenalezena');
 
-    // ── Automatické vystavení faktury při přepnutí na "Vyřízena" ──
-    if (status === 'Vyřízena') {
-      const [existingInvoice] = await sql`SELECT id FROM accounting_invoices WHERE order_id = ${order.id} AND type = 'issued' LIMIT 1`;
-      if (!existingInvoice) {
-        const isTransfer = order.payment_method === 'Bankovní převod';
-        const [proforma] = await sql`SELECT * FROM accounting_invoices WHERE order_id = ${order.id} AND type = 'proforma' LIMIT 1`;
-        if (isTransfer && (!proforma || proforma.status !== 'Zaplacena')) {
-          return reply.redirect(`/ucetnictvi/objednavky/${order.id}?error=proforma-nezaplacena`);
-        }
-
-        /*
-         * Teprve tady je jisté, že jsou peníze na účtu – u převodu to hlídá
-         * kontrola zálohovky o pár řádků výš, u karty Stripe webhook, který
-         * balík podal už dřív. Proto se zásilka zakládá až v tuhle chvíli.
-         *
-         * Musí to být PŘED sestavením e-mailu s fakturou: ten nese sledovací
-         * číslo, a to do téhle chvíle u převodu neexistovalo.
-         */
-        if (!order.tracking_number) {
-          await pozadejEshopOPodaniBaliku(fastify.log, await brandForShopId(order.shop_id), order);
-          const [cerstva] = await sql`SELECT tracking_number FROM shop_orders WHERE id = ${order.id}`;
-          if (cerstva?.tracking_number) order.tracking_number = cerstva.tracking_number;
-        }
-
-        try {
-          const { generateInvoiceForOrder, calcVatSummary } = await import('./invoices.js');
-          const { renderInvoicePdf } = await import('../pdf.js');
-          const { sendInvoiceEmail } = await import('../email.js');
-
-          const invoice = await generateInvoiceForOrder(sql, order, { fromProforma: isTransfer ? proforma : null });
-          fastify.log.info({ invoiceId: invoice.id, number: invoice.number }, 'Auto-faktura vygenerována');
-
-          if (order.email) {
-            const items = await sql`SELECT * FROM accounting_invoice_items WHERE invoice_id = ${invoice.id}`;
-            const [company] = await sql`SELECT * FROM company_settings LIMIT 1`;
-            const issuer = company || {};
-
-            // Táž chyba jako u zálohovky: bez klíče `total` tiskla šablona
-            // v rekapitulaci DPH "NaN Kč".
-            const vatSummary = calcVatSummary(items);
-
-            // Tracking je k dispozici: u karty ho zapsal Stripe webhook,
-            // u dobírky založení objednávky a u převodu ho pár řádků výš
-            // dožádal pozadejEshopOPodaniBaliku(). Jde ven jedním e-mailem
-            // spolu s fakturou.
-            // Bez brandu by tenhle e-mail – nejdůležitější zpráva celé
-            // objednávky – odešel jako SEIL s.r.o. <noreply@seil.cz>, tedy
-            // od firmy, o které zákazník e-shopu nikdy neslyšel.
-            const brand = await brandForShopId(order.shop_id);
-            // Karta a převod jsou v tuhle chvíli zaplacené a doklad nevyzývá
-            // k další platbě. Dobírka ne: zákazník platí až při převzetí,
-            // takže razítko ZAPLACENO by u nevyzvednuté zásilky lhalo – PDF
-            // místo něj i místo čísla účtu napíše, že se platí dobírkou.
-            const uhrada = zobrazeniUhrady({ invoice, paymentMethod: order.payment_method });
-            const pdfBuffer = await renderInvoicePdf({
-              invoice, items, issuer, vatSummary, brand,
-              paid: uhrada.zaplaceno, paymentMethod: order.payment_method,
-            });
-            // Vyřízená objednávka je vždycky zároveň předaná dopravci, takže
-            // je to jedna zpráva, ne dvě varianty. Sledovací číslo tu bývá
-            // (e-shop ho pošle hned po podání zásilky), ale když chybí,
-            // zbytek e-mailu dává smysl i bez něj.
-            await sendInvoiceEmail({
-              invoice, issuer, brand, email: order.email, pdfBuffer,
-              paid: uhrada.zaplaceno, paymentMethod: order.payment_method,
-              trackingNumber: order.tracking_number || undefined,
-              subject: `Objednávka #${order.order_number} vyřízena a předána dopravci`,
-              intro: `Vaše objednávka č. <strong>${order.order_number}</strong> byla vyřízena a předána dopravci.<br>V příloze naleznete fakturu${order.tracking_number ? ', níže sledovací číslo zásilky' : ''}.${uhrada.dobirka ? '<br>Částku zaplatíte při převzetí zásilky.' : ''}`,
-            });
-            fastify.log.info({ email: order.email, tracking: order.tracking_number || null }, 'Email s fakturou odeslán');
-          }
-        } catch (err) {
-          fastify.log.error({ err }, 'Chyba auto-generace faktury/emailu při vyřízení objednávky');
-        }
+    // ── Vyřízení: faktura, e-mail s ní zákazníkovi a stav ──
+    //
+    // Totéž dělá sledování zásilek, když Zásilkovna převezme balík
+    // (src/sledovani-zasilek.js). Společný kód i zámek proti dvojí faktuře
+    // jsou v src/vyrizeni-objednavky.js.
+    if (status === VYRIZENA) {
+      const { vysledek } = await vyridObjednavku(sql, fastify.log, order.id);
+      if (vysledek === 'proforma-nezaplacena') {
+        return reply.redirect(`/ucetnictvi/objednavky/${order.id}?error=proforma-nezaplacena`);
       }
+    } else {
+      await sql`UPDATE shop_orders SET status = ${status}, modified_at = NOW() WHERE id = ${order.id}`;
     }
-
-    await sql`UPDATE shop_orders SET status = ${status}, modified_at = NOW() WHERE id = ${order.id}`;
 
     // Zákazníka o stavu vyrozumí e-mail jen u storna.
     //

@@ -260,12 +260,12 @@ export async function checkOverdueInvoices() {
 
 // ── Lhůta pro daňový doklad ───────────────────────────────────
 //
-// Faktura k objednávce vzniká jen ručním přepnutím na „Vyřízena“. Zaplacená
-// objednávka, kterou nikdo nevyřídí, tak zůstane bez daňového dokladu, ačkoli
-// povinnost přiznat daň vznikla dnem přijetí úplaty a doklad se má vystavit
-// do 15 dnů (§ 28 odst. 8 ZDPH). Totéž dobírka: ranní expedice ji pošle do
-// skladu sama, zásilka se doručí, a když ji nikdo nevyřídí, doklad nevznikne
-// nikdy. Upozorní se, když lhůta běží deset dní a víc – ať zbude pět dní.
+// Faktura k objednávce vzniká přepnutím na „Vyřízena“ – ručně, nebo samo,
+// když Zásilkovna převezme zásilku odeslanou do skladu (src/sledovani-zasilek.js,
+// sleduje ji ale jen SLEDOVAT_DNI dní). Zaplacená objednávka, kterou nikdo
+// nevyřídí, tak může zůstat bez daňového dokladu, ačkoli povinnost přiznat daň
+// vznikla dnem přijetí úplaty a doklad se má vystavit do 15 dnů (§ 28 odst. 8
+// ZDPH). Totéž dobírka, jejíž zásilku Zásilkovna nikdy nenahlásí jako převzatou. Upozorní se, když lhůta běží deset dní a víc – ať zbude pět dní.
 //
 // Jednou za pražský den a až ráno: klíčem je datum, ne 23h cooldown jako
 // u splatnosti, který čas odeslání každý den posune o hodinu a časem ho
