@@ -78,7 +78,9 @@ const VYCHOZI_ESHOP = 'toneracek';
 
 /** Co se stalo, řečí obsluhy. Používá UI i push. */
 export const DUVODY_POZASTAVENI = {
-  'bez-vydejniho-mista': 'objednávka nemá výdejní místo, balík nelze podat – vyřiďte ji ručně a označte',
+  // Každá objednávka jde dopravcem (Zásilkovna), osobní odběr e-shop nemá –
+  // chybějící výdejní místo je chyba v datech, ne druh doručení.
+  'bez-vydejniho-mista': 'objednávka nemá výdejní místo Zásilkovny, balík nelze podat – zkontrolujte objednávku v e-shopu',
   'balik-nepodan': 'e-shop balík nepodal (Zásilkovna nebo e-shop neodpověděl), zkusí se znovu',
   'stitek-nestazen': 'štítek se nepodařilo stáhnout ze Zásilkovny, zkusí se znovu',
   'neplatne-cislo-zasilky': 'číslo zásilky není platné číslo Zásilkovny',
@@ -335,10 +337,16 @@ export function objednavkySeStavemSkladu(sql, shop, where) {
     ${where}`;
 }
 
-export async function najdiObjednavkyKExpedici(sql, shop) {
+/**
+ * S `orderId` jen ta jedna objednávka (tlačítko „Odeslat do skladu“ na
+ * detailu) – a jen když by šla i ráno. Ruční odeslání tedy nepošle skladu
+ * nic, co by automat zadržel jako nezaplacené.
+ */
+export async function najdiObjednavkyKExpedici(sql, shop, { orderId = null } = {}) {
+  const jedna = orderId ? sql`AND o.id = ${orderId}` : sql``;
   return sql`
     SELECT * FROM (${
-      objednavkySeStavemSkladu(sql, shop, sql`WHERE ${podminkaKExpedici(sql, shop)}`)
+      objednavkySeStavemSkladu(sql, shop, sql`WHERE ${podminkaKExpedici(sql, shop)} ${jedna}`)
     }) x ORDER BY x.created_at`;
 }
 
@@ -443,8 +451,11 @@ export async function webhookSecretEshopu(shopId, log, znacka = null) {
  * Zabere řádek běhu. U automatického běhu je `ON CONFLICT DO NOTHING` zámek
  * pro oba částečné indexy naráz: prázdný výsledek znamená „dnes už běželo“
  * nebo „něco právě běží“ a volající nemá co dělat.
+ *
+ * `orderId` jen u ručního běhu z detailu objednávky. Zámek „jeden rozběhnutý
+ * běh na e-shop“ platí i pro něj, takže se nepotká s ranním během.
  */
-export async function zalozBeh(sql, { shop, kind = 'auto', runDate, userId = null }) {
+export async function zalozBeh(sql, { shop, kind = 'auto', runDate, userId = null, orderId = null }) {
   try {
     if (kind === 'auto') {
       const [row] = await sql`
@@ -456,8 +467,8 @@ export async function zalozBeh(sql, { shop, kind = 'auto', runDate, userId = nul
     }
 
     const [row] = await sql`
-      INSERT INTO warehouse_dispatches (shop_id, kind, run_date, status, attempt, recipient, started_by)
-      VALUES (${shop.id}, 'rucni', ${runDate}, 'probiha', 1, ${shop.warehouse_email}, ${userId})
+      INSERT INTO warehouse_dispatches (shop_id, kind, run_date, status, attempt, recipient, started_by, order_id)
+      VALUES (${shop.id}, 'rucni', ${runDate}, 'probiha', 1, ${shop.warehouse_email}, ${userId}, ${orderId})
       RETURNING *`;
     return row;
   } catch (err) {
@@ -508,11 +519,16 @@ export async function dokonciBeh(sql, dispatch) {
   return row ?? null;
 }
 
-/** Od kdy se sbírá – začátek posledního doběhlého běhu, jinak nic. */
+/**
+ * Od kdy se sbírá – začátek posledního doběhlého běhu, jinak nic. Odeslání
+ * jedné objednávky z detailu se nepočítá: ostatní zaplacené objednávky
+ * zůstaly ležet a patří do období příštího běhu.
+ */
 async function zacatekObdobi(sql, shop, dispatch) {
   const [row] = await sql`
     SELECT started_at FROM warehouse_dispatches
     WHERE shop_id = ${shop.id} AND status IN ('odeslano', 'prazdno') AND id <> ${dispatch.id}
+      AND order_id IS NULL
     ORDER BY started_at DESC LIMIT 1`;
   return row?.started_at ?? null;
 }
@@ -580,7 +596,13 @@ export async function spustExpedici(sql, log, { shop, dispatch }) {
 }
 
 async function provedExpedici(sql, log, { shop, dispatch }) {
-  const objednavky = await najdiObjednavkyKExpedici(sql, shop);
+  // Jedna objednávka z detailu: obsluha výsledek vidí hned na stránce, push
+  // ostatním by jen bzučel – a zapsaný do notification_log by na týden umlčel
+  // ten ranní, kdyby objednávka zůstala zadržená.
+  const jedna = Boolean(dispatch.order_id);
+  const oznam = (pozastavene) => (jedna ? null : oznamPozastavene(sql, pozastavene, log, shop));
+
+  const objednavky = await najdiObjednavkyKExpedici(sql, shop, { orderId: dispatch.order_id });
 
   if (!objednavky.length) {
     await sql`
@@ -664,14 +686,14 @@ async function provedExpedici(sql, log, { shop, dispatch }) {
         SET status = 'chyba', finished_at = NOW(), order_count = 0, held_count = ${pozastavene.length},
             error = ${`Žádnou zásilku se nepodařilo připravit, zadržených objednávek: ${pozastavene.length}`}
         WHERE id = ${dispatch.id}`;
-      await oznamPozastavene(sql, pozastavene, log, shop);
+      await oznam(pozastavene);
       return { status: 'chyba', orderCount: 0, heldCount: pozastavene.length };
     }
     await sql`
       UPDATE warehouse_dispatches
       SET status = 'prazdno', finished_at = NOW(), order_count = 0, held_count = ${pozastavene.length}
       WHERE id = ${dispatch.id}`;
-    await oznamPozastavene(sql, pozastavene, log, shop);
+    await oznam(pozastavene);
     return { status: 'prazdno', orderCount: 0, heldCount: pozastavene.length };
   }
 
@@ -694,7 +716,8 @@ async function provedExpedici(sql, log, { shop, dispatch }) {
   // ── E-mail ──
   const polozky = await nactiPolozky(sql, ids);
   const skupiny = seskupPodleZasilek(kExpedici.map(x => x.order), polozky);
-  const obdobiOd = await zacatekObdobi(sql, shop, dispatch);
+  // Jedna objednávka nemá období – e-mail řekne „k 18. 11. 14:32“.
+  const obdobiOd = jedna ? null : await zacatekObdobi(sql, shop, dispatch);
   const [issuer] = await sql`SELECT * FROM company_settings LIMIT 1`;
   const { subject, html } = sestavEmail({
     shopName: shop.name, obdobiOd, obdobiDo: new Date(), skupiny,
@@ -729,7 +752,7 @@ async function provedExpedici(sql, log, { shop, dispatch }) {
   log?.info?.({ dispatchId: dispatch.id, zasilek: skupiny.length, zadrzeno: pozastavene.length, resendId },
     'Expedice do skladu odeslána');
 
-  await oznamPozastavene(sql, pozastavene, log, shop);
+  await oznam(pozastavene);
 
   return { status: 'odeslano', orderCount: ids.length, heldCount: pozastavene.length };
 }

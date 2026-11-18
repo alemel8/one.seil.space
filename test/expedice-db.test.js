@@ -15,8 +15,9 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import postgres from 'postgres';
 import {
-  ExpediceBeziError, najdiObjednavkyKExpedici, prevezmiBeh, zalozBeh,
+  ExpediceBeziError, najdiObjednavkyKExpedici, prevezmiBeh, spustExpedici, zalozBeh,
 } from '../src/expedice.js';
+import { closeAll } from '../src/db.js';
 
 const sql = postgres(process.env.DATABASE_URL, {
   ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false,
@@ -61,6 +62,8 @@ after(async () => {
   await sql`DELETE FROM shop_orders WHERE shop_id = ${shop.id}`;
   await sql`DELETE FROM shops WHERE id = ${shop.id}`;
   await sql.end();
+  // Běh expedice si bere sdílené spojení aplikace (identita e-shopu).
+  await closeAll();
 });
 
 describe('kdo patří do ranní expedice', () => {
@@ -135,5 +138,57 @@ describe('zámky běhu', () => {
     assert.equal(prvni.attempt, 2, 'pokus se počítá');
     assert.equal(await prevezmiBeh(sql, chybny), null, 'podruhé už není co zabrat');
     await sql`UPDATE warehouse_dispatches SET status = 'odeslano' WHERE id = ${chybny.id}`;
+  });
+});
+
+describe('odeslání jedné objednávky z detailu', () => {
+  test('vybere jen tu objednávku, a jen když by šla i ráno', async () => {
+    const zaplacena = await objednavka('JEDNA-ZAPLACENA');
+    const nezaplacena = await objednavka('JEDNA-NEZAPLACENA', { status: 'Přijata' });
+    const odeslana = await objednavka('JEDNA-ODESLANA');
+    await sql`UPDATE shop_orders SET warehouse_sent_at = NOW() WHERE id = ${odeslana}`;
+
+    const vybrane = await najdiObjednavkyKExpedici(sql, shop, { orderId: zaplacena });
+    assert.deepEqual(vybrane.map(o => o.id), [zaplacena], 'ostatní zaplacené tam být nesmějí');
+    assert.equal((await najdiObjednavkyKExpedici(sql, shop, { orderId: nezaplacena })).length, 0,
+      'nezaplacenou neodešle ani tlačítko');
+    assert.equal((await najdiObjednavkyKExpedici(sql, shop, { orderId: odeslana })).length, 0,
+      'odeslanou podruhé ne');
+  });
+
+  test('běh si objednávku pamatuje a nepotká se s ranním', async () => {
+    const id = await objednavka('JEDNA-ZAMEK');
+    const ranni = await zalozBeh(sql, { shop, kind: 'auto', runDate: '2026-09-08' });
+    await assert.rejects(
+      () => zalozBeh(sql, { shop, kind: 'rucni', runDate: '2026-09-08', orderId: id }),
+      ExpediceBeziError);
+    await sql`UPDATE warehouse_dispatches SET status = 'odeslano' WHERE id = ${ranni.id}`;
+
+    const beh = await zalozBeh(sql, { shop, kind: 'rucni', runDate: '2026-09-08', orderId: id });
+    assert.equal(beh.order_id, id);
+    await sql`UPDATE warehouse_dispatches SET status = 'chyba' WHERE id = ${beh.id}`;
+  });
+
+  test('zadržená objednávka: ostatních se nedotkne a push neposílá', async () => {
+    // Bez výdejního místa se zadrží dřív, než by se volal e-shop nebo Zásilkovna.
+    const id = await objednavka('JEDNA-BEZ-MISTA', { pickup_point_id: '' });
+    const beh = await zalozBeh(sql, { shop, kind: 'rucni', runDate: '2026-09-09', orderId: id });
+
+    const vysledek = await spustExpedici(sql, null, { shop, dispatch: beh });
+    assert.equal(vysledek.status, 'prazdno');
+    assert.equal(vysledek.heldCount, 1);
+
+    const [o] = await sql`SELECT warehouse_hold_reason, warehouse_sent_at FROM shop_orders WHERE id = ${id}`;
+    assert.equal(o.warehouse_hold_reason, 'bez-vydejniho-mista');
+    assert.equal(o.warehouse_sent_at, null);
+
+    const [{ n }] = await sql`
+      SELECT COUNT(*)::int AS n FROM shop_orders
+      WHERE shop_id = ${shop.id} AND warehouse_hold_reason <> ''`;
+    assert.equal(n, 1, 'zadržet se smí jen odesílaná objednávka');
+
+    const push = await sql`
+      SELECT 1 FROM notification_log WHERE event_type = 'expedice_blokovana' AND event_key = ${id}`;
+    assert.equal(push.length, 0, 'push by na týden umlčel ten ranní');
   });
 });

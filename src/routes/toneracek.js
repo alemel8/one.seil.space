@@ -5,7 +5,7 @@ import { sendPushToAll } from '../push.js';
 import { renderSeriesNumber } from '../series-format.js';
 import { fetchPacketLabelPdf } from '../packeta.js';
 import {
-  DUVODY_POZASTAVENI, ExpediceBeziError, objednavkySeStavemSkladu,
+  DUVODY_POZASTAVENI, ExpediceBeziError, najdiObjednavkyKExpedici, objednavkySeStavemSkladu,
   pozadejEshopOPodaniBaliku, prazskyCas, spustExpedici, zalozBeh,
 } from '../expedice.js';
 import { okamzikPlatbySql, zobrazeniUhrady } from '../danovy-doklad.js';
@@ -822,8 +822,12 @@ export default async function toneracekRoutes(fastify) {
       zachovat: ['q', 'status', 'sklad'],
       pevne: shop.slug === VYCHOZI_ESHOP ? {} : { eshop: shop.slug },
     });
+    // Druh běhu kvůli tooltipu ve sloupci Sklad: ranní, nebo ruční.
     const orders = await sql`
-      SELECT * FROM (${zaklad}) x ${skladWhere}
+      SELECT x.*, d.kind AS sklad_beh
+      FROM (${zaklad}) x
+      LEFT JOIN warehouse_dispatches d ON d.id = x.warehouse_dispatch_id
+      ${skladWhere}
       ORDER BY x.created_at DESC, x.id DESC
       LIMIT ${strany.naStranku} OFFSET ${strany.offset}
     `;
@@ -873,8 +877,22 @@ export default async function toneracekRoutes(fastify) {
     const items        = await sql`SELECT * FROM shop_order_items WHERE order_id = ${order.id} ORDER BY id`;
     const [invoice]    = await sql`SELECT id, number FROM accounting_invoices WHERE order_id = ${order.id} AND type = 'issued' LIMIT 1`;
     const [proforma]   = await sql`SELECT id, number, status FROM accounting_invoices WHERE order_id = ${order.id} AND type = 'proforma' LIMIT 1`;
-    const [sentBy]     = order.warehouse_sent_by
-      ? await sql`SELECT first_name, last_name FROM users WHERE id = ${order.warehouse_sent_by}`
+    // Běh, který objednávku skladu poslal: ranní, nebo ruční (tlačítko na
+    // detailu, „Odeslat expedici teď“). Kdo ji poslal ručně, je u běhu;
+    // `warehouse_sent_by` nesou jen staré značky bez odeslání.
+    const [beh]        = order.warehouse_dispatch_id
+      ? await sql`SELECT kind, started_by FROM warehouse_dispatches WHERE id = ${order.warehouse_dispatch_id}`
+      : [];
+    const sentById     = order.warehouse_sent_by ?? (beh?.kind === 'rucni' ? beh.started_by : null);
+    const [sentBy]     = sentById
+      ? await sql`SELECT first_name, last_name FROM users WHERE id = ${sentById}`
+      : [];
+    // Výsledek odeslání z detailu se čte z databáze, ne z URL, stejně jako
+    // banner v seznamu – sedí, i když požadavek spadl uprostřed běhu.
+    const [expedice]   = request.query.expedice
+      ? await sql`
+          SELECT * FROM warehouse_dispatches
+          WHERE id = ${parseInt(request.query.expedice, 10) || 0} AND order_id = ${order.id}`
       : [];
 
     return reply.view('pages/toneracek/order-detail.ejs', {
@@ -885,6 +903,8 @@ export default async function toneracekRoutes(fastify) {
       error: request.query.error || null, saved: request.query.saved === '1',
       duvody: DUVODY_POZASTAVENI,
       sentBy: sentBy ? `${sentBy.first_name} ${sentBy.last_name}`.trim() : null,
+      rucneOdeslano: Boolean(order.warehouse_sent_by) || beh?.kind === 'rucni',
+      expedice: expedice || null,
     }, { layout: 'layouts/base.ejs' });
   });
 
@@ -1067,32 +1087,57 @@ export default async function toneracekRoutes(fastify) {
     return reply.redirect(seznamObjednavek(shop, `expedice=${beh.id}`));
   });
 
-  // ── Admin: Ruční značka „sklad to má" ──────────────────────
+  // ── Admin: Odeslání jedné objednávky do skladu ─────────────
   //
-  // Pro objednávky předané skladu jinou cestou (telefon, osobní předání)
-  // a pro ty, které automat zadržel a obsluha je vyřídila sama.
+  // Tlačítko na detailu. Stejný běh jako ranní expedice (podání balíku,
+  // štítek, razítko před odesláním, e-mail skladu se skrytou kopií z e-shopu),
+  // jen s jedinou objednávkou. Nahradilo dřívější „Označit jako odeslané do
+  // skladu“, které jen zapsalo značku a skladu nic neposlalo.
+
+  fastify.post('/ucetnictvi/objednavky/:id/expedice', async (request, reply) => {
+    if (!request.user) return reply.redirect('/prihlasit');
+    const detail = `/ucetnictvi/objednavky/${encodeURIComponent(request.params.id)}`;
+
+    const shop = await shopObjednavky(sql, request.params.id);
+    if (!shop) return reply.code(404).send('Objednávka nenalezena');
+    if (!shop.warehouse_email) return reply.redirect(`${detail}?error=sklad-email`);
+
+    // Předběžná kontrola, ať po kliknutí na už odeslanou nebo nezaplacenou
+    // objednávku nevzniká v historii prázdný běh. Rozhoduje stejně běh sám.
+    const [lze] = await najdiObjednavkyKExpedici(sql, shop, { orderId: request.params.id });
+    if (!lze) return reply.redirect(`${detail}?error=sklad-nelze`);
+
+    let beh;
+    try {
+      beh = await zalozBeh(sql, {
+        shop, kind: 'rucni', runDate: prazskyCas().datum, userId: request.user.id,
+        orderId: request.params.id,
+      });
+    } catch (err) {
+      if (err instanceof ExpediceBeziError) return reply.redirect(`${detail}?error=expedice-bezi`);
+      throw err;
+    }
+
+    await spustExpedici(sql, fastify.log, { shop, dispatch: beh });
+    return reply.redirect(`${detail}?expedice=${beh.id}`);
+  });
+
+  // ── Admin: Zrušení značky „sklad to má" ────────────────────
+  //
+  // Objednávka se znovu zařadí do příští ranní expedice. Ruční značku bez
+  // odeslání (warehouse_sent_by) už UI nezakládá, staré objednávky ji nesou dál.
 
   fastify.post('/ucetnictvi/objednavky/:id/sklad', async (request, reply) => {
     if (!request.user) return reply.redirect('/prihlasit');
+    if ((request.body?.akce ?? '') !== 'zrusit') return reply.code(400).send('Neznámá akce');
     // Bez filtru na e-shop: id objednávky je jednoznačné a značka patří
     // objednávce kteréhokoli e-shopu.
-
-    if ((request.body?.akce ?? '') === 'zrusit') {
-      await sql`
-        UPDATE shop_orders
-        SET warehouse_sent_at = NULL, warehouse_sent_by = NULL, warehouse_dispatch_id = NULL,
-            modified_at = NOW()
-        WHERE id = ${request.params.id}
-      `;
-    } else {
-      // Podmínka na NULL drží čas skutečného odeslání – opakovaný klik ho nepřepíše.
-      await sql`
-        UPDATE shop_orders
-        SET warehouse_sent_at = NOW(), warehouse_sent_by = ${request.user.id},
-            warehouse_dispatch_id = NULL, warehouse_hold_reason = '', modified_at = NOW()
-        WHERE id = ${request.params.id} AND warehouse_sent_at IS NULL
-      `;
-    }
+    await sql`
+      UPDATE shop_orders
+      SET warehouse_sent_at = NULL, warehouse_sent_by = NULL, warehouse_dispatch_id = NULL,
+          modified_at = NOW()
+      WHERE id = ${request.params.id}
+    `;
     return reply.redirect(`/ucetnictvi/objednavky/${request.params.id}?saved=1`);
   });
 

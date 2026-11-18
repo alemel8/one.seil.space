@@ -20,7 +20,7 @@
   let skladText;
   if (order.sklad_stav === 'odeslano') {
     skladText = 'Odesláno do skladu ' + new Date(order.warehouse_sent_at).toLocaleString('cs-CZ')
-      + (order.warehouse_dispatch_id ? ' ranní expedicí' : (sentBy ? ' ručně – ' + sentBy : ' ručně'));
+      + (order.warehouse_dispatch_id && !rucneOdeslano ? ' ranní expedicí' : (sentBy ? ' ručně – ' + sentBy : ' ručně'));
   } else if (order.sklad_stav === 'blokovano') {
     skladText = 'Nešlo do skladu: ' + (duvody[order.warehouse_hold_reason] || order.warehouse_hold_reason);
   } else if (order.sklad_stav === 'ceka') {
@@ -54,6 +54,40 @@
 
 <% if (typeof saved !== 'undefined' && saved) { %>
 <div class="hlaska hlaska-ok">✓ Uloženo</div>
+<% } %>
+
+<%# Výsledek „Odeslat do skladu“ – čte se z databáze, ne z URL. %>
+<% if (expedice) { %>
+  <% if (expedice.status === 'odeslano') { %>
+    <div class="hlaska hlaska-ok">✓ Odesláno do skladu na <%= expedice.recipient %>.</div>
+  <% } else if (expedice.status === 'probiha') { %>
+    <div class="hlaska hlaska-info">Odesílání do skladu právě běží…</div>
+  <% } else if (expedice.held_count > 0) { %>
+    <div class="hlaska hlaska-chyba">
+      Do skladu nic neodešlo: <%= duvody[order.warehouse_hold_reason] || expedice.error || 'objednávku se nepodařilo připravit' %>
+    </div>
+  <% } else if (expedice.status === 'chyba') { %>
+    <div class="hlaska hlaska-chyba">
+      Do skladu se nepodařilo odeslat: <%= expedice.error %><br>
+      Objednávka zůstává v ranní expedici – zkuste to znovu, nebo počkejte na ranní běh.
+    </div>
+  <% } else { %>
+    <div class="hlaska hlaska-info">Nic se neodeslalo – objednávka už ve skladu je, nebo do něj zatím nepatří.</div>
+  <% } %>
+<% } %>
+
+<% if (error === 'expedice-bezi') { %>
+<div class="hlaska hlaska-chyba">
+  Expedice do skladu právě běží – spustil ji automat nebo jiný uživatel. Zkuste to za chvíli.
+</div>
+<% } else if (error === 'sklad-email') { %>
+<div class="hlaska hlaska-chyba">
+  E-shop nemá vyplněnou adresu skladu – doplňte ji v <a href="/nastaveni/eshopy/<%= shop.id %>?tab=expedice">Nastavení → Eshopy</a>.
+</div>
+<% } else if (error === 'sklad-nelze') { %>
+<div class="hlaska hlaska-chyba">
+  Objednávku nejde odeslat do skladu – už tam je, nebo není zaplacená.
+</div>
 <% } %>
 
 <%# Vlastní pravidla: pravý sloupec s pevnou šířkou by na úzkém okně vytlačil stránku za okraj
@@ -186,12 +220,15 @@
                 <input type="hidden" name="akce" value="zrusit">
                 <button type="submit" class="btn btn-ghost btn-sm">Zrušit označení</button>
               </form>
-            <% } else { %>
-              <form method="post" action="/ucetnictvi/objednavky/<%= order.id %>/sklad" style="display:inline;">
-                <input type="hidden" name="akce" value="oznacit">
-                <button type="submit" class="btn btn-outline btn-sm"
-                        title="Použijte, když jste objednávku předali skladu jinak – v ranním e-mailu se pak neobjeví.">
-                  Označit jako odeslané do skladu
+            <% } else if (order.sklad_stav === 'ceka' || order.sklad_stav === 'blokovano') { %>
+              <%# Jen to, co by šlo i ráno: nezaplacenou objednávku skladu nepošle ani tlačítko. %>
+              <form method="post" action="/ucetnictvi/objednavky/<%= order.id %>/expedice" style="display:inline;"
+                    onsubmit="if (!confirm('Odešle skladu hned e-mail s touto objednávkou a štítkem Zásilkovny. Pokračovat?')) return false; this.querySelector('button').disabled = true; return true;">
+                <button type="submit" class="btn btn-outline btn-sm" <%= shop.warehouse_email ? '' : 'disabled' %>
+                        title="<%= shop.warehouse_email
+                          ? 'Pošle skladu hned e-mail s touto objednávkou a štítkem na ' + shop.warehouse_email + ', stejně jako ranní expedice.'
+                          : 'E-shop nemá vyplněnou adresu skladu – doplňte ji v Nastavení → Eshopy' %>">
+                  Odeslat do skladu
                 </button>
               </form>
             <% } %>

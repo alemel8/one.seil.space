@@ -207,11 +207,18 @@ describe('detail a akce berou e-shop z objednávky', () => {
     assert.equal(o.status, 'Stornována');
   });
 
-  test('značka „sklad to má“ a poznámka u objednávky jiného e-shopu', async () => {
-    assert.equal((await post(`/ucetnictvi/objednavky/${ctx.sklad}/sklad`, { akce: 'oznacit' })).status, 302);
-    let [o] = await sql`SELECT warehouse_sent_at, warehouse_sent_by FROM shop_orders WHERE id = ${ctx.sklad}`;
-    assert.ok(o.warehouse_sent_at);
-    assert.equal(o.warehouse_sent_by, ctx.userId);
+  test('sklad a poznámka u objednávky jiného e-shopu', async () => {
+    // Značku bez odeslání nahradilo tlačítko „Odeslat do skladu“.
+    assert.equal((await post(`/ucetnictvi/objednavky/${ctx.sklad}/sklad`, { akce: 'oznacit' })).status, 400);
+    let [o] = await sql`SELECT warehouse_sent_at FROM shop_orders WHERE id = ${ctx.sklad}`;
+    assert.equal(o.warehouse_sent_at, null);
+
+    // E-shop bez adresy skladu: odeslání z detailu skončí hláškou, ne během.
+    const odeslat = await post(`/ucetnictvi/objednavky/${ctx.sklad}/expedice`);
+    assert.equal(odeslat.headers.get('location'), `/ucetnictvi/objednavky/${ctx.sklad}?error=sklad-email`);
+    assert.equal((await post('/ucetnictvi/objednavky/NEEXISTUJE-ADM/expedice')).status, 404);
+
+    await sql`UPDATE shop_orders SET warehouse_sent_at = NOW() WHERE id = ${ctx.sklad}`;
     await post(`/ucetnictvi/objednavky/${ctx.sklad}/sklad`, { akce: 'zrusit' });
     [o] = await sql`SELECT warehouse_sent_at FROM shop_orders WHERE id = ${ctx.sklad}`;
     assert.equal(o.warehouse_sent_at, null);

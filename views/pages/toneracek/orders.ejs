@@ -15,7 +15,7 @@
   function skladPopis(o) {
     if (o.sklad_stav === 'odeslano') {
       return 'Odesláno do skladu ' + fmtCas(o.warehouse_sent_at)
-           + (o.warehouse_dispatch_id ? ' (ranní expedice)' : ' (ručně)');
+           + (o.warehouse_dispatch_id && o.sklad_beh !== 'rucni' ? ' (ranní expedice)' : ' (ručně)');
     }
     if (o.sklad_stav === 'blokovano') {
       return 'Nešlo do skladu: ' + (duvody[o.warehouse_hold_reason] || o.warehouse_hold_reason);
