@@ -7,13 +7,14 @@ import { fetchPacketLabelPdf, jePrevzataDopravcem, popisStavuZasilky } from '../
 import { SLEDOVAT_DNI } from '../sledovani-zasilek.js';
 import {
   DUVODY_POZASTAVENI, ExpediceBeziError, najdiObjednavkyKExpedici, objednavkySeStavemSkladu,
-  prazskyCas, spustExpedici, zalozBeh,
+  objednavkyVsechEshopuSeStavemSkladu, prazskyCas, spustExpedici, zalozBeh,
 } from '../expedice.js';
 import { okamzikPlatbySql } from '../danovy-doklad.js';
 import { VYRIZENA, vyridObjednavku } from '../vyrizeni-objednavky.js';
 import { ceskeDatum } from '../prazsky-cas.js';
 import { atribuceZTela, nakupniCenaZPolozky } from '../atribuce-objednavky.js';
 import { parametr, strankovani } from '../strankovani.js';
+import { sVzhledem } from '../eshop-vzhled.js';
 
 const PRAZSKY_CAS = new Intl.DateTimeFormat('cs-CZ', {
   timeZone: 'Europe/Prague', day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -133,13 +134,14 @@ async function getToneracekShopId(sql) {
 
 // ── Admin: který e-shop ───────────────────────────────────────
 //
-// Seznam objednávek je po e-shopech (?eshop=<slug>), bez parametru ukazuje
-// Toneráček přesně jako dřív. Detail a akce nad objednávkou berou e-shop
-// z objednávky samé: všechny odkazy (push o nové objednávce, detail faktury,
-// upozornění na chybějící doklad, CRM) míří na /ucetnictvi/objednavky/:id bez
-// e-shopu a musí fungovat pro Toneráček i pro Dílnu.
+// Seznam objednávek bez ?eshop= je celkový přehled všech e-shopů (logo
+// e-shopu v prvním sloupci), ?eshop=<slug> ukáže jeden e-shop. Detail
+// a akce nad objednávkou berou e-shop z objednávky samé: všechny odkazy
+// (push o nové objednávce, detail faktury, upozornění na chybějící doklad,
+// CRM) míří na /ucetnictvi/objednavky/:id bez e-shopu a musí fungovat pro
+// Toneráček i pro Dílnu.
 
-/** E-shop, který seznam objednávek ukáže bez ?eshop=. */
+/** E-shop, který bere ruční expedice bez shop_id (starší formuláře). */
 const VYCHOZI_ESHOP = 'toneracek';
 
 /** Celý řádek e-shopu – nastavení expedice i stav skladu ho potřebují. */
@@ -158,11 +160,11 @@ async function shopObjednavky(sql, orderId) {
 }
 
 /**
- * Parametr e-shopu do odkazů seznamu. U výchozího e-shopu prázdný, ať
- * dnešní adresy (záložky, odkazy v pushích) zůstanou, jak jsou.
+ * Parametr e-shopu do odkazů seznamu. Jde do adresy vždy, i u Toneráčku:
+ * seznam bez parametru je celkový přehled všech e-shopů.
  */
 function eshopParam(shop) {
-  return shop && shop.slug !== VYCHOZI_ESHOP ? `eshop=${encodeURIComponent(shop.slug)}` : '';
+  return shop ? `eshop=${encodeURIComponent(shop.slug)}` : '';
 }
 
 /** Adresa seznamu objednávek e-shopu s dalšími parametry. */
@@ -806,25 +808,25 @@ export default async function toneracekRoutes(fastify) {
     const skladZadany  = parametr(request.query.sklad);
     const skladFilter  = SKLAD_STAVY.includes(skladZadany) ? skladZadany : '';
 
-    const slug = (parametr(request.query.eshop) || VYCHOZI_ESHOP).toLowerCase();
-    const shop = await shopPodleSlugu(sql, slug);
-    if (!shop) {
-      return slug === VYCHOZI_ESHOP
-        ? reply.code(500).send('Toneráček shop není nakonfigurován')
-        : reply.code(404).send('E-shop nenalezen');
-    }
-    // Přepínač e-shopů. S jediným e-shopem se nevykreslí a stránka vypadá
-    // jako dřív.
-    const eshopy = await sql`
-      SELECT id, slug, name FROM shops
-      WHERE active = TRUE OR id = ${shop.id}
-      ORDER BY (slug = ${VYCHOZI_ESHOP}) DESC, id
-    `;
+    // Bez ?eshop= celkový přehled (shop = null), jinak jeden e-shop.
+    const slug = parametr(request.query.eshop).toLowerCase();
+    const shop = slug ? await shopPodleSlugu(sql, slug) : null;
+    if (slug && !shop) return reply.code(404).send('E-shop nenalezen');
+
+    // Všechny e-shopy kvůli logu u objednávky; dlaždice jen aktivní a zvolený.
+    const vsechnyEshopy = (await sql`
+      SELECT id, slug, name, url, active, logo_mark_url, color_primary, warehouse_dispatch_since
+      FROM shops ORDER BY (slug = ${VYCHOZI_ESHOP}) DESC, id
+    `).map(sVzhledem);
+    const eshopPodleId = Object.fromEntries(vsechnyEshopy.map(e => [e.id, e]));
+    const eshopy = vsechnyEshopy.filter(e => e.active || e.id === shop?.id);
     // Toneráček si nechává dosavadní nadpis („Objednávky Toneráček“, ne
     // název e-shopu „Toneráček.cz“), ostatní e-shopy se jmenují podle sebe.
-    const nadpis = shop.slug === VYCHOZI_ESHOP ? 'Objednávky Toneráček' : `Objednávky ${shop.name}`;
+    const nadpis = !shop ? 'Objednávky'
+      : shop.slug === VYCHOZI_ESHOP ? 'Objednávky Toneráček' : `Objednávky ${shop.name}`;
 
-    const conditions = [sql`o.shop_id = ${shop.id}`];
+    const conditions = [];
+    if (shop) conditions.push(sql`o.shop_id = ${shop.id}`);
     if (q) conditions.push(sql`(
       o.order_number ILIKE ${'%'+q+'%'} OR
       o.first_name ILIKE ${'%'+q+'%'} OR o.last_name ILIKE ${'%'+q+'%'} OR
@@ -833,20 +835,20 @@ export default async function toneracekRoutes(fastify) {
     )`);
     if (statusFilter) conditions.push(sql`o.status = ${statusFilter}`);
 
-    const where  = sql`WHERE ${conditions.reduce((a, b) => sql`${a} AND ${b}`)}`;
-    const zaklad = objednavkySeStavemSkladu(sql, shop, where);
+    const where  = conditions.length ? sql`WHERE ${conditions.reduce((a, b) => sql`${a} AND ${b}`)}` : sql``;
+    // Stav skladu podle e-shopu každé objednávky – stejná podmínka jako ranní expedice.
+    const zaklad = objednavkyVsechEshopuSeStavemSkladu(sql, where);
     const skladWhere = skladFilter
       ? sql`WHERE x.sklad_stav = ${skladFilter}`
       : sql``;
 
     const [{ count }] = await sql`SELECT COUNT(*)::int AS count FROM (${zaklad}) x ${skladWhere}`;
-    // E-shop z routy, ne z adresy: Toneráček jde bez parametru jako v seznamObjednavek().
     const strany = strankovani({
       cesta: '/ucetnictvi/objednavky',
       query: { ...request.query, sklad: skladFilter },
       celkem: count,
       zachovat: ['q', 'status', 'sklad'],
-      pevne: shop.slug === VYCHOZI_ESHOP ? {} : { eshop: shop.slug },
+      pevne: shop ? { eshop: shop.slug } : {},
     });
     // Druh běhu kvůli tooltipu ve sloupci Sklad: ranní, nebo ruční.
     const orders = await sql`
@@ -857,21 +859,43 @@ export default async function toneracekRoutes(fastify) {
       ORDER BY x.created_at DESC, x.id DESC
       LIMIT ${strany.naStranku} OFFSET ${strany.offset}
     `;
-    const statusCounts = await sql`
-      SELECT status, COUNT(*)::int AS n FROM shop_orders WHERE shop_id = ${shop.id} GROUP BY status
-      ORDER BY array_position(${ORDER_STATUSES}::text[], status) NULLS LAST, status
-    `;
-    // Počty pro chipy se počítají nad celým e-shopem, ne nad vyfiltrovaným
-    // výběrem – jinak by po kliknutí na „nešlo do skladu" ostatní chipy zmizely.
-    const skladCounts = await sql`
-      SELECT x.sklad_stav, COUNT(*)::int AS n
-      FROM (${objednavkySeStavemSkladu(sql, shop, sql`WHERE o.shop_id = ${shop.id}`)}) x
-      GROUP BY x.sklad_stav
-    `;
+
+    // Počty pro chipy i dlaždice jedním průchodem po e-shopech. Chipy se
+    // počítají nad celým výběrem (e-shop, nebo všechny), ne nad vyfiltrovaným –
+    // jinak by po kliknutí na „nešlo do skladu" ostatní chipy zmizely.
+    const [poStavu, poSkladu] = await Promise.all([
+      sql`
+        SELECT shop_id, status, COUNT(*)::int AS n,
+               COUNT(*) FILTER (
+                 WHERE created_at >= (date_trunc('day', now() AT TIME ZONE 'Europe/Prague') AT TIME ZONE 'Europe/Prague')
+               )::int AS dnes
+        FROM shop_orders GROUP BY shop_id, status`,
+      sql`
+        SELECT x.shop_id, x.sklad_stav, COUNT(*)::int AS n
+        FROM (${objednavkyVsechEshopuSeStavemSkladu(sql, sql``)}) x
+        GROUP BY x.shop_id, x.sklad_stav`,
+    ]);
+    const vVyberu = (r) => !shop || r.shop_id === shop.id;
+    const statusMapa = new Map();
+    for (const r of poStavu.filter(vVyberu)) statusMapa.set(r.status, (statusMapa.get(r.status) ?? 0) + r.n);
+    const poradi = (s) => { const i = ORDER_STATUSES.indexOf(s); return i < 0 ? ORDER_STATUSES.length : i; };
+    const statusCounts = [...statusMapa].map(([status, n]) => ({ status, n }))
+      .sort((a, b) => poradi(a.status) - poradi(b.status) || a.status.localeCompare(b.status));
+    const skladCounts = {};
+    for (const r of poSkladu.filter(vVyberu)) skladCounts[r.sklad_stav] = (skladCounts[r.sklad_stav] ?? 0) + r.n;
+
+    // Dlaždice: počet objednávek, dnešní a čekající na sklad po e-shopech.
+    const souhrnEshopu = (id) => ({
+      celkem: poStavu.filter(r => id == null || r.shop_id === id).reduce((s, r) => s + r.n, 0),
+      dnes: poStavu.filter(r => id == null || r.shop_id === id).reduce((s, r) => s + r.dnes, 0),
+      ceka: poSkladu.filter(r => (id == null || r.shop_id === id) && r.sklad_stav === 'ceka').reduce((s, r) => s + r.n, 0),
+      blokovano: poSkladu.filter(r => (id == null || r.shop_id === id) && r.sklad_stav === 'blokovano').reduce((s, r) => s + r.n, 0),
+    });
+    const souhrny = { celkem: souhrnEshopu(null), ...Object.fromEntries(eshopy.map(e => [e.id, souhrnEshopu(e.id)])) };
 
     // Výsledek ručního běhu se čte z databáze, ne z query parametru – takhle
     // banner sedí, i když požadavek spadl uprostřed expedice.
-    const [expedice] = request.query.expedice
+    const [expedice] = shop && request.query.expedice
       ? await sql`
           SELECT * FROM warehouse_dispatches
           WHERE id = ${parseInt(request.query.expedice, 10) || 0} AND shop_id = ${shop.id}`
@@ -879,12 +903,14 @@ export default async function toneracekRoutes(fastify) {
 
     return reply.view('pages/toneracek/orders.ejs', {
       pageTitle: nadpis, currentPath: '/ucetnictvi/objednavky',
-      user: request.user, orders, total: count, shop, eshopy, nadpis,
-      eshopQs: eshopParam(shop), vychoziEshop: VYCHOZI_ESHOP, strany,
-      q, statusFilter, skladFilter, statusCounts, ORDER_STATUSES,
-      skladCounts: Object.fromEntries(skladCounts.map(r => [r.sklad_stav, r.n])),
+      user: request.user, orders, total: count, shop: shop ? sVzhledem(shop) : null, eshopy, nadpis,
+      eshopPodleId, souhrny,
+      eshopQs: eshopParam(shop), strany,
+      q, statusFilter, skladFilter, statusCounts, ORDER_STATUSES, skladCounts,
       duvody: DUVODY_POZASTAVENI,
       expedice: expedice || null, error: request.query.error || null,
+      extraCss: '<link rel="stylesheet" href="/static/css/prehledy.css">',
+      extraJs: '<script src="/static/js/prehledy.js"></script>',
     }, { layout: 'layouts/base.ejs' });
   });
 

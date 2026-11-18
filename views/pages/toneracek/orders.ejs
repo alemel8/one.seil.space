@@ -25,7 +25,8 @@
            + (o.tracking_number ? '' : ' (zásilka se podá při expedici)');
     }
     if (o.status === 'Stornována') return 'Stornováno – do skladu nejde';
-    if (new Date(o.created_at) < new Date(shop.warehouse_dispatch_since)) {
+    const eshopObjednavky = eshopPodleId[o.shop_id] || shop;
+    if (eshopObjednavky && new Date(o.created_at) < new Date(eshopObjednavky.warehouse_dispatch_since)) {
       return 'Přijata před spuštěním expedice – sklad ji dostal ručně';
     }
     return 'Nezaplaceno – do skladu nejde';
@@ -44,8 +45,8 @@
   }
 
   // Parametr e-shopu jde do každého odkazu, ať filtr nepřeskočí na jiný
-  // e-shop. U výchozího (Toneráček) je prázdný a adresy zůstávají jako dřív.
-  // Stránkování si ho drží samo (strany, src/routes/toneracek.js).
+  // e-shop. U celkového přehledu je prázdný. Stránkování si ho drží samo
+  // (strany, src/routes/toneracek.js).
   const odkaz = (extra) => {
     const p = [eshopQs, extra].filter(Boolean);
     return '/ucetnictvi/objednavky' + (p.length ? '?' + p.join('&') : '');
@@ -56,16 +57,37 @@
   // Chip je odkaz na filtr, zvolený se pozná podle rámečku.
   const chipStyl = (aktivni) => 'display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;font-size:13px;font-weight:500;text-decoration:none;'
     + 'border:1px solid ' + (aktivni ? 'currentColor' : 'transparent') + ';';
+
+  // Dlaždice: celkový přehled a e-shopy. Číslo je počet objednávek, pod ním
+  // dnešní a ty, které čekají na sklad nebo do něj nešly.
+  const popisDlazdice = (x) => [
+    { text: 'dnes ' + x.dnes.toLocaleString('cs-CZ'), ton: x.dnes > 0 ? 'ok' : null },
+    ...(x.ceka ? [{ text: x.ceka.toLocaleString('cs-CZ') + ' čeká na sklad', ton: 'varovani' }] : []),
+    ...(x.blokovano ? [{ text: x.blokovano.toLocaleString('cs-CZ') + ' nešlo do skladu', ton: 'chyba' }] : []),
+  ];
+  const hodnotaDlazdice = (x) => ({
+    text: x.celkem.toLocaleString('cs-CZ'), cislo: x.celkem,
+    jednotka: x.celkem === 1 ? 'objednávka' : x.celkem >= 2 && x.celkem <= 4 ? 'objednávky' : 'objednávek',
+  });
+  const dlazdice = [
+    { href: '/ucetnictvi/objednavky', aktivni: !shop, eshop: null, nazev: 'Celkový přehled',
+      hodnota: hodnotaDlazdice(souhrny.celkem), popis: popisDlazdice(souhrny.celkem) },
+    ...eshopy.map(e => ({
+      href: '/ucetnictvi/objednavky?eshop=' + encodeURIComponent(e.slug), aktivni: Boolean(shop && e.id === shop.id),
+      eshop: e, nazev: e.name, hodnota: hodnotaDlazdice(souhrny[e.id]), popis: popisDlazdice(souhrny[e.id]),
+    })),
+  ];
 %>
 
 <div class="page-header">
   <div class="page-header-left">
     <h1><%= nadpis %></h1>
-    <p><%= total.toLocaleString('cs-CZ') %> <%= total === 1 ? 'objednávka' : nekolik ? 'objednávky' : 'objednávek' %> <%= filtrAktivni ? (nekolik ? 'odpovídají' : 'odpovídá') + ' filtru' : 'celkem' %></p>
+    <p><%= total.toLocaleString('cs-CZ') %> <%= total === 1 ? 'objednávka' : nekolik ? 'objednávky' : 'objednávek' %> <%= filtrAktivni ? (nekolik ? 'odpovídají' : 'odpovídá') + ' filtru' : (shop ? 'celkem' : 'ze všech e-shopů') %></p>
   </div>
+  <% if (shop) { %>
   <form method="post" action="/ucetnictvi/objednavky/expedice" class="page-header-akce"
         onsubmit="return confirm('Odešle skladu e-mail se všemi zaplacenými objednávkami, které ještě nedostal. Pokračovat?')">
-    <% if (eshopQs) { %><input type="hidden" name="shop_id" value="<%= shop.id %>"><% } %>
+    <input type="hidden" name="shop_id" value="<%= shop.id %>">
     <button type="submit" class="btn btn-outline" <%= shop.warehouse_email ? '' : 'disabled' %>
             title="<%= shop.warehouse_email
               ? 'Ranní expedice jede ve všední dny v 06:00 na ' + shop.warehouse_email
@@ -73,20 +95,11 @@
       Odeslat expedici teď
     </button>
   </form>
+  <% } %>
 </div>
 
 <% if (eshopy.length > 1) { %>
-<!-- Přepínač e-shopů (jen když je jich víc než jeden) -->
-<nav aria-label="E-shop" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;">
-  <% eshopy.forEach(e => { %>
-    <% const aktivni = e.id === shop.id; %>
-    <a href="<%= e.slug === vychoziEshop ? '/ucetnictvi/objednavky' : '/ucetnictvi/objednavky?eshop=' + encodeURIComponent(e.slug) %>"
-       <%- aktivni ? 'aria-current="page"' : '' %>
-       style="padding:6px 14px;border-radius:999px;font-size:13px;font-weight:500;text-decoration:none;border:1px solid <%= aktivni ? 'var(--primary)' : 'var(--border)' %>;background:<%= aktivni ? 'var(--primary)' : 'transparent' %>;color:<%= aktivni ? 'var(--deep-space)' : 'var(--text-secondary)' %>;">
-      <%= e.name %>
-    </a>
-  <% }) %>
-</nav>
+<%- include('../../includes/eshop-dlazdice', { nazev: 'E-shop', polozky: dlazdice }) %>
 <% } %>
 
 <!-- Výsledek expedice (čte se z databáze, ne z URL – přežije i pád uprostřed běhu) -->
@@ -119,7 +132,7 @@
 <div class="hlaska hlaska-chyba">
   Expedice právě běží – spustil ji automat nebo jiný uživatel. Zkuste to za chvíli.
 </div>
-<% } else if (error === 'sklad-email') { %>
+<% } else if (error === 'sklad-email' && shop) { %>
 <div class="hlaska hlaska-chyba">
   E-shop nemá vyplněnou adresu skladu – doplňte ji v <a href="/nastaveni/eshopy/<%= shop.id %>?tab=expedice">Nastavení → Eshopy</a>.
 </div>
@@ -154,7 +167,7 @@
 <!-- Filtr -->
 <form method="get" class="filtr-lista">
   <% if (strany.vlastniVelikost) { %><input type="hidden" name="velikost" value="<%= strany.naStranku %>"><% } %>
-  <% if (eshopQs) { %><input type="hidden" name="eshop" value="<%= shop.slug %>"><% } %>
+  <% if (shop) { %><input type="hidden" name="eshop" value="<%= shop.slug %>"><% } %>
   <input type="text" name="q" value="<%= q || '' %>" placeholder="Číslo, jméno, e-mail…" class="form-control" aria-label="Hledat číslo, jméno, e-mail, telefon nebo firmu">
   <select name="status" class="form-select" aria-label="Stav">
     <option value="">Všechny stavy</option>
@@ -179,10 +192,11 @@
   <table class="data-table">
     <thead>
       <tr>
+        <th class="sloupec-logo"><span class="sr-only">E-shop</span></th>
         <th>Číslo</th>
         <th>Zákazník</th>
         <th class="hide-mobile">E-mail</th>
-        <th class="num">Celkem</th>
+        <th class="num mobil">Celkem</th>
         <th>Platba</th>
         <th class="mobil">Stav</th>
         <th>Sklad</th>
@@ -191,12 +205,13 @@
     </thead>
     <tbody>
       <% if (orders.length > 0) { %>
-        <% orders.forEach(o => { %>
-        <tr data-href="/ucetnictvi/objednavky/<%= o.id %>">
-          <td class="mono"><a href="/ucetnictvi/objednavky/<%= o.id %>" class="radek-odkaz">#<%= o.order_number %></a></td>
+        <% orders.forEach((o, i) => { const e = eshopPodleId[o.shop_id]; %>
+        <tr data-href="/ucetnictvi/objednavky/<%= o.id %>" class="radek-eshopu" style="--i:<%= i %>;<%= e ? '--eshop-barva:' + e.barva + ';' : '' %>">
+          <td class="sloupec-logo"><% if (e) { %><%- include('../../includes/eshop-logo', { eshop: e, velikost: 'sm' }) %><% } %></td>
+          <td class="mono"><a href="/ucetnictvi/objednavky/<%= o.id %>" class="radek-odkaz"><%= o.order_number %></a></td>
           <td><span class="radek-text" title="<%= o.first_name %> <%= o.last_name %>"><%= o.first_name %> <%= o.last_name %></span></td>
           <td class="sekundarni hide-mobile"><%= o.email %></td>
-          <td class="num"><%= Number(o.total_price).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> Kč</td>
+          <td class="num mobil"><%= Number(o.total_price).toLocaleString('cs-CZ',{minimumFractionDigits:2}) %> Kč</td>
           <td class="sekundarni"><%= o.payment_method %></td>
           <td class="mobil"><span class="badge badge-<%= tonStavu(o.status) %>"><%= o.status %></span></td>
           <td><%- skladIkona(o) %></td>
@@ -204,7 +219,7 @@
         </tr>
         <% }); %>
       <% } else { %>
-      <tr><td colspan="8">
+      <tr><td colspan="9">
         <div class="prazdno">
           <% if (filtrAktivni) { %>
             <strong>Filtru neodpovídá žádná objednávka</strong>

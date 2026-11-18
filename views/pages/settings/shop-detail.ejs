@@ -416,7 +416,7 @@
                 <td>
                   <span class="badge" style="<%= stavStyl %>" title="<%= b.error || '' %>"><%= stavText %></span>
                   <% if (b.held_count > 0) { %>
-                    <a href="/ucetnictvi/objednavky?sklad=blokovano<%= shop.slug !== 'toneracek' ? '&eshop=' + encodeURIComponent(shop.slug) : '' %>" style="font-size:11px;color:var(--text-muted);">· <%= b.held_count %> zadrženo</a>
+                    <a href="/ucetnictvi/objednavky?sklad=blokovano&eshop=<%= encodeURIComponent(shop.slug) %>" style="font-size:11px;color:var(--text-muted);">· <%= b.held_count %> zadrženo</a>
                   <% } %>
                 </td>
               </tr>
@@ -435,7 +435,7 @@
       <div class="card-header">Marketing</div>
       <div class="card-body">
         <p style="font-size:13px;color:var(--text-muted);margin:0 0 16px;">
-          Sekce <a href="/marketing<%= shop.slug !== 'toneracek' ? '?eshop=' + encodeURIComponent(shop.slug) : '' %>">Marketing</a>
+          Sekce <a href="/marketing?eshop=<%= encodeURIComponent(shop.slug) %>">Marketing</a>
           počítá PNO, ROAS a ROI z objednávek tohoto e-shopu a z nákladů stažených
           z reklamních platforem. Tady se nastavuje, s jakou marží se počítá a kdy upozornit.
         </p>
@@ -547,7 +547,7 @@
               <% }) %>
             </tbody>
           </table>
-          <a href="/marketing/sync<%= shop.slug !== 'toneracek' ? '?eshop=' + encodeURIComponent(shop.slug) : '' %>" style="font-size:12px;">Všechny běhy a ruční spuštění →</a>
+          <a href="/marketing/sync?eshop=<%= encodeURIComponent(shop.slug) %>" style="font-size:12px;">Všechny běhy a ruční spuštění →</a>
         </div>
         <% } %>
       </div>

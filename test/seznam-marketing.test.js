@@ -19,7 +19,7 @@ const dekoduj = (a) => a.replace(/&amp;/g, '&');
 const hrefy = (blok) => [...blok.matchAll(/href="([^"]*)"/g)].map(m => dekoduj(m[1]));
 const parametry = (adresa) => new URL(adresa, 'http://x').searchParams;
 const pruhZalozek = (html) => /<nav class="tabs"[^]*?<\/nav>/.exec(html)?.[0] ?? '';
-const prepinacEshopu = (html) => /<nav aria-label="E-shop"[^]*?<\/nav>/.exec(html)?.[0] ?? '';
+const prepinacEshopu = (html) => /<nav class="eshop-dlazdice" aria-label="E-shop"[^]*?<\/nav>/.exec(html)?.[0] ?? '';
 const paticka = (html) => /<div class="strankovani"[^]*?<\/nav>/.exec(html)?.[0] ?? '';
 const aktivniZalozka = (html) => /class="tab active" aria-current="page">([^<]+)</.exec(pruhZalozek(html))?.[1];
 
@@ -386,12 +386,14 @@ describe('seznamy a záložky Marketingu', { skip: PRESKOCIT }, () => {
     const odkazy = hrefy(prepinacEshopu(html));
     assert.ok(odkazy.length >= 2, 'test potřebuje aspoň dva aktivní e-shopy');
     for (const a of odkazy) {
-      assert.equal(parametry(a).get('tab'), 'kanaly', a);
+      // Celkový přehled (bez eshop) záložky nemá, drží jen období.
+      assert.equal(parametry(a).get('tab'), parametry(a).has('eshop') ? 'kanaly' : null, a);
       assert.equal(parametry(a).get('obdobi'), '30-dni', a);
       assert.ok(a.startsWith('/marketing?'), a);
     }
     assert.ok(odkazy.some(a => parametry(a).get('eshop') === shop.slug), 'odkaz na tento e-shop');
-    assert.ok(odkazy.some(a => !parametry(a).has('eshop')), 'výchozí e-shop bez parametru');
+    assert.ok(odkazy.some(a => parametry(a).get('eshop') === 'toneracek'), 'Toneráček s parametrem');
+    assert.equal(odkazy.filter(a => !parametry(a).has('eshop')).length, 1, 'celkový přehled bez parametru');
 
     const jiny = odkazy.find(a => parametry(a).get('eshop') === shopPrazdny.slug);
     assert.ok(jiny, 'odkaz na druhý e-shop');
@@ -412,6 +414,40 @@ describe('seznamy a záložky Marketingu', { skip: PRESKOCIT }, () => {
     assert.match(poZmene, /<option value="minuly-mesic" selected>/);
   });
 
+  test('celkový přehled: dlaždice, tabulka e-shopů s logem a součty, bez záložek', async () => {
+    const html = await nacti(req, `/marketing?${OBDOBI}`);
+    assert.ok(!html.includes('class="tabs"'), 'celkový přehled záložky nemá');
+    assert.ok(html.includes('Všechny e-shopy'));
+    assert.ok(!html.includes('Nastavení napojení'), 'napojení je vždy jednoho e-shopu');
+
+    const dlazdice = prepinacEshopu(html);
+    assert.match(dlazdice, /<a href="\/marketing\?obdobi=vlastni&amp;od=2026-01-01&amp;do=2026-01-31" class="eshop-dlazdice-polozka"[^>]*aria-current="page"/);
+    assert.equal((dlazdice.match(/aria-current="page"/g) ?? []).length, 1);
+    assert.ok(dlazdice.includes('Celkový přehled'));
+
+    const tabulka = /<table class="data-table radky-eshopu">[^]*?<\/table>/.exec(html)?.[0] ?? '';
+    const adresa = `/marketing?eshop=${shop.slug}&amp;obdobi=vlastni&amp;od=2026-01-01&amp;do=2026-01-31`;
+    assert.ok(tabulka.includes(`<tr data-href="${adresa}" class="radek-eshopu"`), 'řádek vede na přehled e-shopu ve stejném období');
+    assert.match(tabulka, new RegExp(`<td class="sloupec-logo"><span class="eshop-logo eshop-logo-sm" style="--eshop-barva:#[0-9A-Fa-f]{3,6};" title="${shop.name}">`), 'logo v prvním sloupci');
+    assert.ok(tabulka.includes('<td>Celkem</td>'));
+
+    // Ruční náklady Heureky e-shopu jsou v součtu po platformách i s jeho logem.
+    const platformy = /<div class="card-header">Náklady po platformách<\/div>[^]*?<\/table>/.exec(html)?.[0] ?? '';
+    assert.match(platformy, new RegExp(`<td>Heureka</td>\\s*<td><span class="loga-eshopu">[^]*?title="${shop.name}: `));
+
+    // Graf: tržby po e-shopech nad sebou.
+    const data = JSON.parse(/<script type="application\/json" id="marketing-data">([^<]*)<\/script>/.exec(html)?.[1] ?? 'null');
+    assert.ok(data, 'graf má data');
+    assert.ok(data.eshopy.some(e => e.nazev === shop.name && /^#[0-9a-f]{3,6}$/i.test(e.barva)));
+    assert.equal(data.eshopy.length, (dlazdice.match(/class="eshop-dlazdice-polozka"/g) ?? []).length - 1, 'řada za každý e-shop z dlaždic');
+  });
+
+  test('neznámý e-shop v adrese přehledu ukáže celkový přehled, ne cizí e-shop', async () => {
+    const html = await nacti(req, `/marketing?eshop=neexistuje-${r}&${OBDOBI}`);
+    assert.ok(html.includes('Všechny e-shopy'));
+    assert.ok(!html.includes('class="tabs"'));
+  });
+
   test('přepnutí záložky drží e-shop i období, vlastní rozsah včetně mezí', async () => {
     const html = await nacti(req, `/marketing?eshop=${shop.slug}&${OBDOBI}&tab=kanaly`);
     const odkazy = hrefy(pruhZalozek(html));
@@ -426,7 +462,8 @@ describe('seznamy a záložky Marketingu', { skip: PRESKOCIT }, () => {
     assert.deepEqual(odkazy.map(a => parametry(a).get('tab')), [null, 'kanaly', 'vyhledavani'], 'výchozí záložka se do adresy nepíše');
     for (const a of hrefy(prepinacEshopu(html))) {
       const p = parametry(a);
-      assert.deepEqual([p.get('obdobi'), p.get('od'), p.get('do'), p.get('tab')], ['vlastni', '2026-01-01', '2026-01-31', 'kanaly'], a);
+      // Celkový přehled (bez eshop) záložky nemá, drží jen období.
+      assert.deepEqual([p.get('obdobi'), p.get('od'), p.get('do'), p.get('tab')], ['vlastni', '2026-01-01', '2026-01-31', p.has('eshop') ? 'kanaly' : null], a);
     }
   });
 

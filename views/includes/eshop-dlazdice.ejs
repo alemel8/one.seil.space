@@ -1,0 +1,31 @@
+<%#
+  Dlaždicový přepínač e-shopů nad přehledy (objednávky, marketing). První
+  dlaždice bývá celkový přehled (eshop: null), zvolená má rámeček a pruh
+  v barvě e-shopu. Čísla na dlaždici se při načtení dopočítají nahoru
+  (data-pocitadlo, public/js/prehledy.js); bez JS je vidět rovnou výsledek.
+
+    include('../../includes/eshop-dlazdice', { nazev: 'E-shop', polozky })
+
+  polozky  [{ href, aktivni, eshop (řádek se vzhledem, nebo null), nazev,
+              hodnota?: { text, cislo, desetin, pripona, jednotka },
+              popis?: [{ text, ton? }] }]
+  nazev    popisek pro čtečku
+%>
+<nav class="eshop-dlazdice" aria-label="<%= nazev %>">
+  <% polozky.forEach((d, i) => { %>
+  <a href="<%= d.href %>" class="eshop-dlazdice-polozka" style="--i:<%= i %>;<%= d.eshop ? '--eshop-barva:' + d.eshop.barva + ';' : '' %>"<%- d.aktivni ? ' aria-current="page"' : '' %>>
+    <span class="eshop-dlazdice-hlava">
+      <%- include('eshop-logo', { eshop: d.eshop, velikost: 'lg', dekorace: true }) %>
+      <span class="eshop-dlazdice-nazev"><%= d.nazev %></span>
+    </span>
+    <% if (d.hodnota) { %>
+    <span class="eshop-dlazdice-hodnota"><span<% if (d.hodnota.cislo != null) { %> data-pocitadlo="<%= d.hodnota.cislo %>" data-desetin="<%= d.hodnota.desetin || 0 %>" data-pripona="<%= d.hodnota.pripona || '' %>"<% } %>><%= d.hodnota.text %></span><% if (d.hodnota.jednotka) { %> <span class="eshop-dlazdice-jednotka"><%= d.hodnota.jednotka %></span><% } %></span>
+    <% } %>
+    <% if (d.popis && d.popis.length) { %>
+    <span class="eshop-dlazdice-popis">
+      <% d.popis.forEach(p => { %><span class="eshop-dlazdice-znacka<%= p.ton ? ' ton-' + p.ton : '' %>"><%= p.text %></span><% }) %>
+    </span>
+    <% } %>
+  </a>
+  <% }) %>
+</nav>

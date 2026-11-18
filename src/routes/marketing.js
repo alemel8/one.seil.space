@@ -7,23 +7,30 @@
  * `marketing`); ruční spuštění syncu je navíc jen pro správce, protože
  * spotřebovává kvóty API platforem.
  *
- * E-shop se volí `?eshop=<slug>` jako u objednávek (toneracek.js); výchozí
- * je Toneráček. Nikdy se nemíchají data dvou e-shopů – každý dotaz nese shop_id.
+ * E-shop se volí `?eshop=<slug>` jako u objednávek (toneracek.js). Přehled
+ * bez parametru je celkový přes všechny aktivní e-shopy (součet hotových
+ * přehledů jednotlivých e-shopů, sestavCelkovyPrehled); ruční náklady
+ * a synchronizace jsou vždy jednoho e-shopu, bez parametru Toneráčku.
+ * Data dvou e-shopů se v jednom dotazu nemíchají – každý dotaz nese shop_id.
  */
 
 import { getDb } from '../db.js';
 import { prazskyCas, jenDatum } from '../prazsky-cas.js';
 import { PRESETY, rozsahCesky, vyhodnotObdobi } from '../marketing/obdobi.js';
 import * as kpi from '../marketing/kpi.js';
-import { PLATFORMA_POPIS, sestavPrehled } from '../marketing/prehled.js';
+import { PLATFORMA_POPIS, sestavCelkovyPrehled, sestavPrehled } from '../marketing/prehled.js';
 import { behySyncu, nactiZdroje, pocetBehuSyncu } from '../marketing/zdroje.js';
 import { maKlic } from '../marketing/tajemstvi.js';
 import { isConfigured as maGoogleServiceAccount } from '../google-auth.js';
 import { parametr, strankovani } from '../strankovani.js';
 import { bezpecnyNavrat } from '../navrat.js';
 import { zalozka } from '../zalozky.js';
+import { sVzhledem } from '../eshop-vzhled.js';
 
 const VYCHOZI_ESHOP = 'toneracek';
+
+const PREHLEDY_CSS = '<link rel="stylesheet" href="/static/css/prehledy.css">';
+const PREHLEDY_JS = '<script src="/static/js/prehledy.js"></script>';
 
 /** Záložky přehledu; první je výchozí a do adresy se nepíše. */
 const ZALOZKY_PREHLEDU = [
@@ -41,22 +48,31 @@ const MAX_RUCNI_CASTKA = 10_000_000;
 export default async function marketingRoutes(fastify) {
   const sql = getDb();
 
-  async function eshopZDotazu(query) {
-    const eshopy = await sql`
-      SELECT id, slug, name, url, active,
+  /**
+   * Aktivní e-shopy a ten z `?eshop=`. Bez parametru (nebo s neznámým) je
+   * u přehledu `celkovy` e-shop null = celkový přehled, jinde Toneráček.
+   */
+  async function eshopZDotazu(query, { celkovy = false } = {}) {
+    const eshopy = (await sql`
+      SELECT id, slug, name, url, active, logo_mark_url, color_primary,
              marketing_margin_pct::float8 AS marketing_margin_pct,
              marketing_pno_alert_pct::float8 AS marketing_pno_alert_pct
       FROM shops WHERE active = TRUE
-      ORDER BY (slug = ${VYCHOZI_ESHOP}) DESC, name`;
+      ORDER BY (slug = ${VYCHOZI_ESHOP}) DESC, name`).map(sVzhledem);
     const slug = parametr(query?.eshop).toLowerCase();
-    const shop = eshopy.find(e => e.slug === slug) ?? eshopy.find(e => e.slug === VYCHOZI_ESHOP) ?? eshopy[0] ?? null;
+    const zvoleny = eshopy.find(e => e.slug === slug);
+    if (celkovy) return { eshopy, shop: zvoleny ?? null };
+    const shop = zvoleny ?? eshopy.find(e => e.slug === VYCHOZI_ESHOP) ?? eshopy[0] ?? null;
     return { eshopy, shop };
   }
 
-  /** Query string s e-shopem (výchozí e-shop bez parametru, jako u objednávek) a případně obdobím. */
+  /**
+   * Query string s e-shopem a případně obdobím. E-shop jde do adresy vždy,
+   * i Toneráček: přehled bez parametru je celkový.
+   */
   function dotaz(shop, obdobi, dalsi = {}) {
     const q = new URLSearchParams();
-    if (shop && shop.slug !== VYCHOZI_ESHOP) q.set('eshop', shop.slug);
+    if (shop) q.set('eshop', shop.slug);
     if (obdobi) {
       q.set('obdobi', obdobi.preset);
       if (obdobi.preset === 'vlastni') { q.set('od', obdobi.od); q.set('do', obdobi.do); }
@@ -67,32 +83,22 @@ export default async function marketingRoutes(fastify) {
   }
 
   /** Dotaz přehledu: e-shop, období a záložka. Stejná adresa pro záložky i přepínač e-shopů. */
-  const dotazPrehledu = (shop, obdobi, tab) => dotaz(shop, obdobi, { tab: tab === ZALOZKY_PREHLEDU[0][0] ? null : tab });
+  const dotazPrehledu = (shop, obdobi, tab) => dotaz(shop, obdobi, { tab: !tab || tab === ZALOZKY_PREHLEDU[0][0] ? null : tab });
 
   /** Parametry odkazů stran: e-shop, na kterém seznam opravdu je, ne hodnota z adresy. */
   const eshopSeznamu = (shop) => (shop.slug === VYCHOZI_ESHOP ? {} : { eshop: shop.slug });
 
+  // Dlaždice e-shopů, nástup obsahu a přechody mezi stránkami (public/css/prehledy.css).
   const spolecne = (request, currentPath, eshopy, shop) => ({
     user: request.user, currentPath, eshopy, shop, vychoziEshop: VYCHOZI_ESHOP,
     saved: request.query.saved === '1', error: request.query.error || null,
+    extraCss: PREHLEDY_CSS, extraJs: PREHLEDY_JS,
   });
 
   // ── Přehled ─────────────────────────────────────────────────
 
-  fastify.get('/marketing', async (request, reply) => {
-    const { eshopy, shop } = await eshopZDotazu(request.query);
-    const dnes = prazskyCas().datum;
-    const obdobi = vyhodnotObdobi(request.query, dnes);
-    const tab = zalozka(ZALOZKY_PREHLEDU, request.query.tab);
-    const stranka = {
-      pageTitle: 'Marketing', ...spolecne(request, '/marketing', eshopy, shop),
-      obdobi, presety: PRESETY, dotaz, dotazPrehledu, zalozky: ZALOZKY_PREHLEDU, tab,
-    };
-
-    if (!shop) {
-      return reply.view('pages/marketing/prehled.ejs', { ...stranka, prehled: null }, { layout: 'layouts/base.ejs' });
-    }
-
+  /** Data jednoho e-shopu za období a jeho hotový přehled (sestavPrehled). */
+  async function nactiPrehled(shop, obdobi, dnes) {
     const rozsah = { shopId: shop.id, od: obdobi.od, do: obdobi.do };
     const [objednavky, nakladyApi, rucni, trzbyDny, nakladyDny, apiDny, funnel, kanalyGa4Radky, organika, merchant, konverze, eshopDny, zdroje] = await Promise.all([
       kpi.objednavkyZaObdobi(sql, rozsah),
@@ -117,10 +123,34 @@ export default async function marketingRoutes(fastify) {
       shop, obdobi, objednavky, polozky, nakladyApi, rucni, trzbyDny, nakladyDny, apiDny,
       funnel, kanalyGa4Radky, organika, merchant, konverze, eshopDny, zdroje, dnes,
     });
+    prehled.graf.barva = shop.barva;
+    return prehled;
+  }
+
+  fastify.get('/marketing', async (request, reply) => {
+    const { eshopy, shop } = await eshopZDotazu(request.query, { celkovy: true });
+    const dnes = prazskyCas().datum;
+    const obdobi = vyhodnotObdobi(request.query, dnes);
+    const tab = shop ? zalozka(ZALOZKY_PREHLEDU, request.query.tab) : null;
+    const stranka = {
+      pageTitle: 'Marketing', ...spolecne(request, '/marketing', eshopy, shop),
+      obdobi, presety: PRESETY, dotaz, dotazPrehledu, zalozky: ZALOZKY_PREHLEDU, tab, dnes,
+    };
+
+    if (!eshopy.length) {
+      return reply.view('pages/marketing/prehled.ejs', { ...stranka, prehled: null, celkem: null, souhrny: [] }, { layout: 'layouts/base.ejs' });
+    }
+
+    // Dlaždice ukazují čísla všech e-shopů, proto se přehled skládá každému –
+    // e-shopy jsou dva, dotazy běží souběžně.
+    const souhrny = await Promise.all(eshopy.map(async e => ({ shop: e, prehled: await nactiPrehled(e, obdobi, dnes) })));
+    const celkem = sestavCelkovyPrehled(souhrny);
+    const prehled = shop ? souhrny.find(s => s.shop.id === shop.id).prehled : null;
+    const graf = !shop || tab === 'prehled';
 
     return reply.view('pages/marketing/prehled.ejs', {
-      ...stranka, prehled, dnes,
-      extraJs: tab === 'prehled' ? '<script src="/static/chart.umd.min.js"></script><script src="/static/js/marketing.js"></script>' : '',
+      ...stranka, prehled, celkem, souhrny,
+      extraJs: (graf ? '<script src="/static/chart.umd.min.js"></script><script src="/static/js/marketing.js"></script>' : '') + PREHLEDY_JS,
     }, { layout: 'layouts/base.ejs' });
   });
 

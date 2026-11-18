@@ -48,7 +48,7 @@ export async function oznamSelhaniSyncu(sql, log, { zdroj, beh, shopName, shopSl
   await posli(sql, log, {
     eventType: UDALOST_SYNC, eventKey, message,
     title: `Marketing: stažení ${zdroj.platform} selhalo`,
-    url: `/marketing/sync${shopSlug && shopSlug !== 'toneracek' ? `?eshop=${encodeURIComponent(shopSlug)}` : ''}`,
+    url: `/marketing/sync${shopSlug ? `?eshop=${encodeURIComponent(shopSlug)}` : ''}`,
   });
   return true;
 }
@@ -61,7 +61,8 @@ export async function oznamPno(sql, log, { shop, datum, pno, prah, naklady, trzb
   await posli(sql, log, {
     eventType: UDALOST_PNO, eventKey, message,
     title: `Marketing: PNO ${shop.name} nad prahem`,
-    url: `/marketing${shop.slug && shop.slug !== 'toneracek' ? `?eshop=${encodeURIComponent(shop.slug)}` : ''}`,
+    // E-shop vždy v adrese: /marketing bez parametru je celkový přehled.
+    url: `/marketing${shop.slug ? `?eshop=${encodeURIComponent(shop.slug)}` : ''}`,
   });
   return true;
 }

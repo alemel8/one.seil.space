@@ -1,8 +1,9 @@
 // Administrace objednávek pro víc e-shopů.
 //
-// Seznam objednávek je po e-shopech (?eshop=<slug>, bez parametru Toneráček
-// jako dřív). Detail a akce nad objednávkou berou e-shop z objednávky, takže
-// odkazy /ucetnictvi/objednavky/:id fungují pro každý e-shop.
+// Seznam objednávek bez parametru je celkový přehled všech e-shopů (logo
+// e-shopu v prvním sloupci), ?eshop=<slug> ukáže jeden e-shop. Detail a akce
+// nad objednávkou berou e-shop z objednávky, takže odkazy
+// /ucetnictvi/objednavky/:id fungují pro každý e-shop.
 //
 // Jede proti běžícímu serveru a testovací databázi; přihlášení obchází
 // vložením session (jako test/invoices.test.js). Zakládá si vlastní e-shop,
@@ -124,18 +125,39 @@ after(async () => {
 // ── Seznam objednávek ──────────────────────────────────────────
 
 describe('seznam objednávek po e-shopech', () => {
-  test('bez ?eshop= je to Toneráček s dosavadním nadpisem a adresami', async () => {
-    const res = await get('/ucetnictvi/objednavky');
+  test('bez ?eshop= je celkový přehled všech e-shopů s logem u každé objednávky', async () => {
+    // Filtr na objednávky tohoto testu: jiné testové soubory zakládají novější.
+    const res = await get(`/ucetnictvi/objednavky?q=${r}`);
+    assert.equal(res.status, 200);
+    const html = await res.text();
+    assert.match(html, /<h1>Objednávky<\/h1>/);
+    for (const cislo of Object.values(ctx.cislo)) {
+      assert.ok(html.includes(`class="radek-odkaz">${cislo}</a>`), `objednávka ${cislo} v přehledu, číslo bez #`);
+    }
+    assert.ok(!html.includes(`#${ctx.cislo.karta}`), 'číslo bez #');
+    // Logo e-shopu v prvním sloupci: testovací e-shop logo nemá, ukáže iniciálu v barvě.
+    assert.match(html, /<tr data-href="\/ucetnictvi\/objednavky\/TEST-ADM-[^"]+" class="radek-eshopu"[^>]*>\s*<td class="sloupec-logo"><span class="eshop-logo/);
+    assert.ok(html.includes(`title="${ctx.shop.name}"`), 'logo nese název e-shopu');
+    assert.ok(html.includes('href="/ucetnictvi/objednavky?status='), 'chipy bez e-shopu');
+    assert.ok(!html.includes('name="shop_id"'), 'celkový přehled nemá ruční expedici, ta je po e-shopech');
+    assert.ok(!html.includes('name="eshop"'), 'filtr bez skrytého e-shopu');
+    // Dlaždice: celkový přehled (zvolený) a každý e-shop s parametrem, i Toneráček.
+    assert.match(html, /<a href="\/ucetnictvi\/objednavky" class="eshop-dlazdice-polozka"[^>]*aria-current="page"/);
+    assert.ok(html.includes(`href="/ucetnictvi/objednavky?eshop=${ctx.shop.slug}" class="eshop-dlazdice-polozka"`));
+    assert.ok(html.includes('href="/ucetnictvi/objednavky?eshop=toneracek" class="eshop-dlazdice-polozka"'));
+  });
+
+  test('?eshop=toneracek ukáže Toneráček s dosavadním nadpisem a parametr drží', async () => {
+    const res = await get(`/ucetnictvi/objednavky?eshop=toneracek&q=${r}`);
     assert.equal(res.status, 200);
     const html = await res.text();
     assert.match(html, /<h1>Objednávky Toneráček<\/h1>/);
     assert.match(html, /<title>[^<]*Objednávky Toneráček/);
-    assert.ok(html.includes(`#${ctx.cislo.toneracek}`), 'objednávka Toneráčku je v seznamu');
-    assert.ok(!html.includes(`#${ctx.cislo.karta}`), 'objednávka jiného e-shopu v seznamu Toneráčku není');
-    assert.ok(html.includes('href="/ucetnictvi/objednavky?status='), 'chipy stavů beze změny');
-    assert.ok(!html.includes('name="shop_id"'), 'expedice Toneráčku bez skrytého e-shopu');
-    // Přepínač – v testovací databázi je e-shopů víc.
-    assert.ok(html.includes(`href="/ucetnictvi/objednavky?eshop=${ctx.shop.slug}"`));
+    assert.ok(html.includes(`>${ctx.cislo.toneracek}</a>`), 'objednávka Toneráčku je v seznamu');
+    assert.ok(!html.includes(`>${ctx.cislo.karta}</a>`), 'objednávka jiného e-shopu v seznamu Toneráčku není');
+    assert.ok(html.includes(`href="/ucetnictvi/objednavky?eshop=toneracek&amp;status=`), 'chipy drží e-shop');
+    assert.ok(html.includes(`<input type="hidden" name="shop_id" value="${ctx.toneracek.id}">`), 'ruční expedice ví, který e-shop');
+    assert.match(html, /<a href="\/ucetnictvi\/objednavky\?eshop=toneracek" class="eshop-dlazdice-polozka"[^>]*aria-current="page"/);
   });
 
   test('?eshop=<slug> ukáže jen objednávky toho e-shopu a parametr drží v odkazech', async () => {
@@ -144,9 +166,9 @@ describe('seznam objednávek po e-shopech', () => {
     const html = await res.text();
     assert.ok(html.includes(`<h1>Objednávky ${ctx.shop.name}</h1>`));
     for (const cislo of [ctx.cislo.karta, ctx.cislo.prevod, ctx.cislo.storno]) {
-      assert.ok(html.includes(`#${cislo}`), `objednávka ${cislo} v seznamu`);
+      assert.ok(html.includes(`>${cislo}</a>`), `objednávka ${cislo} v seznamu`);
     }
-    assert.ok(!html.includes(`#${ctx.cislo.toneracek}`));
+    assert.ok(!html.includes(`>${ctx.cislo.toneracek}</a>`));
     assert.ok(html.includes(`href="/ucetnictvi/objednavky?eshop=${ctx.shop.slug}&amp;status=`), 'chipy drží e-shop');
     assert.ok(html.includes(`<input type="hidden" name="shop_id" value="${ctx.shop.id}">`), 'ruční expedice ví, který e-shop');
     assert.ok(html.includes(`<input type="hidden" name="eshop" value="${ctx.shop.slug}">`), 'filtr drží e-shop');
@@ -169,12 +191,12 @@ describe('detail a akce berou e-shop z objednávky', () => {
     assert.ok(html.includes(`href="/ucetnictvi/objednavky?eshop=${ctx.shop.slug}"`), 'zpět na seznam e-shopu');
   });
 
-  test('detail objednávky Toneráčku je beze změny, neznámá objednávka 404', async () => {
+  test('detail objednávky Toneráčku: zpět na jeho seznam, neznámá objednávka 404', async () => {
     const res = await get(`/ucetnictvi/objednavky/${ctx.objToneracku}`);
     assert.equal(res.status, 200);
     const html = await res.text();
     assert.ok(html.includes(`Objednávka #${ctx.cislo.toneracek}`));
-    assert.ok(html.includes('href="/ucetnictvi/objednavky" style'), 'zpět bez ?eshop=');
+    assert.ok(html.includes('href="/ucetnictvi/objednavky?eshop=toneracek" style'), 'zpět na seznam Toneráčku');
     assert.ok(!html.includes('Toneráček.cz</span>'), 'Toneráček bez štítku e-shopu');
     assert.equal((await get(`/ucetnictvi/objednavky/neexistuje-${r}`)).status, 404);
   });
@@ -239,7 +261,7 @@ describe('detail a akce berou e-shop z objednávky', () => {
     assert.equal(jiny.headers.get('location'), `/ucetnictvi/objednavky?error=sklad-email&eshop=${ctx.shop.slug}`);
     if (!ctx.toneracek.warehouse_email) {
       const toneracek = await post('/ucetnictvi/objednavky/expedice', {});
-      assert.equal(toneracek.headers.get('location'), '/ucetnictvi/objednavky?error=sklad-email');
+      assert.equal(toneracek.headers.get('location'), '/ucetnictvi/objednavky?error=sklad-email&eshop=toneracek');
     }
     assert.equal((await post('/ucetnictvi/objednavky/expedice', { shop_id: '999999' })).status, 404);
   });

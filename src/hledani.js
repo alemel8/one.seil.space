@@ -17,9 +17,6 @@ import { ACCESS_KEYS, isAllowed, visibleSections } from './access.js';
 export const MIN_DELKA = 2;
 export const MAX_DELKA = 100;
 
-/** Slug výchozího e-shopu – seznam objednávek ho bere bez parametru (toneracek.js). */
-const VYCHOZI_ESHOP = 'toneracek';
-
 /**
  * Jen řetězec (`?q=a&q=b` dá pole), bez NUL (Postgres ho v parametru
  * odmítne a stránka by spadla na 500), sbalené mezery, oříznuté.
@@ -75,14 +72,14 @@ export const SKUPINY = [
   },
   {
     klic: 'objednavky', nazev: 'Objednávky', pravo: 'ucetnictvi.objednavky',
-    // Seznam ukazuje jeden e-shop (bez parametru Toneráček). Když všechny
-    // nalezené objednávky patří jinému e-shopu, odkaz ho předá; jinak vede
-    // na výchozí seznam a e-shop je v popisu řádku.
+    // Seznam bez parametru je celkový přehled všech e-shopů. Když všechny
+    // nalezené objednávky patří jednomu e-shopu, odkaz ho předá; jinak vede
+    // na celkový přehled, kde je u každé objednávky logo e-shopu.
     odkazSeznam: (q, radky = []) => {
       const slugy = new Set(radky.map((r) => r.eshop_slug));
       const slug = slugy.size === 1 ? [...slugy][0] : null;
       const p = [`q=${encodeURIComponent(q)}`];
-      if (slug && slug !== VYCHOZI_ESHOP) p.push(`eshop=${encodeURIComponent(slug)}`);
+      if (slug) p.push(`eshop=${encodeURIComponent(slug)}`);
       return `/ucetnictvi/objednavky?${p.join('&')}`;
     },
     dotaz: (sql, vzor, limit) => sql`

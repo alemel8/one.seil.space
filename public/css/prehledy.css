@@ -1,0 +1,109 @@
+/* ============================================================
+   Přehledy e-shopů – pohyb: nástup obsahu, přechod mezi stránkami
+   a pruh načítání. Načítá se jen na přehledech (objednávky,
+   marketing), vzhled dlaždic a loga je v components.css.
+
+   Animace mají jen fill-mode `backwards`: po doběhnutí na prvku nic
+   nezůstane, takže nevzniká skládací kontext a vyskakovací prvky ani
+   lepivá patička seznamu se nerozbijí.
+   ============================================================ */
+
+/* ── Přechod mezi stránkami ───────────────────────────────── */
+/* Klik na dlaždici, filtr nebo stránku seznamu stránku nepřebliká: obsah
+   se prolne, menu, lišta a dlaždice zůstanou stát. Platí jen mezi
+   stránkami, které tenhle soubor načítají, a jen v prohlížečích, které
+   přechody mezi dokumenty umí; jinde se nic nemění. */
+@view-transition { navigation: auto; }
+
+.sidebar { view-transition-name: sidebar; }
+.topbar { view-transition-name: topbar; }
+.bottom-nav { view-transition-name: bottom-nav; }
+.eshop-dlazdice { view-transition-name: eshop-dlazdice; }
+
+::view-transition-old(root) { animation: 140ms ease-in both prechod-ven; }
+::view-transition-new(root) { animation: 220ms cubic-bezier(.2, .7, .2, 1) both prechod-dovnitr; }
+::view-transition-group(eshop-dlazdice) { animation-duration: 220ms; }
+
+@keyframes prechod-ven { to { opacity: 0; } }
+@keyframes prechod-dovnitr { from { opacity: 0; } }
+
+/* ── Nástup obsahu ────────────────────────────────────────── */
+@keyframes nastup {
+  from { opacity: 0; transform: translateY(8px); }
+}
+@keyframes nastup-radku {
+  from { opacity: 0; transform: translateY(4px); }
+}
+@keyframes rust-zleva {
+  from { transform: scaleX(0); }
+}
+
+/* Bloky stránky jeden po druhém. */
+.page-content > * { animation: nastup 420ms cubic-bezier(.2, .7, .2, 1) backwards; }
+.page-content > :nth-child(2) { animation-delay: 40ms; }
+.page-content > :nth-child(3) { animation-delay: 80ms; }
+.page-content > :nth-child(4) { animation-delay: 120ms; }
+.page-content > :nth-child(5) { animation-delay: 160ms; }
+.page-content > :nth-child(n+6) { animation-delay: 200ms; }
+
+/* Dlaždice e-shopů a karty KPI postupně zleva. */
+.eshop-dlazdice-polozka { animation: nastup 460ms cubic-bezier(.2, .7, .2, 1) backwards; animation-delay: calc(var(--i, 0) * 60ms + 40ms); }
+.kpi-grid.nastup > * { animation: nastup 460ms cubic-bezier(.2, .7, .2, 1) backwards; }
+.kpi-grid.nastup > :nth-child(2) { animation-delay: 40ms; }
+.kpi-grid.nastup > :nth-child(3) { animation-delay: 80ms; }
+.kpi-grid.nastup > :nth-child(4) { animation-delay: 120ms; }
+.kpi-grid.nastup > :nth-child(5) { animation-delay: 160ms; }
+.kpi-grid.nastup > :nth-child(6) { animation-delay: 200ms; }
+.kpi-grid.nastup > :nth-child(7) { animation-delay: 240ms; }
+.kpi-grid.nastup > :nth-child(n+8) { animation-delay: 280ms; }
+
+/* Řádky tabulek: prvních patnáct postupně, zbytek naráz (dlouhý seznam nesmí čekat). */
+.data-table tbody tr { animation: nastup-radku 360ms cubic-bezier(.2, .7, .2, 1) backwards; animation-delay: calc(min(var(--i, 0), 15) * 22ms + 120ms); }
+
+/* Podíl na tržbách doroste zleva. */
+.podil-pruh > span { transform-origin: left; animation: rust-zleva 900ms cubic-bezier(.2, .7, .2, 1) backwards; animation-delay: calc(var(--i, 0) * 80ms + 250ms); }
+
+/* ── Pruh načítání ────────────────────────────────────────── */
+/* Než server pošle další stránku, nahoře běží pruh a obsah lehce pobledne
+   (public/js/prehledy.js přidá html.nacitani). */
+.nacitani-pruh {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 1000;
+  height: 3px;
+  pointer-events: none;
+  background: linear-gradient(90deg, var(--seil-cyan), var(--petrol), var(--seil-cyan));
+  background-size: 200% 100%;
+  transform: scaleX(0);
+  transform-origin: left;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+html.nacitani .nacitani-pruh {
+  opacity: 1;
+  animation: nacitani 6s cubic-bezier(.08, .7, .2, 1) forwards, nacitani-lesk 1.2s linear infinite;
+}
+html.nacitani .page-content { opacity: .72; transition: opacity 200ms ease 120ms; }
+
+@keyframes nacitani {
+  0%   { transform: scaleX(0); }
+  8%   { transform: scaleX(.35); }
+  100% { transform: scaleX(.94); }
+}
+@keyframes nacitani-lesk {
+  to { background-position: -200% 0; }
+}
+
+/* ── Omezený pohyb ────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  @view-transition { navigation: none; }
+  .page-content > *,
+  .eshop-dlazdice-polozka,
+  .kpi-grid.nastup > *,
+  .data-table tbody tr,
+  .podil-pruh > span { animation: none; }
+  .eshop-dlazdice-polozka,
+  .eshop-dlazdice-polozka::after { transition: none; }
+  .eshop-dlazdice-polozka:hover { transform: none; }
+  html.nacitani .nacitani-pruh { animation: none; transform: scaleX(.6); }
+}

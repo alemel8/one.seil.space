@@ -11,6 +11,15 @@
       h.setAttribute('data-theme', s.getItem('seil-theme') || 'light');
       if (s.getItem('seil-sidebar') === 'collapsed') h.setAttribute('data-sidebar', 'collapsed');
     } catch (e) {} })();
+    // Přechod mezi stránkami přehledů (public/css/prehledy.css) se přeskočí,
+    // když cílová stránka přechody nemá (detail objednávky) nebo se nestihne
+    // vykreslit. Chrome pak hlásí odmítnutý slib přechodu, ke kterému se skript
+    // nedostane (vznikne dřív než pagereveal) – přeskočení je v pořádku, chyba ne.
+    // Musí stát v hlavičce, dřív než prohlížeč neošetřené odmítnutí ohlásí.
+    window.addEventListener('unhandledrejection', function (e) {
+      var d = e.reason;
+      if (d && d.name === 'AbortError' && /transition was skipped/i.test(d.message || '')) e.preventDefault();
+    });
   </script>
   <title><%= pageTitle ? pageTitle + ' – ' : '' %>One SEIL</title>
   <link rel="icon" href="/static/img/favicon.png">

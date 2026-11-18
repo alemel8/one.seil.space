@@ -146,13 +146,15 @@ describe('seznam objednávek', { skip: PRESKOCIT }, () => {
     assert.ok(html.indexOf(`status=${encodeURIComponent('Přijata')}"`) < html.indexOf(`status=${encodeURIComponent('Vyřízena')}"`), 'chipy jdou v pořadí stavů');
   });
 
-  test('vzhled: Celkem vpravo a česky, stav přes tón, řádek jako skutečný odkaz', async () => {
+  test('vzhled: logo e-shopu první, číslo bez #, Celkem vpravo a česky, stav přes tón, řádek jako skutečný odkaz', async () => {
     const html = await nacti(adresaEshopu());
-    assert.match(html, /<th class="num">Celkem<\/th>/);
-    assert.match(html, /<td class="num">1\s234,50 Kč<\/td>/u);
+    assert.match(html, /<th class="sloupec-logo"><span class="sr-only">E-shop<\/span><\/th>\s*<th>Číslo<\/th>/);
+    assert.match(html, /<th class="num mobil">Celkem<\/th>/);
+    assert.match(html, /<td class="num mobil">1\s234,50 Kč<\/td>/u);
     assert.match(html, /<span class="badge badge-info">Přijata<\/span>/);
     assert.match(html, /<span class="badge badge-ok">Vyřízena<\/span>/);
-    assert.match(html, new RegExp(`<a href="${SEZNAM}/SO-[^"]+" class="radek-odkaz">#\\d+</a>`));
+    assert.match(html, new RegExp(`<a href="${SEZNAM}/SO-[^"]+" class="radek-odkaz">\\d+</a>`));
+    assert.ok(!/class="radek-odkaz">#/.test(html), 'číslo objednávky bez #');
     assert.match(html, new RegExp(`<tr data-href="${SEZNAM}/SO-`));
     assert.ok(!/<tr[^>]*onclick/.test(html));
     assert.ok(!html.includes('?page='), 'odkazy stran skládá jen patička');
@@ -165,7 +167,7 @@ describe('seznam objednávek', { skip: PRESKOCIT }, () => {
     const html = await nacti(`${adresaEshopu()}&q=${r}-nic&page=3`);
     assert.ok(html.includes('Filtru neodpovídá žádná objednávka'));
     assert.ok(!html.includes('class="strankovani"'));
-    assert.match(html, /<td colspan="8">/);
+    assert.match(html, /<td colspan="9">/);
     assert.ok(html.includes(`<a href="${SEZNAM}?eshop=${slug}" class="btn btn-outline btn-sm">Zrušit filtr</a>`));
   });
 
@@ -177,7 +179,7 @@ describe('seznam objednávek', { skip: PRESKOCIT }, () => {
     assert.equal((await req.get(`${SEZNAM}?eshop=%00neexistuje-${r}`)).status, 404);
   });
 
-  describe('Toneráček', () => {
+  describe('Toneráček a celkový přehled', () => {
     const POCET_T = 27;
     const idsT = Array.from({ length: POCET_T }, (_, i) => `SOT-${r}-${String(i).padStart(3, '0')}`);
 
@@ -188,23 +190,51 @@ describe('seznam objednávek', { skip: PRESKOCIT }, () => {
       uklidObjednavky.push(...idsT);
     });
 
-    test('odkazy stran jsou bez parametru eshop, i když ho adresa nese', async () => {
-      for (const adresa of [`${SEZNAM}?q=${r}`, `${SEZNAM}?eshop=toneracek&q=${r}`]) {
-        const html = await nacti(adresa);
-        assert.equal(naStrance(html, idsT).length, 25);
-        assert.deepEqual(parametry(odkazStrany(html, 'next')), { q: r, page: '2' }, adresa);
-        assert.ok(html.includes(`data-seznam="${SEZNAM}?q=${r}"`));
-        assert.ok(!html.includes('name="eshop"'), 'filtr Toneráčku bez skrytého e-shopu');
-      }
-      const druha = await nacti(`${SEZNAM}?q=${r}&page=2`);
+    test('Toneráček jde s parametrem eshop jako každý jiný e-shop', async () => {
+      const html = await nacti(`${SEZNAM}?eshop=toneracek&q=${r}`);
+      assert.equal(naStrance(html, idsT).length, 25);
+      assert.equal(naStrance(html).length, 0, 'objednávky jiného e-shopu v Toneráčku nejsou');
+      assert.deepEqual(parametry(odkazStrany(html, 'next')), { eshop: 'toneracek', q: r, page: '2' });
+      assert.ok(html.includes('<input type="hidden" name="eshop" value="toneracek">'), 'filtr drží e-shop');
+      assert.ok(html.includes(`href="${SEZNAM}?eshop=toneracek&amp;status=`), 'chipy drží e-shop');
+      const druha = await nacti(`${SEZNAM}?eshop=toneracek&q=${r}&page=2`);
       assert.equal(naStrance(druha, idsT).length, POCET_T - 25);
-      assert.equal(odkazStrany(druha, 'prev'), `${SEZNAM}?q=${r}`);
     });
 
-    test('chipy a Zrušit filtr Toneráčku jsou bez parametru eshop', async () => {
+    test('bez parametru celkový přehled: objednávky všech e-shopů, odkazy bez eshop', async () => {
       const html = await nacti(`${SEZNAM}?q=${r}`);
-      assert.ok(html.includes(`href="${SEZNAM}?status=`));
+      assert.ok(html.includes(`${POCET + POCET_T} objednávek odpovídá filtru`));
+      // Novější objednávky (vlastní e-shop) jsou první, Toneráček z roku 2001 až za nimi.
+      assert.equal(naStrance(html).length, 25);
+      assert.deepEqual(parametry(odkazStrany(html, 'next')), { q: r, page: '2' });
+      assert.ok(html.includes(`data-seznam="${SEZNAM}?q=${r}"`));
+      assert.ok(!html.includes('name="eshop"'), 'filtr celkového přehledu bez skrytého e-shopu');
+      assert.ok(html.includes(`href="${SEZNAM}?status=`), 'chipy bez e-shopu');
       assert.ok(html.includes(`<a href="${SEZNAM}" class="btn btn-ghost">Zrušit filtr</a>`));
+      const posledni = await nacti(`${SEZNAM}?q=${r}&page=4`);
+      assert.equal(naStrance(posledni, idsT).length, POCET + POCET_T - 75, 'na konci jsou objednávky Toneráčku');
+      // U každé objednávky logo jejího e-shopu (oba testovací bez loga: iniciála a název v title).
+      assert.ok(posledni.includes(`title="${toneracek.name}"`));
+    });
+
+    test('celkový přehled: stav skladu podle e-shopu každé objednávky', async () => {
+      // Toneráček začal expedici dávno po roce 2001, jeho objednávky do skladu nejdou;
+      // vlastní e-shop od roku 2000, takže dobírky 3 a 5 čekají a 1 je zadržená.
+      const cekaji = await nacti(`${SEZNAM}?q=${r}&sklad=ceka`);
+      assert.deepEqual(naStrance(cekaji).sort(), [ids[3], ids[5]].sort());
+      assert.equal(naStrance(cekaji, idsT).length, 0);
+      const zadrzene = await nacti(`${SEZNAM}?q=${r}&sklad=blokovano`);
+      assert.deepEqual(naStrance(zadrzene), [ids[1]]);
+    });
+
+    test('dlaždice: celkový přehled zvolený, e-shopy s parametrem a počtem objednávek', async () => {
+      const html = await nacti(`${SEZNAM}?q=${r}`);
+      const dlazdice = /<nav class="eshop-dlazdice" aria-label="E-shop">[^]*?<\/nav>/.exec(html)?.[0] ?? '';
+      assert.match(dlazdice, new RegExp(`<a href="${SEZNAM}" class="eshop-dlazdice-polozka"[^>]*aria-current="page"`));
+      assert.ok(dlazdice.includes(`href="${SEZNAM}?eshop=${slug}"`));
+      assert.ok(dlazdice.includes(`href="${SEZNAM}?eshop=toneracek"`));
+      assert.ok(dlazdice.includes(`data-pocitadlo="${POCET}"`), 'počet objednávek vlastního e-shopu');
+      assert.equal((dlazdice.match(/aria-current="page"/g) ?? []).length, 1);
     });
   });
 
@@ -243,7 +273,7 @@ describe('seznam objednávek', { skip: PRESKOCIT }, () => {
     test('klik do řádku otevře detail a Zpět vede na tutéž stránku a filtr', async () => {
       const seznam = `${adresaEshopu()}&q=${r}&page=2`;
       await jdi(seznam);
-      await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle0' }), page.click('tbody tr td:nth-child(2)')]);
+      await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle0' }), page.click('tbody tr td:nth-child(3)')]);
       assert.match(await url(), new RegExp(`^${SEZNAM}/SO-`));
       assert.equal(await page.$eval('a[data-zpet]', a => a.getAttribute('href')), seznam);
     });

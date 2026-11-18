@@ -1361,3 +1361,201 @@ a.strankovani-cislo:hover { background: var(--gray-100); border-color: var(--gra
 }
 [data-theme="dark"] .hledani-napoveda-vse { color: var(--primary); }   /* petrol má na tmavé kartě jen 3,4:1 */
 .hledani-napoveda-prazdno { padding: 14px; text-align: center; color: var(--text-muted); font-size: 13px; }
+
+/* ============================================================
+   Přehledy e-shopů – dlaždice přepínače, logo e-shopu, podíl
+   (objednávky, marketing; views/includes/eshop-dlazdice.ejs,
+   eshop-logo.ejs). Barvu nese --eshop-barva z Nastavení → Eshopy
+   (src/eshop-vzhled.js). Pohyb a přechody stránek: prehledy.css.
+   ============================================================ */
+
+/* ── Logo e-shopu ─────────────────────────────────────────── */
+/* Znak leží na bílé i v tmavém režimu: maskot Toneráčku je černý. */
+.eshop-logo {
+  --velikost: 30px;
+  --eshop-barva: var(--petrol);
+  position: relative;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: var(--velikost);
+  height: var(--velikost);
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  vertical-align: middle;
+}
+.eshop-logo img {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 1px;
+}
+.eshop-logo-iniciala {
+  position: absolute;
+  inset: 0;
+  display: none;
+  place-items: center;
+  background: var(--eshop-barva);
+  color: #fff;
+  font-weight: 700;
+  font-size: calc(var(--velikost) * 0.48);
+  line-height: 1;
+}
+/* Bez loga, nebo když se obrázek nenačte (onerror ho odebere). */
+.eshop-logo:not(:has(img)) .eshop-logo-iniciala { display: grid; }
+.eshop-logo-sm { --velikost: 26px; border-radius: 7px; }
+.eshop-logo-lg { --velikost: 38px; border-radius: 10px; }
+.eshop-logo-vse {
+  border: none;
+  background: linear-gradient(135deg, var(--seil-cyan), var(--petrol));
+  color: var(--deep-space);
+}
+.eshop-logo-vse svg { width: 58%; height: 58%; }
+.loga-eshopu { display: inline-flex; gap: 4px; }
+
+/* ── Dlaždice přepínače ───────────────────────────────────── */
+.eshop-dlazdice {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.eshop-dlazdice-polozka {
+  --eshop-barva: var(--petrol);
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
+  text-decoration: none;
+  overflow: hidden;
+  box-shadow: var(--shadow-xs);
+  transition: transform 240ms cubic-bezier(.2, .7, .2, 1), box-shadow 240ms ease, border-color 240ms ease;
+}
+/* Závoj v barvě e-shopu z pravého horního rohu; zesílí při najetí a u zvolené. */
+.eshop-dlazdice-polozka::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(130% 100% at 100% 0%, color-mix(in srgb, var(--eshop-barva) 16%, transparent), transparent 62%);
+  opacity: .45;
+  transition: opacity 240ms ease;
+}
+/* Pruh nahoře: při najetí kousek, u zvolené přes celou šířku. */
+.eshop-dlazdice-polozka::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--eshop-barva);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 360ms cubic-bezier(.2, .7, .2, 1);
+}
+.eshop-dlazdice-polozka:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: color-mix(in srgb, var(--eshop-barva) 45%, var(--border));
+}
+.eshop-dlazdice-polozka:hover::before { opacity: 1; }
+.eshop-dlazdice-polozka:hover::after { transform: scaleX(.3); }
+.eshop-dlazdice-polozka:active { transform: translateY(0) scale(.985); transition-duration: 80ms; }
+.eshop-dlazdice-polozka:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.eshop-dlazdice-polozka[aria-current="page"] {
+  border-color: var(--eshop-barva);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--eshop-barva) 20%, transparent), var(--shadow-sm);
+}
+.eshop-dlazdice-polozka[aria-current="page"]::before { opacity: 1; }
+.eshop-dlazdice-polozka[aria-current="page"]::after { transform: scaleX(1); }
+
+.eshop-dlazdice-hlava { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.eshop-dlazdice-nazev {
+  font-weight: 600;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eshop-dlazdice-hodnota {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.eshop-dlazdice-popis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.eshop-dlazdice-znacka { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.eshop-dlazdice-znacka + .eshop-dlazdice-znacka::before {
+  content: '';
+  width: 3px; height: 3px;
+  margin-left: -6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: .6;
+}
+.eshop-dlazdice-znacka.ton-ok { color: var(--ton-ok-text); font-weight: 600; }
+.eshop-dlazdice-znacka.ton-varovani { color: var(--ton-varovani-text); font-weight: 600; }
+.eshop-dlazdice-znacka.ton-chyba { color: var(--ton-chyba-text); font-weight: 600; }
+
+/* ── Tabulky přehledů: logo v prvním sloupci ──────────────── */
+.data-table .sloupec-logo { width: 1%; padding-right: 0; }
+.data-table tbody tr.radek-eshopu > td:first-child { transition: box-shadow var(--transition-base); }
+.data-table tbody tr.radek-eshopu:hover > td:first-child { box-shadow: inset 3px 0 0 var(--eshop-barva, var(--petrol)); }
+.data-table tbody tr.radek-eshopu:hover .eshop-logo { transform: scale(1.08); }
+.data-table .eshop-logo { transition: transform var(--transition-base); }
+.data-table tfoot td {
+  padding: 11px 16px;
+  border-top: 1px solid var(--border-strong);
+  background: var(--gray-50);
+  font-weight: 700;
+}
+[data-theme="dark"] .data-table tfoot td { background: var(--sidebar-hover); }
+
+/* ── Podíl na celku (pruh + číslo) ────────────────────────── */
+.podil { display: flex; align-items: center; gap: 10px; min-width: 140px; }
+.podil-pruh {
+  flex: 1;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--gray-100);
+  overflow: hidden;
+}
+.podil-pruh > span {
+  display: block;
+  width: var(--podil, 0%);
+  height: 100%;
+  border-radius: inherit;
+  background: var(--eshop-barva, var(--petrol));
+}
+.podil-cislo { font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); min-width: 38px; text-align: right; }
+
+/* ── Období nad přehledem a upozornění e-shopů ────────────── */
+.obdobi-lista { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 20px; }
+.upozorneni-eshopu summary { cursor: pointer; }
+.upozorneni-eshopu ul { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.upozorneni-eshopu li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+@media (max-width: 768px) {
+  .eshop-dlazdice { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .eshop-dlazdice-polozka { padding: 12px; gap: 6px; }
+  .eshop-dlazdice-hodnota { font-size: 18px; }
+  .eshop-logo-lg { --velikost: 32px; }
+}
+.eshop-dlazdice-jednotka { font-size: 12.5px; font-weight: 500; letter-spacing: 0; color: var(--text-muted); }

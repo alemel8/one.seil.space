@@ -301,8 +301,22 @@ export class ExpediceBeziError extends Error {
 export function podminkaKExpedici(sql, shop) {
   // DATE sloupec z pg přijde jako Date; do dotazu patří „YYYY-MM-DD“, ať se nekonvertuje přes pásmo.
   const od = jenDatum(shop.warehouse_dispatch_since) ?? '1970-01-01';
+  return podminka(sql, shop.id, od);
+}
+
+/**
+ * Tatáž podmínka pro všechny e-shopy naráz (celkový přehled objednávek):
+ * e-shop a začátek expedice se berou z připojené tabulky `s` (shops), ne
+ * z jednoho e-shopu předem. Ranní běh ji nepoužívá, ten jede vždy po e-shopu.
+ */
+function podminkaKExpediciVsech(sql) {
+  return podminka(sql, sql`s.id`, sql`COALESCE(s.warehouse_dispatch_since, DATE '1970-01-01')`);
+}
+
+/** Jádro obou podmínek; `shopId` i `od` jsou hodnota, nebo fragment SQL. */
+function podminka(sql, shopId, od) {
   return sql`
-        o.shop_id = ${shop.id}
+        o.shop_id = ${shopId}
     AND o.warehouse_sent_at IS NULL
     AND o.created_at >= (${od}::date::timestamp AT TIME ZONE 'Europe/Prague')
     AND o.status NOT IN ('Stornována', 'Čeká na platbu', 'Platba se nezdařila')
@@ -315,25 +329,47 @@ export function podminkaKExpedici(sql, shop) {
 
 /** Stav pro sloupec „Sklad“ v administraci. Staví na téže podmínce jako e-mail. */
 export function skladStavSql(sql, shop) {
+  return stavZPodminky(sql, podminkaKExpedici(sql, shop));
+}
+
+function stavZPodminky(sql, kExpedici) {
   return sql`CASE
       WHEN o.warehouse_sent_at IS NOT NULL THEN 'odeslano'
-      WHEN o.warehouse_hold_reason <> '' AND (${podminkaKExpedici(sql, shop)}) THEN 'blokovano'
-      WHEN (${podminkaKExpedici(sql, shop)}) THEN 'ceka'
+      WHEN o.warehouse_hold_reason <> '' AND (${kExpedici}) THEN 'blokovano'
+      WHEN (${kExpedici}) THEN 'ceka'
       ELSE 'neplati'
     END`;
 }
+
+/** Poslední zálohová faktura objednávky (alias `p`), z ní se pozná zaplacený převod. */
+const posledniZalohova = (sql) => sql`
+    LEFT JOIN LATERAL (
+      SELECT status FROM accounting_invoices
+      WHERE order_id = o.id AND type = 'proforma'
+      ORDER BY (status = 'Zaplacena') DESC, created_at DESC
+      LIMIT 1
+    ) p ON TRUE`;
 
 /** Poddotaz nad shop_orders obohacený o `sklad_stav`. `where` si dodá volající (aliasy `o` a `p`). */
 export function objednavkySeStavemSkladu(sql, shop, where) {
   return sql`
     SELECT o.*, ${skladStavSql(sql, shop)} AS sklad_stav
     FROM shop_orders o
-    LEFT JOIN LATERAL (
-      SELECT status FROM accounting_invoices
-      WHERE order_id = o.id AND type = 'proforma'
-      ORDER BY (status = 'Zaplacena') DESC, created_at DESC
-      LIMIT 1
-    ) p ON TRUE
+    ${posledniZalohova(sql)}
+    ${where}`;
+}
+
+/**
+ * Totéž přes všechny e-shopy (celkový přehled objednávek). Stav skladu
+ * počítá každé objednávce podle jejího e-shopu; `where` může sahat
+ * i na alias `s` (shops).
+ */
+export function objednavkyVsechEshopuSeStavemSkladu(sql, where) {
+  return sql`
+    SELECT o.*, ${stavZPodminky(sql, podminkaKExpediciVsech(sql))} AS sklad_stav
+    FROM shop_orders o
+    JOIN shops s ON s.id = o.shop_id
+    ${posledniZalohova(sql)}
     ${where}`;
 }
 
@@ -569,8 +605,9 @@ async function oznamPozastavene(sql, pozastavene, log, shop) {
       ? `Expedice do skladu (${shop.name}): zadržené objednávky`
       : 'Expedice do skladu: zadržené objednávky',
     body: vypis + (nove.length > 5 ? ` a dalších ${nove.length - 5}` : ''),
+    // E-shop jde do adresy vždy: seznam bez parametru je celkový přehled.
     url: '/ucetnictvi/objednavky?sklad=blokovano'
-      + (jinyEshop ? `&eshop=${encodeURIComponent(shop.slug)}` : ''),
+      + (shop ? `&eshop=${encodeURIComponent(shop.slug)}` : ''),
   }, 'expedice').catch(err => log?.warn?.({ err }, 'Push o zadržených objednávkách neodešel'));
 }
 

@@ -1,0 +1,22 @@
+<%#
+  Logo e-shopu: znak z Nastavení → Eshopy (shops.logo_mark_url) na světlém
+  podkladu, ať je černý maskot vidět i v tmavém režimu. Bez loga, nebo když
+  se obrázek nenačte, ukáže iniciálu v barvě e-shopu. Bez e-shopu (null) je
+  to ikona celkového přehledu.
+
+    include('../../includes/eshop-logo', { eshop, velikost: 'sm' })
+
+  eshop     řádek e-shopu prošlý sVzhledem() (src/eshop-vzhled.js), nebo null
+  velikost  'sm' (tabulka), 'md' (výchozí), 'lg' (dlaždice)
+  dekorace  true, když je název e-shopu hned vedle: čtečka ho pak nečte dvakrát
+
+  Řídicí značky mají na konci pomlčku (ořez řádku), ať include nepřidává
+  do buňky prázdné řádky.
+-%>
+<% const tridaVelikosti = typeof velikost === 'string' && ['sm', 'lg'].includes(velikost) ? ' eshop-logo-' + velikost : ''; -%>
+<% const jenDekorace = typeof dekorace !== 'undefined' && dekorace === true; -%>
+<% if (!eshop) { -%>
+<span class="eshop-logo eshop-logo-vse<%= tridaVelikosti %>" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg></span>
+<% } else { -%>
+<span class="eshop-logo<%= tridaVelikosti %>" style="--eshop-barva:<%= eshop.barva %>;" title="<%= eshop.name %>"><span class="eshop-logo-iniciala" aria-hidden="true"><%= eshop.iniciala %></span><% if (eshop.logo) { %><img src="<%= eshop.logo %>" alt="<%= jenDekorace ? '' : eshop.name %>" width="40" height="40" decoding="async" onerror="this.remove()"><% } else if (!jenDekorace) { %><span class="sr-only"><%= eshop.name %></span><% } %></span>
+<% } -%>

@@ -19,7 +19,7 @@ balíku, zákaznické účty, adresa skladu.
 | Klíč | `TONERACEK_API_KEY` v prostředí One SEIL | řádek v `eshop_api_keys` (jen SHA-256 otisk), určuje e-shop |
 | Zákaznické účty | `crm_contacts` (`is_registered`, `notes` = záložní hash hesla) | `crm_contact_shops` – po e-shopech |
 | Tajemství pro `podat-balik` | globální `SHOP_WEBHOOK_SECRET`, jen z prostředí (v administraci se nenastavuje) | jen vlastní `shops.webhook_secret`; bez něj se balík nepodá – globální patří Toneráčku a jinam se neposílá |
-| Seznam objednávek | `/ucetnictvi/objednavky` | `/ucetnictvi/objednavky?eshop=<slug>` |
+| Seznam objednávek | `/ucetnictvi/objednavky?eshop=toneracek` | `/ucetnictvi/objednavky?eshop=<slug>`; bez parametru celkový přehled všech e-shopů |
 
 Kontakt v CRM je jeden na e-mail pro všechny e-shopy. Zákazník Toneráčku se
 na Dílně registruje zvlášť, vlastním heslem; heslo z Dílny Toneráček neotevře

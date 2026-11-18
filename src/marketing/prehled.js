@@ -206,3 +206,85 @@ export function sestavPrehled({
     varovani,
   };
 }
+
+/**
+ * Celkový přehled přes všechny e-shopy: součet hotových přehledů
+ * jednotlivých e-shopů (sestavPrehled), nic se nepočítá znovu z databáze.
+ * Vstup je pole `{ shop, prehled }` ve stejném období; `shop.barva` (viz
+ * src/eshop-vzhled.js) obarví e-shop v grafu.
+ *
+ * PNO, ROAS a cena za objednávku jdou ze součtů, ne z průměru procent –
+ * malý e-shop s vysokým PNO by jinak celkové číslo přetáhl.
+ *
+ * Zisk po reklamě a ROI se počítají jen nad e-shopy, které marži znají:
+ * náklady e-shopu bez marže by zisk stáhly bez protiváhy. Kdo v součtu
+ * chybí, nese `marze.bezMarze` (názvy e-shopů).
+ */
+export function sestavCelkovyPrehled(eshopy = []) {
+  const prehledy = eshopy.map(e => e.prehled);
+  const trzbyBezDph = zaokrouhli2(prehledy.reduce((s, p) => s + p.trzby.bezDph, 0));
+  const pocet = prehledy.reduce((s, p) => s + p.trzby.pocet, 0);
+  const zaplacenoBezDph = zaokrouhli2(prehledy.reduce((s, p) => s + p.trzby.zaplacenoBezDph, 0));
+  const naklady = {
+    celkem: zaokrouhli2(prehledy.reduce((s, p) => s + p.naklady.celkem, 0)),
+    api: zaokrouhli2(prehledy.reduce((s, p) => s + p.naklady.api, 0)),
+    rucni: zaokrouhli2(prehledy.reduce((s, p) => s + p.naklady.rucni, 0)),
+  };
+
+  const sMarzi = eshopy.filter(e => e.prehled.marze.maMarzi);
+  const marze = sMarzi.length ? zaokrouhli2(sMarzi.reduce((s, e) => s + e.prehled.marze.marze, 0)) : null;
+  const nakladySMarzi = sMarzi.reduce((s, e) => s + e.prehled.naklady.celkem, 0);
+  const kpi = spoctiKpi({ trzbyBezDph, pocetObjednavek: pocet, naklady: naklady.celkem });
+  kpi.zisk = marze == null ? null : zaokrouhli2(marze - nakladySMarzi);
+  kpi.roi = kpi.zisk == null || !(nakladySMarzi > 0) ? null : zaokrouhli2(kpi.zisk / nakladySMarzi * 100);
+
+  // Náklady po platformách: součet a e-shopy, které na platformě utrácely
+  const platformy = new Map();
+  for (const { shop, prehled } of eshopy) {
+    for (const r of prehled.naklady.radky) {
+      const z = platformy.get(r.platform) ?? { platform: r.platform, popis: r.popis, api: 0, rucni: 0, celkem: 0, eshopy: [] };
+      z.api += r.api; z.rucni += r.rucni; z.celkem += r.celkem;
+      z.eshopy.push({ shop, celkem: r.celkem });
+      platformy.set(r.platform, z);
+    }
+  }
+  naklady.radky = [...platformy.values()]
+    .map(z => ({ ...z, api: zaokrouhli2(z.api), rucni: zaokrouhli2(z.rucni), celkem: zaokrouhli2(z.celkem) }))
+    .sort((a, b) => b.celkem - a.celkem);
+
+  // Graf: období je u všech e-shopů stejné, dny tedy taky
+  const dny = prehledy[0]?.graf.dny ?? [];
+  const soucetDne = (klic) => dny.map((_, i) => zaokrouhli2(prehledy.reduce((s, p) => s + (p.graf[klic][i] ?? 0), 0)));
+  const trzbyDny = soucetDne('trzby');
+  const nakladyDny = soucetDne('naklady');
+  const graf = {
+    dny,
+    popisky: prehledy[0]?.graf.popisky ?? [],
+    trzby: trzbyDny,
+    naklady: nakladyDny,
+    pno: dny.map((_, i) => (trzbyDny[i] > 0 ? zaokrouhli2(nakladyDny[i] / trzbyDny[i] * 100) : null)),
+    eshopy: eshopy.map(({ shop, prehled }) => ({ nazev: shop.name, barva: shop.barva ?? null, trzby: prehled.graf.trzby })),
+  };
+
+  const radky = eshopy.map(({ shop, prehled }) => ({
+    shop,
+    pocet: prehled.trzby.pocet,
+    trzbyBezDph: prehled.trzby.bezDph,
+    naklady: prehled.naklady.celkem,
+    pno: prehled.kpi.pno,
+    roas: prehled.kpi.roas,
+    zisk: prehled.marze.maMarzi ? prehled.kpi.zisk : null,
+    pnoPrekrocen: prehled.pnoPrekrocen,
+    podil: trzbyBezDph > 0 ? zaokrouhli2(prehled.trzby.bezDph / trzbyBezDph * 100) : 0,
+  }));
+
+  return {
+    trzby: { bezDph: trzbyBezDph, pocet, zaplacenoBezDph },
+    naklady,
+    marze: { marze, maMarzi: marze != null, bezMarze: eshopy.filter(e => !e.prehled.marze.maMarzi).map(e => e.shop.name) },
+    kpi,
+    graf,
+    eshopy: radky,
+    varovani: eshopy.flatMap(({ shop, prehled }) => prehled.varovani.map(v => ({ ...v, eshop: shop.name, shop }))),
+  };
+}

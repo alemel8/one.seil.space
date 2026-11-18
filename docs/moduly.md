@@ -495,7 +495,7 @@ Typy firem: Zákazník, Dodavatel, Partner, Jiný. Každý kontakt může mít m
 | `PATCH /api/toneracek/orders/:id/payment-method` | Změna způsobu platby po neúspěšné kartě |
 | `GET /api/toneracek/orders/:id/payment-details` | Variabilní symbol, účet a zálohová faktura pro e-shop |
 | `PATCH /api/toneracek/orders/:id/tracking` | Aktualizace tracking čísla |
-| `GET /ucetnictvi/objednavky` | Seznam objednávek Toneráček |
+| `GET /ucetnictvi/objednavky` | Seznam objednávek: bez parametru celkový přehled všech e-shopů (logo e-shopu v prvním sloupci), `?eshop=<slug>` jeden e-shop; nahoře dlaždice e-shopů |
 | `GET /ucetnictvi/objednavky/:id` | Detail objednávky |
 | `POST /ucetnictvi/objednavky/:id/stav` | Změna stavu + automatická faktura |
 | `POST /ucetnictvi/objednavky/:id/poznamka` | Přidat poznámku |
@@ -572,7 +572,13 @@ Přehled účinnosti reklamy po e-shopech: tržby bez DPH z vlastních objednáv
 PNO, ROAS, cena za objednávku, marže a zisk po reklamě, kanály podle zdroje
 objednávky, cesta zákazníka z GA4, organika ze Search Console, stav položek
 v Merchant Center a statistiky e-shopu (hledání bez výsledku, opuštěné košíky).
-Všechno per e-shop (`?eshop=<slug>`, výchozí Toneráček), nikdy se nemíchá.
+Data se počítají po e-shopech (`?eshop=<slug>`) a v jednom dotazu se nemíchají.
+Přehled bez parametru je celkový: součet hotových přehledů všech aktivních
+e-shopů (`sestavCelkovyPrehled` v `src/marketing/prehled.js` – PNO, ROAS a cena
+za objednávku ze součtů, zisk po reklamě jen nad e-shopy se známou marží),
+tabulka e-shopů s logem a graf s tržbami e-shopů nad sebou. Ruční náklady
+a synchronizace jsou vždy jednoho e-shopu, bez parametru Toneráčku.
+Nad přehledem je dlaždicový přepínač (`views/includes/eshop-dlazdice.ejs`).
 
 | Route | Popis |
 |---|---|
@@ -960,6 +966,15 @@ Pruh je jediný `views/includes/zalozky.ejs`, klíč ověřuje `zalozka()` ze `s
 
 Kde záložky jsou: detail e-shopu, Nastavení firmy, Můj profil (Osobní údaje, Heslo, Notifikace; `/nastaveni` přesměruje na Notifikace), Healthchecky (Sledované aplikace, Notifikace), detail firmy, kontaktu, projektu a člena, přehled marketingu (`?tab=prehled|kanaly|vyhledavani`, jen ke čtení), upomínky podle stavu (`?status=ceka|odeslana|zrusena|vse`), vydané a zálohové faktury (`?typ=zalohove`).
 Vědomě bez záložek: faktura, účtenka, objednávka, úkol, mzda a podklad, kde je potřeba vidět údaje současně, a přístupová matice.
+
+### Přehledy e-shopů (dlaždice, logo, pohyb)
+
+Objednávky a marketing mají nahoře dlaždicový přepínač `views/includes/eshop-dlazdice.ejs`: první dlaždice je celkový přehled (adresa bez `?eshop=`), další e-shopy s parametrem, i Toneráček. Stránky jednoho e-shopu (ruční náklady, synchronizace) berou tytéž dlaždice bez celkového přehledu přes `views/includes/eshop-prepinac.ejs`.
+
+- Logo e-shopu je `views/includes/eshop-logo.ejs`: znak z `shops.logo_mark_url` na bílém podkladu, bez loga nebo při chybě načtení iniciála v `shops.color_primary`. Obě hodnoty projdou `sVzhledem()` ze `src/eshop-vzhled.js` (barva jen hex, logo jen http(s)), teprve pak jdou do šablony.
+- V tabulkách přehledů je logo vždy první sloupec (`.sloupec-logo`), řádek nese `--eshop-barva` pro proužek při najetí.
+- Pohyb je v `public/css/prehledy.css` a `public/js/prehledy.js`, načítají se jen na těchto stránkách (`extraCss`, `extraJs`): nástup bloků a řádků, čísla s `data-pocitadlo` se dopočítají nahoru, pruh načítání při přechodu a přechod mezi stránkami (`@view-transition`). Animace mají jen `fill-mode: backwards`, po doběhnutí na prvku nic nezůstane. S `prefers-reduced-motion` se nic nehýbe.
+- Odmítnutý slib přeskočeného přechodu tiší posluchač `pagereveal` v hlavičce `views/layouts/base.ejs`; jinde by přišel pozdě.
 
 ### Režim úprav na detailech („tužka → Uložit“)
 

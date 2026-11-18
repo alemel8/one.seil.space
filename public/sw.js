@@ -17,7 +17,9 @@
 // v12: filtr dokladů s obdobím (app.js, components.css)
 // v14: přepočet cizích měn v přehledech, varování pod částkou (components.css);
 //      podle verze je zvenku vidět nasazení migrace 049
-const CACHE_NAME = 'one-seil-v14';
+// v15: celkový přehled objednávek a marketingu, dlaždice e-shopů, pohyb
+//      (components.css, prehledy.css, prehledy.js, marketing.js)
+const CACHE_NAME = 'one-seil-v15';
 
 // Při instalaci – předcache jen statické assets
 self.addEventListener('install', event => {
